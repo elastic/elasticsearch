@@ -86,41 +86,26 @@ teardown:
         ignore: 404
 
 ---
-"Index data and search on the mixed cluster":
+"ES|QL cross-cluster query fails with basic license":
   - skip:
       features: allowed_warnings
 
   - do:
-      allowed_warnings:
-        - "Line 1:21: Square brackets '[]' need to be removed in FROM METADATA declaration"
+      catch: bad_request
       headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       esql.query:
         body:
           query: 'FROM *:esql*,esql_* | STATS total = sum(cost) by tag | SORT tag | LIMIT 10'
 
-  - match: {columns.0.name: "total"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "tag"}
-  - match: {columns.1.type: "keyword"}
-
-  - match: {values.0.0: 2200}
-  - match: {values.0.1: "computer"}
-  - match: {values.1.0: 170}
-  - match: {values.1.1: "headphone"}
-  - match: {values.2.0: 2100 }
-  - match: {values.2.1: "laptop" }
-  - match: {values.3.0: 1000 }
-  - match: {values.3.1: "monitor" }
-  - match: {values.4.0: 550 }
-  - match: {values.4.1: "tablet" }
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: active basic license" }
 
   - do:
-      allowed_warnings:
-        - "Line 1:21: Square brackets '[]' need to be removed in FROM METADATA declaration"
+      catch: bad_request
       headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       esql.query:
         body:
-          query: 'FROM *:esql*,esql_* [METADATA _index] | sort cost | KEEP _index, tag, cost | LIMIT 10'
+          query: 'FROM *:esql*,esql_* METADATA _index | sort cost | KEEP _index, tag, cost | LIMIT 10'
           filter:
             range:
               since:
@@ -128,28 +113,11 @@ teardown:
                 lte: "2023-01-03"
                 format: "yyyy-MM-dd"
 
-  - match: {columns.0.name: "_index"}
-  - match: {columns.0.type: "keyword"}
-  - match: {columns.1.name: "tag"}
-  - match: {columns.1.type: "keyword"}
-  - match: {columns.2.name: "cost" }
-  - match: {columns.2.type: "long" }
-
-  - match: {values.0.0: "esql_local"}
-  - match: {values.0.1: "monitor"}
-  - match: {values.0.2: 250 }
-  - match: {values.1.0: "my_remote_cluster:esql_index" }
-  - match: {values.1.1: "tablet"}
-  - match: {values.1.2: 450 }
-  - match: {values.2.0: "my_remote_cluster:esql_index" }
-  - match: {values.2.1: "computer" }
-  - match: {values.2.2: 1200 }
-  - match: {values.3.0: "esql_local"}
-  - match: {values.3.1: "laptop" }
-  - match: {values.3.2: 2100 }
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: active basic license" }
 
 ---
-"Enrich across clusters":
+"ES|QL enrich query across clusters fails with basic license":
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: "Enrich across clusters available in 8.13 or later"
@@ -194,27 +162,14 @@ teardown:
         index: suggestions
 
   - do:
+      catch: bad_request
       headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       esql.query:
         body:
           query: 'FROM *:esql*,esql_* | STATS total = sum(cost) by tag | SORT total DESC | LIMIT 3 | ENRICH suggestions | KEEP tag, total, phrase'
 
-  - match: {columns.0.name: "tag"}
-  - match: {columns.0.type: "keyword"}
-  - match: {columns.1.name: "total" }
-  - match: {columns.1.type: "long" }
-  - match: {columns.2.name: "phrase" }
-  - match: {columns.2.type: "keyword" }
-
-  - match: {values.0.0: "computer"}
-  - match: {values.0.1: 2200}
-  - match: {values.0.2: "best desktop for programming"}
-  - match: {values.1.0: "laptop"}
-  - match: {values.1.1: 2100 }
-  - match: {values.1.2: "the best battery life laptop"}
-  - match: {values.2.0: "monitor" }
-  - match: {values.2.1: 1000 }
-  - match: {values.2.2: "4k or 5k or 6K monitor?" }
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: active basic license" }
 
   - do:
       enrich.delete_policy:

@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -29,7 +30,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.DISABLED;
+import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.STORED;
+import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingStats> {
 
@@ -98,7 +107,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
-        assertThat(metadata.getMappingsByHash(), Matchers.aMapWithSize(1));
+        assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(1));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         assertEquals("""
             {
@@ -203,7 +212,10 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                     "doc_max" : 0,
                     "doc_total" : 0
                   }
-                ]
+                ],
+                "source_modes" : {
+                  "stored" : 2
+                }
               }
             }""", Strings.toString(mappingStats, true, true));
     }
@@ -227,7 +239,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
-        assertThat(metadata.getMappingsByHash(), Matchers.aMapWithSize(2));
+        assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(2));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         assertEquals("""
             {
@@ -332,7 +344,10 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                     "doc_max" : 0,
                     "doc_total" : 0
                   }
-                ]
+                ],
+                "source_modes" : {
+                  "stored" : 3
+                }
               }
             }""", Strings.toString(mappingStats, true, true));
     }
@@ -362,7 +377,24 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         if (randomBoolean()) {
             runtimeFieldStats.add(randomRuntimeFieldStats("long"));
         }
-        return new MappingStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), stats, runtimeFieldStats);
+        Map<String, Integer> sourceModeUsageCount = randomBoolean()
+            ? Map.of()
+            : Map.of(
+                STORED.toString().toLowerCase(Locale.ENGLISH),
+                randomNonNegativeInt(),
+                SYNTHETIC.toString().toLowerCase(Locale.ENGLISH),
+                randomNonNegativeInt(),
+                DISABLED.toString().toLowerCase(Locale.ENGLISH),
+                randomNonNegativeInt()
+            );
+        return new MappingStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            stats,
+            runtimeFieldStats,
+            sourceModeUsageCount
+        );
     }
 
     private static FieldStats randomFieldStats(String type) {
@@ -410,7 +442,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         long totalFieldCount = instance.getTotalFieldCount().getAsLong();
         long totalDeduplicatedFieldCount = instance.getTotalDeduplicatedFieldCount().getAsLong();
         long totalMappingSizeBytes = instance.getTotalMappingSizeBytes().getAsLong();
-        switch (between(1, 5)) {
+        var sourceModeUsageCount = new HashMap<>(instance.getSourceModeUsageCount());
+        switch (between(1, 6)) {
             case 1 -> {
                 boolean remove = fieldTypes.size() > 0 && randomBoolean();
                 if (remove) {
@@ -435,8 +468,22 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
             case 3 -> totalFieldCount = randomValueOtherThan(totalFieldCount, ESTestCase::randomNonNegativeLong);
             case 4 -> totalDeduplicatedFieldCount = randomValueOtherThan(totalDeduplicatedFieldCount, ESTestCase::randomNonNegativeLong);
             case 5 -> totalMappingSizeBytes = randomValueOtherThan(totalMappingSizeBytes, ESTestCase::randomNonNegativeLong);
+            case 6 -> {
+                if (sourceModeUsageCount.isEmpty() == false) {
+                    sourceModeUsageCount.remove(sourceModeUsageCount.keySet().stream().findFirst().get());
+                } else {
+                    sourceModeUsageCount.put("stored", randomNonNegativeInt());
+                }
+            }
         }
-        return new MappingStats(totalFieldCount, totalDeduplicatedFieldCount, totalMappingSizeBytes, fieldTypes, runtimeFieldTypes);
+        return new MappingStats(
+            totalFieldCount,
+            totalDeduplicatedFieldCount,
+            totalMappingSizeBytes,
+            fieldTypes,
+            runtimeFieldTypes,
+            sourceModeUsageCount
+        );
     }
 
     public void testDenseVectorType() {
@@ -531,4 +578,39 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
         assertEquals(instance.getRuntimeFieldStats(), deserialized.getRuntimeFieldStats());
     }
+
+    public void testSourceModes() {
+        var builder = Metadata.builder();
+        int numStoredIndices = randomIntBetween(1, 5);
+        int numSyntheticIndices = randomIntBetween(1, 5);
+        int numDisabledIndices = randomIntBetween(1, 5);
+        for (int i = 0; i < numSyntheticIndices; i++) {
+            IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo-synthetic-" + i).settings(
+                indexSettings(IndexVersion.current(), 4, 1).put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            );
+            builder.put(indexMetadata);
+        }
+        for (int i = 0; i < numStoredIndices; i++) {
+            IndexMetadata.Builder indexMetadata;
+            if (randomBoolean()) {
+                indexMetadata = new IndexMetadata.Builder("foo-stored-" + i).settings(
+                    indexSettings(IndexVersion.current(), 4, 1).put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored")
+                );
+            } else {
+                indexMetadata = new IndexMetadata.Builder("foo-stored-" + i).settings(indexSettings(IndexVersion.current(), 4, 1));
+            }
+            builder.put(indexMetadata);
+        }
+        for (int i = 0; i < numDisabledIndices; i++) {
+            IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo-disabled-" + i).settings(
+                indexSettings(IndexVersion.current(), 4, 1).put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "disabled")
+            );
+            builder.put(indexMetadata);
+        }
+        var mappingStats = MappingStats.of(builder.build(), () -> {});
+        assertThat(mappingStats.getSourceModeUsageCount().get("synthetic"), equalTo(numSyntheticIndices));
+        assertThat(mappingStats.getSourceModeUsageCount().get("stored"), equalTo(numStoredIndices));
+        assertThat(mappingStats.getSourceModeUsageCount().get("disabled"), equalTo(numDisabledIndices));
+    }
+
 }

@@ -27,6 +27,8 @@ public record TransportActionStats(
     long[] responseSizeHistogram
 ) implements Writeable, ToXContentObject {
 
+    public static final TransportActionStats EMPTY = new TransportActionStats(0, 0, new long[0], 0, 0, new long[0]);
+
     public TransportActionStats(StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong(), in.readVLongArray(), in.readVLong(), in.readVLong(), in.readVLongArray());
     }

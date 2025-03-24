@@ -102,7 +102,6 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
                 .setDescription("Contains data for Logstash Central Management")
                 .setMappings(getIndexMappings())
                 .setSettings(getIndexSettings())
-                .setVersionMetaKey("logstash-version")
                 .setOrigin(LOGSTASH_MANAGEMENT_ORIGIN)
                 .build()
         );

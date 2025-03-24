@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -180,7 +180,7 @@ public interface Role {
     IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
-        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        ProjectMetadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     );
 
@@ -252,7 +252,19 @@ public interface Role {
         }
 
         public Builder add(IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermissionGroupDefinition(privilege, FieldPermissions.DEFAULT, null, false, indices));
+            return add(FieldPermissions.DEFAULT, null, privilege, false, indices);
+        }
+
+        public Builder add(
+            FieldPermissions fieldPermissions,
+            Set<BytesReference> query,
+            Set<IndexPrivilege> privilegesSplitBySelector,
+            boolean allowRestrictedIndices,
+            String... indices
+        ) {
+            for (var indexPrivilege : privilegesSplitBySelector) {
+                add(fieldPermissions, query, indexPrivilege, allowRestrictedIndices, indices);
+            }
             return this;
         }
 
@@ -264,6 +276,20 @@ public interface Role {
             String... indices
         ) {
             groups.add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
+            return this;
+        }
+
+        public Builder addRemoteIndicesGroup(
+            final Set<String> remoteClusterAliases,
+            final FieldPermissions fieldPermissions,
+            final Set<BytesReference> query,
+            final Set<IndexPrivilege> privilegesSplitBySelector,
+            final boolean allowRestrictedIndices,
+            final String... indices
+        ) {
+            for (var indexPrivilege : privilegesSplitBySelector) {
+                addRemoteIndicesGroup(remoteClusterAliases, fieldPermissions, query, indexPrivilege, allowRestrictedIndices, indices);
+            }
             return this;
         }
 
@@ -283,7 +309,7 @@ public interface Role {
         public Builder addRemoteClusterPermissions(RemoteClusterPermissions remoteClusterPermissions) {
             Objects.requireNonNull(remoteClusterPermissions, "remoteClusterPermissions must not be null");
             assert this.remoteClusterPermissions == null : "addRemoteClusterPermissions should only be called once";
-            if (remoteClusterPermissions.hasPrivileges()) {
+            if (remoteClusterPermissions.hasAnyPrivileges()) {
                 remoteClusterPermissions.validate();
             }
             this.remoteClusterPermissions = remoteClusterPermissions;
@@ -411,7 +437,7 @@ public interface Role {
                     new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
                 ),
                 indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
-                IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
+                IndexPrivilege.resolveBySelectorAccess(Set.of(indexPrivilege.getPrivileges())),
                 indexPrivilege.allowRestrictedIndices(),
                 indexPrivilege.getIndices()
             );
@@ -428,7 +454,7 @@ public interface Role {
                     new FieldPermissionsDefinition(indicesPrivileges.getGrantedFields(), indicesPrivileges.getDeniedFields())
                 ),
                 indicesPrivileges.getQuery() == null ? null : Collections.singleton(indicesPrivileges.getQuery()),
-                IndexPrivilege.get(Set.of(indicesPrivileges.getPrivileges())),
+                IndexPrivilege.resolveBySelectorAccess(Set.of(indicesPrivileges.getPrivileges())),
                 indicesPrivileges.allowRestrictedIndices(),
                 indicesPrivileges.getIndices()
             );

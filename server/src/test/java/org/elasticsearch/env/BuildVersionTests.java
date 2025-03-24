@@ -42,4 +42,18 @@ public class BuildVersionTests extends ESTestCase {
         assertFalse(afterMinCompat.isFutureVersion());
         assertTrue(futureVersion.isFutureVersion());
     }
+
+    public void testMinimumCompatibilityVersion() {
+        BuildVersion minCompatible = BuildVersion.fromVersionId(Version.CURRENT.minimumCompatibilityVersion().id());
+        assertThat(BuildVersion.current().minimumCompatibilityVersion(), equalTo(minCompatible));
+
+        BuildVersion previousCompatible = BuildVersion.fromVersionId(
+            Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion().id()
+        );
+        assertThat(minCompatible.minimumCompatibilityVersion(), equalTo(previousCompatible));
+    }
+
+    public static BuildVersion increment(BuildVersion version) {
+        return BuildVersion.fromVersionId(((DefaultBuildVersion) version).version.id() + 1);
+    }
 }

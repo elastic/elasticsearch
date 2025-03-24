@@ -71,7 +71,7 @@ import java.util.stream.Collectors;
  *   "enabled": true
  * }
  */
-public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
+public class HealthApiFeatureSetUsage extends XPackFeatureUsage {
 
     private final Map<String, Object> usageStats;
 

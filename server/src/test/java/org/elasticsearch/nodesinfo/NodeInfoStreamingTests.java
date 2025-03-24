@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -241,8 +242,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
         }
         return new NodeInfo(
             randomAlphaOfLengthBetween(6, 32),
-            TransportVersionUtils.randomVersion(random()),
-            IndexVersionUtils.randomVersion(random()),
+            new CompatibilityVersions(TransportVersionUtils.randomVersion(random()), Map.of()),
+            IndexVersionUtils.randomVersion(),
             componentVersions,
             build,
             node,

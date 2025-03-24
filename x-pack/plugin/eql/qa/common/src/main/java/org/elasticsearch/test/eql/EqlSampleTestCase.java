@@ -15,8 +15,29 @@ import static org.elasticsearch.test.eql.DataLoader.TEST_SAMPLE;
 
 public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
 
-    public EqlSampleTestCase(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
-        this(TEST_SAMPLE, query, name, eventIds, joinKeys, size, maxSamplesPerKey);
+    public EqlSampleTestCase(
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
+    ) {
+        this(
+            TEST_SAMPLE,
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 
     public EqlSampleTestCase(
@@ -26,9 +47,23 @@ public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
         List<long[]> eventIds,
         String[] joinKeys,
         Integer size,
-        Integer maxSamplesPerKey
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
     ) {
-        super(index, query, name, eventIds, joinKeys, size, maxSamplesPerKey);
+        super(
+            index,
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)

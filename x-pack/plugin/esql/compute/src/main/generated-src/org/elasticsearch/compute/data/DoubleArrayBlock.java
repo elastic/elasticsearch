@@ -18,7 +18,7 @@ import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link DoubleArrayVector}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
@@ -101,7 +101,7 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendDouble(getDouble(getFirstValueIndex(pos)));
+                    builder.appendDouble(getDouble(first));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {

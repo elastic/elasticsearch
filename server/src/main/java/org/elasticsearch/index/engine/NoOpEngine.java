@@ -48,7 +48,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
     public NoOpEngine(EngineConfig config) {
         this(
             config,
-            config.isPromotableToPrimary() ? null : new TranslogStats(0, 0, 0, 0, 0),
+            config.isPromotableToPrimary() && config.getTranslogConfig().hasTranslog() ? null : new TranslogStats(0, 0, 0, 0, 0),
             config.isPromotableToPrimary()
                 ? null
                 : new SeqNoStats(
@@ -166,7 +166,8 @@ public final class NoOpEngine extends ReadOnlyEngine {
                         translogDeletionPolicy,
                         engineConfig.getGlobalCheckpointSupplier(),
                         engineConfig.getPrimaryTermSupplier(),
-                        seqNo -> {}
+                        seqNo -> {},
+                        TranslogOperationAsserter.DEFAULT
                     )
                 ) {
                     translog.trimUnreferencedReaders();

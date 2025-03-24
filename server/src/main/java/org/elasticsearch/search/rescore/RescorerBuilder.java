@@ -39,7 +39,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
 
     protected Integer windowSize;
 
-    private static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
+    public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 
     /**
      * Construct an empty RescoreBuilder.

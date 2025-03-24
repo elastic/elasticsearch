@@ -12,6 +12,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -61,6 +63,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.transform.LocalStateTransform;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -136,6 +139,11 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         remoteNewDocs = createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_new_index", newRemoteNumShards, timestamp, randomBoolean());
     }
 
+    @After
+    public void cleanup() {
+        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+    }
+
     private int createIndexAndIndexDocs(String cluster, String index, int numberOfShards, long timestamp, boolean exposeTimestamp)
         throws Exception {
         Client client = client(cluster);
@@ -163,7 +171,12 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
                 .get();
             client.admin().indices().prepareOpen(index).get();
             assertBusy(() -> {
-                IndexLongFieldRange timestampRange = cluster(cluster).clusterService().state().metadata().index(index).getTimestampRange();
+                IndexLongFieldRange timestampRange = cluster(cluster).clusterService()
+                    .state()
+                    .metadata()
+                    .getProject()
+                    .index(index)
+                    .getTimestampRange();
                 assertTrue(Strings.toString(timestampRange), timestampRange.containsAllShardRanges());
             });
         } else {
@@ -197,15 +210,13 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),  // This query matches no documents
             true,
             0,
-            // All but 2 shards are skipped. TBH I don't know why this 2 shards are not skipped
-            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards - 2
+            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards
         );
         testSearchAction(
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),  // This query matches no documents
             false,
             0,
-            // All but 1 shards are skipped. TBH I don't know why this 1 shard is not skipped
-            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards - 1
+            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards
         );
     }
 
@@ -387,7 +398,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
     }
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
     }
 

@@ -8,10 +8,12 @@
 package org.elasticsearch.compute.data.sort;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
@@ -29,6 +31,11 @@ import java.util.stream.LongStream;
 /**
  * Aggregates the top N variable length {@link BytesRef} values per bucket.
  * See {@link BucketedSort} for more information.
+ * <p>
+ *     This is substantially different from {@link IpBucketedSort} because
+ *     this has to handle variable length byte strings. To do that it allocates
+ *     a heap of {@link BreakingBytesRefBuilder}s.
+ * </p>
  */
 public class BytesRefBucketedSort implements Releasable {
     private final BucketedSortCommon common;
@@ -123,7 +130,7 @@ public class BytesRefBucketedSort implements Releasable {
         // Gathering mode
         long requiredSize = common.endIndex(rootIndex);
         if (values.size() < requiredSize) {
-            grow(requiredSize);
+            grow(bucket);
         }
         int next = getNextGatherOffset(rootIndex);
         common.assertValidNextOffset(next);
@@ -147,7 +154,7 @@ public class BytesRefBucketedSort implements Releasable {
             // The value was never collected.
             return;
         }
-        other.checkInvariant(bucket);
+        other.checkInvariant(otherBucket);
         long otherStart = other.startIndex(otherBucket, otherRootIndex);
         long otherEnd = other.common.endIndex(otherRootIndex);
         // TODO: This can be improved for heapified buckets by making use of the heap structures
@@ -271,13 +278,23 @@ public class BytesRefBucketedSort implements Releasable {
 
     /**
      * Allocate storage for more buckets and store the "next gather offset"
-     * for those new buckets.
+     * for those new buckets. We always grow the storage by whole bucket's
+     * worth of slots at a time. We never allocate space for partial buckets.
      */
-    private void grow(long requiredSize) {
+    private void grow(int bucket) {
         long oldMax = values.size();
-        values = common.bigArrays.grow(values, requiredSize);
+        assert oldMax % common.bucketSize == 0;
+
+        long newSize = BigArrays.overSize(
+            ((long) bucket + 1) * common.bucketSize,
+            PageCacheRecycler.OBJECT_PAGE_SIZE,
+            RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        );
+        // Round up to the next full bucket.
+        newSize = (newSize + common.bucketSize - 1) / common.bucketSize;
+        values = common.bigArrays.resize(values, newSize * common.bucketSize);
         // Set the next gather offsets for all newly allocated buckets.
-        fillGatherOffsets(oldMax - (oldMax % common.bucketSize));
+        fillGatherOffsets(oldMax);
     }
 
     /**
@@ -296,6 +313,7 @@ public class BytesRefBucketedSort implements Releasable {
             bytes.grow(Integer.BYTES);
             bytes.setLength(Integer.BYTES);
             ByteUtils.writeIntLE(nextOffset, bytes.bytes(), 0);
+            checkInvariant(Math.toIntExact(bucketRoot / common.bucketSize));
         }
     }
 

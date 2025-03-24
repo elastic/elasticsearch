@@ -46,12 +46,6 @@ public class GCSRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestT
                 );
             }
         })
-        .apply(c -> {
-            if (USE_FIXTURE) {
-                // test fixture does not support CAS yet; TODO fix this
-                c.systemProperty("test.repository_test_kit.skip_cas", "true");
-            }
-        })
         .build();
 
     @ClassRule

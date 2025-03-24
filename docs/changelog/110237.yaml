@@ -1,7 +1,0 @@
-pr: 110237
-summary: Optimize the loop processing of URL decoding
-area: Infra/REST API
-type: enhancement
-issues:
-  - 110235
-

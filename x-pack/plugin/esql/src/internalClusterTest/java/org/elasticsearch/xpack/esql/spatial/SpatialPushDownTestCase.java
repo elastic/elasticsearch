@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -34,6 +35,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  * that the same ES|QL queries produce the same results in both.
  */
 public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
+
+    protected static final String[] ALL_INDEXES = new String[] { "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values" };
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(EsqlPlugin.class, SpatialPlugin.class);
@@ -80,10 +83,32 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
         assertAcked(prepareCreate("not-indexed").setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
+               "location": { "type" : "%s",  "index" : false, "doc_values" : true }
+              }
+            }
+            """, fieldType())));
+
+        assertAcked(prepareCreate("not-indexed-nor-doc-values").setMapping(String.format(Locale.ROOT, """
+            {
+              "properties" : {
                "location": { "type" : "%s",  "index" : false, "doc_values" : false }
               }
             }
             """, fieldType())));
+
+        assertAcked(prepareCreate("no-doc-values").setMapping(String.format(Locale.ROOT, """
+            {
+              "properties" : {
+               "location": { "type" : "%s",  "index" : true, "doc_values" : false }
+              }
+            }
+            """, fieldType())));
+    }
+
+    protected void addToIndexes(int id, String values, String... indexes) {
+        for (String index : indexes) {
+            index(index, id + "", "{\"location\" : " + values + " }");
+        }
     }
 
     private void assertPushedDownQueries(boolean multiValue) throws RuntimeException {
@@ -94,16 +119,14 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
                 for (int j = 0; j < values.length; j++) {
                     values[j] = "\"" + WellKnownText.toWKT(getIndexGeometry()) + "\"";
                 }
-                index("indexed", i + "", "{\"location\" : " + Arrays.toString(values) + " }");
-                index("not-indexed", i + "", "{\"location\" : " + Arrays.toString(values) + " }");
+                addToIndexes(i, Arrays.toString(values), ALL_INDEXES);
             } else {
                 final String value = WellKnownText.toWKT(getIndexGeometry());
-                index("indexed", i + "", "{\"location\" : \"" + value + "\" }");
-                index("not-indexed", i + "", "{\"location\" : \"" + value + "\" }");
+                addToIndexes(i, "\"" + value + "\"", ALL_INDEXES);
             }
         }
 
-        refresh("indexed", "not-indexed");
+        refresh(ALL_INDEXES);
 
         String smallRectangleCW = "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))";
         assertFunction("ST_WITHIN", smallRectangleCW);
@@ -115,27 +138,57 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
             assertFunction("ST_INTERSECTS", wkt);
             assertFunction("ST_DISJOINT", wkt);
             assertFunction("ST_CONTAINS", wkt);
-            // within and lines are not globally supported so we avoid it here
+            // within and lines are not globally supported, so we avoid it here
             if (containsLine(geometry) == false) {
                 assertFunction("ST_WITHIN", wkt);
             }
         }
     }
 
+    protected List<String> getQueries(String query) {
+        ArrayList<String> queries = new ArrayList<>();
+        Arrays.stream(ALL_INDEXES).forEach(index -> queries.add(query.replaceAll("FROM (\\w+) \\|", "FROM " + index + " |")));
+        queries.add(query.replaceAll("FROM (\\w+) \\|", "FROM " + String.join(",", ALL_INDEXES) + " |"));
+        return queries;
+    }
+
     protected void assertFunction(String spatialFunction, String wkt) {
-        final String query1 = String.format(Locale.ROOT, """
-            FROM indexed | WHERE %s(location, %s("%s")) | STATS COUNT(*)
-            """, spatialFunction, castingFunction(), wkt);
-        final String query2 = String.format(Locale.ROOT, """
-             FROM not-indexed | WHERE %s(location, %s("%s")) | STATS COUNT(*)
-            """, spatialFunction, castingFunction(), wkt);
-        try (
-            EsqlQueryResponse response1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query1).get();
-            EsqlQueryResponse response2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query2).get();
-        ) {
-            Object indexedResult = response1.response().column(0).iterator().next();
-            Object notIndexedResult = response2.response().column(0).iterator().next();
-            assertEquals(spatialFunction, indexedResult, notIndexedResult);
+        List<String> queries = getQueries(String.format(Locale.ROOT, """
+            FROM index | WHERE %s(location, %s("%s")) | STATS COUNT(*)
+            """, spatialFunction, castingFunction(), wkt));
+        try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
+            Object indexedResult = responses.getResponse(0, 0);
+            for (int i = 1; i < ALL_INDEXES.length; i++) {
+                Object result = responses.getResponse(i, 0);
+                assertEquals(spatialFunction + " for " + ALL_INDEXES[i], indexedResult, result);
+            }
+            long allIndexesResult = (long) responses.getResponse(ALL_INDEXES.length, 0);
+            assertEquals(spatialFunction + " for all indexes", (long) indexedResult * 4, allIndexesResult);
+        }
+    }
+
+    protected static class TestQueryResponseCollection implements AutoCloseable {
+        private final List<? extends EsqlQueryResponse> responses;
+
+        public TestQueryResponseCollection(List<String> queries) {
+            this.responses = queries.stream().map(query -> {
+                try {
+                    return EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }).toList();
+        }
+
+        protected Object getResponse(int index, int column) {
+            return responses.get(index).response().column(column).iterator().next();
+        }
+
+        @Override
+        public void close() {
+            for (EsqlQueryResponse response : responses) {
+                response.close();
+            }
         }
     }
 

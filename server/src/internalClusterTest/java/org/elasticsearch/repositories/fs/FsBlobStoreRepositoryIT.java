@@ -21,7 +21,7 @@ public class FsBlobStoreRepositoryIT extends ESFsBasedRepositoryIntegTestCase {
         final Settings.Builder settings = Settings.builder().put("compress", randomBoolean()).put("location", randomRepoPath());
         if (randomBoolean()) {
             long size = 1 << randomInt(10);
-            settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));
+            settings.put("chunk_size", ByteSizeValue.of(size, ByteSizeUnit.KB));
         }
         return settings.build();
     }

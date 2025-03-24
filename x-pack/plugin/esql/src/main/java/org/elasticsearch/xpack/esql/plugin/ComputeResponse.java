@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.DriverProfile;
@@ -29,9 +30,10 @@ final class ComputeResponse extends TransportResponse {
     public final int successfulShards;
     public final int skippedShards;
     public final int failedShards;
+    public final List<ShardSearchFailure> failures;
 
     ComputeResponse(List<DriverProfile> profiles) {
-        this(profiles, null, null, null, null, null);
+        this(profiles, null, null, null, null, null, List.of());
     }
 
     ComputeResponse(
@@ -40,7 +42,8 @@ final class ComputeResponse extends TransportResponse {
         Integer totalShards,
         Integer successfulShards,
         Integer skippedShards,
-        Integer failedShards
+        Integer failedShards,
+        List<ShardSearchFailure> failures
     ) {
         this.profiles = profiles;
         this.took = took;
@@ -48,20 +51,20 @@ final class ComputeResponse extends TransportResponse {
         this.successfulShards = successfulShards == null ? 0 : successfulShards.intValue();
         this.skippedShards = skippedShards == null ? 0 : skippedShards.intValue();
         this.failedShards = failedShards == null ? 0 : failedShards.intValue();
+        this.failures = failures;
     }
 
     ComputeResponse(StreamInput in) throws IOException {
-        super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
-                profiles = in.readCollectionAsImmutableList(DriverProfile::new);
+                profiles = in.readCollectionAsImmutableList(DriverProfile::readFrom);
             } else {
                 profiles = null;
             }
         } else {
             profiles = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.took = in.readOptionalTimeValue();
             this.totalShards = in.readVInt();
             this.successfulShards = in.readVInt();
@@ -73,6 +76,12 @@ final class ComputeResponse extends TransportResponse {
             this.successfulShards = 0;
             this.skippedShards = 0;
             this.failedShards = 0;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
+            this.failures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
+        } else {
+            this.failures = List.of();
         }
     }
 
@@ -86,12 +95,16 @@ final class ComputeResponse extends TransportResponse {
                 out.writeCollection(profiles);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalTimeValue(took);
             out.writeVInt(totalShards);
             out.writeVInt(successfulShards);
             out.writeVInt(skippedShards);
             out.writeVInt(failedShards);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
+            out.writeCollection(failures, (o, v) -> v.writeTo(o));
         }
     }
 
@@ -117,5 +130,9 @@ final class ComputeResponse extends TransportResponse {
 
     public int getFailedShards() {
         return failedShards;
+    }
+
+    public List<ShardSearchFailure> getFailures() {
+        return failures;
     }
 }

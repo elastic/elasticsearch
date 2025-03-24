@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -283,12 +284,22 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
             Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
             RepositoriesMetadata repositories = RepositoriesMetadata.get(currentState);
             List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
             for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
-                if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
+                if (repositoryMetadata.name().equals(request.name())) {
+                    final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
+                        request.name(),
+                        // Copy the UUID from the existing instance rather than resetting it back to MISSING_UUID which would force us to
+                        // re-read the RepositoryData to get it again. In principle the new RepositoryMetadata might point to a different
+                        // underlying repository at this point, but if so that'll cause things to fail in clear ways and eventually (before
+                        // writing anything) we'll read the RepositoryData again and update the UUID in the RepositoryMetadata to match. See
+                        // also #109936.
+                        repositoryMetadata.uuid(),
+                        request.type(),
+                        request.settings()
+                    );
                     Repository existing = repositoriesService.repositories.get(request.name());
                     if (existing == null) {
                         existing = repositoriesService.internalRepositories.get(request.name());
@@ -898,15 +909,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private static void ensureNoSearchableSnapshotsIndicesInUse(ClusterState clusterState, RepositoryMetadata repositoryMetadata) {
         long count = 0L;
         List<Index> indices = null;
-        for (IndexMetadata indexMetadata : clusterState.metadata()) {
-            if (indexSettingsMatchRepositoryMetadata(indexMetadata, repositoryMetadata)) {
-                if (indices == null) {
-                    indices = new ArrayList<>();
+        for (ProjectMetadata project : clusterState.metadata().projects().values()) {
+            for (IndexMetadata indexMetadata : project) {
+                if (indexSettingsMatchRepositoryMetadata(indexMetadata, repositoryMetadata)) {
+                    if (indices == null) {
+                        indices = new ArrayList<>();
+                    }
+                    if (indices.size() < 5) {
+                        indices.add(indexMetadata.getIndex());
+                    }
+                    count += 1L;
                 }
-                if (indices.size() < 5) {
-                    indices.add(indexMetadata.getIndex());
-                }
-                count += 1L;
             }
         }
         if (indices != null && indices.isEmpty() == false) {
@@ -945,7 +958,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return preRestoreChecks;
     }
 
-    public static String COUNT_USAGE_STATS_NAME = "count";
+    public static final String COUNT_USAGE_STATS_NAME = "count";
 
     public RepositoryUsageStats getUsageStats() {
         if (repositories.isEmpty()) {

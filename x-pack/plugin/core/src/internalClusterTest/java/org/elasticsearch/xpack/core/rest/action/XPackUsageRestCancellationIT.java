@@ -21,7 +21,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -128,10 +127,9 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
             NodeClient client
         ) {
-            super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
+            super(threadPool, transportService, clusterService, actionFilters, client);
         }
 
         @Override
@@ -146,21 +144,13 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
-            ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            ActionFilters actionFilters
         ) {
-            super(
-                BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE.name(),
-                transportService,
-                clusterService,
-                threadPool,
-                actionFilters,
-                indexNameExpressionResolver
-            );
+            super(BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE.name(), transportService, clusterService, threadPool, actionFilters);
         }
 
         @Override
-        protected void masterOperation(
+        protected void localClusterStateOperation(
             Task task,
             XPackUsageRequest request,
             ClusterState state,
@@ -168,7 +158,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         ) throws Exception {
             blockingXPackUsageActionExecuting.countDown();
             blockActionLatch.await();
-            listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureSet.Usage("test", false, false) {
+            listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureUsage("test", false, false) {
                 @Override
                 public TransportVersion getMinimalSupportedVersion() {
                     return TransportVersion.current();
@@ -183,21 +173,19 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
-            ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            ActionFilters actionFilters
         ) {
             super(
                 BlockingUsageActionXPackPlugin.NON_BLOCKING_XPACK_USAGE.name(),
                 transportService,
                 clusterService,
                 threadPool,
-                actionFilters,
-                indexNameExpressionResolver
+                actionFilters
             );
         }
 
         @Override
-        protected void masterOperation(
+        protected void localClusterStateOperation(
             Task task,
             XPackUsageRequest request,
             ClusterState state,

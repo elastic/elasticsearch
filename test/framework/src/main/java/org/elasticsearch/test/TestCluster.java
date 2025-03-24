@@ -116,18 +116,21 @@ public abstract class TestCluster {
 
     private void deleteTemplates(Set<String> excludeTemplates, ActionListener<Void> listener) {
         final SubscribableListener<GetComposableIndexTemplateAction.Response> getComposableTemplates = SubscribableListener.newForked(
-            l -> client().execute(GetComposableIndexTemplateAction.INSTANCE, new GetComposableIndexTemplateAction.Request("*"), l)
+            l -> client().execute(
+                GetComposableIndexTemplateAction.INSTANCE,
+                new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "*"),
+                l
+            )
         );
 
         final SubscribableListener<GetComponentTemplateAction.Response> getComponentTemplates = SubscribableListener.newForked(
-            l -> client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"), l)
+            l -> client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, "*"), l)
         );
 
         SubscribableListener
 
             // dummy start step for symmetry
-            .newSucceeded(null)
-
+            .nullSuccess()
             // delete composable templates
             .<GetComposableIndexTemplateAction.Response>andThen(getComposableTemplates::addListener)
             .<AcknowledgedResponse>andThen((l, r) -> {
@@ -231,20 +234,16 @@ public abstract class TestCluster {
 
     private void wipeIndicesAsync(String[] indices, ActionListener<Void> listener) {
         assert indices != null && indices.length > 0;
-        SubscribableListener
-
-            .<AcknowledgedResponse>newForked(
-                l -> client().admin()
-                    .indices()
-                    .prepareDelete(indices)
-                    .setIndicesOptions(
-                        // include wiping hidden indices!
-                        IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)
-                    )
-                    .execute(l.delegateResponse((ll, exception) -> handleWipeIndicesFailure(exception, "_all".equals(indices[0]), ll)))
-            )
-            .andThenAccept(ElasticsearchAssertions::assertAcked)
-            .addListener(listener);
+        SubscribableListener.<AcknowledgedResponse>newForked(
+            l -> client().admin()
+                .indices()
+                .prepareDelete(indices)
+                .setIndicesOptions(
+                    // include wiping hidden indices!
+                    IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)
+                )
+                .execute(l.delegateResponse((ll, exception) -> handleWipeIndicesFailure(exception, "_all".equals(indices[0]), ll)))
+        ).andThenAccept(ElasticsearchAssertions::assertAcked).addListener(listener);
     }
 
     private void handleWipeIndicesFailure(Exception exception, boolean wipingAllIndices, ActionListener<AcknowledgedResponse> listener) {
@@ -261,7 +260,7 @@ public abstract class TestCluster {
                     .<ClusterStateResponse>newForked(l -> client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute(l))
                     .<AcknowledgedResponse>andThen((l, clusterStateResponse) -> {
                         ArrayList<String> concreteIndices = new ArrayList<>();
-                        for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
+                        for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata().getProject()) {
                             concreteIndices.add(indexMetadata.getIndex().getName());
                         }
                         if (concreteIndices.isEmpty() == false) {
@@ -276,6 +275,7 @@ public abstract class TestCluster {
                 // org.elasticsearch.xpack.watcher.test.integration.BootStrapTests.testTriggeredWatchLoading depends on this
                 // quietly passing when it tries to delete an alias instead of its backing indices
                 listener.onResponse(AcknowledgedResponse.TRUE);
+
             }
         } else {
             listener.onFailure(exception);
@@ -288,7 +288,7 @@ public abstract class TestCluster {
     private void wipeAllTemplates(Set<String> exclude, RefCountingListener listeners) {
         SubscribableListener
 
-            .<GetIndexTemplatesResponse>newForked(l -> client().admin().indices().prepareGetTemplates().execute(l))
+            .<GetIndexTemplatesResponse>newForked(l -> client().admin().indices().prepareGetTemplates(TEST_REQUEST_TIMEOUT).execute(l))
             .andThenAccept(response -> {
                 for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
                     if (exclude.contains(indexTemplate.getName())) {

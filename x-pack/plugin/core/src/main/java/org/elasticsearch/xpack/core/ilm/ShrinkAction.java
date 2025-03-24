@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
@@ -69,9 +68,9 @@ public class ShrinkAction implements LifecycleAction {
         .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), (String) null)
         .build();
 
-    private Integer numberOfShards;
-    private ByteSizeValue maxPrimaryShardSize;
-    private boolean allowWriteAfterShrink;
+    private final Integer numberOfShards;
+    private final ByteSizeValue maxPrimaryShardSize;
+    private final boolean allowWriteAfterShrink;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
@@ -89,11 +88,13 @@ public class ShrinkAction implements LifecycleAction {
                 throw new IllegalArgumentException("[max_primary_shard_size] must be greater than 0");
             }
             this.maxPrimaryShardSize = maxPrimaryShardSize;
+            this.numberOfShards = null;
         } else {
             if (numberOfShards <= 0) {
                 throw new IllegalArgumentException("[" + NUMBER_OF_SHARDS_FIELD.getPreferredName() + "] must be greater than 0");
             }
             this.numberOfShards = numberOfShards;
+            this.maxPrimaryShardSize = null;
         }
         this.allowWriteAfterShrink = allowWriteAfterShrink;
     }
@@ -230,10 +231,9 @@ public class ShrinkAction implements LifecycleAction {
         WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
             waitTimeSeriesEndTimePassesKey,
             readOnlyKey,
-            Instant::now,
-            client
+            Instant::now
         );
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client, false);
         CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(
             checkTargetShardsCountKey,
             cleanupShrinkIndexKey,
@@ -288,7 +288,7 @@ public class ShrinkAction implements LifecycleAction {
             aliasKey,
             replaceDataStreamIndexKey,
             (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+                IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }
@@ -327,7 +327,7 @@ public class ShrinkAction implements LifecycleAction {
             allowWriteAfterShrinkStep
         );
 
-        return steps.filter(Objects::nonNull).collect(Collectors.toList());
+        return steps.filter(Objects::nonNull).toList();
     }
 
     @Override

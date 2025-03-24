@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.terms.BucketAndOrd;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -20,13 +21,12 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.BiFunction;
-import java.util.function.ToLongFunction;
 
 /**
  * {@link Bucket} ordering strategy. Buckets can be order either as
  * "complete" buckets using {@link #comparator()} or against a combination
  * of the buckets internals with its ordinal with
- * {@link #partiallyBuiltBucketComparator(ToLongFunction, Aggregator)}.
+ * {@link #partiallyBuiltBucketComparator(Aggregator)}.
  */
 public abstract class BucketOrder implements ToXContentObject, Writeable {
     /**
@@ -102,7 +102,7 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
          * to validate this order because doing so checks all of the appropriate
          * paths.
          */
-        partiallyBuiltBucketComparator(null, aggregator);
+        partiallyBuiltBucketComparator(aggregator);
     }
 
     /**
@@ -121,7 +121,7 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
      * with it all the time.
      * </p>
      */
-    public abstract <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator);
+    public abstract <T extends Bucket> Comparator<BucketAndOrd<T>> partiallyBuiltBucketComparator(Aggregator aggregator);
 
     /**
      * Build a comparator for fully built buckets.

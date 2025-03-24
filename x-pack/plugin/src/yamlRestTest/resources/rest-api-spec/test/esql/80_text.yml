@@ -392,7 +392,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [method, path, parameters, capabilities]
-          capabilities: [fn_reverse]
+          capabilities: [fn_reverse, functions_never_emit_text]
       reason: "reverse not yet added"
   - do:
       allowed_warnings_regex:
@@ -402,10 +402,10 @@ setup:
           query: 'FROM test | SORT name | EVAL job_reversed = REVERSE(job), tag_reversed = REVERSE(tag) | KEEP job_reversed, tag_reversed'
 
   - match: { columns.0.name: "job_reversed" }
-  - match: { columns.0.type: "text" }
+  - match: { columns.0.type: "keyword" }
 
   - match: { columns.1.name: "tag_reversed" }
-  - match: { columns.1.type: "text" }
+  - match: { columns.1.type: "keyword" }
 
   - length: { values: 2 }
   - match: { values.0: [ "rotceriD TI", "rab oof" ] }
@@ -477,13 +477,18 @@ setup:
 
 ---
 "text with synthetic source":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
   - do:
       indices.create:
         index: test2
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               "emp_no":
                 type: long
@@ -522,13 +527,18 @@ setup:
 
 ---
 "stored text with synthetic source":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
   - do:
       indices.create:
         index: test2
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               "emp_no":
                 type: long
@@ -564,16 +574,11 @@ setup:
 
 ---
 "values function":
-  - requires:
-      cluster_features: esql.agg_values
-      reason: "values is available in 8.14+"
-
   - do:
       esql.query:
         body:
           query: 'FROM test | STATS job = VALUES(job) | EVAL job = MV_SORT(job) | LIMIT 1'
   - match: { columns.0.name: "job" }
-  - match: { columns.0.type: "text" }
   - length: { values: 1 }
   - match: { values.0: [ [ "IT Director", "Payroll Specialist" ] ] }
 
@@ -592,7 +597,22 @@ setup:
   - match: { columns.0.name: "tag" }
   - match: { columns.0.type: "text" }
   - match: { columns.1.name: "job" }
-  - match: { columns.1.type: "text" }
   - length: { values: 2 }
   - match: { values.0: [ "baz", [ "Other", "Payroll Specialist" ] ] }
   - match: { values.1: [ "foo bar", "IT Director" ] }
+
+---
+"remove text typecast":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ functions_never_emit_text ]
+      reason: "Disabling ::text was done in 8.17 as part of removing all possibilities to emit text"
+
+  - do:
+      catch: /Unsupported conversion to type \[TEXT\]/
+      esql.query:
+        body:
+          query: 'FROM test | EVAL tag = name::text | KEEP name'

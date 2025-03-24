@@ -133,10 +133,12 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendRequest() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
+        TransportVersion version = isHandshake
+            ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
+            : TransportVersionUtils.randomCompatibleVersion(random());
         boolean compress = randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
@@ -204,10 +206,12 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
+        TransportVersion version = isHandshake
+            ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
+            : TransportVersionUtils.randomCompatibleVersion(random());
         boolean compress = randomBoolean();
 
         String value = "message";
@@ -216,13 +220,11 @@ public class OutboundHandlerTests extends ESTestCase {
 
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
-        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 requestIdRef.set(requestId);
                 actionRef.set(action);
-                responseRef.set(response);
             }
         });
         if (compress) {
@@ -240,7 +242,6 @@ public class OutboundHandlerTests extends ESTestCase {
         }
         assertEquals(requestId, requestIdRef.get());
         assertEquals(action, actionRef.get());
-        assertEquals(response, responseRef.get());
 
         pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
         final Tuple<Header, BytesReference> tuple = message.get();
@@ -269,8 +270,8 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testErrorResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
-        String action = "handshake";
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        String action = "not-a-handshake";
         long requestId = randomLongBetween(0, 300);
         threadContext.putHeader("header", "header_value");
         ElasticsearchException error = new ElasticsearchException("boom");
@@ -322,7 +323,7 @@ public class OutboundHandlerTests extends ESTestCase {
     }
 
     public void testSendErrorAfterFailToSendResponse() throws Exception {
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
         var response = new ReleasbleTestResponse(randomAlphaOfLength(10)) {
@@ -334,18 +335,15 @@ public class OutboundHandlerTests extends ESTestCase {
 
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
-        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
                 assertNull(actionRef.get());
                 actionRef.set(action);
-                assertNull(responseRef.get());
-                responseRef.set(response);
             }
 
             @Override
@@ -370,7 +368,6 @@ public class OutboundHandlerTests extends ESTestCase {
         }
         assertEquals(requestId, requestIdRef.get());
         assertEquals(action, actionRef.get());
-        assertEquals(response, responseRef.get());
         assertThat(exceptionRef.get().getMessage(), equalTo("simulated cbe"));
         assertTrue(response.released.get());
         BytesReference reference = channel.getMessageCaptor().get();
@@ -396,18 +393,15 @@ public class OutboundHandlerTests extends ESTestCase {
         long requestId = randomLongBetween(0, 300);
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
-        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
                 assertNull(actionRef.get());
                 actionRef.set(action);
-                assertNull(responseRef.get());
-                responseRef.set(response);
             }
 
             @Override
@@ -432,7 +426,6 @@ public class OutboundHandlerTests extends ESTestCase {
         }
         assertEquals(requestId, requestIdRef.get());
         assertEquals(action, actionRef.get());
-        assertEquals(response, responseRef.get());
         assertThat(exceptionRef.get().getMessage(), equalTo("simulated cbe"));
         assertTrue(response.released.get());
         assertNull(channel.getMessageCaptor().get());
@@ -453,17 +446,14 @@ public class OutboundHandlerTests extends ESTestCase {
 
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
-        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
                 assertNull(actionRef.get());
                 actionRef.set(action);
-                assertNull(responseRef.get());
-                responseRef.set(response);
             }
 
             @Override
@@ -481,7 +471,6 @@ public class OutboundHandlerTests extends ESTestCase {
         assertNull(channel.getListenerCaptor().get());
         assertEquals(requestId, requestIdRef.get());
         assertEquals(action, actionRef.get());
-        assertEquals(response, responseRef.get());
         assertTrue(response.released.get());
         assertFalse(channel.isOpen());
     }
@@ -503,7 +492,7 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 throw new AssertionError("must not be called");
             }
 

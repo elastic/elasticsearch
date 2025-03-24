@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.util.Map;
 
 final class CO2Calculator {
-    private static final double DEFAULT_SAMPLING_FREQUENCY = 20.0d;
+    private static final double DEFAULT_SAMPLING_FREQUENCY = 19.0d;
     private static final double DEFAULT_CO2_TONS_PER_KWH = 0.000379069d; // unit: metric tons / kWh
     private static final double DEFAULT_KILOWATTS_PER_CORE_X86 = 7.0d / 1000.0d; // unit: watt / core
     private static final double DEFAULT_KILOWATTS_PER_CORE_ARM64 = 2.8d / 1000.0d; // unit: watt / core
@@ -54,7 +54,8 @@ final class CO2Calculator {
         return getKiloWattsPerCore(host) * getCO2TonsPerKWH(host) * annualCoreHours * getDatacenterPUE(host);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // only allow OTEL semantic conventions
+    @UpdateForV10(owner = UpdateForV10.Owner.PROFILING) // only allow OTEL semantic conventions
+    // still required for data that has been migrated from 8.x to 9.x
     private double getKiloWattsPerCore(HostMetadata host) {
         return switch (host.hostArchitecture) {
             // For the OTEL donation of the profiling agent, we switch to OTEL semantic conventions,

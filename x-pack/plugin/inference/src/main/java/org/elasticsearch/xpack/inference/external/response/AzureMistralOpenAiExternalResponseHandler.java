@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionRes
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorMessage;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiStreamingProcessor;
@@ -54,7 +54,7 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     public AzureMistralOpenAiExternalResponseHandler(
         String requestType,
         ResponseParser parseFunction,
-        Function<HttpResult, ErrorMessage> errorParseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction,
         boolean canHandleStreamingResponses
     ) {
         super(requestType, parseFunction, errorParseFunction);

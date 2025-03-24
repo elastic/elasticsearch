@@ -12,17 +12,23 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -49,6 +55,8 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalExchangePlugin.class);
         plugins.add(InternalTransportSettingPlugin.class);
+        assertTrue(plugins.removeIf(p -> p.isAssignableFrom(EsqlPlugin.class)));
+        plugins.add(EsqlTestPluginWithMockBlockFactory.class);
         return plugins;
     }
 
@@ -78,6 +86,17 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             .build();
     }
 
+    public static class EsqlTestPluginWithMockBlockFactory extends EsqlPlugin {
+        @Override
+        protected BlockFactoryProvider blockFactoryProvider(
+            CircuitBreaker breaker,
+            BigArrays bigArrays,
+            ByteSizeValue maxPrimitiveArraySize
+        ) {
+            return new BlockFactoryProvider(new MockBlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
+        }
+    }
+
     private EsqlQueryResponse runWithBreaking(EsqlQueryRequest request) throws CircuitBreakingException {
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 2048)));
         try {
@@ -85,6 +104,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         } catch (Exception e) {
             logger.info("request failed", e);
             ensureBlocksReleased();
+            EsqlTestUtils.assertEsqlFailure(e);
             throw e;
         } finally {
             setRequestCircuitBreakerLimit(null);
@@ -93,15 +113,30 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
 
     @Override
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        if (randomBoolean()) {
+            request.allowPartialResults(randomBoolean());
+        }
+        Exception failure = null;
         try {
-            return runWithBreaking(request);
-        } catch (Exception e) {
-            try (EsqlQueryResponse resp = super.run(request)) {
-                assertThat(e, instanceOf(CircuitBreakingException.class));
-                assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
-                resp.incRef();
+            final EsqlQueryResponse resp = runWithBreaking(request);
+            if (resp.isPartial() == false) {
                 return resp;
             }
+            try (resp) {
+                assertTrue(request.allowPartialResults());
+            }
+        } catch (Exception e) {
+            failure = e;
+        }
+        // Re-run if the previous query failed or returned partial results
+        // Only check the previous failure if the second query succeeded
+        try (EsqlQueryResponse resp = super.run(request)) {
+            if (failure != null) {
+                assertThat(failure, instanceOf(CircuitBreakingException.class));
+                assertThat(ExceptionsHelper.status(failure), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            }
+            resp.incRef();
+            return resp;
         }
     }
 

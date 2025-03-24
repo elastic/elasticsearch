@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -34,7 +34,7 @@ import java.util.Objects;
  * {@link ComponentTemplateMetadata} is a custom {@link Metadata} implementation for storing a map
  * of component templates and their names.
  */
-public class ComponentTemplateMetadata implements Metadata.Custom {
+public class ComponentTemplateMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "component_template";
     private static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
     @SuppressWarnings("unchecked")
@@ -69,11 +69,11 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new ComponentTemplateMetadataDiff((ComponentTemplateMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ComponentTemplateMetadataDiff(in);
     }
 
@@ -89,7 +89,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_7_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -102,8 +102,8 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).xContentObjectFields(COMPONENT_TEMPLATE.getPreferredName(), componentTemplates);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.xContentObjectFields(COMPONENT_TEMPLATE.getPreferredName(), componentTemplates);
     }
 
     @Override
@@ -128,7 +128,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
-    static class ComponentTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class ComponentTemplateMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, ComponentTemplate>> componentTemplateDiff;
 
@@ -150,7 +150,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new ComponentTemplateMetadata(componentTemplateDiff.apply(((ComponentTemplateMetadata) part).componentTemplates));
         }
 
@@ -166,7 +166,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_7_0;
+            return TransportVersions.ZERO;
         }
     }
 }

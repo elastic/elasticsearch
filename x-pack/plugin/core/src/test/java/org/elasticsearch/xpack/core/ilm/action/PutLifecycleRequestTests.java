@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCase<PutLifecycleRequest> {
@@ -78,7 +77,7 @@ public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCas
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(
+            List.of(
                 new NamedWriteableRegistry.Entry(
                     LifecycleType.class,
                     TimeseriesLifecycleType.TYPE,
@@ -105,7 +104,7 @@ public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCas
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.addAll(
-            Arrays.asList(
+            List.of(
                 new NamedXContentRegistry.Entry(
                     LifecycleType.class,
                     new ParseField(TimeseriesLifecycleType.TYPE),

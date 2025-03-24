@@ -7,139 +7,117 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ItemUsage;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class LifecyclePolicyUtilsTests extends ESTestCase {
     public void testCalculateUsage() {
-        final IndexNameExpressionResolver iner = new IndexNameExpressionResolver(
-            new ThreadContext(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
-        );
+        final IndexNameExpressionResolver iner = TestIndexNameExpressionResolver.newInstance();
 
         {
             // Test where policy does not exist
-            ClusterState state = ClusterState.builder(new ClusterName("mycluster")).build();
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
             assertThat(
-                LifecyclePolicyUtils.calculateUsage(iner, state, "mypolicy"),
-                equalTo(new ItemUsage(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()))
+                LifecyclePolicyUtils.calculateUsage(iner, project, "mypolicy"),
+                equalTo(new ItemUsage(List.of(), List.of(), List.of()))
             );
         }
 
         {
             // Test where policy is not used by anything
-            ClusterState state = ClusterState.builder(new ClusterName("mycluster"))
-                .metadata(
-                    Metadata.builder()
-                        .putCustom(
-                            IndexLifecycleMetadata.TYPE,
-                            new IndexLifecycleMetadata(
-                                Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
-                                OperationMode.RUNNING
-                            )
-                        )
-                        .build()
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .putCustom(
+                    IndexLifecycleMetadata.TYPE,
+                    new IndexLifecycleMetadata(
+                        Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                        OperationMode.RUNNING
+                    )
                 )
                 .build();
             assertThat(
-                LifecyclePolicyUtils.calculateUsage(iner, state, "mypolicy"),
-                equalTo(new ItemUsage(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()))
+                LifecyclePolicyUtils.calculateUsage(iner, project, "mypolicy"),
+                equalTo(new ItemUsage(List.of(), List.of(), List.of()))
             );
         }
 
         {
             // Test where policy exists and is used by an index
-            ClusterState state = ClusterState.builder(new ClusterName("mycluster"))
-                .metadata(
-                    Metadata.builder()
-                        .putCustom(
-                            IndexLifecycleMetadata.TYPE,
-                            new IndexLifecycleMetadata(
-                                Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
-                                OperationMode.RUNNING
-                            )
-                        )
-                        .put(
-                            IndexMetadata.builder("myindex")
-                                .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
-                        )
-                        .build()
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .putCustom(
+                    IndexLifecycleMetadata.TYPE,
+                    new IndexLifecycleMetadata(
+                        Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                        OperationMode.RUNNING
+                    )
+                )
+                .put(
+                    IndexMetadata.builder("myindex")
+                        .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                 )
                 .build();
             assertThat(
-                LifecyclePolicyUtils.calculateUsage(iner, state, "mypolicy"),
-                equalTo(new ItemUsage(Collections.singleton("myindex"), Collections.emptyList(), Collections.emptyList()))
+                LifecyclePolicyUtils.calculateUsage(iner, project, "mypolicy"),
+                equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of()))
             );
         }
 
         {
             // Test where policy exists and is used by an index, and template
-            ClusterState state = ClusterState.builder(new ClusterName("mycluster"))
-                .metadata(
-                    Metadata.builder()
-                        .putCustom(
-                            IndexLifecycleMetadata.TYPE,
-                            new IndexLifecycleMetadata(
-                                Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
-                                OperationMode.RUNNING
-                            )
-                        )
-                        .put(
-                            IndexMetadata.builder("myindex")
-                                .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
-                        )
-                        .putCustom(
-                            ComposableIndexTemplateMetadata.TYPE,
-                            new ComposableIndexTemplateMetadata(
-                                Collections.singletonMap(
-                                    "mytemplate",
-                                    ComposableIndexTemplate.builder()
-                                        .indexPatterns(Collections.singletonList("myds"))
-                                        .template(
-                                            new Template(
-                                                Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(),
-                                                null,
-                                                null
-                                            )
-                                        )
-                                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
-                                        .build()
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .putCustom(
+                    IndexLifecycleMetadata.TYPE,
+                    new IndexLifecycleMetadata(
+                        Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                        OperationMode.RUNNING
+                    )
+                )
+                .put(
+                    IndexMetadata.builder("myindex")
+                        .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+                )
+                .putCustom(
+                    ComposableIndexTemplateMetadata.TYPE,
+                    new ComposableIndexTemplateMetadata(
+                        Map.of(
+                            "mytemplate",
+                            ComposableIndexTemplate.builder()
+                                .indexPatterns(List.of("myds"))
+                                .template(
+                                    new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null)
                                 )
-                            )
+                                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                                .build()
                         )
-                        .build()
+                    )
                 )
                 .build();
             assertThat(
-                LifecyclePolicyUtils.calculateUsage(iner, state, "mypolicy"),
-                equalTo(new ItemUsage(Collections.singleton("myindex"), Collections.emptyList(), Collections.singleton("mytemplate")))
+                LifecyclePolicyUtils.calculateUsage(iner, project, "mypolicy"),
+                equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of("mytemplate")))
             );
         }
 
         {
-            Metadata.Builder mBuilder = Metadata.builder()
+            var projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .putCustom(
                     IndexLifecycleMetadata.TYPE,
                     new IndexLifecycleMetadata(
-                        Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                        Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
                         OperationMode.RUNNING
                     )
                 )
@@ -159,10 +137,10 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                 .putCustom(
                     ComposableIndexTemplateMetadata.TYPE,
                     new ComposableIndexTemplateMetadata(
-                        Collections.singletonMap(
+                        Map.of(
                             "mytemplate",
                             ComposableIndexTemplate.builder()
-                                .indexPatterns(Collections.singletonList("myds"))
+                                .indexPatterns(List.of("myds"))
                                 .template(
                                     new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null)
                                 )
@@ -172,15 +150,12 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                     )
                 );
             // Need to get the real Index instance of myindex:
-            mBuilder.put(DataStreamTestHelper.newInstance("myds", Collections.singletonList(mBuilder.get("myindex").getIndex())));
+            projectBuilder.put(DataStreamTestHelper.newInstance("myds", List.of(projectBuilder.get("myindex").getIndex())));
 
             // Test where policy exists and is used by an index, datastream, and template
-            ClusterState state = ClusterState.builder(new ClusterName("mycluster")).metadata(mBuilder.build()).build();
             assertThat(
-                LifecyclePolicyUtils.calculateUsage(iner, state, "mypolicy"),
-                equalTo(
-                    new ItemUsage(Arrays.asList("myindex", "another"), Collections.singleton("myds"), Collections.singleton("mytemplate"))
-                )
+                LifecyclePolicyUtils.calculateUsage(iner, projectBuilder.build(), "mypolicy"),
+                equalTo(new ItemUsage(List.of("myindex", "another"), List.of("myds"), List.of("mytemplate")))
             );
         }
     }

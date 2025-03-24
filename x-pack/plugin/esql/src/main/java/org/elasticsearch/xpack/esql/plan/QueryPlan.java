@@ -33,6 +33,10 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         super(source, children);
     }
 
+    /**
+     * The ordered list of attributes (i.e. columns) this plan produces when executed.
+     * Must be called only on resolved plans, otherwise may throw an exception or return wrong results.
+     */
     public abstract List<Attribute> output();
 
     public AttributeSet outputSet() {
@@ -59,10 +63,15 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
      */
     public List<Expression> expressions() {
         if (lazyExpressions == null) {
-            lazyExpressions = new ArrayList<>();
-            forEachPropertyOnly(Object.class, e -> doForEachExpression(e, lazyExpressions::add));
+            lazyExpressions = computeExpressions();
         }
         return lazyExpressions;
+    }
+
+    protected List<Expression> computeExpressions() {
+        List<Expression> expressions = new ArrayList<>();
+        forEachPropertyOnly(Object.class, e -> doForEachExpression(e, expressions::add));
+        return expressions;
     }
 
     /**
@@ -82,6 +91,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     /**
      * This very likely needs to be overridden for {@link QueryPlan#references} to be correct when inheriting.
+     * This can be called on unresolved plans and therefore must not rely on calls to {@link QueryPlan#output()}.
      */
     protected AttributeSet computeReferences() {
         return Expressions.references(expressions());
@@ -121,8 +131,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     @SuppressWarnings("unchecked")
     private static Object doTransformExpression(Object arg, Function<Expression, ? extends Expression> traversal) {
-        if (arg instanceof Expression) {
-            return traversal.apply((Expression) arg);
+        if (arg instanceof Expression exp) {
+            return traversal.apply(exp);
         }
 
         // WARNING: if the collection is typed, an incompatible function will be applied to it
@@ -130,20 +140,40 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         // preserving the type information is hacky and weird (a lot of context needs to be passed around and the lambda itself
         // has no type info so it's difficult to have automatic checking without having base classes).
 
-        if (arg instanceof Collection<?> c) {
-            List<Object> transformed = new ArrayList<>(c.size());
+        if (arg instanceof List<?> c) {
+            List<Object> transformed = null;
             boolean hasChanged = false;
+            // please do not refactor it to a for-each loop to avoid
+            // allocating iterator that performs concurrent modification checks and extra stack frames
+            for (int i = 0, size = c.size(); i < size; i++) {
+                var e = c.get(i);
+                Object next = doTransformExpression(e, traversal);
+                if (e.equals(next) == false) {
+                    if (hasChanged == false) {
+                        hasChanged = true;
+                        transformed = new ArrayList<>(c);
+                    }
+                    transformed.set(i, next);
+                }
+            }
+            return hasChanged ? transformed : arg;
+        } else if (arg instanceof Collection<?> c) {
+            List<Object> transformed = null;
+            boolean hasChanged = false;
+            int i = 0;
             for (Object e : c) {
                 Object next = doTransformExpression(e, traversal);
-                if (e.equals(next)) {
-                    // use the initial value
-                    next = e;
-                } else {
-                    hasChanged = true;
+                if (e.equals(next) == false) {
+                    if (hasChanged == false) {
+                        hasChanged = true;
+                        // TODO if collection is a set then this silently changes its semantics by allowing duplicates
+                        // We should fix it or confirm this branch is never needed
+                        transformed = new ArrayList<>(c);
+                    }
+                    transformed.set(i, next);
                 }
-                transformed.add(next);
+                i++;
             }
-
             return hasChanged ? transformed : arg;
         }
 
@@ -176,8 +206,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     @SuppressWarnings("unchecked")
     private static void doForEachExpression(Object arg, Consumer<Expression> traversal) {
-        if (arg instanceof Expression) {
-            traversal.accept((Expression) arg);
+        if (arg instanceof Expression exp) {
+            traversal.accept(exp);
         } else if (arg instanceof Collection<?> c) {
             for (Object o : c) {
                 doForEachExpression(o, traversal);

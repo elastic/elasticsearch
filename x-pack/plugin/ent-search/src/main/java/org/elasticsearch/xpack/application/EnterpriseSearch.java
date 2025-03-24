@@ -17,8 +17,11 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -28,6 +31,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
@@ -175,6 +179,7 @@ import org.elasticsearch.xpack.application.rules.action.TransportListQueryRulese
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportTestQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.retriever.QueryRuleRetrieverBuilder;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -229,6 +234,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     private final boolean enabled;
 
+    // NOTE: Behavioral Analytics is deprecated in 9.0 but not 8.x.
+    public static final String BEHAVIORAL_ANALYTICS_DEPRECATION_MESSAGE =
+        "Behavioral Analytics is deprecated and will be removed in a future release.";
+
     public EnterpriseSearch(Settings settings) {
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
     }
@@ -236,6 +245,20 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
     }
+
+    public static final LicensedFeature.Momentary QUERY_RULES_RETRIEVER_FEATURE = LicensedFeature.momentary(
+        null,
+        "rule-retriever",
+        License.OperationMode.ENTERPRISE
+    );
+
+    /**
+     * Hard-coded timeout used for {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()} for requests to
+     * the master node from Enterprise Search code. Wherever possible, prefer to use a user-controlled timeout instead of this.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
+     */
+    public static final TimeValue HARD_CODED_ENTERPRISE_SEARCH_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -446,7 +469,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Behavioral analytics components
         final AnalyticsTemplateRegistry analyticsTemplateRegistry = new AnalyticsTemplateRegistry(
             services.clusterService(),
-            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()
@@ -456,7 +478,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Connector components
         final ConnectorTemplateRegistry connectorTemplateRegistry = new ConnectorTemplateRegistry(
             services.clusterService(),
-            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()
@@ -505,5 +526,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         return singletonList(
             new QuerySpec<>(RuleQueryBuilder.NAME, RuleQueryBuilder::new, p -> RuleQueryBuilder.fromXContent(p, getLicenseState()))
         );
+    }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return List.of(new RetrieverSpec<>(new ParseField(QueryRuleRetrieverBuilder.NAME), QueryRuleRetrieverBuilder::fromXContent));
     }
 }

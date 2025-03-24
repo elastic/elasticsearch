@@ -27,7 +27,7 @@ public final class SettingsFilter {
     /**
      * Can be used to specify settings filter that will be used to filter out matching settings in toXContent method
      */
-    public static String SETTINGS_FILTER_PARAM = "settings_filter";
+    public static final String SETTINGS_FILTER_PARAM = "settings_filter";
 
     private final Set<String> patterns;
     private final String patternString;

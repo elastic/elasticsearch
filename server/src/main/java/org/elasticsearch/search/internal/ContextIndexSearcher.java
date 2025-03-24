@@ -36,7 +36,6 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -53,7 +52,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedTransferQueue;
@@ -85,7 +83,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
 
-    private final Set<Thread> timeoutOverwrites = ConcurrentCollections.newConcurrentSet();
     private volatile boolean timeExceeded = false;
 
     /** constructor for non-concurrent search */
@@ -232,8 +229,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * Add a {@link Runnable} that will be run on a regular basis while accessing documents in the
      * DirectoryReader but also while collecting them and check for query cancellation or timeout.
      */
-    public Runnable addQueryCancellation(Runnable action) {
-        return this.cancellable.add(action);
+    public void addQueryCancellation(Runnable action) {
+        this.cancellable.add(action);
     }
 
     /**
@@ -437,6 +434,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+    private static final ThreadLocal<Boolean> timeoutOverwrites = ThreadLocal.withInitial(() -> false);
+
     /**
      * Similar to the lucene implementation, with the following changes made:
      * 1) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search threads
@@ -460,12 +459,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 try {
                     // Search phase has finished, no longer need to check for timeout
                     // otherwise the aggregation post-collection phase might get cancelled.
-                    boolean added = timeoutOverwrites.add(Thread.currentThread());
-                    assert added;
+                    assert timeoutOverwrites.get() == false;
+                    timeoutOverwrites.set(true);
                     doAggregationPostCollection(collector);
                 } finally {
-                    boolean removed = timeoutOverwrites.remove(Thread.currentThread());
-                    assert removed;
+                    assert timeoutOverwrites.get();
+                    timeoutOverwrites.set(false);
                 }
             }
         }
@@ -483,13 +482,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void throwTimeExceededException() {
-        if (timeoutOverwrites.contains(Thread.currentThread()) == false) {
+        if (timeoutOverwrites.get() == false) {
             throw new TimeExceededException();
         }
     }
 
-    public static class TimeExceededException extends RuntimeException {
+    /**
+     * Exception thrown whenever a search timeout occurs. May be thrown by {@link ContextIndexSearcher} or {@link ExitableDirectoryReader}.
+     */
+    public static final class TimeExceededException extends RuntimeException {
         // This exception should never be re-thrown, but we fill in the stacktrace to be able to trace where it does not get properly caught
+
+        /**
+         * Created via {@link #throwTimeExceededException()}
+         */
+        private TimeExceededException() {}
     }
 
     @Override
@@ -633,14 +640,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
-
         private final List<Runnable> runnables = new ArrayList<>();
 
-        private Runnable add(Runnable action) {
+        private void add(Runnable action) {
             Objects.requireNonNull(action, "cancellation runnable should not be null");
             assert runnables.contains(action) == false : "Cancellation runnable already added";
             runnables.add(action);
-            return action;
         }
 
         private void remove(Runnable action) {

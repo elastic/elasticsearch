@@ -8,13 +8,10 @@
 package org.elasticsearch.compute.aggregation.spatial;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 /**
  * This aggregator calculates the centroid of a set of geo points.
@@ -33,26 +30,13 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 )
 @GroupingAggregator
 class SpatialCentroidGeoPointSourceValuesAggregator extends CentroidPointAggregator {
-
-    public static CentroidState initSingle() {
-        return new CentroidState();
-    }
-
-    public static GroupingCentroidState initGrouping(BigArrays bigArrays) {
-        return new GroupingCentroidState(bigArrays);
-    }
-
     public static void combine(CentroidState current, BytesRef wkb) {
-        Point point = decode(wkb);
+        Point point = SpatialAggregationUtils.decodePoint(wkb);
         current.add(point.getX(), point.getY());
     }
 
     public static void combine(GroupingCentroidState current, int groupId, BytesRef wkb) {
-        Point point = decode(wkb);
+        Point point = SpatialAggregationUtils.decodePoint(wkb);
         current.add(point.getX(), 0d, point.getY(), 0d, 1, groupId);
-    }
-
-    private static Point decode(BytesRef wkb) {
-        return (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
     }
 }

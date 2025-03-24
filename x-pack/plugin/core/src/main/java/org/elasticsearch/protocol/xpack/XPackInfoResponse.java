@@ -43,7 +43,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
     private final FeatureSetsInfo featureSetsInfo;
 
     public XPackInfoResponse(StreamInput in) throws IOException {
-        super(in);
         this.buildInfo = in.readOptionalWriteable(BuildInfo::new);
         this.licenseInfo = in.readOptionalWriteable(LicenseInfo::new);
         this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);
@@ -328,27 +327,15 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             }
 
             public FeatureSet(StreamInput in) throws IOException {
-                this(in.readString(), readAvailable(in), in.readBoolean());
+                this(in.readString(), in.readBoolean(), in.readBoolean());
                 if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                     in.readGenericMap(); // backcompat reading native code info, but no longer used here
                 }
             }
 
-            // this is separated out so that the removed description can be read from the stream on construction
-            // TODO: remove this for 8.0
-            private static boolean readAvailable(StreamInput in) throws IOException {
-                if (in.getTransportVersion().before(TransportVersions.V_7_3_0)) {
-                    in.readOptionalString();
-                }
-                return in.readBoolean();
-            }
-
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
-                if (out.getTransportVersion().before(TransportVersions.V_7_3_0)) {
-                    out.writeOptionalString(null);
-                }
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
                 if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {

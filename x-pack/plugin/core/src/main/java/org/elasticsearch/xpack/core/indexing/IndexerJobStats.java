@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.indexing;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -83,11 +82,8 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         this.searchTotal = in.readVLong();
         this.indexFailures = in.readVLong();
         this.searchFailures = in.readVLong();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
-            this.processingTime = in.readVLong();
-            this.processingTotal = in.readVLong();
-        }
+        this.processingTime = in.readVLong();
+        this.processingTotal = in.readVLong();
     }
 
     public long getNumPages() {
@@ -205,10 +201,8 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         out.writeVLong(searchTotal);
         out.writeVLong(indexFailures);
         out.writeVLong(searchFailures);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
-            out.writeVLong(processingTime);
-            out.writeVLong(processingTotal);
-        }
+        out.writeVLong(processingTime);
+        out.writeVLong(processingTotal);
     }
 
     @Override

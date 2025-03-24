@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,12 +57,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
         super(NAME);
     }
 
-    // This needs to be a MasterNodeReadRequest even though the corresponding transport
-    // action is a HandledTransportAction so that in mixed version clusters it can be
-    // serialized to older nodes where the transport action was a MasterNodeReadAction.
-    // TODO: Make this a simple request in a future version where there is no possibility
-    // of this request being serialized to another node.
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends ActionRequest {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
@@ -70,7 +65,6 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
         private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 

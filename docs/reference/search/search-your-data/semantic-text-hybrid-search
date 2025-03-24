@@ -8,47 +8,12 @@ This tutorial demonstrates how to perform hybrid search, combining semantic sear
 
 In hybrid search, semantic search retrieves results based on the meaning of the text, while full-text search focuses on exact word matches. By combining both methods, hybrid search delivers more relevant results, particularly in cases where relying on a single approach may not be sufficient.
 
-The recommended way to use hybrid search in the {stack} is following the `semantic_text` workflow. This tutorial uses the <<inference-example-elser,`elser` service>> for demonstration, but you can use any service and its supported models offered by the {infer-cap} API.
-
-[discrete]
-[[semantic-text-hybrid-infer-endpoint]]
-==== Create the {infer} endpoint
-
-Create an inference endpoint by using the <<put-inference-api>>:
-
-[source,console]
-------------------------------------------------------------
-PUT _inference/sparse_embedding/my-elser-endpoint <1>
-{
-  "service": "elser", <2>
-  "service_settings": {
-    "adaptive_allocations": { <3>
-      "enabled": true,
-      "min_number_of_allocations": 3,
-      "max_number_of_allocations": 10
-    },
-    "num_threads": 1
-  }
-}
-------------------------------------------------------------
-// TEST[skip:TBD]
-<1> The task type is `sparse_embedding` in the path as the `elser` service will
-be used and ELSER creates sparse vectors. The `inference_id` is
-`my-elser-endpoint`.
-<2> The `elser` service is used in this example.
-<3> This setting enables and configures adaptive allocations.
-Adaptive allocations make it possible for ELSER to automatically scale up or down resources based on the current load on the process.
-
-[NOTE]
-====
-You might see a 502 bad gateway error in the response when using the {kib} Console.
-This error usually just reflects a timeout, while the model downloads in the background.
-You can check the download progress in the {ml-app} UI.
-====
+The recommended way to use hybrid search in the {stack} is following the `semantic_text` workflow. 
+This tutorial uses the <<infer-service-elasticsearch,`elasticsearch` service>> for demonstration, but you can use any service and their supported models offered by the {infer-cap} API.
 
 [discrete]
 [[hybrid-search-create-index-mapping]]
-==== Create an index mapping for hybrid search
+==== Create an index mapping
 
 The destination index will contain both the embeddings for semantic search and the original text field for full-text search. This structure enables the combination of semantic search and full-text search.
 
@@ -60,11 +25,10 @@ PUT semantic-embeddings
     "properties": {
       "semantic_text": { <1>
         "type": "semantic_text", 
-        "inference_id": "my-elser-endpoint" <2>
       },
-      "content": { <3>
+      "content": { <2>
         "type": "text",
-        "copy_to": "semantic_text" <4>
+        "copy_to": "semantic_text" <3>
       }
     }
   }
@@ -72,9 +36,8 @@ PUT semantic-embeddings
 ------------------------------------------------------------
 // TEST[skip:TBD]
 <1> The name of the field to contain the generated embeddings for semantic search.
-<2> The identifier of the inference endpoint that generates the embeddings based on the input text.
-<3> The name of the field to contain the original text for lexical search.
-<4> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} endpoint.
+<2> The name of the field to contain the original text for lexical search.
+<3> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} endpoint.
 
 [NOTE]
 ====
@@ -92,7 +55,7 @@ In this step, you load the data that you later use to create embeddings from.
 
 Use the `msmarco-passagetest2019-top1000` data set, which is a subset of the MS MARCO Passage Ranking data set. It consists of 200 queries, each accompanied by a list of relevant text passages. All unique passages, along with their IDs, have been extracted from that data set and compiled into a https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
 
-Download the file and upload it to your cluster using the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer] in the {ml-app} UI. After your data is analyzed, click **Override settings**. Under **Edit field names**, assign `id` to the first column and `content` to the second. Click **Apply**, then **Import**. Name the index `test-data`, and click **Import**. After the upload is complete, you will see an index named `test-data` with 182,469 documents.
+Download the file and upload it to your cluster using the [Data Visualizer](docs-content://manage-data/ingest/upload-data-files.md) in the {ml-app} UI. After your data is analyzed, click **Override settings**. Under **Edit field names**, assign `id` to the first column and `content` to the second. Click **Apply**, then **Import**. Name the index `test-data`, and click **Import**. After the upload is complete, you will see an index named `test-data` with 182,469 documents.
 
 [discrete]
 [[hybrid-search-reindex-data]]
@@ -150,6 +113,7 @@ POST _tasks/<task_id>/_cancel
 ==== Perform hybrid search
 
 After reindexing the data into the `semantic-embeddings` index, you can perform hybrid search by using <<rrf,reciprocal rank fusion (RRF)>>. RRF is a technique that merges the rankings from both semantic and lexical queries, giving more weight to results that rank high in either search. This ensures that the final results are balanced and relevant.
+To extract the most relevant fragments from the original text and query, you can use the <<highlighting,highlight parameter>>:
 
 [source,console]
 ------------------------------------------------------------
@@ -179,6 +143,13 @@ GET semantic-embeddings/_search
         }
       ]
     }
+  },
+  "highlight": {
+    "fields": {
+        "semantic_text": {
+            "number_of_fragments": 2  <5>
+        }
+    }
   }
 }
 ------------------------------------------------------------
@@ -187,7 +158,7 @@ GET semantic-embeddings/_search
 <2> Lexical search is performed on the `content` field using the specified phrase.
 <3> The second `standard` retriever refers to the semantic search.
 <4> The `semantic_text` field is used to perform the semantic search.
-
+<5> Specifies the maximum number of fragments to return. See <<semantic-text-highlighting, semantic text highlighting>> for a more complete example.
 
 After performing the hybrid search, the query will return the top 10 documents that match both semantic and lexical search criteria. The results include detailed information about each document:
 
@@ -215,36 +186,14 @@ After performing the hybrid search, the query will return the top 10 documents t
         "_score": 0.032786883,
         "_rank": 1,
         "_source": {
-          "semantic_text": {
-            "inference": {
-              "inference_id": "my-elser-endpoint",
-              "model_settings": {
-                "task_type": "sparse_embedding"
-              },
-              "chunks": [
-                {
-                  "text": "What so many out there do not realize is the importance of what you do after you work out. You may have done the majority of the work, but how you treat your body in the minutes and hours after you exercise has a direct effect on muscle soreness, muscle strength and growth, and staying hydrated. Cool Down. After your last exercise, your workout is not over. The first thing you need to do is cool down. Even if running was all that you did, you still should do light cardio for a few minutes. This brings your heart rate down at a slow and steady pace, which helps you avoid feeling sick after a workout.",
-                  "embeddings": {
-                    "exercise": 1.571044,
-                    "after": 1.3603843,
-                    "sick": 1.3281639,
-                    "cool": 1.3227621,
-                    "muscle": 1.2645415,
-                    "sore": 1.2561599,
-                    "cooling": 1.2335974,
-                    "running": 1.1750668,
-                    "hours": 1.1104802,
-                    "out": 1.0991782,
-                    "##io": 1.0794281,
-                    "last": 1.0474665,
-                   (...) 
-                  }
-                }
-              ]
-            }
-          },
           "id": 8408852,
           "content": "What so many out there do not realize is the importance of (...)"
+        },
+        "highlight" : {
+            "semantic_text" : [
+                "... fragment_1 ...",
+                "... fragment_2 ..."
+            ]
         }
       }
     ]

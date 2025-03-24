@@ -12,15 +12,19 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +42,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         dateCases(suppliers, "fixed date", () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"));
+        dateNanosCases(suppliers, "fixed date nanos", () -> DateUtils.toLong(Instant.parse("2023-02-17T09:00:00.00Z")));
         dateCasesWithSpan(
             suppliers,
             "fixed date with period",
@@ -50,6 +55,22 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
             suppliers,
             "fixed date with duration",
             () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"),
+            DataType.TIME_DURATION,
+            Duration.ofDays(1L),
+            "[86400000 in Z][fixed]"
+        );
+        dateNanosCasesWithSpan(
+            suppliers,
+            "fixed date nanos with period",
+            () -> DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.00Z")),
+            DataType.DATE_PERIOD,
+            Period.ofYears(1),
+            "[YEAR_OF_CENTURY in Z][fixed to midnight]"
+        );
+        dateNanosCasesWithSpan(
+            suppliers,
+            "fixed date nanos with duration",
+            () -> DateUtils.toLong(Instant.parse("2023-02-17T09:00:00.00Z")),
             DataType.TIME_DURATION,
             Duration.ofDays(1L),
             "[86400000 in Z][fixed]"
@@ -87,7 +108,8 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                     args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
                     return new TestCaseSupplier.TestCase(
                         args,
-                        "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
+                        "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], "
+                            + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATETIME,
                         resultsMatcher(args)
                     );
@@ -101,7 +123,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                     args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
                     return new TestCaseSupplier.TestCase(
                         args,
-                        "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
+                        "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
                     );
@@ -134,11 +156,67 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
             args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
             return new TestCaseSupplier.TestCase(
                 args,
-                "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
+                "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
                 DataType.DATETIME,
                 resultsMatcher(args)
             );
         }));
+    }
+
+    private static void dateNanosCasesWithSpan(
+        List<TestCaseSupplier> suppliers,
+        String name,
+        LongSupplier date,
+        DataType spanType,
+        Object span,
+        String spanStr
+    ) {
+        suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, spanType), () -> {
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+            args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
+            args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
+            return new TestCaseSupplier.TestCase(
+                args,
+                Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                DataType.DATE_NANOS,
+                resultsMatcher(args)
+            );
+        }));
+    }
+
+    private static void dateNanosCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
+        for (DataType fromType : DATE_BOUNDS_TYPE) {
+            for (DataType toType : DATE_BOUNDS_TYPE) {
+                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
+                    // TODO more "from" and "to" and "buckets"
+                    args.add(new TestCaseSupplier.TypedData(50, DataType.INTEGER, "buckets").forceLiteral());
+                    args.add(dateBound("from", fromType, "2023-02-01T00:00:00.00Z"));
+                    args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        DataType.DATE_NANOS,
+                        resultsMatcher(args)
+                    );
+                }));
+                // same as above, but a low bucket count and datetime bounds that match it (at hour span)
+                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
+                    args.add(new TestCaseSupplier.TypedData(4, DataType.INTEGER, "buckets").forceLiteral());
+                    args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
+                    args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        DataType.DATE_NANOS,
+                        equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
+                    );
+                }));
+            }
+        }
     }
 
     private static final DataType[] NUMBER_BOUNDS_TYPES = new DataType[] { DataType.INTEGER, DataType.LONG, DataType.DOUBLE };
@@ -220,7 +298,19 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
     private static Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         if (typedData.get(0).type() == DataType.DATETIME) {
             long millis = ((Number) typedData.get(0).data()).longValue();
-            return equalTo(Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(millis));
+            long expected = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(millis);
+            LogManager.getLogger(getTestClass()).info("Expected: " + Instant.ofEpochMilli(expected));
+            LogManager.getLogger(getTestClass()).info("Input: " + Instant.ofEpochMilli(millis));
+            return equalTo(expected);
+        }
+        if (typedData.get(0).type() == DataType.DATE_NANOS) {
+            long nanos = ((Number) typedData.get(0).data()).longValue();
+            long expected = DateUtils.toNanoSeconds(
+                Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(DateUtils.toMilliSeconds(nanos))
+            );
+            LogManager.getLogger(getTestClass()).info("Expected: " + DateUtils.toInstant(expected));
+            LogManager.getLogger(getTestClass()).info("Input: " + DateUtils.toInstant(nanos));
+            return equalTo(expected);
         }
         return equalTo(((Number) typedData.get(0).data()).doubleValue());
     }

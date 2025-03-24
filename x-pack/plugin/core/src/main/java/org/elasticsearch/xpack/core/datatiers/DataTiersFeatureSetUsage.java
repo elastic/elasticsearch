@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import java.util.Objects;
  * See {@link TierSpecificStats} for the stats that are tracked on a per-tier
  * basis.
  */
-public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
+public class DataTiersFeatureSetUsage extends XPackFeatureUsage {
     private final Map<String, TierSpecificStats> tierStats;
 
     public DataTiersFeatureSetUsage(StreamInput in) throws IOException {
@@ -45,7 +45,7 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_10_0;
+        return TransportVersions.ZERO;
     }
 
     public Map<String, TierSpecificStats> getTierStats() {

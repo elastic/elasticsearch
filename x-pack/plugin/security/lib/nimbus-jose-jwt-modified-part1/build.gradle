@@ -6,12 +6,12 @@
  */
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
 
 // See the build.gradle file in the parent directory for an explanation of this unusual build
 
 dependencies {
-  implementation "com.nimbusds:nimbus-jose-jwt:9.37.3"
+  implementation "com.nimbusds:nimbus-jose-jwt:10.0.2"
 }
 
 tasks.named('shadowJar').configure {

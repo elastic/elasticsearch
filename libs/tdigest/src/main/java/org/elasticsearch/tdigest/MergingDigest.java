@@ -111,7 +111,7 @@ public class MergingDigest extends AbstractTDigest {
     // based on accumulated k-index. This can be much faster since we
     // scale functions are more expensive than the corresponding
     // weight limits.
-    public static boolean useWeightLimit = true;
+    public static final boolean useWeightLimit = true;
 
     static MergingDigest create(TDigestArrays arrays, double compression) {
         arrays.adjustBreaker(SHALLOW_SIZE);

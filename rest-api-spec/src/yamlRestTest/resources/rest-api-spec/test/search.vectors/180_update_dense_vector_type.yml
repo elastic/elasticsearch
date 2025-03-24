@@ -109,6 +109,7 @@ setup:
               field: embedding
               query_vector: [1, 1, 1, 1]
               num_candidates: 10
+              k: 10
 
   - match: { hits.total.value: 10 }
   - length: {hits.hits: 3}
@@ -215,6 +216,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 20
+              k: 20
 
   - match: { hits.total.value: 20 }
   - length: { hits.hits: 3 }
@@ -322,6 +324,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 30
+              k: 30
 
   - match: { hits.total.value: 30 }
   - length: { hits.hits: 4 }
@@ -430,6 +433,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 40
+              k: 40
 
   - match: { hits.total.value: 40 }
   - length: { hits.hits: 5 }
@@ -499,6 +503,7 @@ setup:
               field: embedding
               query_vector: [1, 1, 1, 1]
               num_candidates: 10
+              k: 10
 
   - match: { hits.total.value: 10 }
   - length: {hits.hits: 3}
@@ -559,6 +564,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 20
+              k: 20
 
   - match: { hits.total.value: 20 }
   - length: { hits.hits: 3 }
@@ -620,6 +626,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 30
+              k: 30
 
   - match: { hits.total.value: 30 }
   - length: { hits.hits: 4 }
@@ -682,6 +689,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 40
+              k: 40
 
   - match: { hits.total.value: 40 }
   - length: { hits.hits: 5 }
@@ -751,6 +759,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 10
+              k: 10
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 3 }
@@ -791,6 +800,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 10
+              k: 10
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 3 }
@@ -833,6 +843,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 20
+              k: 20
 
   - match: { hits.total.value: 20 }
   - length: { hits.hits: 3 }
@@ -869,6 +880,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 20
+              k: 20
 
   - match: { hits.total.value: 20 }
   - length: { hits.hits: 3 }
@@ -911,6 +923,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 30
+              k: 30
 
   - match: { hits.total.value: 30 }
   - length: { hits.hits: 4 }
@@ -933,6 +946,7 @@ setup:
             knn:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
+              k: 30
               num_candidates: 30
 
   - match: { hits.total.value: 30 }
@@ -1769,6 +1783,7 @@ setup:
               field: embedding
               query_vector: [1, 1, 1, 1]
               num_candidates: 10
+              k: 10
 
   - match: { hits.total.value: 10 }
   - length: {hits.hits: 3}
@@ -1875,6 +1890,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 20
+              k: 20
 
   - match: { hits.total.value: 20 }
   - length: { hits.hits: 3 }
@@ -1982,6 +1998,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 30
+              k: 30
 
   - match: { hits.total.value: 30 }
   - length: { hits.hits: 4 }
@@ -2090,6 +2107,7 @@ setup:
               field: embedding
               query_vector: [ 1, 1, 1, 1 ]
               num_candidates: 40
+              k: 40
 
   - match: { hits.total.value: 40 }
   - length: { hits.hits: 5 }

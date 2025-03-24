@@ -43,7 +43,7 @@ public class RestPutQueryRuleAction extends EnterpriseSearchBaseRestHandler {
         PutQueryRuleAction.Request request = new PutQueryRuleAction.Request(
             restRequest.param("ruleset_id"),
             restRequest.param("rule_id"),
-            restRequest.content(),
+            restRequest.requiredContent(),
             restRequest.getXContentType()
         );
         return channel -> client.execute(

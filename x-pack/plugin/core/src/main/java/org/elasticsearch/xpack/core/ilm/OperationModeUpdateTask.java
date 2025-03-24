@@ -17,13 +17,14 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
 /**
  * This task updates the operation mode state for ILM.
- *
+ * <p>
  * As stopping ILM proved to be an action we want to sometimes take in order to allow clusters to stabilise when under heavy load this
  * task might run at {@link Priority#IMMEDIATE} priority so please make sure to keep this task as lightweight as possible.
  */
@@ -90,7 +91,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             return currentState;
         }
 
-        final OperationMode currentMode = currentILMMode(currentState);
+        final OperationMode currentMode = currentILMMode(currentState.metadata().getProject());
         if (currentMode.equals(ilmMode)) {
             // No need for a new state
             return currentState;
@@ -136,14 +137,20 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.metadata())
-                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(currentILMMode(currentState), newMode))
+                    .putCustom(
+                        LifecycleOperationMetadata.TYPE,
+                        new LifecycleOperationMetadata(currentILMMode(currentState.metadata().getProject()), newMode)
+                    )
             )
             .build();
     }
 
     @Override
     public void onFailure(Exception e) {
-        logger.error("unable to update lifecycle metadata with new ilm mode [" + ilmMode + "], slm mode [" + slmMode + "]", e);
+        logger.error(
+            () -> Strings.format("unable to update lifecycle metadata with new ilm mode [%s], slm mode [%s]", ilmMode, slmMode),
+            e
+        );
     }
 
     @Override

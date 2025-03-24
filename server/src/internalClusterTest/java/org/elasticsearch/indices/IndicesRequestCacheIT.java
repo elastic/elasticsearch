@@ -321,9 +321,11 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testQueryRewriteDatesWithNow() throws Exception {
         Client client = client();
         Settings settings = indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).build();
-        assertAcked(indicesAdmin().prepareCreate("index-1").setMapping("d", "type=date").setSettings(settings).get());
-        assertAcked(indicesAdmin().prepareCreate("index-2").setMapping("d", "type=date").setSettings(settings).get());
-        assertAcked(indicesAdmin().prepareCreate("index-3").setMapping("d", "type=date").setSettings(settings).get());
+        assertAcked(
+            indicesAdmin().prepareCreate("index-1").setMapping("d", "type=date").setSettings(settings),
+            indicesAdmin().prepareCreate("index-2").setMapping("d", "type=date").setSettings(settings),
+            indicesAdmin().prepareCreate("index-3").setMapping("d", "type=date").setSettings(settings)
+        );
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time");
         indexRandom(

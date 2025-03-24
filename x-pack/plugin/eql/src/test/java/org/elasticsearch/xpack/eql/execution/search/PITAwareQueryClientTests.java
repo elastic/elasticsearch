@@ -102,6 +102,8 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 null,
                 123,
                 1,
+                randomBoolean(),
+                randomBoolean(),
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -168,7 +170,15 @@ public class PITAwareQueryClientTests extends ESTestCase {
             }
 
             SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, booleanArrayOf(stages, false), cb);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(wrap(response -> {
                 // do nothing, we don't care about the query results
             }, ex -> { fail("Shouldn't have failed"); }));

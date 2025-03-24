@@ -1,8 +1,3 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -11,12 +6,17 @@ import org.elasticsearch.gradle.internal.test.RestIntegTestTask
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The Azure Repository plugin adds support for Azure storage repositories.'
-  classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
+  description = 'The Azure Repository plugin adds support for Azure storage repositories.'
+  classname ='org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
 }
 
 versions << [
@@ -30,6 +30,7 @@ dependencies {
   api "com.azure:azure-identity:1.13.2"
   api "com.azure:azure-json:1.2.0"
   api "com.azure:azure-storage-blob:12.27.1"
+  api "com.azure:azure-storage-blob-batch:12.23.1"
   api "com.azure:azure-storage-common:12.26.1"
   api "com.azure:azure-storage-internal-avro:12.12.1"
   api "com.azure:azure-xml:1.1.0"
@@ -55,26 +56,28 @@ dependencies {
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
   api "io.projectreactor:reactor-core:3.4.38"
-  api "org.reactivestreams:reactive-streams:1.0.4"
+  api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   // Others
   api "com.fasterxml.woodstox:woodstox-core:6.7.0"
   api "com.github.stephenc.jcip:jcip-annotations:1.0-1"
   api "com.nimbusds:content-type:2.3"
   api "com.nimbusds:lang-tag:1.7"
-  api "com.nimbusds:nimbus-jose-jwt:9.37.3"
-  api "com.nimbusds:oauth2-oidc-sdk:11.9.1"
+  api("com.nimbusds:nimbus-jose-jwt:10.0.2"){
+    exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
+  }
+  api("com.nimbusds:oauth2-oidc-sdk:11.22.2"){
+    exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
+  }
   api "jakarta.activation:jakarta.activation-api:1.2.1"
   api "jakarta.xml.bind:jakarta.xml.bind-api:2.3.3"
   api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
   api "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
-  api "net.minidev:accessors-smart:2.5.0"
-  api "net.minidev:json-smart:2.5.0"
+  api "net.minidev:accessors-smart:2.5.2"
+  api "net.minidev:json-smart:2.5.2"
   api "org.codehaus.woodstox:stax2-api:4.2.2"
-  api "org.ow2.asm:asm:9.3"
+  api "org.ow2.asm:asm:9.7.1"
 
-  runtimeOnly "com.google.crypto.tink:tink:1.14.0"
-  runtimeOnly "com.google.protobuf:protobuf-java:4.27.0"
   runtimeOnly "com.google.code.gson:gson:2.11.0"
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
 
@@ -174,13 +177,11 @@ tasks.named("thirdPartyAudit").configure {
     //    'org.slf4j.ext.EventData' - bring back when https://github.com/elastic/elasticsearch/issues/93714 is done
 
     // Optional dependency of tink
-    'com.google.api.client.http.HttpHeaders',
-    'com.google.api.client.http.HttpRequest',
-    'com.google.api.client.http.HttpRequestFactory',
-    'com.google.api.client.http.HttpResponse',
-    'com.google.api.client.http.HttpTransport',
-    'com.google.api.client.http.javanet.NetHttpTransport',
-    'com.google.api.client.http.javanet.NetHttpTransport$Builder',
+    'com.google.crypto.tink.subtle.Ed25519Sign',
+    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+    'com.google.crypto.tink.subtle.Ed25519Verify',
+    'com.google.crypto.tink.subtle.X25519',
+    'com.google.crypto.tink.subtle.XChaCha20Poly1305',
 
     // Optional dependency of nimbus-jose-jwt and oauth2-oidc-sdk
     'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
@@ -189,11 +190,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.cert.X509CertificateHolder',
     'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
     'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
-    'org.bouncycastle.crypto.InvalidCipherTextException',
-    'org.bouncycastle.crypto.engines.AESEngine',
-    'org.bouncycastle.crypto.modes.GCMBlockCipher',
-    'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
-    'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.openssl.PEMKeyPair',
     'org.bouncycastle.openssl.PEMParser',
     'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
@@ -252,14 +248,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.MailcapCommandMap',
     'javax.activation.MimetypesFileTypeMap',
     'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
-
-    'com.google.protobuf.MessageSchema',
-    'com.google.protobuf.UnsafeUtil',
-    'com.google.protobuf.UnsafeUtil$1',
-    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
   )
 }
 
@@ -328,7 +316,7 @@ tasks.register("workloadIdentityYamlRestTest", RestIntegTestTask) {
   // omitting key and sas_token so that we use a bearer token from workload identity
 }
 
-if (BuildParams.inFipsJvm) {
+if (buildParams.inFipsJvm) {
   // Cannot override the trust store in FIPS mode, and these tasks require a HTTPS fixture
   tasks.named("managedIdentityYamlRestTest").configure { enabled = false }
   tasks.named("workloadIdentityYamlRestTest").configure { enabled = false }

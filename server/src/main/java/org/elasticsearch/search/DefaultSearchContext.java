@@ -21,9 +21,9 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -73,9 +73,11 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -102,6 +104,7 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
+    private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
     private RankFeatureResult rankFeatureResult;
@@ -130,7 +133,7 @@ final class DefaultSearchContext extends SearchContext {
     private CollapseContext collapse;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
-    private SearchShardTask task;
+    private CancellableTask task;
     private QueryPhaseRankShardContext queryPhaseRankShardContext;
 
     /**
@@ -167,7 +170,8 @@ final class DefaultSearchContext extends SearchContext {
         Executor executor,
         SearchService.ResultsType resultsType,
         boolean enableQueryPhaseParallelCollection,
-        int minimumDocsPerSlice
+        int minimumDocsPerSlice,
+        long memoryAccountingBufferSize
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -178,6 +182,7 @@ final class DefaultSearchContext extends SearchContext {
             this.shardTarget = shardTarget;
             this.indexService = readerContext.indexService();
             this.indexShard = readerContext.indexShard();
+            this.memoryAccountingBufferSize = memoryAccountingBufferSize;
 
             Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
             int maximumNumberOfSlices = determineMaximumNumberOfSlices(
@@ -377,7 +382,7 @@ final class DefaultSearchContext extends SearchContext {
             );
         }
         if (rescore != null) {
-            if (sort != null) {
+            if (RescorePhase.validateSort(sort) == false) {
                 throw new IllegalArgumentException("Cannot use [sort] option in conjunction with [rescore].");
             }
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
@@ -432,7 +437,7 @@ final class DefaultSearchContext extends SearchContext {
         this.query = buildFilteredQuery(query);
         if (lowLevelCancellation) {
             searcher().addQueryCancellation(() -> {
-                final SearchShardTask task = getTask();
+                final CancellableTask task = getTask();
                 if (task != null) {
                     task.ensureNotCancelled();
                 }
@@ -444,10 +449,9 @@ final class DefaultSearchContext extends SearchContext {
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
         NestedLookup nestedLookup = searchExecutionContext.nestedLookup();
-        NestedHelper nestedHelper = new NestedHelper(nestedLookup, searchExecutionContext::isFieldMapped);
         if (nestedLookup != NestedLookup.EMPTY
-            && nestedHelper.mightMatchNestedDocs(query)
-            && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
+            && NestedHelper.mightMatchNestedDocs(query, searchExecutionContext)
+            && (aliasFilter == null || NestedHelper.mightMatchNestedDocs(aliasFilter, searchExecutionContext))) {
             filters.add(Queries.newNonNestedFilter(searchExecutionContext.indexVersionCreated()));
         }
 
@@ -902,17 +906,27 @@ final class DefaultSearchContext extends SearchContext {
         return profilers;
     }
 
+    @Override
+    public CircuitBreaker circuitBreaker() {
+        return indexService.breakerService().getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    @Override
+    public long memAccountingBufferSize() {
+        return memoryAccountingBufferSize;
+    }
+
     public void setProfilers(Profilers profilers) {
         this.profilers = profilers;
     }
 
     @Override
-    public void setTask(SearchShardTask task) {
+    public void setTask(CancellableTask task) {
         this.task = task;
     }
 
     @Override
-    public SearchShardTask getTask() {
+    public CancellableTask getTask() {
         return task;
     }
 

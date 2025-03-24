@@ -32,14 +32,14 @@ public class DataLoader {
 
     public static void main(String[] args) throws Exception {
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
-            loadEmpDatasetIntoEs(client, true);
-            loadDocsDatasetIntoEs(client, true);
+            loadEmpDatasetIntoEs(client);
+            loadDocsDatasetIntoEs(client);
             LogManager.getLogger(DataLoader.class).info("Data loaded");
         }
     }
 
-    public static void loadDatasetIntoEs(RestClient client, boolean includeFrozenIndices) throws Exception {
-        loadEmpDatasetIntoEs(client, includeFrozenIndices);
+    public static void loadDatasetIntoEs(RestClient client) throws Exception {
+        loadEmpDatasetIntoEs(client);
     }
 
     public static void createEmptyIndex(RestClient client, String index) throws Exception {
@@ -62,7 +62,7 @@ public class DataLoader {
         client.performRequest(request);
     }
 
-    private static void loadEmpDatasetIntoEs(RestClient client, boolean includeFrozenIndices) throws Exception {
+    private static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "test_emp", "employees");
         loadEmpDatasetWithExtraIntoEs(client, "test_emp_copy", "employees");
         loadAppsDatasetIntoEs(client, "apps", "apps");
@@ -71,10 +71,6 @@ public class DataLoader {
         loadLogUnsignedLongIntoEs(client, "logs_unsigned_long", "logs_unsigned_long");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
-        if (includeFrozenIndices) {
-            loadEmpDatasetIntoEs(client, "frozen_emp", "employees");
-            freeze(client, "frozen_emp");
-        }
         loadNoColsDatasetIntoEs(client, "empty_mapping");
     }
 
@@ -91,14 +87,10 @@ public class DataLoader {
         client.performRequest(request);
     }
 
-    public static void loadDocsDatasetIntoEs(RestClient client, boolean includeFrozenIndices) throws Exception {
+    public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "emp", "employees");
         loadLibDatasetIntoEs(client, "library");
         makeAlias(client, "employees", "emp");
-        if (includeFrozenIndices) {
-            loadLibDatasetIntoEs(client, "archive");
-            freeze(client, "archive");
-        }
     }
 
     public static void createString(String name, XContentBuilder builder) throws Exception {

@@ -5,9 +5,7 @@
  * 2.0.
  */
 
-
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -15,7 +13,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   /**
    * We execute tests 3 times.
@@ -44,39 +42,36 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     useCluster localCluster
     useCluster remoteCluster
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-
-    doFirst {
-      nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-    }
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo("${baseName}-local").map { it.allHttpSocketURI.join(",") })
+    nonInputProperties.systemProperty('tests.rest.remote_cluster', getClusterInfo("${baseName}-remote").map { it.allHttpSocketURI.join(",") })
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "processTestResources"
     mustRunAfter("precommit")
     doFirst {
-      localCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(localCluster)
     }
   }
 
   tasks.register("${baseName}#oneThirdUpgraded", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
     doFirst {
-      remoteCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(remoteCluster)
     }
   }
 
   tasks.register("${baseName}#twoThirdUpgraded", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgraded"
     doFirst {
-      remoteCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(remoteCluster)
     }
   }
 
   tasks.register("${baseName}#fullUpgraded", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdUpgraded"
     doFirst {
-      remoteCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(remoteCluster)
     }
   }
 

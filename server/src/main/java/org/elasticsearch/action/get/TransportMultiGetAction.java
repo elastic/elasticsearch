@@ -19,6 +19,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -39,6 +42,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     public static final ActionType<MultiGetResponse> TYPE = new ActionType<>(NAME);
     private final ClusterService clusterService;
     private final NodeClient client;
+    private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
@@ -47,12 +51,14 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         ClusterService clusterService,
         NodeClient client,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver resolver,
         IndicesService indicesService
     ) {
         super(NAME, transportService, actionFilters, MultiGetRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.client = client;
+        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = resolver;
         // register the internal TransportGetFromTranslogAction
         new TransportShardMultiGetFomTranslogAction(transportService, indicesService, actionFilters);
@@ -61,6 +67,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     @Override
     protected void doExecute(Task task, final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
         ClusterState clusterState = clusterService.state();
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
         final AtomicArray<MultiGetItemResponse> responses = new AtomicArray<>(request.items.size());
@@ -77,11 +84,11 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 if (item.index().equals(lastResolvedIndex.v1())) {
                     concreteSingleIndex = lastResolvedIndex.v2();
                 } else {
-                    concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
+                    concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(project, item).getName();
                     lastResolvedIndex = Tuple.tuple(item.index(), concreteSingleIndex);
                 }
-                item.routing(clusterState.metadata().resolveIndexRouting(item.routing(), item.index()));
-                shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex, item.id(), item.routing());
+                item.routing(project.resolveIndexRouting(item.routing(), item.index()));
+                shardId = OperationRouting.shardId(project, concreteSingleIndex, item.id(), item.routing());
             } catch (RoutingMissingException e) {
                 responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
                 continue;

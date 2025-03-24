@@ -11,7 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -139,7 +139,11 @@ public class RankedDocsResults implements InferenceServiceResults {
         }
 
         public Map<String, Object> asMap() {
-            return Map.of(NAME, Map.of(INDEX, index, RELEVANCE_SCORE, relevanceScore, TEXT, text));
+            if (text != null) {
+                return Map.of(NAME, Map.of(INDEX, index, RELEVANCE_SCORE, relevanceScore, TEXT, text));
+            } else {
+                return Map.of(NAME, Map.of(INDEX, index, RELEVANCE_SCORE, relevanceScore));
+            }
         }
 
         @Override
@@ -174,7 +178,7 @@ public class RankedDocsResults implements InferenceServiceResults {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).array(RERANK, rankedDocs.iterator());
+        return ChunkedToXContentHelper.array(RERANK, rankedDocs.iterator());
     }
 
     @Override

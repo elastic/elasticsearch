@@ -11,16 +11,19 @@ package org.elasticsearch.search.ccs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -37,18 +40,12 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.SkipUnavailableRule;
+import org.elasticsearch.test.SkipUnavailableRule.NotSkipped;
 import org.elasticsearch.usage.UsageService;
 import org.junit.Assert;
 import org.junit.Rule;
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -56,8 +53,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
@@ -78,7 +73,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     }
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE1, REMOTE2);
     }
 
@@ -126,12 +121,9 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         // We want to send search to a specific node (we don't care which one) so that we could
         // collect the CCS telemetry from it later
         String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
-        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
-        cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest, queryFuture);
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
 
         // We expect failure, but we don't care too much which failure it is in this test
-        ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
+        ExecutionException ee = expectThrows(ExecutionException.class, cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest)::get);
         assertNotNull(ee.getCause());
 
         return getTelemetrySnapshot(nodeName);
@@ -498,7 +490,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(perCluster.get(REMOTE2), equalTo(null));
     }
 
-    @SkipOverride(aliases = { REMOTE1 })
+    @NotSkipped(aliases = { REMOTE1 })
     public void testRemoteTimesOutFailure() throws Exception {
         Map<String, Object> testClusterInfo = setupClusters();
         String remoteIndex = (String) testClusterInfo.get("remote.index");
@@ -528,7 +520,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     /**
     * Search when all the remotes failed and not skipped
     */
-    @SkipOverride(aliases = { REMOTE1, REMOTE2 })
+    @NotSkipped(aliases = { REMOTE1, REMOTE2 })
     public void testFailedAllRemotesSearch() throws Exception {
         Map<String, Object> testClusterInfo = setupClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
@@ -577,7 +569,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     /**
      * Test that we're still counting remote search even if remote cluster has no such index
      */
-    @SkipOverride(aliases = { REMOTE1 })
+    @NotSkipped(aliases = { REMOTE1 })
     public void testRemoteHasNoIndexFailure() throws Exception {
         SearchRequest searchRequest = makeSearchRequest(REMOTE1 + ":no_such_index");
         CCSTelemetrySnapshot telemetry = getTelemetryFromFailedSearch(searchRequest);
@@ -637,92 +629,62 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         return usage.getCcsUsageHolder().getCCSTelemetrySnapshot();
     }
 
-    private Map<String, Object> setupClusters() {
+    private Map<String, Object> setupClusters() throws ExecutionException, InterruptedException {
         String localIndex = "demo";
+        String remoteIndex = "prod";
         int numShardsLocal = randomIntBetween(2, 10);
         Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
-        assertAcked(
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
             client(LOCAL_CLUSTER).admin()
                 .indices()
                 .prepareCreate(localIndex)
                 .setSettings(localSettings)
                 .setMapping("@timestamp", "type=date", "f", "type=text")
-        );
-        indexDocs(client(LOCAL_CLUSTER), localIndex);
+                .execute(refCountingListener.acquire(r -> {
+                    assertAcked(r);
+                    indexDocs(client(LOCAL_CLUSTER), localIndex, refCountingListener.acquire());
+                }));
 
-        String remoteIndex = "prod";
-        int numShardsRemote = randomIntBetween(2, 10);
-        for (String clusterAlias : remoteClusterAlias()) {
-            final InternalTestCluster remoteCluster = cluster(clusterAlias);
-            remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
-            assertAcked(
+            int numShardsRemote = randomIntBetween(2, 10);
+            var remotes = remoteClusterAlias();
+            runInParallel(remotes.size(), i -> {
+                final String clusterAlias = remotes.get(i);
+                final InternalTestCluster remoteCluster = cluster(clusterAlias);
+                remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
                 client(clusterAlias).admin()
                     .indices()
                     .prepareCreate(remoteIndex)
                     .setSettings(indexSettings(numShardsRemote, randomIntBetween(0, 1)))
                     .setMapping("@timestamp", "type=date", "f", "type=text")
-            );
-            assertFalse(
-                client(clusterAlias).admin()
-                    .cluster()
-                    .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
-                    .setWaitForYellowStatus()
-                    .setTimeout(TimeValue.timeValueSeconds(10))
-                    .get()
-                    .isTimedOut()
-            );
-            indexDocs(client(clusterAlias), remoteIndex);
+                    .execute(refCountingListener.acquire(r -> {
+                        assertAcked(r);
+                        client(clusterAlias).admin()
+                            .cluster()
+                            .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
+                            .setWaitForYellowStatus()
+                            .setTimeout(TimeValue.timeValueSeconds(10))
+                            .execute(refCountingListener.acquire(healthResponse -> {
+                                assertFalse(healthResponse.isTimedOut());
+                                indexDocs(client(clusterAlias), remoteIndex, refCountingListener.acquire());
+                            }));
+                    }));
+            });
         }
-
+        future.get();
         Map<String, Object> clusterInfo = new HashMap<>();
         clusterInfo.put("local.index", localIndex);
         clusterInfo.put("remote.index", remoteIndex);
         return clusterInfo;
     }
 
-    private int indexDocs(Client client, String index) {
+    private void indexDocs(Client client, String index, ActionListener<Void> listener) {
         int numDocs = between(5, 20);
+        final BulkRequestBuilder bulkRequest = client.prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index).setSource("f", "v", "@timestamp", randomNonNegativeLong()).get();
+            bulkRequest.add(client.prepareIndex(index).setSource("f", "v", "@timestamp", randomNonNegativeLong()));
         }
-        client.admin().indices().prepareRefresh(index).get();
-        return numDocs;
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(listener.safeMap(r -> null));
     }
 
-    /**
-     * Annotation to mark specific cluster in a test as not to be skipped when unavailable
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.METHOD)
-    @interface SkipOverride {
-        String[] aliases();
-    }
-
-    /**
-     * Test rule to process skip annotations
-     */
-    static class SkipUnavailableRule implements TestRule {
-        private final Map<String, Boolean> skipMap;
-
-        SkipUnavailableRule(String... clusterAliases) {
-            this.skipMap = Arrays.stream(clusterAliases).collect(Collectors.toMap(Function.identity(), alias -> true));
-        }
-
-        public Map<String, Boolean> getMap() {
-            return skipMap;
-        }
-
-        @Override
-        public Statement apply(Statement base, Description description) {
-            // Check for annotation named "SkipOverride" and set the overrides accordingly
-            var aliases = description.getAnnotation(SkipOverride.class);
-            if (aliases != null) {
-                for (String alias : aliases.aliases()) {
-                    skipMap.put(alias, false);
-                }
-            }
-            return base;
-        }
-
-    }
 }

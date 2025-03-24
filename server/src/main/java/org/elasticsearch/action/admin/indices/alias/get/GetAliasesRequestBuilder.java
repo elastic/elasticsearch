@@ -12,10 +12,11 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.TimeValue;
 
 public class GetAliasesRequestBuilder extends ActionRequestBuilder<GetAliasesRequest, GetAliasesResponse> {
-    public GetAliasesRequestBuilder(ElasticsearchClient client, String... aliases) {
-        super(client, GetAliasesAction.INSTANCE, new GetAliasesRequest(aliases));
+    public GetAliasesRequestBuilder(ElasticsearchClient client, TimeValue masterTimeout, String... aliases) {
+        super(client, GetAliasesAction.INSTANCE, new GetAliasesRequest(masterTimeout, aliases));
     }
 
     public GetAliasesRequestBuilder setAliases(String... aliases) {

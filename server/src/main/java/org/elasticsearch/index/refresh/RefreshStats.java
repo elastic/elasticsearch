@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.refresh;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -40,10 +39,8 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public RefreshStats(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            externalTotal = in.readVLong();
-            externalTotalTimeInMillis = in.readVLong();
-        }
+        externalTotal = in.readVLong();
+        externalTotalTimeInMillis = in.readVLong();
         listeners = in.readVInt();
     }
 
@@ -51,10 +48,8 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            out.writeVLong(externalTotal);
-            out.writeVLong(externalTotalTimeInMillis);
-        }
+        out.writeVLong(externalTotal);
+        out.writeVLong(externalTotalTimeInMillis);
         out.writeVInt(listeners);
     }
 

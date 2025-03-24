@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.allOf;
@@ -50,8 +51,9 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
     }
 
     @Override
-    protected MapMatcher responseMatcher() {
-        return super.responseMatcher().entry("is_running", equalTo(false)).entry("id", allOf(notNullValue(), instanceOf(String.class)));
+    protected MapMatcher responseMatcher(Map<String, Object> result) {
+        return super.responseMatcher(result).entry("is_running", equalTo(false))
+            .entry("id", allOf(notNullValue(), instanceOf(String.class)));
     }
 
     @Override
@@ -149,6 +151,14 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
                     // Work around for https://github.com/elastic/elasticsearch/issues/112110
                     // The async id is not indexed quickly enough in .async-search index for us to retrieve it.
                     logger.warn("async id not found", e);
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                } else if (statusCode == 503 && message.contains("No shard available for [get [.async-search]")) {
+                    // Workaround for https://github.com/elastic/elasticsearch/issues/113419
+                    logger.warn(".async-search index shards not yet available", e);
                     try {
                         Thread.sleep(500);
                     } catch (InterruptedException ex) {

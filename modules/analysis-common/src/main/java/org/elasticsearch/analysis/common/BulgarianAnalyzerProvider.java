@@ -22,7 +22,7 @@ public class BulgarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Bul
     private final BulgarianAnalyzer analyzer;
 
     BulgarianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new BulgarianAnalyzer(
             Analysis.parseStopWords(env, settings, BulgarianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

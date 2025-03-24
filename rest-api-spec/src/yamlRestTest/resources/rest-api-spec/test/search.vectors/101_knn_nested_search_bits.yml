@@ -1,8 +1,6 @@
 setup:
   - requires:
-      cluster_features: "mapper.vectors.bit_vectors"
       test_runner_features: close_to
-      reason: 'bit vectors added in 8.15'
   - do:
       indices.create:
         index: test

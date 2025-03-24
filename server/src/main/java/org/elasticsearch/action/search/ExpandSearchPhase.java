@@ -12,34 +12,47 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * This search phase is an optional phase that will be executed once all hits are fetched from the shards that executes
  * field-collapsing on the inner hits. This phase only executes if field collapsing is requested in the search request and otherwise
  * forwards to the next phase immediately.
  */
-final class ExpandSearchPhase extends SearchPhase {
-    private final SearchPhaseContext context;
-    private final SearchHits searchHits;
-    private final Supplier<SearchPhase> nextPhase;
+class ExpandSearchPhase extends SearchPhase {
 
-    ExpandSearchPhase(SearchPhaseContext context, SearchHits searchHits, Supplier<SearchPhase> nextPhase) {
-        super("expand");
+    static final String NAME = "expand";
+
+    private final AbstractSearchAsyncAction<?> context;
+    private final SearchResponseSections searchResponseSections;
+    private final AtomicArray<SearchPhaseResult> queryPhaseResults;
+
+    ExpandSearchPhase(
+        AbstractSearchAsyncAction<?> context,
+        SearchResponseSections searchResponseSections,
+        AtomicArray<SearchPhaseResult> queryPhaseResults
+    ) {
+        super(NAME);
         this.context = context;
-        this.searchHits = searchHits;
-        this.nextPhase = nextPhase;
+        this.searchResponseSections = searchResponseSections;
+        this.queryPhaseResults = queryPhaseResults;
+    }
+
+    // protected for tests
+    protected SearchPhase nextPhase() {
+        return new FetchLookupFieldsPhase(context, searchResponseSections, queryPhaseResults);
     }
 
     /**
@@ -51,15 +64,16 @@ final class ExpandSearchPhase extends SearchPhase {
     }
 
     @Override
-    public void run() {
+    protected void run() {
+        var searchHits = searchResponseSections.hits();
         if (isCollapseRequest() == false || searchHits.getHits().length == 0) {
             onPhaseDone();
         } else {
-            doRun();
+            doRun(searchHits);
         }
     }
 
-    private void doRun() {
+    private void doRun(SearchHits searchHits) {
         SearchRequest searchRequest = context.getRequest();
         CollapseBuilder collapseBuilder = searchRequest.source().collapse();
         final List<InnerHitBuilder> innerHitBuilders = collapseBuilder.getInnerHits();
@@ -102,7 +116,7 @@ final class ExpandSearchPhase extends SearchPhase {
                 for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
                     MultiSearchResponse.Item item = it.next();
                     if (item.isFailure()) {
-                        context.onPhaseFailure(this, "failed to expand hits", item.getFailure());
+                        phaseFailure(item.getFailure());
                         return;
                     }
                     SearchHits innerHits = item.getResponse().getHits();
@@ -119,7 +133,11 @@ final class ExpandSearchPhase extends SearchPhase {
                 }
             }
             onPhaseDone();
-        }, context::onFailure));
+        }, this::phaseFailure));
+    }
+
+    private void phaseFailure(Exception ex) {
+        context.onPhaseFailure(NAME, "failed to expand hits", ex);
     }
 
     private static SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
@@ -164,6 +182,6 @@ final class ExpandSearchPhase extends SearchPhase {
     }
 
     private void onPhaseDone() {
-        context.executeNextPhase(this, nextPhase.get());
+        context.executeNextPhase(NAME, this::nextPhase);
     }
 }

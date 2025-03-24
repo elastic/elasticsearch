@@ -437,6 +437,16 @@ public class PersistentCache implements Closeable {
             } catch (IndexNotFoundException e) {
                 logger.debug("persistent cache index does not exist yet", e);
             }
+        } catch (Exception e) {
+            if (e instanceof IllegalArgumentException iae) {
+                final var message = iae.getMessage();
+                if (message != null && message.startsWith("indexCreatedVersionMajor is in the future:")) {
+                    logger.warn("Deleting persistent cache index created in the future [message: {}]", message);
+                    IOUtils.rm(directoryPath);
+                    return Map.of();
+                }
+            }
+            throw e;
         }
         return documents;
     }

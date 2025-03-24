@@ -89,6 +89,8 @@ public class TestRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public boolean doEquals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         TestRetrieverBuilder that = (TestRetrieverBuilder) o;
         return Objects.equals(value, that.value);
     }

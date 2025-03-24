@@ -11,12 +11,16 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
@@ -26,6 +30,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -34,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Make sures that we can run many concurrent requests with large number of shards with any data_partitioning.
@@ -54,6 +61,18 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         plugins.add(MockSearchService.TestPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalExchangePlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 5000)))
+            .build();
     }
 
     @Before
@@ -73,11 +92,11 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 .setMapping("user", "type=keyword", "tags", "type=keyword")
                 .get();
             BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            int numDocs = between(5, 10);
+            int numDocs = between(10, 25); // every shard has at least 1 doc
             for (int d = 0; d < numDocs; d++) {
                 String user = randomFrom("u1", "u2", "u3");
                 String tag = randomFrom("java", "elasticsearch", "lucene");
-                bulk.add(new IndexRequest().source(Map.of("user", user, "tags", tag)));
+                bulk.add(client().prepareIndex().setSource(Map.of("user", user, "tags", tag)));
             }
             bulk.get();
         }
@@ -113,32 +132,64 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRejection() throws Exception {
-        String[] nodes = internalCluster().getNodeNames();
-        for (String node : nodes) {
-            MockTransportService ts = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-            ts.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
-                handler.messageReceived(request, new TransportChannel() {
-                    @Override
-                    public String getProfileName() {
-                        return channel.getProfileName();
-                    }
+        DiscoveryNode dataNode = randomFrom(internalCluster().clusterService().state().nodes().getDataNodes().values());
+        String indexName = "single-node-index";
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.routing.allocation.require._name", dataNode.getName())
+            )
+            .setMapping("user", "type=keyword", "tags", "type=keyword")
+            .get();
+        client().prepareIndex(indexName)
+            .setSource("user", "u1", "tags", "lucene")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
-                    @Override
-                    public void sendResponse(TransportResponse response) {
-                        channel.sendResponse(new RemoteTransportException("simulated", new EsRejectedExecutionException("test queue")));
-                    }
+        MockTransportService ts = (MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getName());
+        CountDownLatch dataNodeRequestLatch = new CountDownLatch(1);
+        ts.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+            handler.messageReceived(request, channel, task);
+            dataNodeRequestLatch.countDown();
+        });
 
-                    @Override
-                    public void sendResponse(Exception exception) {
-                        channel.sendResponse(exception);
-                    }
-                }, task);
+        ts.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+            ts.getThreadPool().generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    channel.sendResponse(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    assertTrue(dataNodeRequestLatch.await(30, TimeUnit.SECONDS));
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            channel.sendResponse(new RemoteTransportException("simulated", new EsRejectedExecutionException("test queue")));
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+                    }, task);
+                }
             });
-        }
+        });
+
         try {
             AtomicReference<Exception> failure = new AtomicReference<>();
             EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("from test-* | stats count(user) by tags");
+            request.query("from single-node-index | stats count(user) by tags");
             request.acceptedPragmaRisks(true);
             request.pragmas(randomPragmas());
             CountDownLatch queryLatch = new CountDownLatch(1);
@@ -151,9 +202,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.TOO_MANY_REQUESTS));
             assertThat(failure.get().getMessage(), equalTo("test queue"));
         } finally {
-            for (String node : nodes) {
-                ((MockTransportService) internalCluster().getInstance(TransportService.class, node)).clearAllRules();
-            }
+            ts.clearAllRules();
         }
     }
 
@@ -207,6 +256,35 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 mockSearchService.setOnPutContext(r -> {});
                 mockSearchService.setOnRemoveContext(r -> {});
             }
+        }
+    }
+
+    public void testCancelUnnecessaryRequests() {
+        assumeTrue("Requires pragmas", canUseQueryPragmas());
+        internalCluster().ensureAtLeastNumDataNodes(3);
+
+        var coordinatingNode = internalCluster().getNodeNames()[0];
+
+        var exchanges = new AtomicInteger(0);
+        var coordinatorNodeTransport = MockTransportService.getInstance(coordinatingNode);
+        coordinatorNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (Objects.equals(action, ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
+                logger.info("Opening exchange on node [{}]", connection.getNode().getId());
+                exchanges.incrementAndGet();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        var query = EsqlQueryRequest.syncEsqlQueryRequest();
+        query.query("from test-* | LIMIT 1");
+        query.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build()));
+
+        try {
+            var result = safeExecute(client(coordinatingNode), EsqlQueryAction.INSTANCE, query);
+            assertThat(Iterables.size(result.rows()), equalTo(1L));
+            assertThat(exchanges.get(), lessThanOrEqualTo(2));
+        } finally {
+            coordinatorNodeTransport.clearAllRules();
         }
     }
 }

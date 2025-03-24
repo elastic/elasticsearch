@@ -5,14 +5,13 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
-  javaRestTestImplementation project(path: ':test:fixtures:hdfs-fixture', configuration:"shadow")
+  javaRestTestCompileOnly project(path: ':test:fixtures:hdfs-fixture')
+  javaRestTestRuntimeOnly project(path: ':test:fixtures:hdfs-fixture', configuration:"shadow")
   javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
   javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   javaRestTestImplementation "org.slf4j:slf4j-simple:${versions.slf4j}"
@@ -32,9 +31,9 @@ dependencies {
 
 // Disable integration test if Fips mode
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   description = "Runs rest tests against an elasticsearch cluster with HDFS."
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
   // required for krb5kdc-fixture to work
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
 }

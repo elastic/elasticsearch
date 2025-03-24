@@ -39,7 +39,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             TextFieldMapper.TextFieldType text = (TextFieldMapper.TextFieldType) ft;
             boolean supportsColumnAtATimeReader = text.syntheticSourceDelegate() != null
                 && text.syntheticSourceDelegate().hasDocValues()
-                && text.canUseSyntheticSourceDelegateForQuerying();
+                && text.canUseSyntheticSourceDelegateForLoading();
             return new MapperTestCase.BlockReaderSupport(supportsColumnAtATimeReader, mapper, loaderFieldName);
         }
         MappedFieldType parent = mapper.fieldType(parentName);

@@ -17,9 +17,10 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -40,7 +41,7 @@ import java.util.Set;
 /**
  * Custom {@link Metadata} implementation for storing a map of {@link DataStream}s and their names.
  */
-public class DataStreamMetadata implements Metadata.Custom {
+public class DataStreamMetadata implements Metadata.ProjectCustom {
 
     public static final String TYPE = "data_stream";
 
@@ -191,11 +192,11 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new DataStreamMetadata.DataStreamMetadataDiff((DataStreamMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new DataStreamMetadata.DataStreamMetadataDiff(in);
     }
 
@@ -217,7 +218,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_7_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -231,10 +232,13 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .xContentObjectFields(DATA_STREAM.getPreferredName(), dataStreams)
-            .xContentObject(DATA_STREAM_ALIASES.getPreferredName(), dataStreamAliases.values().iterator());
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.xContentObjectFields(DATA_STREAM.getPreferredName(), dataStreams),
+            ChunkedToXContentHelper.startObject(DATA_STREAM_ALIASES.getPreferredName()),
+            dataStreamAliases.values().iterator(),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     @Override
@@ -259,7 +263,7 @@ public class DataStreamMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
-    static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class DataStreamMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         private static final DiffableUtils.DiffableValueReader<String, DataStream> DS_DIFF_READER = new DiffableUtils.DiffableValueReader<>(
             DataStream::read,
@@ -291,7 +295,7 @@ public class DataStreamMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new DataStreamMetadata(
                 dataStreamDiff.apply(((DataStreamMetadata) part).dataStreams),
                 dataStreamAliasDiff.apply(((DataStreamMetadata) part).dataStreamAliases)
@@ -311,7 +315,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_7_0;
+            return TransportVersions.ZERO;
         }
     }
 }

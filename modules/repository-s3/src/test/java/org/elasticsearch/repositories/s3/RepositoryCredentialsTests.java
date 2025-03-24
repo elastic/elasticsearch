@@ -107,10 +107,11 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
 
         assertCriticalWarnings(
-            "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
-            "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                + " the elasticsearch keystore for secure settings.",
-            "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version.",
+            "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version.",
+            S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING
         );
     }
 
@@ -194,10 +195,11 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
         if (hasInsecureSettings) {
             assertCriticalWarnings(
-                "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
-                "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                    + " the elasticsearch keystore for secure settings.",
-                "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release."
+                "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the breaking changes documentation for the next major version.",
+                "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the breaking changes documentation for the next major version.",
+                S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING
             );
         }
     }
@@ -238,10 +240,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             throw error.get();
         }
 
-        assertWarnings(
-            "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                + " the elasticsearch keystore for secure settings."
-        );
+        assertWarnings(S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING);
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {

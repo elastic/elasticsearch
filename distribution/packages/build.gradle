@@ -10,7 +10,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.redline_rpm.header.Flags
 
 import java.nio.file.Files
@@ -44,7 +43,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "com.netflix.nebula.ospackage-base" version "11.9.1"
+  alias(buildLibs.plugins.ospackage)
 }
 
 ['deb', 'rpm'].each { type ->
@@ -88,21 +87,21 @@ def commonPackageConfig(String type, String architecture) {
       OS.current().equals(OS.WINDOWS) == false
     }
     dependsOn "process${type.capitalize()}Files"
-    packageName "elasticsearch"
+    packageName = "elasticsearch"
     if (type == 'deb') {
       if (architecture == 'x64') {
-        arch('amd64')
+        arch = 'amd64'
       } else {
         assert architecture == 'aarch64': architecture
-        arch('arm64')
+        arch = 'arm64'
       }
     } else {
       assert type == 'rpm': type
       if (architecture == 'x64') {
-        arch('X86_64')
+        arch = 'X86_64'
       } else {
         assert architecture == 'aarch64': architecture
-        arch('aarch64')
+        arch = 'aarch64'
       }
     }
     // Follow elasticsearch's file naming convention
@@ -175,7 +174,7 @@ def commonPackageConfig(String type, String architecture) {
     } else {
       assert type == 'rpm'
       into('/usr/share/elasticsearch') {
-        from(rootProject.file('licenses')) {
+        from(layout.settingsDirectory.file('licenses').asFile) {
           include 'ELASTIC-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
         }
@@ -196,12 +195,12 @@ def commonPackageConfig(String type, String architecture) {
     configurationFile '/etc/elasticsearch/users_roles'
     from("${packagingFiles}") {
       dirPermissions {
-        unix(02750)
+        unix(0750)
       }
       into('/etc')
       permissionGroup 'elasticsearch'
       setgid true
-      includeEmptyDirs true
+      includeEmptyDirs = true
       createDirectoryEntry true
       include("elasticsearch") // empty dir, just to add directory entry
       include("elasticsearch/jvm.options.d") // empty dir, just to add directory entry
@@ -209,14 +208,14 @@ def commonPackageConfig(String type, String architecture) {
     from("${packagingFiles}/etc/elasticsearch") {
       into('/etc/elasticsearch')
       dirPermissions {
-        unix(02750)
+        unix(0750)
       }
       setgid = true
       filePermissions {
         unix(0660)
       }
       permissionGroup 'elasticsearch'
-      includeEmptyDirs true
+      includeEmptyDirs = true
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
     }
@@ -261,24 +260,24 @@ def commonPackageConfig(String type, String architecture) {
 
     // ========= empty dirs =========
     // NOTE: these are created under packagingFiles as empty, but the permissions are set here
-    Closure copyEmptyDir = { path, u, g, mode ->
+    Closure copyEmptyDir = { path, u, g, gid, mode ->
       File file = new File(path)
       into(file.parent) {
         from "${packagingFiles}/${file.parent}"
         include file.name
-        includeEmptyDirs true
+        includeEmptyDirs = true
         createDirectoryEntry true
         user u
         permissionGroup g
         dirPermissions {
           unix(mode)
         }
-        setgid (mode == 02750)
+        setgid(gid)
       }
     }
-    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
-    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
-    copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
+    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', true, 0750)
+    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', true, 0750)
+    copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', false, 0755)
 
     // the oss package conflicts with the default distribution and vice versa
     conflicts('elasticsearch-oss')
@@ -290,18 +289,18 @@ def commonPackageConfig(String type, String architecture) {
 
 // this is package independent configuration
 ospackage {
-  maintainer 'Elasticsearch Team <info@elastic.co>'
-  summary 'Distributed RESTful search engine built for the cloud'
-  packageDescription '''
+  maintainer = 'Elasticsearch Team <info@elastic.co>'
+  summary = 'Distributed RESTful search engine built for the cloud'
+  packageDescription = '''
     Reference documentation can be found at
     https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
     and the 'Elasticsearch: The Definitive Guide' book can be found at
     https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
   '''.stripIndent().trim()
-  url 'https://www.elastic.co/'
+  url = 'https://www.elastic.co/'
 
   // signing setup
-  if (project.hasProperty('signing.password') && BuildParams.isSnapshotBuild() == false) {
+  if (project.hasProperty('signing.password') && buildParams.snapshotBuild == false) {
     signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
@@ -312,10 +311,10 @@ ospackage {
   // version found on oldest supported distro, centos-6
   requires('coreutils', '8.4', GREATER | EQUAL)
 
-  fileMode 0644
-  dirMode 0755
-  user 'root'
-  permissionGroup 'root'
+  fileMode = 0644
+  dirMode = 0755
+  user = 'root'
+  permissionGroup = 'root'
 
   into '/usr/share/elasticsearch'
 }
@@ -331,11 +330,10 @@ Closure commonDebConfig(String architecture) {
     customFields['License'] = 'Elastic-License'
 
     archiveVersion = project.version.replace('-', '~')
-    packageGroup 'web'
+    packageGroup = 'web'
 
     // versions found on oldest supported distro, centos-6
     requires('bash', '4.1', GREATER | EQUAL)
-    requires('lsb-base', '4', GREATER | EQUAL)
     requires 'libc6'
     requires 'adduser'
 
@@ -360,24 +358,24 @@ Closure commonRpmConfig(String architecture) {
   return {
     configure(commonPackageConfig('rpm', architecture))
 
-    license 'Elastic License'
+    license = 'Elastic License'
 
-    packageGroup 'Application/Internet'
+    packageGroup = 'Application/Internet'
     requires '/bin/bash'
 
     obsoletes packageName, '7.0.0', Flags.LESS
 
     prefix '/usr'
-    packager 'Elasticsearch'
+    packager = 'Elasticsearch'
     archiveVersion = project.version.replace('-', '_')
     release = '1'
-    os 'LINUX'
-    distribution 'Elasticsearch'
-    vendor 'Elasticsearch'
+    os = 'LINUX'
+    distribution = 'Elasticsearch'
+    vendor = 'Elasticsearch'
     // TODO ospackage doesn't support icon but we used to have one
 
     // without this the rpm will have parent dirs of any files we copy in, eg /etc/elasticsearch
-    addParentDirs false
+    addParentDirs = false
   }
 }
 

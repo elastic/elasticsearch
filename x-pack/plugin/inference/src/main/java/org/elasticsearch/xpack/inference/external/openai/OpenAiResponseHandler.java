@@ -7,24 +7,23 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.concurrent.Flow;
+import java.util.function.Function;
 
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
@@ -44,18 +43,17 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
 
     static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
-    private final boolean canHandleStreamingResponses;
-
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
-        super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
-        this.canHandleStreamingResponses = canHandleStreamingResponses;
+        this(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse, canHandleStreamingResponses);
     }
 
-    @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
+    protected OpenAiResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction,
+        boolean canHandleStreamingResponses
+    ) {
+        super(requestType, parseFunction, errorParseFunction, canHandleStreamingResponses);
     }
 
     /**
@@ -66,7 +64,8 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
-    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
@@ -104,7 +103,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
 
         if (statusCode == 400) {
-            var errorEntity = OpenAiErrorResponseEntity.fromResponse(result);
+            var errorEntity = ErrorMessageResponseEntity.fromResponse(result);
 
             return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
         }
@@ -128,11 +127,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         );
 
         return RATE_LIMIT + ". " + usageMessage;
-    }
-
-    @Override
-    public boolean canHandleStreamingResponses() {
-        return canHandleStreamingResponses;
     }
 
     @Override

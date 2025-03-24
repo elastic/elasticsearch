@@ -15,5 +15,6 @@ dependencies {
   api("junit:junit:${versions.junit}") {
     transitive = false
   }
-  testImplementation project(':test:framework')
+  implementation project(':test:framework')
+  implementation project(':test:fixtures:aws-fixture-utils')
 }

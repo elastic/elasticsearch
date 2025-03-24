@@ -63,7 +63,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
                 Settings.builder()
                     .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")
                     .put("index.analysis.analyzer.char_filter_test.char_filter", "incorrectlyAnnotatedSettings")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                     .build(),
                 Map.of(
                     "incorrectlyAnnotatedSettings",
@@ -90,7 +90,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
                 Settings.builder()
                     .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")
                     .put("index.analysis.analyzer.char_filter_test.char_filter", "noInjectCharFilter")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                     .build(),
                 Map.of("noInjectCharFilter", new PluginInfo("noInjectCharFilter", NoInjectCharFilter.class.getName(), classLoader))
             )
@@ -112,7 +112,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
                 Settings.builder()
                     .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")
                     .put("index.analysis.analyzer.char_filter_test.char_filter", "multipleConstructors")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                     .build(),
                 Map.of("multipleConstructors", new PluginInfo("multipleConstructors", MultipleConstructors.class.getName(), classLoader))
             )

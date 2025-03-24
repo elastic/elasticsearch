@@ -227,6 +227,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         return new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
                 .setNodeId(nodeId)
+                .setNodeEphemeralId(nodeId)
                 .setType(shutdownType)
                 .setReason(this.getTestName())
                 .setStartedAtMillis(1L)

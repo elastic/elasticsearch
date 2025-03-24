@@ -65,9 +65,6 @@ setup:
 
 ---
 generates a consistent id:
-  - requires:
-        cluster_features: "tsdb.ts_routing_hash_doc_value_parse_byte_ref"
-        reason: _tsid routing hash doc value parsing has been fixed
   - do:
       bulk:
         refresh: true
@@ -427,7 +424,7 @@ delete over _bulk:
   - match: {items.0.delete.result: deleted}
   - match: {items.1.delete.result: deleted}
   - match: {items.2.delete.status: 404}
-  - match: {items.2.delete.error.reason: "invalid id [not found ++ not found] for index [id_generation_test] in time series mode"}
+  - match: {items.2.delete.error.reason: '/invalid\ id\ \[not\ found\ \+\+\ not\ found\]\ for\ index\ \[id_generation_test\]\ in\ time.series\ mode/'}
 
 ---
 routing_path matches deep object:

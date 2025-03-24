@@ -13,12 +13,10 @@ import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
@@ -62,6 +60,7 @@ import static org.gradle.api.JavaVersion.VERSION_20;
 import static org.gradle.api.JavaVersion.VERSION_21;
 import static org.gradle.api.JavaVersion.VERSION_22;
 import static org.gradle.api.JavaVersion.VERSION_23;
+import static org.gradle.api.JavaVersion.VERSION_24;
 
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
@@ -96,8 +95,6 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     private final FileSystemOperations fileSystemOperations;
 
     private final ProjectLayout projectLayout;
-
-    private FileCollection classpath;
 
     @Inject
     public ThirdPartyAuditTask(
@@ -194,10 +191,12 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     @SkipWhenEmpty
     public abstract ConfigurableFileCollection getJarsToScan();
 
+    @Input
+    @Optional
+    public abstract Property<JavaVersion> getRuntimeJavaVersion();
+
     @Classpath
-    public FileCollection getClasspath() {
-        return classpath;
-    }
+    public abstract ConfigurableFileCollection getThirdPartyClasspath();
 
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
@@ -342,9 +341,13 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             if (javaHome.isPresent()) {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
-            spec.classpath(getForbiddenAPIsClasspath(), classpath);
-            // Enable explicitly for each release as appropriate. Just JDK 20/21/22/23 for now, and just the vector module.
-            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21) || isJavaVersion(VERSION_22) || isJavaVersion(VERSION_23)) {
+            spec.classpath(getForbiddenAPIsClasspath(), getThirdPartyClasspath());
+            // Enable explicitly for each release as appropriate. Just JDK 20/21/22/23/24 for now, and just the vector module.
+            if (isJavaVersion(VERSION_20)
+                || isJavaVersion(VERSION_21)
+                || isJavaVersion(VERSION_22)
+                || isJavaVersion(VERSION_23)
+                || isJavaVersion(VERSION_24)) {
                 spec.jvmArgs("--add-modules", "jdk.incubator.vector");
             }
             spec.jvmArgs("-Xmx1g");
@@ -361,7 +364,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         }
         final String forbiddenApisOutput;
         try (ByteArrayOutputStream outputStream = errorOut) {
-            forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
+            forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8);
         }
         if (EXPECTED_EXIT_CODES.contains(result.getExitValue()) == false) {
             throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
@@ -371,20 +374,16 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
 
     /** Returns true iff the build Java version is the same as the given version. */
     private boolean isJavaVersion(JavaVersion version) {
-        if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            if (version.equals(BuildParams.getRuntimeJavaVersion())) {
-                return true;
-            }
-        } else if (version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion())) {
-            return true;
+        if (getRuntimeJavaVersion().isPresent()) {
+            return getRuntimeJavaVersion().get().equals(version);
         }
-        return false;
+        return version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion());
     }
 
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         ExecResult execResult = execOperations.javaexec(spec -> {
-            spec.classpath(getJdkJarHellClasspath(), classpath);
+            spec.classpath(getJdkJarHellClasspath(), getThirdPartyClasspath());
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
             spec.setIgnoreExitValue(true);
@@ -398,13 +397,9 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         }
         final String jdkJarHellCheckList;
         try (ByteArrayOutputStream outputStream = standardOut) {
-            jdkJarHellCheckList = outputStream.toString(StandardCharsets.UTF_8.name());
+            jdkJarHellCheckList = outputStream.toString(StandardCharsets.UTF_8);
         }
         return new TreeSet<>(Arrays.asList(jdkJarHellCheckList.split("\\r?\\n")));
-    }
-
-    public void setClasspath(FileCollection classpath) {
-        this.classpath = classpath;
     }
 
 }

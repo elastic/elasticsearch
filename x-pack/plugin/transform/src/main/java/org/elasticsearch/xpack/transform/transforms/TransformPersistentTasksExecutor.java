@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -68,6 +69,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.common.notifications.Level.ERROR;
 import static org.elasticsearch.xpack.core.common.notifications.Level.INFO;
+import static org.elasticsearch.xpack.core.transform.TransformField.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.transform.TransformField.RESET_IN_PROGRESS;
 import static org.elasticsearch.xpack.transform.transforms.TransformNodes.nodeCanRunThisTransform;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
@@ -83,6 +86,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private final IndexNameExpressionResolver resolver;
     private final TransformAuditor auditor;
     private final TransformExtension transformExtension;
+    private final TransformConfigAutoMigration transformConfigAutoMigration;
     private volatile int numFailureRetries;
 
     public TransformPersistentTasksExecutor(
@@ -92,7 +96,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ClusterService clusterService,
         Settings settings,
         TransformExtension transformExtension,
-        IndexNameExpressionResolver resolver
+        IndexNameExpressionResolver resolver,
+        TransformConfigAutoMigration transformConfigAutoMigration
     ) {
         super(TransformField.TASK_NAME, threadPool.generic());
         this.client = client;
@@ -104,6 +109,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
         this.transformExtension = transformExtension;
+        this.transformConfigAutoMigration = transformConfigAutoMigration;
     }
 
     @Override
@@ -119,11 +125,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
          *
          * Operations on the transform node happen in {@link #nodeOperation()}
          */
-        if (TransformMetadata.getTransformMetadata(clusterState).isResetMode()) {
-            return new PersistentTasksCustomMetadata.Assignment(
-                null,
-                "Transform task will not be assigned as a feature reset is in progress."
-            );
+        var transformMetadata = TransformMetadata.getTransformMetadata(clusterState);
+        if (transformMetadata.upgradeMode()) {
+            return AWAITING_UPGRADE;
+        }
+        if (transformMetadata.resetMode()) {
+            return RESET_IN_PROGRESS;
         }
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
@@ -181,9 +188,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null
-                || routingTable.allPrimaryShardsActive() == false
-                || routingTable.readyForSearch(clusterState) == false) {
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false || routingTable.readyForSearch() == false) {
                 unavailableIndices.add(index);
             }
         }
@@ -217,7 +222,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
 
-        // <7> log the start result
+        // <8> log the start result
         ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(
             response -> logger.info("[{}] successfully completed and scheduled task in node operation", transformId),
             failure -> {
@@ -235,7 +240,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <6> load next checkpoint
+        // <7> load next checkpoint
         ActionListener<TransformCheckpoint> getTransformNextCheckpointListener = ActionListener.wrap(nextCheckpoint -> {
             // threadpool: system_read
 
@@ -260,7 +265,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             markAsFailed(buildTask, error, msg);
         });
 
-        // <5> load last checkpoint
+        // <6> load last checkpoint
         ActionListener<TransformCheckpoint> getTransformLastCheckpointListener = ActionListener.wrap(lastCheckpoint -> {
             // threadpool: system_read
 
@@ -274,7 +279,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             markAsFailed(buildTask, error, msg);
         });
 
-        // <4> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
+        // <5> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
         ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> transformStatsActionListener = ActionListener.wrap(
@@ -324,8 +329,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <3> Validate the transform, assigning it to the indexer, and get the previous stats (if they exist)
-        ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(config -> {
+        // <4> Validate the transform, assigning it to the indexer, and get the previous stats (if they exist)
+        ActionListener<TransformConfig> getTransformConfigListener = transformStatsActionListener.delegateFailureAndWrap((l, config) -> {
             // threadpool: system_read
 
             // fail if a transform is too old, this can only happen on a rolling upgrade
@@ -344,7 +349,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             ValidationException validationException = config.validate(null);
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
-                transformServices.configManager().getTransformStoredDoc(transformId, false, transformStatsActionListener);
+                transformServices.configManager().getTransformStoredDoc(transformId, false, l);
             } else {
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
@@ -357,13 +362,18 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     )
                 );
             }
-        }, error -> {
-            String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId);
-            markAsFailed(buildTask, error, msg);
         });
 
+        // <3> Automatically migrate the Transform off of deprecated features
+        ActionListener<TransformConfig> autoMigrateListener = getTransformConfigListener.delegateFailureAndWrap(
+            (l, currentConfig) -> transformConfigAutoMigration.migrateAndSave(currentConfig, l)
+        );
+
         // <2> Get the transform config
-        var templateCheckListener = getTransformConfig(buildTask, params, getTransformConfigListener);
+        var templateCheckListener = getTransformConfig(buildTask, params, autoMigrateListener.delegateResponse((l, error) -> {
+            String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId);
+            markAsFailed(buildTask, error, msg);
+        }));
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
         TransformInternalIndex.createLatestVersionedIndexIfRequired(

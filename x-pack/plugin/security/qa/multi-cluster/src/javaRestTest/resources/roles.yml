@@ -41,3 +41,102 @@ ccr_user_role:
 
 manage_role:
   cluster: [ 'manage' ]
+
+logs_foo_all:
+  cluster: []
+  indices:
+    - names: [ 'logs-foo' ]
+      privileges: [ 'read' ]
+  remote_indices:
+    - names: [ 'logs-foo' ]
+      clusters: [ '*' ]
+      privileges: [ 'read' ]
+
+logs_foo_16_only:
+  cluster: []
+  indices:
+    - names: [ 'logs-foo' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "term": {
+            "data_stream.namespace": "16"
+          }
+        }
+  remote_indices:
+    - names: [ 'logs-foo' ]
+      clusters: [ '*' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "term": {
+            "data_stream.namespace": "16"
+          }
+        }
+
+logs_foo_after_2021:
+  cluster: []
+  indices:
+    - names: [ 'logs-foo' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+  remote_indices:
+    - names: [ 'logs-foo' ]
+      clusters: [ '*' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+
+logs_foo_after_2021_pattern:
+  cluster: []
+  indices:
+    - names: [ 'logs-*' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+  remote_indices:
+    - names: [ 'logs-*' ]
+      clusters: [ '*' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+
+logs_foo_after_2021_alias:
+  cluster: []
+  indices:
+    - names: [ 'alias-foo' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+  remote_indices:
+    - names: [ 'alias-foo' ]
+      clusters: [ '*' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+

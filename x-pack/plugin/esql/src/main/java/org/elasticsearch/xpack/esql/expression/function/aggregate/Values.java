@@ -23,40 +23,92 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
 
+    private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+        Map.entry(DataType.INTEGER, ValuesIntAggregatorFunctionSupplier::new),
+        Map.entry(DataType.LONG, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATETIME, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATE_NANOS, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DOUBLE, ValuesDoubleAggregatorFunctionSupplier::new),
+        Map.entry(DataType.KEYWORD, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.SEMANTIC_TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.IP, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.VERSION, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEO_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.CARTESIAN_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEO_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.CARTESIAN_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new)
+    );
+
     @FunctionInfo(
-        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "date_nanos",
+            "double",
+            "geo_point",
+            "geo_shape",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "version" },
         preview = true,
-        description = "Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed. "
+        description = "Returns all values in a group as a multivalued field. The order of the returned values isn’t guaranteed. "
             + "If you need the values returned in order use <<esql-mv_sort>>.",
         appendix = """
-            [WARNING]
-            ====
-            This can use a significant amount of memory and ES|QL doesn't yet
+            ::::{warning}
+            This can use a significant amount of memory and ES|QL doesn’t yet
             grow aggregations beyond memory. So this aggregation will work until
             it is used to collect more values than can fit into memory. Once it
             collects too many values it will fail the query with
-            a <<circuit-breaker-errors, Circuit Breaker Error>>.
-            ====""",
-        isAggregation = true,
-        examples = @Example(file = "string", tag = "values-grouped")
+            a [Circuit Breaker Error](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
+            ::::""",
+        type = FunctionType.AGGREGATE,
+        examples = @Example(file = "string", tag = "values-grouped"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) }
     )
     public Values(
         Source source,
-        @Param(name = "field", type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression v
+        @Param(
+            name = "field",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "date_nanos",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" }
+        ) Expression v
     ) {
         this(source, v, Literal.TRUE);
     }
@@ -91,39 +143,21 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return field().dataType().noText();
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isType(
-            field(),
-            dt -> DataType.isSpatial(dt) == false && dt != UNSIGNED_LONG,
-            sourceText(),
-            DEFAULT,
-            "any type except unsigned_long and spatial types"
-        );
+        return TypeResolutions.isType(field(), SUPPLIERS::containsKey, sourceText(), DEFAULT, "any type except unsigned_long");
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        if (type == DataType.INTEGER) {
-            return new ValuesIntAggregatorFunctionSupplier(inputChannels);
+        if (SUPPLIERS.containsKey(type) == false) {
+            // If the type checking did its job, this should never happen
+            throw EsqlIllegalArgumentException.illegalDataType(type);
         }
-        if (type == DataType.LONG || type == DataType.DATETIME) {
-            return new ValuesLongAggregatorFunctionSupplier(inputChannels);
-        }
-        if (type == DataType.DOUBLE) {
-            return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
-        }
-        if (DataType.isString(type) || type == DataType.IP || type == DataType.VERSION) {
-            return new ValuesBytesRefAggregatorFunctionSupplier(inputChannels);
-        }
-        if (type == DataType.BOOLEAN) {
-            return new ValuesBooleanAggregatorFunctionSupplier(inputChannels);
-        }
-        // TODO cartesian_point, geo_point
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+        return SUPPLIERS.get(type).get();
     }
 }

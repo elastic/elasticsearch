@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -90,19 +89,6 @@ final class RequestXContent {
     private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(EsqlQueryRequest::syncEsqlQueryRequest);
     private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(EsqlQueryRequest::asyncEsqlQueryRequest);
 
-    private enum ParamParsingKey {
-        VALUE,
-        KIND
-    }
-
-    private static final Map<String, ParamParsingKey> paramParsingKeys = Maps.newMapWithExpectedSize(ParamParsingKey.values().length);
-
-    static {
-        for (ParamParsingKey e : ParamParsingKey.values()) {
-            paramParsingKeys.put(e.name(), e);
-        }
-    }
-
     /** Parses a synchronous request. */
     static EsqlQueryRequest parseSync(XContentParser parser) {
         return SYNC_PARSER.apply(parser, null);
@@ -180,25 +166,20 @@ final class RequestXContent {
                         );
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
-                        ParserUtils.ParamClassification classification;
+                        ParserUtils.ParamClassification classification = null;
+                        paramValue = null;
                         String paramName = entry.getKey();
                         checkParamNameValidity(paramName, errors, loc);
 
-                        if (EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
-                            && entry.getValue() instanceof Map<?, ?> values) {// parameter specified as key:value pairs
-                            Map<ParamParsingKey, Object> paramElements = Maps.newMapWithExpectedSize(2);
-                            for (Object keyName : values.keySet()) {
-                                ParamParsingKey paramType = checkParamValueKeysValidity(keyName.toString(), errors, loc);
-                                if (paramType != null) {
-                                    paramElements.put(paramType, values.get(keyName));
+                        if (entry.getValue() instanceof Map<?, ?> value) {// parameter specified as a key:value pair
+                            checkParamValueSize(paramName, value, loc, errors);
+                            for (Object keyName : value.keySet()) {
+                                classification = getParamClassification(keyName.toString(), errors, loc);
+                                if (classification != null) {
+                                    paramValue = value.get(keyName);
+                                    checkParamValueValidity(classification, paramValue, loc, errors);
                                 }
                             }
-                            paramValue = paramElements.get(ParamParsingKey.VALUE);
-                            if (paramValue == null && values.size() > 1) { // require non-null value for identifier and pattern
-                                errors.add(new XContentParseException(loc, "[" + entry + "] does not have a value specified"));
-                            }
-
-                            classification = getClassificationForParam(paramElements, loc, errors);
                         } else {// parameter specifies as a value only
                             paramValue = entry.getValue();
                             classification = VALUE;
@@ -280,12 +261,45 @@ final class RequestXContent {
         }
     }
 
-    private static ParamParsingKey checkParamValueKeysValidity(
+    private static void checkParamValueSize(
+        String paramName,
+        Map<?, ?> paramValue,
+        XContentLocation loc,
+        List<XContentParseException> errors
+    ) {
+        if (paramValue.size() == 1) {
+            return;
+        }
+        String errorMessage;
+        if (paramValue.isEmpty()) {
+            errorMessage = " has no valid param attribute";
+        } else {
+            errorMessage = " has multiple param attributes ["
+                + paramValue.keySet().stream().map(Object::toString).collect(Collectors.joining(", "))
+                + "]";
+        }
+        errors.add(
+            new XContentParseException(
+                loc,
+                "["
+                    + paramName
+                    + "]"
+                    + errorMessage
+                    + ", only one of "
+                    + Arrays.stream(ParserUtils.ParamClassification.values())
+                        .map(ParserUtils.ParamClassification::name)
+                        .collect(Collectors.joining(", "))
+                    + " can be defined in a param"
+            )
+        );
+    }
+
+    private static ParserUtils.ParamClassification getParamClassification(
         String paramKeyName,
         List<XContentParseException> errors,
         XContentLocation loc
     ) {
-        ParamParsingKey paramType = paramParsingKeys.get(paramKeyName.toUpperCase(Locale.ROOT));
+        ParserUtils.ParamClassification paramType = paramClassifications.get(paramKeyName.toUpperCase(Locale.ROOT));
         if (paramType == null) {
             errors.add(
                 new XContentParseException(
@@ -293,38 +307,21 @@ final class RequestXContent {
                     "["
                         + paramKeyName
                         + "] is not a valid param attribute, a valid attribute is any of "
-                        + Arrays.stream(ParamParsingKey.values()).map(ParamParsingKey::name).collect(Collectors.joining(", "))
+                        + Arrays.stream(ParserUtils.ParamClassification.values())
+                            .map(ParserUtils.ParamClassification::name)
+                            .collect(Collectors.joining(", "))
                 )
             );
         }
         return paramType;
     }
 
-    private static ParserUtils.ParamClassification getClassificationForParam(
-        Map<ParamParsingKey, Object> paramElements,
+    private static void checkParamValueValidity(
+        ParserUtils.ParamClassification classification,
+        Object value,
         XContentLocation loc,
         List<XContentParseException> errors
     ) {
-        Object value = paramElements.get(ParamParsingKey.VALUE);
-        Object kind = paramElements.get(ParamParsingKey.KIND);
-        ParserUtils.ParamClassification classification = VALUE;
-        if (kind != null) {
-            classification = paramClassifications.get(kind.toString().toUpperCase(Locale.ROOT));
-            if (classification == null) {
-                errors.add(
-                    new XContentParseException(
-                        loc,
-                        "["
-                            + kind
-                            + "] is not a valid param kind, a valid kind is any of "
-                            + Arrays.stream(ParserUtils.ParamClassification.values())
-                                .map(ParserUtils.ParamClassification::name)
-                                .collect(Collectors.joining(", "))
-                    )
-                );
-            }
-        }
-
         // If a param is an "identifier" or a "pattern", validate it is a string.
         // If a param is a "pattern", validate it contains *.
         if (classification == IDENTIFIER || classification == PATTERN) {
@@ -345,6 +342,5 @@ final class RequestXContent {
                 );
             }
         }
-        return classification;
     }
 }

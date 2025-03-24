@@ -15,4 +15,9 @@ public interface LocalNodeSpecBuilder extends LocalSpecBuilder<LocalNodeSpecBuil
      * Sets the node name. By default, nodes are named after the cluster with an incrementing suffix (ex: my-cluster-0).
      */
     LocalNodeSpecBuilder name(String name);
+
+    /**
+     * Explicitly sets that this node should not have a name in configuration.
+     */
+    LocalNodeSpecBuilder withoutName();
 }

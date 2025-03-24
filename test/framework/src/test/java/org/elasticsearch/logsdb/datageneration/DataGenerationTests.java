@@ -20,6 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.countedkeyword.CountedKeywordMapperPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 
 import java.io.IOException;
@@ -90,7 +91,7 @@ public class DataGenerationTests extends ESTestCase {
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(
                     () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
-                        FieldType.values()[generatedFields++ % FieldType.values().length]
+                        FieldType.values()[generatedFields++ % FieldType.values().length].toString()
                     )
                 );
 
@@ -110,7 +111,7 @@ public class DataGenerationTests extends ESTestCase {
         var mappingService = new MapperServiceTestCase() {
             @Override
             protected Collection<? extends Plugin> getPlugins() {
-                return List.of(new UnsignedLongMapperPlugin(), new MapperExtrasPlugin());
+                return List.of(new UnsignedLongMapperPlugin(), new MapperExtrasPlugin(), new CountedKeywordMapperPlugin());
             }
         }.createMapperService(mappingXContent);
 
@@ -165,7 +166,7 @@ public class DataGenerationTests extends ESTestCase {
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(
-                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG)
+                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG.toString())
                 );
             }
         };

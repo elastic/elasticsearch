@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.googleaistudio;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,18 +19,15 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.googleaistudio.GoogleAiStudioErrorResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
 
     static final String GOOGLE_AI_STUDIO_UNAVAILABLE = "The Google AI Studio service may be temporarily overloaded or down";
-    private final boolean canHandleStreamingResponses;
     private final CheckedFunction<XContentParser, String, IOException> content;
 
     public GoogleAiStudioResponseHandler(String requestType, ResponseParser parseFunction) {
@@ -47,16 +43,8 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
         boolean canHandleStreamingResponses,
         CheckedFunction<XContentParser, String, IOException> content
     ) {
-        super(requestType, parseFunction, GoogleAiStudioErrorResponseEntity::fromResponse);
-        this.canHandleStreamingResponses = canHandleStreamingResponses;
+        super(requestType, parseFunction, GoogleAiStudioErrorResponseEntity::fromResponse, canHandleStreamingResponses);
         this.content = content;
-    }
-
-    @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
     }
 
     /**
@@ -67,7 +55,8 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
      * @param result The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
-    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
@@ -95,11 +84,6 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
 
     private static String resourceNotFoundError(Request request) {
         return format("Resource not found at [%s]", request.getURI());
-    }
-
-    @Override
-    public boolean canHandleStreamingResponses() {
-        return canHandleStreamingResponses;
     }
 
     @Override

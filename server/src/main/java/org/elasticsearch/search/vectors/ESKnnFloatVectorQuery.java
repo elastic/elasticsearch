@@ -14,7 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements ProfilingQuery {
+public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryProfilerProvider {
     private final Integer kParam;
     private long vectorOpsCount;
 
@@ -33,6 +33,10 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements Profil
 
     @Override
     public void profile(QueryProfiler queryProfiler) {
-        queryProfiler.setVectorOpsCount(vectorOpsCount);
+        queryProfiler.addVectorOpsCount(vectorOpsCount);
+    }
+
+    public Integer kParam() {
+        return kParam;
     }
 }

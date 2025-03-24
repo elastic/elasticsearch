@@ -11,7 +11,7 @@ package org.elasticsearch.gradle.internal.test;
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsTask;
@@ -35,6 +35,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         File keyStoreDir = new File(project.getBuildDir(), "keystore");
+        var buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
         TaskProvider<ExportElasticsearchBuildResourcesTask> exportKeyStore = project.getTasks()
             .register("copyTestCertificates", ExportElasticsearchBuildResourcesTask.class, (t) -> {
                 t.copy("test/ssl/test-client.crt");
@@ -87,7 +88,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
             clusters.configureEach(c -> {
-                if (BuildParams.isInFipsJvm()) {
+                if (buildParams.getInFipsJvm()) {
                     c.setting("xpack.security.transport.ssl.key", "test-node.key");
                     c.keystore("xpack.security.transport.ssl.secure_key_passphrase", "test-node-key-password");
                     c.setting("xpack.security.transport.ssl.certificate", "test-node.crt");

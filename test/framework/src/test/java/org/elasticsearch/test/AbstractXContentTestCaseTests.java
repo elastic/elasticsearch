@@ -12,11 +12,13 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -48,5 +50,43 @@ public class AbstractXContentTestCaseTests extends ESTestCase {
             assertThat(mapOrdered.size(), equalTo(2));
             assertThat(mapOrdered.keySet().iterator().next(), not(equalTo("field")));
         }
+    }
+
+    private record TestToXContent(String field, String value) implements ToXContentFragment {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(field, value);
+        }
+    }
+
+    public void testYamlXContentRoundtripSanitization() throws Exception {
+        var test = new AbstractXContentTestCase<TestToXContent>() {
+
+            @Override
+            protected TestToXContent createTestInstance() {
+                // we need to randomly create both a "problematic" and an okay version in order to ensure that the sanitization code
+                // can draw at least one okay version if polled often enough
+                return randomBoolean() ? new TestToXContent("a\u0085b", "def") : new TestToXContent("a b", "def");
+            }
+
+            @Override
+            protected TestToXContent doParseInstance(XContentParser parser) throws IOException {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                String name = parser.currentName();
+                assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+                String value = parser.text();
+                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                return new TestToXContent(name, value);
+            };
+
+            @Override
+            protected boolean supportsUnknownFields() {
+                return false;
+            }
+        };
+        // testFromXContent runs 20 repetitions, enough to hit a YAML xcontent version very likely
+        test.testFromXContent();
     }
 }

@@ -84,7 +84,7 @@ public class BulkProcessor implements Closeable {
         private final Runnable onClose;
         private int concurrentRequests = 1;
         private int bulkActions = 1000;
-        private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
+        private ByteSizeValue bulkSize = ByteSizeValue.of(5, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
         private String globalIndex;

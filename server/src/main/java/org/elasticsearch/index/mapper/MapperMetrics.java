@@ -14,5 +14,5 @@ package org.elasticsearch.index.mapper;
  * Main purpose of this class is to avoid verbosity of passing individual metric instances around.
  */
 public record MapperMetrics(SourceFieldMetrics sourceFieldMetrics) {
-    public static MapperMetrics NOOP = new MapperMetrics(SourceFieldMetrics.NOOP);
+    public static final MapperMetrics NOOP = new MapperMetrics(SourceFieldMetrics.NOOP);
 }

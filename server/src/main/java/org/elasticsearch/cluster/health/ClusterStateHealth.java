@@ -10,8 +10,13 @@ package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -41,20 +46,33 @@ public final class ClusterStateHealth implements Writeable {
      * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and all indices in the cluster.
      *
      * @param clusterState The current cluster state. Must not be null.
+     * @param concreteAllIndices An array of index names to consider. Must not be null but may be empty.
+     * @param projectId The project id that should be used to access project-specific data from the cluster state. Must not be null.
      */
-    public ClusterStateHealth(final ClusterState clusterState) {
-        this(clusterState, clusterState.metadata().getConcreteAllIndices());
+    public ClusterStateHealth(final ClusterState clusterState, final String[] concreteAllIndices, final ProjectId projectId) {
+        this(
+            clusterState.metadata().getProject(projectId),
+            clusterState.routingTable(projectId),
+            clusterState.nodes(),
+            clusterState.blocks(),
+            concreteAllIndices
+        );
     }
 
     /**
      * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and the provided index names.
      *
-     * @param clusterState    The current cluster state. Must not be null.
      * @param concreteIndices An array of index names to consider. Must not be null but may be empty.
      */
-    public ClusterStateHealth(final ClusterState clusterState, final String[] concreteIndices) {
-        numberOfNodes = clusterState.nodes().getSize();
-        numberOfDataNodes = clusterState.nodes().getDataNodes().size();
+    public ClusterStateHealth(
+        final ProjectMetadata project,
+        final RoutingTable routingTable,
+        final DiscoveryNodes nodes,
+        final ClusterBlocks blocks,
+        final String[] concreteIndices
+    ) {
+        numberOfNodes = nodes.getSize();
+        numberOfDataNodes = nodes.getDataNodes().size();
         indices = new HashMap<>();
         ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
         int computeActivePrimaryShards = 0;
@@ -66,8 +84,8 @@ public final class ClusterStateHealth implements Writeable {
         int totalShardCount = 0;
 
         for (String index : concreteIndices) {
-            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            IndexRoutingTable indexRoutingTable = routingTable.index(index);
+            IndexMetadata indexMetadata = project.index(index);
             if (indexRoutingTable == null) {
                 continue;
             }
@@ -89,7 +107,7 @@ public final class ClusterStateHealth implements Writeable {
             }
         }
 
-        if (clusterState.blocks().hasGlobalBlockWithStatus(RestStatus.SERVICE_UNAVAILABLE)) {
+        if (blocks.hasGlobalBlockWithStatus(RestStatus.SERVICE_UNAVAILABLE)) {
             computeStatus = ClusterHealthStatus.RED;
         }
 
@@ -120,7 +138,7 @@ public final class ClusterStateHealth implements Writeable {
         status = ClusterHealthStatus.readFrom(in);
         indices = in.readMapValues(ClusterIndexHealth::new, ClusterIndexHealth::getIndex);
         activeShardsPercent = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             unassignedPrimaryShards = in.readVInt();
         } else {
             unassignedPrimaryShards = 0;
@@ -212,7 +230,7 @@ public final class ClusterStateHealth implements Writeable {
         out.writeByte(status.value());
         out.writeMapValues(indices);
         out.writeDouble(activeShardsPercent);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.UNASSIGNED_PRIMARY_COUNT_ON_CLUSTER_HEALTH)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeVInt(unassignedPrimaryShards);
         }
     }

@@ -49,7 +49,7 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
 
     public SentenceBoundaryChunkingSettings(StreamInput in) throws IOException {
         maxChunkSize = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.CHUNK_SENTENCE_OVERLAP_SETTING_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             sentenceOverlap = in.readVInt();
         }
     }
@@ -113,13 +113,13 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(maxChunkSize);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.CHUNK_SENTENCE_OVERLAP_SETTING_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeVInt(sentenceOverlap);
         }
     }

@@ -22,11 +22,11 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  api project(':libs:elasticsearch-core')
+  api project(':libs:core')
   api "org.apache.lucene:lucene-core:${versions.lucene}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-tdigest'
+    exclude group: 'org.elasticsearch', module: 'tdigest'
   }
   testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'
 }
@@ -36,8 +36,8 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
-licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
+licenseFile.set(layout.settingsDirectory.file('licenses/APACHE-LICENSE-2.0.txt').asFile)
 
 tasks.withType(LicenseHeadersTask.class).configureEach {
   approvedLicenses = ['Apache', 'Generated', 'Vendored']

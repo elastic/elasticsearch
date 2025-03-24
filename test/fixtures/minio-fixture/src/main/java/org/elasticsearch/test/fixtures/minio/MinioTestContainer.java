@@ -10,31 +10,32 @@
 package org.elasticsearch.test.fixtures.minio;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer {
 
     private static final int servicePort = 9000;
-    public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2021-03-01T04-20-55Z";
+    public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2024-12-18T13-15-44Z";
     private final boolean enabled;
 
-    public MinioTestContainer() {
-        this(true);
-    }
-
-    public MinioTestContainer(boolean enabled) {
+    public MinioTestContainer(boolean enabled, String accessKey, String secretKey, String bucketName) {
         super(
             new ImageFromDockerfile("es-minio-testfixture").withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
-                    .env("MINIO_ACCESS_KEY", "s3_test_access_key")
-                    .env("MINIO_SECRET_KEY", "s3_test_secret_key")
-                    .run("mkdir -p /minio/data/bucket")
+                    .env("MINIO_ACCESS_KEY", accessKey)
+                    .env("MINIO_SECRET_KEY", secretKey)
+                    .run("mkdir -p /minio/data/" + bucketName)
                     .cmd("server", "/minio/data")
                     .build()
             )
         );
         if (enabled) {
             addExposedPort(servicePort);
+            // The following waits for a specific log message as the readiness signal. When the minio docker image
+            // gets upgraded in future, we must ensure the log message still exists or update it here accordingly.
+            // Otherwise the tests using the minio fixture will fail with timeout on waiting the container to be ready.
+            setWaitStrategy(Wait.forLogMessage("API: .*:9000.*", 1));
         }
         this.enabled = enabled;
     }

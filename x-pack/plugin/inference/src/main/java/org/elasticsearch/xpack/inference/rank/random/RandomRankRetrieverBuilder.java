@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.inference.rank.random;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,8 +29,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * A {@code RetrieverBuilder} for randomly scoring a set of documents using the {@code RandomRankBuilder}
  */
 public class RandomRankRetrieverBuilder extends RetrieverBuilder {
-
-    public static final NodeFeature RANDOM_RERANKER_RETRIEVER_SUPPORTED = new NodeFeature("random_reranker_retriever_supported");
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -48,19 +46,37 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
         });
 
     static {
-        PARSER.declareNamedObject(constructorArg(), (p, c, n) -> p.namedObject(RetrieverBuilder.class, n, c), RETRIEVER_FIELD);
+        PARSER.declareField(
+            constructorArg(),
+            RandomRankRetrieverBuilder::parseRetrieverBuilder,
+            RETRIEVER_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
         PARSER.declareString(optionalConstructorArg(), FIELD_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), SEED_FIELD);
 
-        RetrieverBuilder.declareBaseParserFields(RandomRankBuilder.NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static RandomRankRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        if (context.clusterSupportsFeature(RANDOM_RERANKER_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + RandomRankBuilder.NAME + "]");
-        }
         return PARSER.apply(parser, context);
+    }
+
+    private static RetrieverBuilder parseRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+        parser.nextToken();
+        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "empty [" + RETRIEVER_FIELD + "] object");
+        }
+        assert parser.currentToken() == XContentParser.Token.FIELD_NAME;
+        final RetrieverBuilder builder = parser.namedObject(RetrieverBuilder.class, parser.currentName(), context);
+        parser.nextToken();
+        if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(), "unexpected field [" + parser.currentName() + "]");
+        }
+        assert parser.currentToken() == XContentParser.Token.END_OBJECT;
+        return builder;
     }
 
     private final RetrieverBuilder retrieverBuilder;

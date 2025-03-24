@@ -255,11 +255,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         CountedTermsAggregationBuilder groupByStackTraceId = new CountedTermsAggregationBuilder("group_by").size(
             MAX_TRACE_EVENTS_RESULT_SIZE
         ).field(request.getStackTraceIdsField());
-        SubGroupCollector subGroups = SubGroupCollector.attach(
-            groupByStackTraceId,
-            request.getAggregationFields(),
-            request.isLegacyAggregationField()
-        );
+        SubGroupCollector subGroups = SubGroupCollector.attach(groupByStackTraceId, request.getAggregationFields());
         RandomSamplerAggregationBuilder randomSampler = new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
             .setProbability(responseBuilder.getSamplingRate())
             .subAggregation(groupByStackTraceId);
@@ -326,11 +322,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             // Especially with high cardinality fields, this makes aggregations really slow.
             .executionHint("map")
             .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"));
-        SubGroupCollector subGroups = SubGroupCollector.attach(
-            groupByStackTraceId,
-            request.getAggregationFields(),
-            request.isLegacyAggregationField()
-        );
+        SubGroupCollector subGroups = SubGroupCollector.attach(groupByStackTraceId, request.getAggregationFields());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -348,6 +340,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     // 'size' specifies the max number of host ID we support per request.
                     .size(MAX_TRACE_EVENTS_RESULT_SIZE)
                     .field("host.id")
+                    // missing("") is used to include documents where the field is missing.
+                    .missing("")
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")
@@ -636,7 +630,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
             if (missingStackTraces.isEmpty() == false) {
                 StringBuilder stringBuilder = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(missingStackTraces, ",", "", "", 80, stringBuilder);
+                Strings.collectionToDelimitedStringWithLimit(missingStackTraces, ",", 80, stringBuilder);
                 log.warn("CO2/cost calculator: missing trace events for StackTraceID [" + stringBuilder + "].");
             }
         }
@@ -796,7 +790,12 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 if (executable.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (executables.containsKey(executable.getId()) == false) {
-                        String fileName = ObjectPath.eval(PATH_FILE_NAME, executable.getResponse().getSource());
+                        Map<String, Object> source = executable.getResponse().getSource();
+                        String fileName = ObjectPath.eval(PATH_FILE_NAME, source);
+                        if (fileName == null) {
+                            // If synthetic source is disabled, read from dotted field names.
+                            fileName = (String) source.get("Executable.file.name");
+                        }
                         if (fileName != null) {
                             executables.putIfAbsent(executable.getId(), fileName);
                         } else {

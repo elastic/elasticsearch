@@ -27,11 +27,12 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
 public class EsField implements Writeable {
 
     private static Map<String, Writeable.Reader<? extends EsField>> readers = Map.ofEntries(
-        Map.entry("EsField", EsField::new),
         Map.entry("DateEsField", DateEsField::new),
+        Map.entry("EsField", EsField::new),
         Map.entry("InvalidMappedField", InvalidMappedField::new),
         Map.entry("KeywordEsField", KeywordEsField::new),
         Map.entry("MultiTypeEsField", MultiTypeEsField::new),
+        Map.entry("PotentiallyUnmappedKeywordEsField", PotentiallyUnmappedKeywordEsField::new),
         Map.entry("TextEsField", TextEsField::new),
         Map.entry("UnsupportedEsField", UnsupportedEsField::new)
     );
@@ -72,7 +73,7 @@ public class EsField implements Writeable {
 
     private DataType readDataType(StreamInput in) throws IOException {
         String name = readCachedStringWithVersionCheck(in);
-        if (in.getTransportVersion().before(TransportVersions.ESQL_NESTED_UNSUPPORTED) && name.equalsIgnoreCase("NESTED")) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_16_0) && name.equalsIgnoreCase("NESTED")) {
             /*
              * The "nested" data type existed in older versions of ESQL but was
              * entirely used to filter mappings away. Those versions will still

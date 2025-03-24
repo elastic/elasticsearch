@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.logstash;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 
-public class LogstashFeatureSetUsage extends XPackFeatureSet.Usage {
+public class LogstashFeatureSetUsage extends XPackFeatureUsage {
 
     public LogstashFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
@@ -26,7 +26,7 @@ public class LogstashFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_0_0;
+        return TransportVersions.ZERO;
     }
 
 }

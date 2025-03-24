@@ -908,11 +908,8 @@ public abstract class StreamInput extends InputStream {
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
         final Instant instant;
-        if (getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
-            // epoch seconds can be negative, but it was incorrectly first written as vlong
-            boolean zlong = getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT);
-            long seconds = zlong ? readZLong() : readVLong();
-            instant = Instant.ofEpochSecond(seconds, readInt());
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            instant = Instant.ofEpochSecond(readZLong(), readInt());
         } else {
             instant = Instant.ofEpochMilli(readLong());
         }

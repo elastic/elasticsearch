@@ -75,13 +75,12 @@ public class GetIndexRequestTests extends ESTestCase {
     }
 
     public void testIndicesOptions() {
-        GetIndexRequest getIndexRequest = new GetIndexRequest();
+        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         assertThat(
             getIndexRequest.indicesOptions().concreteTargetOptions(),
             equalTo(IndicesOptions.strictExpandOpen().concreteTargetOptions())
         );
         assertThat(getIndexRequest.indicesOptions().wildcardOptions(), equalTo(IndicesOptions.strictExpandOpen().wildcardOptions()));
         assertThat(getIndexRequest.indicesOptions().gatekeeperOptions(), equalTo(IndicesOptions.strictExpandOpen().gatekeeperOptions()));
-        assertThat(getIndexRequest.indicesOptions().selectorOptions(), equalTo(IndicesOptions.SelectorOptions.DATA_AND_FAILURE));
     }
 }

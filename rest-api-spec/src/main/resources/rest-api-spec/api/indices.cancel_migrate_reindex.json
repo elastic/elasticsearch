@@ -1,0 +1,30 @@
+{
+  "indices.cancel_migrate_reindex":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-stream-reindex-cancel-api.html",
+      "description":"This API returns the status of a migration reindex attempt for a data stream or index"
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_migration/reindex/{index}/_cancel",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The index or data stream name"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

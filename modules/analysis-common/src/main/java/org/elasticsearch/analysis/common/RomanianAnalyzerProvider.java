@@ -32,7 +32,7 @@ public class RomanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stop
     private final StopwordAnalyzerBase analyzer;
 
     RomanianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         CharArraySet stopwords = Analysis.parseStopWords(env, settings, RomanianAnalyzer.getDefaultStopSet());
         CharArraySet stemExclusionSet = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {

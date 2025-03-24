@@ -124,6 +124,6 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_4_0;
+        return TransportVersions.ZERO;
     }
 }

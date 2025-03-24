@@ -12,43 +12,40 @@ import fixture.geoip.GeoIpHttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
-@UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-@LuceneTestCase.AwaitsFix(bugUrl = "we need to figure out the index migrations here for 9.0")
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
     private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == false;
 
-    private static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
+    private static final GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
 
-    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(Version.fromString(OLD_CLUSTER_VERSION))
         .nodes(2)
-        .setting("indices.memory.shard_inactive_time", "60m")
-        .setting("xpack.security.enabled", "false")
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
+        .setting("xpack.security.enabled", "false")
+        // .setting("logger.org.elasticsearch.ingest.geoip", "TRACE")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 
@@ -64,110 +61,32 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         return cluster;
     }
 
-    public void testGeoIpSystemFeaturesMigration() throws Exception {
+    @SuppressWarnings("unchecked")
+    public void testGeoIpDatabaseConfigurations() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            Request enableDownloader = new Request("PUT", "/_cluster/settings");
-            enableDownloader.setJsonEntity("""
-                {"persistent": {"ingest.geoip.downloader.enabled": true}}
-                """);
-            assertOK(client().performRequest(enableDownloader));
-
-            Request putPipeline = new Request("PUT", "/_ingest/pipeline/geoip");
-            putPipeline.setJsonEntity("""
+            Request putConfiguration = new Request("PUT", "_ingest/ip_location/database/my-database-1");
+            putConfiguration.setJsonEntity("""
                 {
-                    "description": "Add geoip info",
-                    "processors": [{
-                        "geoip": {
-                            "field": "ip",
-                            "target_field": "geo",
-                            "database_file": "GeoLite2-Country.mmdb"
-                        }
-                    }]
+                  "name": "GeoIP2-Domain",
+                  "maxmind": {
+                    "account_id": "1234567"
+                  }
                 }
                 """);
-            assertOK(client().performRequest(putPipeline));
-
-            // wait for the geo databases to all be loaded
-            assertBusy(() -> testDatabasesLoaded(), 30, TimeUnit.SECONDS);
-
-            // the geoip index should be created
-            assertBusy(() -> testCatIndices(".geoip_databases"));
-            assertBusy(() -> testIndexGeoDoc());
-        } else {
-            Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
-            assertOK(client().performRequest(migrateSystemFeatures));
-
-            assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-8", "my-index-00001"));
-            assertBusy(() -> testIndexGeoDoc());
-
-            Request disableDownloader = new Request("PUT", "/_cluster/settings");
-            disableDownloader.setJsonEntity("""
-                {"persistent": {"ingest.geoip.downloader.enabled": false}}
-                """);
-            assertOK(client().performRequest(disableDownloader));
-
-            // the geoip index should be deleted
-            assertBusy(() -> testCatIndices("my-index-00001"));
-
-            Request enableDownloader = new Request("PUT", "/_cluster/settings");
-            enableDownloader.setJsonEntity("""
-                {"persistent": {"ingest.geoip.downloader.enabled": true}}
-                """);
-            assertOK(client().performRequest(enableDownloader));
-
-            // wait for the geo databases to all be loaded
-            assertBusy(() -> testDatabasesLoaded(), 30, TimeUnit.SECONDS);
-
-            // the geoip index should be recreated
-            assertBusy(() -> testCatIndices(".geoip_databases", "my-index-00001"));
-            assertBusy(() -> testIndexGeoDoc());
+            assertOK(client().performRequest(putConfiguration));
         }
-    }
 
-    @SuppressWarnings("unchecked")
-    private void testDatabasesLoaded() throws IOException {
-        Request getTaskState = new Request("GET", "/_cluster/state");
-        ObjectPath state = ObjectPath.createFromResponse(client().performRequest(getTaskState));
-
-        List<?> tasks = state.evaluate("metadata.persistent_tasks.tasks");
-        // Short-circuit to avoid using steams if the list is empty
-        if (tasks.isEmpty()) {
-            fail();
-        }
-        Map<String, Object> databases = (Map<String, Object>) tasks.stream().map(task -> {
-            try {
-                return ObjectPath.evaluate(task, "task.geoip-downloader.state.databases");
-            } catch (IOException e) {
-                return null;
-            }
-        }).filter(Objects::nonNull).findFirst().orElse(null);
-
-        assertNotNull(databases);
-
-        for (String name : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
-            Object database = databases.get(name);
-            assertNotNull(database);
-            assertNotNull(ObjectPath.evaluate(database, "md5"));
-        }
-    }
-
-    private void testCatIndices(String... indexNames) throws IOException {
-        Request catIndices = new Request("GET", "_cat/indices/*?s=index&h=index&expand_wildcards=all");
-        String response = EntityUtils.toString(client().performRequest(catIndices).getEntity());
-        List<String> indices = List.of(response.trim().split("\\s+"));
-        assertThat(indices, contains(indexNames));
-    }
-
-    private void testIndexGeoDoc() throws IOException {
-        Request putDoc = new Request("PUT", "/my-index-00001/_doc/my_id?pipeline=geoip");
-        putDoc.setJsonEntity("""
-            {"ip": "89.160.20.128"}
-            """);
-        assertOK(client().performRequest(putDoc));
-
-        Request getDoc = new Request("GET", "/my-index-00001/_doc/my_id");
-        ObjectPath doc = ObjectPath.createFromResponse(client().performRequest(getDoc));
-        assertNull(doc.evaluate("_source.tags"));
-        assertEquals("Sweden", doc.evaluate("_source.geo.country_name"));
+        assertBusy(() -> {
+            Request getConfiguration = new Request("GET", "_ingest/ip_location/database/my-database-1");
+            Response response = assertOK(client().performRequest(getConfiguration));
+            Map<String, Object> map = responseAsMap(response);
+            assertThat(map.keySet(), equalTo(Set.of("databases")));
+            List<Map<String, Object>> databases = (List<Map<String, Object>>) map.get("databases");
+            assertThat(databases, hasSize(1));
+            Map<String, Object> database = databases.get(0);
+            assertThat(database.get("id"), is("my-database-1"));
+            assertThat(database.get("version"), is(1));
+            assertThat(database.get("database"), equalTo(Map.of("name", "GeoIP2-Domain", "maxmind", Map.of("account_id", "1234567"))));
+        }, 30, TimeUnit.SECONDS);
     }
 }

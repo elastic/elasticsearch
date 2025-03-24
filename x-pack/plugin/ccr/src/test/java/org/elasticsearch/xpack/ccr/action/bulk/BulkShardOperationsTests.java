@@ -17,6 +17,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
@@ -84,7 +85,15 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
 
         boolean accessStats = randomBoolean();
         try (
-            Translog.Snapshot snapshot = followerPrimary.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), accessStats)
+            Translog.Snapshot snapshot = followerPrimary.newChangesSnapshot(
+                "test",
+                0,
+                Long.MAX_VALUE,
+                false,
+                randomBoolean(),
+                accessStats,
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            )
         ) {
             if (accessStats) {
                 assertThat(snapshot.totalOperations(), equalTo(operations.size()));

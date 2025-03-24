@@ -9,42 +9,56 @@
 
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
-  description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
-  classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
+  description = 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
+  classname ='org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
 versions << [
-  'hadoop': '3.3.3'
+  'hadoop': '3.4.1'
 ]
+
+def patched = Attribute.of('patched', Boolean)
 
 configurations {
   hdfsFixture2
   hdfsFixture3
+  compileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  runtimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testCompileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testRuntimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
 }
 
 dependencies {
-  api project(path: 'hadoop-client-api', configuration: 'shadow')
-  if (isEclipse) {
-    /*
-     * Eclipse can't pick up the shadow dependency so we point it at *something*
-     * so it can compile things.
-     */
-    api project(path: 'hadoop-client-api')
-  }
+  api("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
   runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
   implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  api 'commons-cli:commons-cli:1.2'
+  api 'commons-cli:commons-cli:1.5.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'commons-io:commons-io:2.8.0'
+  api 'commons-io:commons-io:2.16.1'
   api 'org.apache.commons:commons-lang3:3.11'
   api 'javax.servlet:javax.servlet-api:3.1.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -58,18 +72,32 @@ dependencies {
   javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
   javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   javaRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
-  javaRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
+  javaRestTestRuntimeOnly "commons-cli:commons-cli:1.5.0"
   javaRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 
   yamlRestTestCompileOnly(project(':test:fixtures:hdfs-fixture'))
   yamlRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
   yamlRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   yamlRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
-  yamlRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
+  yamlRestTestRuntimeOnly "commons-cli:commons-cli:1.5.0"
   yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 
   hdfsFixture2 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadowedHdfs2')
   hdfsFixture3 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadow')
+
+  attributesSchema {
+    attribute(patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(patched, false)
+    to.attribute(patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop-client-api"]
+    }
+  }
 }
 
 restResources {
@@ -83,8 +111,8 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.withType(RestIntegTestTask).configureEach {
-  usesDefaultDistribution()
-  BuildParams.withFipsEnabledOnly(it)
+  usesDefaultDistribution("to be triaged")
+  buildParams.withFipsEnabledOnly(it)
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
 }
 
@@ -178,7 +206,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$1',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$Cell',
@@ -189,6 +216,18 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor'
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
+    'org.apache.hadoop.io.nativeio.NativeIO',
+    'org.apache.hadoop.service.launcher.InterruptEscalator',
+    'org.apache.hadoop.service.launcher.IrqHandler',
+    'org.apache.hadoop.util.SignalLogger$Handler'
   )
 }

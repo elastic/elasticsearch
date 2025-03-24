@@ -2,9 +2,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name 'search-business-rules'
-  description 'A plugin for applying business rules to search result rankings'
-  classname 'org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules'
+  name = 'search-business-rules'
+  description = 'A plugin for applying business rules to search result rankings'
+  classname ='org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules'
   extendedPlugins = ['x-pack-core']
 }
 base {

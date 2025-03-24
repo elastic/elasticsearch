@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -26,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.crypto.SecretKeyFactory;
@@ -39,6 +44,8 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_U
  * A container for xpack setting constants.
  */
 public class XPackSettings {
+
+    private static final Logger logger = LogManager.getLogger(XPackSettings.class);
 
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -76,10 +83,21 @@ public class XPackSettings {
     /** Setting for enabling or disabling graph. Defaults to true. */
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling machine learning. Defaults to true. */
+    public static final Set<String> ML_NATIVE_CODE_PLATFORMS = Set.of("darwin-aarch64", "linux-aarch64", "linux-x86_64", "windows-x86_64");
+
+    /** Setting for enabling or disabling machine learning. Defaults to true on platforms that have the ML native code available. */
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
         "xpack.ml.enabled",
-        true,
+        ML_NATIVE_CODE_PLATFORMS.contains(Platforms.PLATFORM_NAME),
+        enabled -> {
+            if (enabled && ML_NATIVE_CODE_PLATFORMS.contains(Platforms.PLATFORM_NAME) == false) {
+                SettingsException e = new SettingsException("xpack.ml.enabled cannot be set to [true] on [{}]", Platforms.PLATFORM_NAME);
+                // The exception doesn't get logged nicely on the console because it's thrown during initial plugin loading,
+                // so log separately here to make absolutely clear what happened
+                logger.fatal(e.getMessage());
+                throw e;
+            }
+        },
         Setting.Property.NodeScope
     );
 
@@ -194,7 +212,7 @@ public class XPackSettings {
         Property.NodeScope
     );
 
-    private static final List<String> JDK12_CIPHERS = List.of(
+    private static final List<String> PRE_JDK24_CIPHERS = List.of(
         "TLS_AES_256_GCM_SHA384",
         "TLS_AES_128_GCM_SHA256", // TLSv1.3 cipher has PFS, AEAD, hardware support
         "TLS_CHACHA20_POLY1305_SHA256", // TLSv1.3 cipher has PFS, AEAD
@@ -220,9 +238,29 @@ public class XPackSettings {
         "TLS_RSA_WITH_AES_128_CBC_SHA"
     ); // hardware support
 
-    public static final List<String> DEFAULT_CIPHERS = JDK12_CIPHERS;
+    private static final List<String> JDK24_CIPHERS = List.of(
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_AES_128_GCM_SHA256", // TLSv1.3 cipher has PFS, AEAD, hardware support
+        "TLS_CHACHA20_POLY1305_SHA256", // TLSv1.3 cipher has PFS, AEAD
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", // PFS, AEAD, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", // PFS, AEAD, hardware support
+        "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", // PFS, AEAD
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", // PFS, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", // PFS, hardware support
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", // PFS, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" // PFS, hardware support
+    ); // hardware support
 
-    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = defaultStoredHashAlgorithmSetting(
+    public static final List<String> DEFAULT_CIPHERS = Runtime.version().feature() < 24 ? PRE_JDK24_CIPHERS : JDK24_CIPHERS;
+
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = defaultStoredPasswordHashAlgorithmSetting(
         "xpack.security.authc.password_hashing.algorithm",
         (s) -> {
             if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
@@ -233,7 +271,7 @@ public class XPackSettings {
         }
     );
 
-    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = defaultStoredHashAlgorithmSetting(
+    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = defaultStoredPasswordHashAlgorithmSetting(
         "xpack.security.authc.service_token_hashing.algorithm",
         (s) -> Hasher.PBKDF2_STRETCH.name()
     );
@@ -241,11 +279,17 @@ public class XPackSettings {
     /*
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
-    public static Setting<String> defaultStoredHashAlgorithmSetting(String key, Function<Settings, String> defaultHashingAlgorithm) {
+    public static Setting<String> defaultStoredPasswordHashAlgorithmSetting(
+        String key,
+        Function<Settings, String> defaultHashingAlgorithm
+    ) {
         return new Setting<>(key, defaultHashingAlgorithm, Function.identity(), v -> {
-            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+            if (Hasher.getAvailableAlgoStoredPasswordHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()
+                    "Invalid algorithm: "
+                        + v
+                        + ". Valid values for password hashing are "
+                        + Hasher.getAvailableAlgoStoredPasswordHash().toString()
                 );
             } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
                 try {
@@ -262,7 +306,38 @@ public class XPackSettings {
         }, Property.NodeScope);
     }
 
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1");
+    /**
+     * Similar to {@link #defaultStoredPasswordHashAlgorithmSetting(String, Function)} but for secure, high-entropy tokens so salted secure
+     * hashing algorithms are allowed, in addition to algorithms that are suitable for password hashing.
+     */
+    public static Setting<String> defaultStoredSecureTokenHashAlgorithmSetting(
+        String key,
+        Function<Settings, String> defaultHashingAlgorithm
+    ) {
+        return new Setting<>(key, defaultHashingAlgorithm, Function.identity(), v -> {
+            if (Hasher.getAvailableAlgoStoredSecureTokenHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+                throw new IllegalArgumentException(
+                    "Invalid algorithm: "
+                        + v
+                        + ". Valid values for secure token hashing are "
+                        + Hasher.getAvailableAlgoStoredSecureTokenHash().toString()
+                );
+            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
+                try {
+                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+                } catch (NoSuchAlgorithmException e) {
+                    throw new IllegalArgumentException(
+                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the PBKDF2 algorithms for the ["
+                            + key
+                            + "] setting.",
+                        e
+                    );
+                }
+            }
+        }, Property.NodeScope);
+    }
+
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.3", "TLSv1.2");
 
     public static final SslClientAuthenticationMode CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.REQUIRED;
     public static final SslClientAuthenticationMode HTTP_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;

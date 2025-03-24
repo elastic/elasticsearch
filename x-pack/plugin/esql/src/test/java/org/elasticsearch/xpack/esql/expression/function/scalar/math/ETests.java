@@ -29,14 +29,21 @@ public class ETests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("E Test", List.of(DataType.INTEGER), () -> {
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "foo")),
-                "LiteralsEvaluator[lit=2.718281828459045]",
-                DataType.DOUBLE,
-                equalTo(Math.E)
-            );
-        })));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+            true,
+            List.of(
+                new TestCaseSupplier(
+                    "E Test",
+                    List.of(),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(),
+                        "LiteralsEvaluator[lit=2.718281828459045]",
+                        DataType.DOUBLE,
+                        equalTo(Math.E)
+                    )
+                )
+            )
+        );
     }
 
     @Override

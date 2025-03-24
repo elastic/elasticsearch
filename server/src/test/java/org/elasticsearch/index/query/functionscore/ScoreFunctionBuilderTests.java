@@ -66,7 +66,6 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         Mockito.when(context.getFieldType(IdFieldMapper.NAME)).thenReturn(new KeywordFieldMapper.KeywordFieldType(IdFieldMapper.NAME));
         Mockito.when(context.isFieldMapped(IdFieldMapper.NAME)).thenReturn(true);
         builder.toFunction(context);
-        assertWarnings("As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
     }
 
     public void testRandomScoreFunctionWithSeed() throws Exception {

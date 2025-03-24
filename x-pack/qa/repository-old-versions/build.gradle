@@ -9,7 +9,6 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.BwcVersions
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.transform.UnzipTransform
@@ -49,6 +48,11 @@ restResources {
 if (OS.current() == OS.MAC && Architecture.current() == Architecture.AARCH64) {
   jdks.legacy.vendor = 'zulu'
   jdks.legacy.distributionVersion = '8.56.0.23'
+}
+
+interface Injected {
+  @Inject
+  FileSystemOperations getFs()
 }
 
 if (OS.current() == OS.WINDOWS) {
@@ -96,10 +100,12 @@ if (OS.current() == OS.WINDOWS) {
       setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
     }
 
+    def oldesFixtureConfiguration = project.configurations.oldesFixture
+
     TaskProvider<AntFixture> fixture = tasks.register("oldES${versionNoDots}Fixture", AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy, config
-      executable = "${BuildParams.runtimeJavaHome}/bin/java"
-      env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
+      executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
+      env 'CLASSPATH', "${-> oldesFixtureConfiguration.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
       env 'JAVA_HOME', jdks.legacy.javaHomePath
       // If we are running on certain arm systems we need to explicitly set the stack size to overcome JDK page size bug
@@ -117,11 +123,15 @@ if (OS.current() == OS.WINDOWS) {
         // We need to explicitly disable ML when running old ES versions on ARM or on systems with newer GLIBC
         args 'xpack.ml.enabled: false'
       }
+      def injected = project.objects.newInstance(Injected)
+
       doFirst {
-        delete(dataPath)
-        mkdir(dataPath)
+        injected.getFs().delete { d ->
+          d.delete(dataPath)
+        }
+        new File(dataPath).mkdirs()
       }
-      maxWaitInSeconds 60
+      maxWaitInSeconds = 60
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service
         // is ready, so we can just wait for the file to exist
@@ -132,9 +142,13 @@ if (OS.current() == OS.WINDOWS) {
     tasks.register("javaRestTestBeforeRestart#${versionNoDots}", StandaloneRestIntegTestTask) {
       useCluster testClusterProvider
       dependsOn fixture
+      def injected = project.objects.newInstance(Injected)
+
       doFirst {
-        delete(repoLocation)
-        mkdir(repoLocation)
+        injected.getFs().delete { d ->
+          d.delete(repoLocation)
+        }
+        new File(repoLocation).mkdirs()
       }
       systemProperty 'tests.after_restart', 'false'
     }

@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -128,7 +127,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), "secret", "model", sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("input")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("input")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -159,7 +158,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -170,8 +169,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[2];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -180,14 +178,11 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(
-            thrownException.getMessage(),
-            is(format("Failed to send Google AI Studio completion request to [%s]", getUrl(webServer)))
-        );
+        assertThat(thrownException.getMessage(), is("Failed to send Google AI Studio completion request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException() {
@@ -197,14 +192,11 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(
-            thrownException.getMessage(),
-            is(format("Failed to send Google AI Studio completion request to [%s]", getUrl(webServer)))
-        );
+        assertThat(thrownException.getMessage(), is("Failed to send Google AI Studio completion request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException_WhenInputIsGreaterThanOne() throws IOException {
@@ -260,7 +252,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), "secret", "model", sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc", "def")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc", "def")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -272,7 +264,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
     private ExecutableAction createAction(String url, String apiKey, String modelName, Sender sender) {
         var model = GoogleAiStudioCompletionModelTests.createModel(modelName, url, apiKey);
         var requestManager = new GoogleAiStudioCompletionRequestManager(model, threadPool);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(false), "Google AI Studio completion");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google AI Studio completion");
         return new SingleInputSenderExecutableAction(
             sender,
             requestManager,

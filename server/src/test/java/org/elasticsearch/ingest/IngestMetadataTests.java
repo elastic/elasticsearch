@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
@@ -53,18 +52,16 @@ public class IngestMetadataTests extends ESTestCase {
         builder.endObject();
         XContentBuilder shuffled = shuffleXContent(builder);
         try (XContentParser parser = createParser(shuffled)) {
-            Metadata.Custom custom = IngestMetadata.fromXContent(parser);
-            assertTrue(custom instanceof IngestMetadata);
-            IngestMetadata m = (IngestMetadata) custom;
-            assertEquals(2, m.getPipelines().size());
-            assertEquals("1", m.getPipelines().get("1").getId());
-            assertEquals("2", m.getPipelines().get("2").getId());
-            assertEquals(pipeline.getConfigAsMap(), m.getPipelines().get("1").getConfigAsMap());
-            assertEquals(pipeline2.getConfigAsMap(), m.getPipelines().get("2").getConfigAsMap());
+            IngestMetadata custom = IngestMetadata.fromXContent(parser);
+            assertEquals(2, custom.getPipelines().size());
+            assertEquals("1", custom.getPipelines().get("1").getId());
+            assertEquals("2", custom.getPipelines().get("2").getId());
+            assertEquals(pipeline.getConfig(), custom.getPipelines().get("1").getConfig());
+            assertEquals(pipeline2.getConfig(), custom.getPipelines().get("2").getConfig());
         }
     }
 
-    public void testDiff() throws Exception {
+    public void testDiff() {
         BytesReference pipelineConfig = new BytesArray("{}");
 
         Map<String, PipelineConfiguration> pipelines = new HashMap<>();
@@ -79,7 +76,7 @@ public class IngestMetadataTests extends ESTestCase {
         IngestMetadata ingestMetadata2 = new IngestMetadata(pipelines);
 
         IngestMetadata.IngestMetadataDiff diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata2.diff(ingestMetadata1);
-        DiffableUtils.MapDiff<?, ?, ?> pipelinesDiff = (DiffableUtils.MapDiff) diff.pipelines;
+        DiffableUtils.MapDiff<?, ?, ?> pipelinesDiff = (DiffableUtils.MapDiff<?, ?, ?>) diff.pipelines;
         assertThat(pipelinesDiff.getDeletes(), contains("2"));
         assertThat(Maps.ofEntries(pipelinesDiff.getUpserts()), allOf(aMapWithSize(2), hasKey("3"), hasKey("4")));
 
@@ -96,7 +93,7 @@ public class IngestMetadataTests extends ESTestCase {
         IngestMetadata ingestMetadata3 = new IngestMetadata(pipelines);
 
         diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata3.diff(ingestMetadata1);
-        pipelinesDiff = (DiffableUtils.MapDiff) diff.pipelines;
+        pipelinesDiff = (DiffableUtils.MapDiff<?, ?, ?>) diff.pipelines;
         assertThat(pipelinesDiff.getDeletes(), empty());
         assertThat(pipelinesDiff.getUpserts(), empty());
 
@@ -112,7 +109,7 @@ public class IngestMetadataTests extends ESTestCase {
         IngestMetadata ingestMetadata4 = new IngestMetadata(pipelines);
 
         diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata4.diff(ingestMetadata1);
-        pipelinesDiff = (DiffableUtils.MapDiff) diff.pipelines;
+        pipelinesDiff = (DiffableUtils.MapDiff<?, ?, ?>) diff.pipelines;
         assertThat(Maps.ofEntries(pipelinesDiff.getDiffs()), allOf(aMapWithSize(1), hasKey("2")));
 
         endResult = (IngestMetadata) diff.apply(ingestMetadata4);
@@ -137,5 +134,170 @@ public class IngestMetadataTests extends ESTestCase {
             new IngestMetadata(pipelineConfigurations),
             response -> 2 + response.getPipelines().size()
         );
+    }
+
+    public void testMaybeUpgradeProcessors_appliesUpgraderToSingleProcessor() {
+        String originalPipelineConfig = """
+            {
+              "processors": [
+                {
+                  "foo": {
+                    "fooNumber": 123
+                  }
+                },
+                {
+                  "bar": {
+                    "barNumber": 456
+                  }
+                }
+              ]
+            }
+            """;
+        IngestMetadata originalMetadata = new IngestMetadata(
+            Map.of("pipeline1", new PipelineConfiguration("pipeline1", new BytesArray(originalPipelineConfig), XContentType.JSON))
+        );
+        IngestMetadata upgradedMetadata = originalMetadata.maybeUpgradeProcessors(
+            "foo",
+            config -> config.putIfAbsent("fooString", "new") == null
+        );
+        String expectedPipelineConfig = """
+            {
+              "processors": [
+                {
+                  "foo": {
+                    "fooNumber": 123,
+                    "fooString": "new"
+                  }
+                },
+                {
+                  "bar": {
+                    "barNumber": 456
+                  }
+                }
+              ]
+            }
+            """;
+        IngestMetadata expectedMetadata = new IngestMetadata(
+            Map.of("pipeline1", new PipelineConfiguration("pipeline1", new BytesArray(expectedPipelineConfig), XContentType.JSON))
+        );
+        assertEquals(expectedMetadata, upgradedMetadata);
+    }
+
+    public void testMaybeUpgradeProcessors_returnsSameObjectIfNoUpgradeNeeded() {
+        String originalPipelineConfig = """
+            {
+              "processors": [
+                {
+                  "foo": {
+                    "fooNumber": 123,
+                    "fooString": "old"
+                  }
+                },
+                {
+                  "bar": {
+                    "barNumber": 456
+                  }
+                }
+              ]
+            }
+            """;
+        IngestMetadata originalMetadata = new IngestMetadata(
+            Map.of("pipeline1", new PipelineConfiguration("pipeline1", new BytesArray(originalPipelineConfig), XContentType.JSON))
+        );
+        IngestMetadata upgradedMetadata = originalMetadata.maybeUpgradeProcessors(
+            "foo",
+            config -> config.putIfAbsent("fooString", "new") == null
+        );
+        assertSame(originalMetadata, upgradedMetadata);
+    }
+
+    public void testMaybeUpgradeProcessors_appliesUpgraderToMultipleProcessorsInMultiplePipelines() {
+        String originalPipelineConfig1 = """
+            {
+              "description": "A pipeline with a foo and a bar processor in different list items",
+              "processors": [
+                {
+                  "foo": {
+                    "fooNumber": 123
+                  }
+                },
+                {
+                  "bar": {
+                    "barNumber": 456
+                  }
+                }
+              ]
+            }
+            """;
+        String originalPipelineConfig2 = """
+            {
+              "description": "A pipeline with a foo and a qux processor in the same list item",
+              "processors": [
+                {
+                  "foo": {
+                    "fooNumber": 321
+                  },
+                  "qux": {
+                    "quxNumber": 654
+                  }
+                }
+              ]
+            }
+            """;
+        IngestMetadata originalMetadata = new IngestMetadata(
+            Map.of(
+                "pipeline1",
+                new PipelineConfiguration("pipeline1", new BytesArray(originalPipelineConfig1), XContentType.JSON),
+                "pipeline2",
+                new PipelineConfiguration("pipeline2", new BytesArray(originalPipelineConfig2), XContentType.JSON)
+            )
+        );
+        IngestMetadata upgradedMetadata = originalMetadata.maybeUpgradeProcessors(
+            "foo",
+            config -> config.putIfAbsent("fooString", "new") == null
+        );
+        String expectedPipelineConfig1 = """
+            {
+              "description": "A pipeline with a foo and a bar processor in different list items",
+              "processors": [
+                {
+                  "foo": {
+                    "fooNumber": 123,
+                    "fooString": "new"
+                  }
+                },
+                {
+                  "bar": {
+                    "barNumber": 456
+                  }
+                }
+              ]
+            }
+            """;
+        String expectedPipelineConfig2 = """
+            {
+              "description": "A pipeline with a foo and a qux processor in the same list item",
+              "processors": [
+                {
+                  "foo": {
+                    "fooNumber": 321,
+                    "fooString": "new"
+                  },
+                  "qux": {
+                    "quxNumber": 654
+                  }
+                }
+              ]
+            }
+            """;
+        IngestMetadata expectedMetadata = new IngestMetadata(
+            Map.of(
+                "pipeline1",
+                new PipelineConfiguration("pipeline1", new BytesArray(expectedPipelineConfig1), XContentType.JSON),
+                "pipeline2",
+                new PipelineConfiguration("pipeline2", new BytesArray(expectedPipelineConfig2), XContentType.JSON)
+            )
+        );
+        assertEquals(expectedMetadata, upgradedMetadata);
     }
 }

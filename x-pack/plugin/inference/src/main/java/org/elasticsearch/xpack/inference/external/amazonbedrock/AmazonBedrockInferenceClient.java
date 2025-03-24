@@ -23,12 +23,13 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.reactivestreams.FlowAdapters;
@@ -60,7 +61,6 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
 
     private final BedrockRuntimeAsyncClient internalClient;
     private final ThreadPool threadPool;
-    private volatile Instant expiryTimestamp;
 
     public static AmazonBedrockBaseClient create(AmazonBedrockModel model, @Nullable TimeValue timeout, ThreadPool threadPool) {
         try {
@@ -88,16 +88,21 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     }
 
     @Override
-    public Flow.Publisher<? extends ChunkedToXContent> converseStream(ConverseStreamRequest request) throws ElasticsearchException {
+    public Flow.Publisher<? extends InferenceServiceResults.Result> converseStream(ConverseStreamRequest request)
+        throws ElasticsearchException {
         var awsResponseProcessor = new AmazonBedrockStreamingChatProcessor(threadPool);
         internalClient.converseStream(
             request,
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
-        );
+        ).exceptionally(e -> {
+            awsResponseProcessor.onError(e);
+            return null; // Void
+        });
         return awsResponseProcessor;
     }
 
     private void onFailure(ActionListener<?> listener, Throwable t, String method) {
+        ExceptionsHelper.maybeDieOnAnotherThread(t);
         var unwrappedException = t;
         if (t instanceof CompletionException || t instanceof ExecutionException) {
             unwrappedException = t.getCause() != null ? t.getCause() : t;
@@ -137,7 +142,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         try {
             SpecialPermission.check();
             return AccessController.doPrivileged((PrivilegedExceptionAction<BedrockRuntimeAsyncClient>) () -> {
-                var credentials = AwsBasicCredentials.create(secretSettings.accessKey.toString(), secretSettings.secretKey.toString());
+                var credentials = AwsBasicCredentials.create(secretSettings.accessKey().toString(), secretSettings.secretKey().toString());
                 var credentialsProvider = StaticCredentialsProvider.create(credentials);
                 var clientConfig = timeout == null
                     ? NettyNioAsyncHttpClient.builder().connectionTimeout(DEFAULT_CLIENT_TIMEOUT_MS)

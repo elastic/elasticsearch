@@ -33,11 +33,15 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String url(String os, String arch, String extension);
     }
 
-    record ReleasedJdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash) implements JdkBuild {
+    record ReleaseJdkBuild(JavaLanguageVersion languageVersion, String host, String version, String buildNumber, String hash)
+        implements
+            JdkBuild {
 
         @Override
         public String url(String os, String arch, String extension) {
-            return "https://download.oracle.com/java/GA/jdk"
+            return "https://"
+                + host
+                + "/java/GA/jdk"
                 + version
                 + "/"
                 + hash
@@ -54,16 +58,15 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         }
     }
 
-    record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber) implements JdkBuild {
-
+    record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion, String buildNumber) implements JdkBuild {
         @Override
         public String url(String os, String arch, String extension) {
             return "https://download.java.net/java/early_access/jdk"
-                + version
+                + languageVersion.asInt()
                 + "/"
-                + version
+                + buildNumber
                 + "/GPL/openjdk-"
-                + version
+                + languageVersion.asInt()
                 + "-ea+"
                 + buildNumber
                 + "_"
@@ -87,14 +90,20 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
 
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
-        getBundledJdkBuild(),
-        // 23 early access
-        new EarlyAccessJdkBuild(JavaLanguageVersion.of(23), "23", "24")
+        getBundledJdkBuild(VersionProperties.getBundledJdkVersion(), VersionProperties.getBundledJdkMajorVersion()),
+        getEarlyAccessBuild(JavaLanguageVersion.of(25), "3")
     );
 
-    private JdkBuild getBundledJdkBuild() {
-        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
-        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
+    static EarlyAccessJdkBuild getEarlyAccessBuild(JavaLanguageVersion languageVersion, String buildNumber) {
+        // first try the unversioned override, then the versioned override which has higher precedence
+        buildNumber = System.getProperty("runtime.java.build", buildNumber);
+        buildNumber = System.getProperty("runtime.java." + languageVersion.asInt() + ".build", buildNumber);
+
+        return new EarlyAccessJdkBuild(languageVersion, buildNumber);
+    }
+
+    static JdkBuild getBundledJdkBuild(String bundledJdkVersion, String bundledJkdMajorVersionString) {
+        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(bundledJkdMajorVersionString);
         Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalStateException("Unable to parse bundled JDK version " + bundledJdkVersion);
@@ -102,7 +111,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String baseVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String build = jdkVersionMatcher.group(3);
         String hash = jdkVersionMatcher.group(5);
-        return new ReleasedJdkBuild(bundledJdkMajorVersion, baseVersion, build, hash);
+        return new ReleaseJdkBuild(bundledJdkMajorVersion, "download.oracle.com", baseVersion, build, hash);
     }
 
     /**

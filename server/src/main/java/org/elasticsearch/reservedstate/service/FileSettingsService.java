@@ -15,19 +15,38 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
+import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.health.HealthStatus.GREEN;
+import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.health.ImpactArea.DEPLOYMENT_MANAGEMENT;
 import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION;
 import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.HIGHER_VERSION_ONLY;
 import static org.elasticsearch.xcontent.XContentType.JSON;
@@ -50,7 +69,10 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
     public static final String OPERATOR_DIRECTORY = "operator";
+
+    private final Path watchedFile;
     private final ReservedClusterStateService stateService;
+    private final FileSettingsHealthIndicatorService healthIndicatorService;
 
     /**
      * Constructs the {@link FileSettingsService}
@@ -58,10 +80,31 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * @param clusterService so we can register ourselves as a cluster state change listener
      * @param stateService an instance of the immutable cluster state controller, so we can perform the cluster state changes
      * @param environment we need the environment to pull the location of the config and operator directories
+     * @param healthIndicatorService tracks the success or failure of file-based settings
      */
-    public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
-        super(clusterService, environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
+    @SuppressWarnings("this-escape")
+    public FileSettingsService(
+        ClusterService clusterService,
+        ReservedClusterStateService stateService,
+        Environment environment,
+        FileSettingsHealthIndicatorService healthIndicatorService
+    ) {
+        super(clusterService, environment.configDir().toAbsolutePath().resolve(OPERATOR_DIRECTORY));
+        this.watchedFile = watchedFileDir().resolve(SETTINGS_FILE_NAME);
         this.stateService = stateService;
+        this.healthIndicatorService = healthIndicatorService;
+    }
+
+    protected Logger logger() {
+        return logger;
+    }
+
+    public Path watchedFile() {
+        return watchedFile;
+    }
+
+    public FileSettingsHealthIndicatorService healthIndicatorService() {
+        return healthIndicatorService;
     }
 
     /**
@@ -85,7 +128,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
-        if (watching() && Files.exists(watchedFile())) {
+        if (watching() && Files.exists(watchedFile)) {
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
@@ -93,6 +136,18 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         } else if (fileSettingsMetadata != null) {
             mdBuilder.removeReservedState(fileSettingsMetadata);
         }
+    }
+
+    @Override
+    protected void doStart() {
+        healthIndicatorService.startOccurred();
+        super.doStart();
+    }
+
+    @Override
+    protected void doStop() {
+        super.doStop();
+        healthIndicatorService.stopOccurred();
     }
 
     /**
@@ -117,9 +172,8 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * @throws InterruptedException if the file processing is interrupted by another thread.
      */
     @Override
-    protected void processFileChanges() throws ExecutionException, InterruptedException, IOException {
-        logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
-        processFileChanges(HIGHER_VERSION_ONLY);
+    protected final void processFileChanges(Path file) throws ExecutionException, InterruptedException, IOException {
+        processFile(file, false);
     }
 
     /**
@@ -127,45 +181,166 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * Settings will be reprocessed even if the cluster-state version equals that found in the settings file.
      */
     @Override
-    protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
-        logger.info("processing path [{}] for [{}] on service start", watchedFile(), NAMESPACE);
-        processFileChanges(HIGHER_OR_SAME_VERSION);
+    protected final void processFileOnServiceStart(Path file) throws IOException, ExecutionException, InterruptedException {
+        processFile(file, true);
+    }
+
+    protected void processFile(Path file, boolean startup) throws IOException, ExecutionException, InterruptedException {
+        if (watchedFile.equals(file) == false) {
+            logger().debug("Received notification for unknown file {}", file);
+        } else {
+            logger().info("processing path [{}] for [{}]{}", watchedFile, NAMESPACE, startup ? " on service start" : "");
+            healthIndicatorService.changeOccurred();
+            processFileChanges(startup ? HIGHER_OR_SAME_VERSION : HIGHER_VERSION_ONLY);
+        }
+    }
+
+    protected XContentParser createParser(InputStream stream) throws IOException {
+        return JSON.xContent().createParser(XContentParserConfiguration.EMPTY, stream);
     }
 
     private void processFileChanges(ReservedStateVersionCheck versionCheck) throws IOException, InterruptedException, ExecutionException {
         PlainActionFuture<Void> completion = new PlainActionFuture<>();
-        try (
-            var fis = Files.newInputStream(watchedFile());
-            var bis = new BufferedInputStream(fis);
-            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
-        ) {
+        try (var bis = new BufferedInputStream(Files.newInputStream(watchedFile)); var parser = createParser(bis)) {
             stateService.process(NAMESPACE, parser, versionCheck, (e) -> completeProcessing(e, completion));
         }
         completion.get();
     }
 
-    @Override
-    protected void onProcessFileChangesException(Exception e) {
-        if (e instanceof ExecutionException && e.getCause() instanceof FailedToCommitClusterStateException f) {
-            logger.error("Unable to commit cluster state", e);
+    protected void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
+        if (e != null) {
+            healthIndicatorService.failureOccurred(e.toString());
+            completion.onFailure(e);
         } else {
-            super.onProcessFileChangesException(e);
+            completion.onResponse(null);
+            healthIndicatorService.successOccurred();
         }
     }
 
     @Override
-    protected void processInitialFileMissing() throws ExecutionException, InterruptedException, IOException {
+    protected void onProcessFileChangesException(Path file, Exception e) {
+        if (e instanceof ExecutionException) {
+            var cause = e.getCause();
+            if (cause instanceof FailedToCommitClusterStateException) {
+                logger().error(Strings.format("Unable to commit cluster state while processing file [%s]", file), e);
+                return;
+            } else if (cause instanceof XContentParseException) {
+                logger().error(Strings.format("Unable to parse settings from file [%s]", file), e);
+                return;
+            } else if (cause instanceof NotMasterException) {
+                logger().error(Strings.format("Node is no longer master while processing file [%s]", file), e);
+                return;
+            }
+        }
+
+        super.onProcessFileChangesException(file, e);
+    }
+
+    @Override
+    protected void processInitialFilesMissing() throws ExecutionException, InterruptedException {
         PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
-        logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
+        logger().info("setting file [{}] not found, initializing [{}] as empty", watchedFile, NAMESPACE);
         stateService.initEmpty(NAMESPACE, completion);
         completion.get();
     }
 
-    private static void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
-        if (e != null) {
-            completion.onFailure(e);
-        } else {
-            completion.onResponse(null);
+    public static class FileSettingsHealthIndicatorService implements HealthIndicatorService {
+        static final String NAME = "file_settings";
+        static final String INACTIVE_SYMPTOM = "File-based settings are inactive";
+        static final String NO_CHANGES_SYMPTOM = "No file-based setting changes have occurred";
+        static final String SUCCESS_SYMPTOM = "The most recent file-based settings were applied successfully";
+        static final String FAILURE_SYMPTOM = "The most recent file-based settings encountered an error";
+
+        static final List<HealthIndicatorImpact> STALE_SETTINGS_IMPACT = List.of(
+            new HealthIndicatorImpact(
+                NAME,
+                "stale",
+                3,
+                "The most recent file-based settings changes have not been applied.",
+                List.of(DEPLOYMENT_MANAGEMENT)
+            )
+        );
+
+        /**
+         * We want a length limit so we don't blow past the indexing limit in the case of a long description string.
+         * This is an {@code OperatorDynamic} setting so that if the truncation hampers troubleshooting efforts,
+         * the operator could override it and retry the operation without necessarily restarting the cluster.
+         */
+        public static final String DESCRIPTION_LENGTH_LIMIT_KEY = "fileSettings.descriptionLengthLimit";
+        static final Setting<Integer> DESCRIPTION_LENGTH_LIMIT = Setting.intSetting(
+            DESCRIPTION_LENGTH_LIMIT_KEY,
+            100,
+            1, // Need room for the ellipsis
+            Setting.Property.OperatorDynamic
+        );
+
+        private final Settings settings;
+        private boolean isActive = false;
+        private long changeCount = 0;
+        private long failureStreak = 0;
+        private String mostRecentFailure = null;
+
+        public FileSettingsHealthIndicatorService(Settings settings) {
+            this.settings = settings;
+        }
+
+        public synchronized void startOccurred() {
+            isActive = true;
+            failureStreak = 0;
+        }
+
+        public synchronized void stopOccurred() {
+            isActive = false;
+            mostRecentFailure = null;
+        }
+
+        public synchronized void changeOccurred() {
+            ++changeCount;
+        }
+
+        public synchronized void successOccurred() {
+            failureStreak = 0;
+            mostRecentFailure = null;
+        }
+
+        public synchronized void failureOccurred(String description) {
+            ++failureStreak;
+            mostRecentFailure = limitLength(description);
+        }
+
+        private String limitLength(String description) {
+            int descriptionLengthLimit = DESCRIPTION_LENGTH_LIMIT.get(settings);
+            if (description.length() > descriptionLengthLimit) {
+                return description.substring(0, descriptionLengthLimit - 1) + "…";
+            } else {
+                return description;
+            }
+        }
+
+        @Override
+        public String name() {
+            return NAME;
+        }
+
+        @Override
+        public synchronized HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
+            if (isActive == false) {
+                return createIndicator(GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
+            }
+            if (0 == changeCount) {
+                return createIndicator(GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
+            }
+            if (0 == failureStreak) {
+                return createIndicator(GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
+            } else {
+                return createIndicator(
+                    YELLOW,
+                    FAILURE_SYMPTOM,
+                    new SimpleHealthIndicatorDetails(Map.of("failure_streak", failureStreak, "most_recent_failure", mostRecentFailure)),
+                    STALE_SETTINGS_IMPACT,
+                    List.of()
+                );
+            }
         }
     }
 }

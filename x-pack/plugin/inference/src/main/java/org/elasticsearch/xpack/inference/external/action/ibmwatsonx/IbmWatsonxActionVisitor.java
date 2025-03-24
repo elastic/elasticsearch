@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.inference.external.action.ibmwatsonx;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 
 import java.util.Map;
 
 public interface IbmWatsonxActionVisitor {
     ExecutableAction create(IbmWatsonxEmbeddingsModel model, Map<String, Object> taskSettings);
+
+    ExecutableAction create(IbmWatsonxRerankModel model, Map<String, Object> taskSettings);
 }

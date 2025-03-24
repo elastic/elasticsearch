@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -64,8 +65,8 @@ public class SingleValueQuery extends Query {
     }
 
     @Override
-    public Builder asBuilder() {
-        return new Builder(next.asBuilder(), field, next.source());
+    protected Builder asBuilder() {
+        return new Builder(next.toQueryBuilder(), field, next.source());
     }
 
     @Override
@@ -107,7 +108,7 @@ public class SingleValueQuery extends Query {
             super(in);
             this.next = in.readNamedWriteable(QueryBuilder.class);
             this.field = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SINGLE_VALUE_QUERY_SOURCE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 if (in instanceof PlanStreamInput psi) {
                     this.source = Source.readFrom(psi);
                 } else {
@@ -128,7 +129,7 @@ public class SingleValueQuery extends Query {
         protected void doWriteTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(next);
             out.writeString(field);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SINGLE_VALUE_QUERY_SOURCE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 source.writeTo(out);
             } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 writeOldSource(out, source);
@@ -179,7 +180,8 @@ public class SingleValueQuery extends Query {
                     source.source().getLineNumber(),
                     source.source().getColumnNumber(),
                     source.text()
-                )
+                ),
+                "single-value function encountered multi-value"
             );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
             if (rewrite instanceof MatchAllDocsQuery) {

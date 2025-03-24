@@ -1,4 +1,9 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -6,10 +11,10 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.dra-artifacts'
 
 esplugin {
-  name 'x-pack-ml'
-  description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
-  classname 'org.elasticsearch.xpack.ml.MachineLearning'
-  hasNativeController true
+  name = 'x-pack-ml'
+  description = 'Elasticsearch Expanded Pack Plugin - Machine Learning'
+  classname ='org.elasticsearch.xpack.ml.MachineLearning'
+  hasNativeController =true
   extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
@@ -18,8 +23,8 @@ if (useDra == false) {
     exclusiveContent {
       forRepository {
         ivy {
-          name "ml-cpp"
-          url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
+          name = "ml-cpp"
+          url = providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
           metadataSources {
             // no repository metadata, look directly for the artifact
             artifact()
@@ -76,7 +81,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation project(path: xpackModule('wildcard'))
   // ml deps
-  api project(':libs:elasticsearch-grok')
+  api project(':libs:grok')
   api project(':modules:lang-mustache')
   api "org.apache.commons:commons-math3:3.6.1"
   api "com.ibm.icu:icu4j:${versions.icu4j}"
@@ -94,7 +99,7 @@ dependencies {
 }
 
 def mlCppVersion(){
-  return (project.gradle.parent != null && BuildParams.isSnapshotBuild() == false) ?
+  return (project.gradle.parent != null && buildParams.snapshotBuild == false) ?
       (project.version + "-SNAPSHOT") : project.version;
 }
 

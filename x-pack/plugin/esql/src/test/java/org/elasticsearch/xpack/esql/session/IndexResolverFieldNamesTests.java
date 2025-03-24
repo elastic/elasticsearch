@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
@@ -351,6 +352,114 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             FROM employees
             | STATS count = COUNT(emp_no) BY languages
             | SORT languages""", Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+    }
+
+    public void testEvalStats() {
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY y""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY y
+            | SORT y""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | SORT x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) BY first_name
+            | SORT first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | SORT x, first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL first_name = "a"
+            | STATS count = COUNT(*) BY first_name
+            | SORT first_name""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name = to_upper(y)
+            | SORT first_name""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = to_upper(first_name), z = "z"
+            | STATS count = COUNT(*) BY first_name = to_lower(y), z
+            | SORT first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y, z = first_name
+            | SORT x, z""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y, first_name
+            | SORT x, first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(first_name) BY x = y
+            | SORT x
+            | DROP first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | MV_EXPAND x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name, y
+            | MV_EXPAND first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | MV_EXPAND first_name
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name, y
+            | SORT y""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | MV_EXPAND y
+            | STATS count = COUNT(*) BY x = y
+            | SORT x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | STATS count = COUNT(count) by x
+            | SORT x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name, y
+            | STATS count = COUNT(count) by x = y
+            | SORT x""", Set.of("first_name", "first_name.*"));
     }
 
     public void testSortWithLimitOne_DropHeight() {
@@ -1208,36 +1317,36 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testEnrichOnDefaultFieldWithKeep() {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+        Set<String> fieldNames = fieldNames("""
             from employees
             | enrich languages_policy
-            | keep emp_no"""), Set.of("language_name"));
+            | keep emp_no""", Set.of("language_name"));
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
     }
 
     public void testDissectOverwriteName() {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+        Set<String> fieldNames = fieldNames("""
             from employees
             | dissect first_name "%{first_name} %{more}"
-            | keep emp_no, first_name, more"""), Set.of());
+            | keep emp_no, first_name, more""", Set.of());
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
     }
 
     public void testEnrichOnDefaultField() {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+        Set<String> fieldNames = fieldNames("""
             from employees
-            | enrich languages_policy"""), Set.of("language_name"));
+            | enrich languages_policy""", Set.of("language_name"));
         assertThat(fieldNames, equalTo(ALL_FIELDS));
     }
 
     public void testMetrics() {
-        var query = "METRICS k8s bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
+        var query = "METRICS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'METRICS' expecting {"));
             return;
         }
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query), Set.of());
+        Set<String> fieldNames = fieldNames(query, Set.of());
         assertThat(
             fieldNames,
             equalTo(
@@ -1255,8 +1364,308 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
+    public void testLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            "FROM employees | KEEP languages | RENAME languages AS language_code | LOOKUP JOIN languages_lookup ON language_code",
+            Set.of("languages", "languages.*", "language_code", "language_code.*"),
+            Set.of("languages_lookup") // Since we have KEEP before the LOOKUP JOIN we need to wildcard the lookup index
+        );
+    }
+
+    public void testLookupJoinKeep() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM employees
+                | KEEP languages
+                | RENAME languages AS language_code
+                | LOOKUP JOIN languages_lookup ON language_code
+                | KEEP languages, language_code, language_name""",
+            Set.of("languages", "languages.*", "language_code", "language_code.*", "language_name", "language_name.*"),
+            Set.of()  // Since we have KEEP after the LOOKUP, we can use the global field names instead of wildcarding the lookup index
+        );
+    }
+
+    public void testLookupJoinKeepWildcard() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM employees
+                | KEEP languages
+                | RENAME languages AS language_code
+                | LOOKUP JOIN languages_lookup ON language_code
+                | KEEP language*""",
+            Set.of("language*", "languages", "languages.*", "language_code", "language_code.*"),
+            Set.of()  // Since we have KEEP after the LOOKUP, we can use the global field names instead of wildcarding the lookup index
+        );
+    }
+
+    public void testMultiLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message""",
+            Set.of("*"), // With no KEEP we should keep all fields
+            Set.of() // since global field names are wildcarded, we don't need to wildcard any indices
+        );
+    }
+
+    public void testMultiLookupJoinKeepBefore() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, client_ip, event_duration, message
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message""",
+            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "message", "message.*"),
+            Set.of("clientips_lookup", "message_types_lookup") // Since the KEEP is before both JOINS we need to wildcard both indices
+        );
+    }
+
+    public void testMultiLookupJoinKeepBetween() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, client_ip, event_duration, message, env
+                | LOOKUP JOIN message_types_lookup ON message""",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "client_ip",
+                "client_ip.*",
+                "event_duration",
+                "event_duration.*",
+                "message",
+                "message.*",
+                "env",
+                "env.*"
+            ),
+            Set.of("message_types_lookup")  // Since the KEEP is before the second JOIN, we need to wildcard the second index
+        );
+    }
+
+    public void testMultiLookupJoinKeepAfter() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | KEEP @timestamp, client_ip, event_duration, message, env, type""",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "client_ip",
+                "client_ip.*",
+                "event_duration",
+                "event_duration.*",
+                "message",
+                "message.*",
+                "env",
+                "env.*",
+                "type",
+                "type.*"
+            ),
+            Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
+        );
+    }
+
+    public void testMultiLookupJoinKeepAfterWildcard() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | KEEP *env*, *type*""",
+            Set.of("*env*", "*type*", "client_ip", "client_ip.*", "message", "message.*"),
+            Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
+        );
+    }
+
+    public void testMultiLookupJoinSameIndex() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip""",
+            Set.of("*"), // With no KEEP we should keep all fields
+            Set.of() // since global field names are wildcarded, we don't need to wildcard any indices
+        );
+    }
+
+    public void testMultiLookupJoinSameIndexKeepBefore() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, client_ip, event_duration, message
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip""",
+            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "message", "message.*"),
+            Set.of("clientips_lookup") // Since there is no KEEP after the last JOIN, we need to wildcard the index
+        );
+    }
+
+    public void testMultiLookupJoinSameIndexKeepBetween() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, client_ip, event_duration, message, env
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip""",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "client_ip",
+                "client_ip.*",
+                "event_duration",
+                "event_duration.*",
+                "message",
+                "message.*",
+                "env",
+                "env.*"
+            ),
+            Set.of("clientips_lookup") // Since there is no KEEP after the last JOIN, we need to wildcard the index
+        );
+    }
+
+    public void testMultiLookupJoinSameIndexKeepAfter() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, client_ip, event_duration, message, env""",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "client_ip",
+                "client_ip.*",
+                "event_duration",
+                "event_duration.*",
+                "message",
+                "message.*",
+                "env",
+                "env.*"
+            ),
+            Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
+        );
+    }
+
+    public void testInsist_fieldIsMappedToNonKeywordSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 client_ip | KEEP @timestamp, client_ip",
+            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsMappedToKeywordSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 message | KEEP @timestamp, message",
+            Set.of("@timestamp", "@timestamp.*", "message", "message.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldDoesNotExistSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 foo | KEEP @timestamp, foo",
+            Set.of("@timestamp", "@timestamp.*", "foo", "foo.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsUnmappedSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 unmapped_message | KEEP @timestamp, unmapped_message",
+            Set.of("@timestamp", "@timestamp.*", "unmapped_message", "unmapped_message.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_multiFieldTestSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 message, unmapped_message, client_ip, foo | KEEP @timestamp, unmapped_message",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "message",
+                "message.*",
+                "unmapped_message",
+                "unmapped_message.*",
+                "client_ip",
+                "client_ip.*",
+                "foo",
+                "foo.*"
+            ),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsMappedToDifferentTypesMultiIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM sample_data_ts_long, sample_data METADATA _index | INSIST_🐔 @timestamp | KEEP _index, @timestamp",
+            Set.of("@timestamp", "@timestamp.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_multiFieldMappedMultiIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data_ts_long, sample_data METADATA _index
+                | INSIST_🐔 @timestamp, unmapped_message
+                | INSIST_🐔 message, foo
+                | KEEP _index, @timestamp, message, foo""",
+            Set.of("@timestamp", "@timestamp.*", "message", "message.*", "unmapped_message", "unmapped_message.*", "foo", "foo.*"),
+            Set.of()
+        );
+    }
+
+    private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
+        var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
+        return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query), Collections.emptySet());
+        Set<String> fieldNames = fieldNames(query, Collections.emptySet());
         assertThat(fieldNames, equalTo(expected));
+    }
+
+    private void assertFieldNames(String query, Set<String> expected, Set<String> wildCardIndices) {
+        var preAnalysisResult = EsqlSession.fieldNames(parser.createStatement(query), Set.of(), new EsqlSession.PreAnalysisResult(null));
+        assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
+        assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
     }
 }

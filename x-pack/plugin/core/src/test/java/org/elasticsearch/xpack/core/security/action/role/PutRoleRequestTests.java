@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
@@ -46,6 +47,22 @@ public class PutRoleRequestTests extends ESTestCase {
 
         // Fail
         assertValidationError("unknown cluster privilege [" + unknownClusterPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
+    }
+
+    public void testValidationErrorWithFailureStorePrivilegeInRemoteIndices() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        request.addRemoteIndex(
+            new String[] { "*" },
+            new String[] { "index" },
+            new String[] { "read_failure_store", "read", "indices:data/read" },
+            null,
+            null,
+            null,
+            randomBoolean()
+        );
+        assertValidationError("remote index privileges cannot contain privileges that grant access to the failure store", request);
     }
 
     public void testValidationErrorWithTooLongRoleName() {
@@ -104,7 +121,7 @@ public class PutRoleRequestTests extends ESTestCase {
         }
         request.putRemoteCluster(remoteClusterPermissions);
         assertValidationError("Invalid remote_cluster permissions found. Please remove the following: [", request);
-        assertValidationError("Only [monitor_enrich] are allowed", request);
+        assertValidationError("Only [monitor_enrich, monitor_stats] are allowed", request);
     }
 
     public void testValidationErrorWithEmptyClustersInRemoteIndices() {

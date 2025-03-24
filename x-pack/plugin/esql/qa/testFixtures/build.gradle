@@ -5,9 +5,9 @@ dependencies {
   implementation project(':x-pack:plugin:esql:compute')
   implementation project(':x-pack:plugin:esql')
   compileOnly project(path: xpackModule('core'))
-  implementation project(":libs:elasticsearch-x-content")
+  implementation project(":libs:x-content")
   implementation project(':client:rest')
-  implementation project(':libs:elasticsearch-logging')
+  implementation project(':libs:logging')
   implementation project(':test:framework')
   api(testArtifact(project(xpackModule('esql-core'))))
   implementation project(':server')
@@ -39,4 +39,3 @@ tasks.register("loadCsvSpecData", JavaExec) {
   classpath = sourceSets.main.runtimeClasspath
   mainClass = "org.elasticsearch.xpack.esql.CsvTestsDataLoader"
 }
-

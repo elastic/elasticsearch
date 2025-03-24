@@ -26,8 +26,10 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -39,7 +41,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongConsumer;
@@ -69,6 +70,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // callback that's called whenever an operation with a given sequence number is successfully persisted.
     private final LongConsumer persistedSequenceNumberConsumer;
     private final OperationListener operationListener;
+    private final TranslogOperationAsserter operationAsserter;
     private final boolean fsync;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
@@ -108,6 +110,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         BigArrays bigArrays,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
+        TranslogOperationAsserter operationAsserter,
         boolean fsync
     ) throws IOException {
         super(initialCheckpoint.generation, channel, path, header);
@@ -136,6 +139,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
         this.operationListener = operationListener;
+        this.operationAsserter = operationAsserter;
         this.fsync = fsync;
         this.lastModifiedTimeCache = new LastModifiedTimeCache(-1, -1, -1);
     }
@@ -157,6 +161,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         BigArrays bigArrays,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
+        TranslogOperationAsserter operationAsserter,
         boolean fsync
     ) throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
@@ -201,6 +206,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 bigArrays,
                 diskIoBufferPool,
                 operationListener,
+                operationAsserter,
                 fsync
             );
         } catch (Exception exception) {
@@ -276,25 +282,16 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 Translog.Operation prvOp = Translog.readOperation(
                     new BufferedChecksumStreamInput(previous.v1().streamInput(), "assertion")
                 );
-                // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
                 final boolean sameOp;
                 if (newOp instanceof final Translog.Index o2 && prvOp instanceof final Translog.Index o1) {
-                    sameOp = Objects.equals(o1.id(), o2.id())
-                        && Objects.equals(o1.source(), o2.source())
-                        && Objects.equals(o1.routing(), o2.routing())
-                        && o1.primaryTerm() == o2.primaryTerm()
-                        && o1.seqNo() == o2.seqNo()
-                        && o1.version() == o2.version();
+                    sameOp = operationAsserter.assertSameIndexOperation(o1, o2);
                 } else if (newOp instanceof final Translog.Delete o1 && prvOp instanceof final Translog.Delete o2) {
-                    sameOp = Objects.equals(o1.id(), o2.id())
-                        && o1.primaryTerm() == o2.primaryTerm()
-                        && o1.seqNo() == o2.seqNo()
-                        && o1.version() == o2.version();
+                    sameOp = o1.equals(o2);
                 } else {
                     sameOp = false;
                 }
-                if (sameOp == false) {
-                    throw new AssertionError(
+                assert sameOp
+                    : new AssertionError(
                         "seqNo ["
                             + seqNo
                             + "] was processed twice in generation ["
@@ -302,12 +299,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             + "], with different data. "
                             + "prvOp ["
                             + prvOp
+                            + (prvOp instanceof Translog.Index index ? " source: " + Source.fromBytes(index.source()).source() : "")
                             + "], newOp ["
                             + newOp
+                            + (newOp instanceof Translog.Index index ? " source: " + Source.fromBytes(index.source()).source() : "")
                             + "]",
                         previous.v2()
                     );
-                }
             }
         } else {
             seenSequenceNumbers.put(

@@ -258,9 +258,6 @@ tasks.named('licenseHeaders').configure {
  *****************************************************************************/
 
 repositories {
-  maven {
-    url 'https://jitpack.io'
-  }
   mavenCentral()
   gradlePluginPortal()
 }
@@ -285,8 +282,6 @@ dependencies {
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"
 
-  // same version as http client transitive dep
-  api buildLibs.commons.codec
   api buildLibs.apache.compress
   api buildLibs.nebula.info
   api buildLibs.apache.rat
@@ -306,8 +301,8 @@ dependencies {
   api buildLibs.antlrst4
   api buildLibs.asm
   api buildLibs.asm.tree
-  api buildLibs.httpclient
-  api buildLibs.httpcore
+  api buildLibs.httpclient5
+  api buildLibs.httpcore5
 
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections
@@ -386,10 +381,13 @@ tasks.named("jar") {
 
 spotless {
   java {
-    // IDEs can sometimes run annotation processors that leave files in
-    // here, causing Spotless to complain. Even though this path ought not
-    // to exist, exclude it anyway in order to avoid spurious failures.
-    toggleOffOn()
+
+    // workaround for https://github.com/diffplug/spotless/issues/2317
+    //toggleOffOn()
+    target project.fileTree("src/main/java") {
+      include '**/*.java'
+      exclude '**/DockerBase.java'
+    }
   }
 }
 

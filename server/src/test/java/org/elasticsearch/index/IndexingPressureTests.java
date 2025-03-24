@@ -17,6 +17,8 @@ import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.Optional;
+
 public class IndexingPressureTests extends ESTestCase {
 
     private final Settings settings = Settings.builder()
@@ -27,6 +29,7 @@ public class IndexingPressureTests extends ESTestCase {
         .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB")
         .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "9KB")
         .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "128B")
+        .put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "128B")
         .build();
 
     public void testMemoryLimitSettingsFallbackToOldSingleLimitSetting() {
@@ -37,19 +40,52 @@ public class IndexingPressureTests extends ESTestCase {
         assertThat(IndexingPressure.MAX_REPLICA_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(30)));
     }
 
-    public void testHighAndLowWatermarkSettings() {
+    public void testHighAndLowWatermarkSplits() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
 
         try (
-            Releasable ignored1 = indexingPressure.markCoordinatingOperationStarted(10, ByteSizeValue.ofKb(6).getBytes(), false);
-            Releasable ignored2 = indexingPressure.markCoordinatingOperationStarted(10, ByteSizeValue.ofKb(2).getBytes(), false)
+            IndexingPressure.Incremental coordinating1 = indexingPressure.startIncrementalCoordinating(10, randomIntBetween(1, 127), false);
+            IndexingPressure.Incremental coordinating2 = indexingPressure.startIncrementalCoordinating(
+                10,
+                randomIntBetween(128, 1023),
+                false
+            );
+            IndexingPressure.Incremental coordinating3 = indexingPressure.startIncrementalCoordinating(
+                10,
+                randomIntBetween(1024, 6000),
+                false
+            );
+            Releasable ignored1 = indexingPressure.startIncrementalCoordinating(
+                10,
+                1 + (8 * 1024) - indexingPressure.stats().getCurrentCoordinatingBytes(),
+                false
+            )
         ) {
-            assertFalse(indexingPressure.shouldSplitBulk(randomIntBetween(1, 1000)));
-            assertTrue(indexingPressure.shouldSplitBulk(randomIntBetween(1025, 10000)));
+            assertFalse(coordinating1.maybeSplit().isPresent());
+            assertFalse(coordinating2.maybeSplit().isPresent());
+            assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 0L);
+            assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 0L);
+            Optional<Releasable> split1 = coordinating3.maybeSplit();
+            assertTrue(split1.isPresent());
+            try (Releasable ignored2 = split1.get()) {
+                assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 0L);
+                assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
 
-            try (Releasable ignored3 = indexingPressure.markPrimaryOperationStarted(10, ByteSizeValue.ofKb(1).getBytes(), false)) {
-                assertFalse(indexingPressure.shouldSplitBulk(randomIntBetween(1, 127)));
-                assertTrue(indexingPressure.shouldSplitBulk(randomIntBetween(129, 1000)));
+                try (
+                    Releasable ignored3 = indexingPressure.markCoordinatingOperationStarted(
+                        10,
+                        1 + (9 * 1024) - indexingPressure.stats().getCurrentCoordinatingBytes(),
+                        false
+                    )
+                ) {
+                    assertFalse(coordinating1.maybeSplit().isPresent());
+                    Optional<Releasable> split2 = coordinating2.maybeSplit();
+                    assertTrue(split2.isPresent());
+                    try (Releasable ignored4 = split2.get()) {
+                        assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 1L);
+                        assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
+                    }
+                }
             }
         }
     }
@@ -98,7 +134,7 @@ public class IndexingPressureTests extends ESTestCase {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
         try (
             Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
-            Releasable primary = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(1, 15)
+            Releasable primary = indexingPressure.validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(1, 15, 15, true)
         ) {
             IndexingPressureStats stats = indexingPressure.stats();
             assertEquals(10, stats.getCurrentCoordinatingBytes());
@@ -144,7 +180,7 @@ public class IndexingPressureTests extends ESTestCase {
 
             // Local to coordinating node primary actions not rejected
             IndexingPressureStats preLocalStats = indexingPressure.stats();
-            Releasable local = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(1, 1024 * 2);
+            Releasable local = indexingPressure.validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(1, 1024 * 2, 1024 * 2, true);
             assertEquals(preLocalStats.getPrimaryRejections(), indexingPressure.stats().getPrimaryRejections());
             assertEquals(1024 * 6, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(preLocalStats.getCurrentPrimaryBytes() + 1024 * 2, indexingPressure.stats().getCurrentPrimaryBytes());
@@ -179,6 +215,118 @@ public class IndexingPressureTests extends ESTestCase {
         }
 
         assertEquals(1024 * 14, indexingPressure.stats().getTotalReplicaBytes());
+    }
+
+    public void testPrimaryOperationExpansionAccounting() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        // Primary limit is 12kb
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(2, 1024 * 3, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(2, 1024 * 3, false);
+        ) {
+            var opsExpansionReleasable = indexingPressure.trackPrimaryOperationExpansion(2, 1024 * 3, false);
+            assertEquals(0, indexingPressure.stats().getPrimaryRejections());
+            assertEquals(0, indexingPressure.stats().getPrimaryDocumentRejections());
+            assertEquals(1024 * 9, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+
+            opsExpansionReleasable.close();
+        }
+
+        assertEquals(1024 * 6, indexingPressure.stats().getTotalPrimaryBytes());
+        // ensure that the expansion does not increase the number of ops twice
+        assertEquals(2, indexingPressure.stats().getTotalPrimaryOps());
+    }
+
+    public void testPrimaryOperationExpansionAccountingRejections() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        // Primary limit is 12kb
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(2, 1024 * 3, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(2, 1024 * 3, false);
+        ) {
+            expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.trackPrimaryOperationExpansion(2, 1024 * 8, false));
+            assertEquals(1, indexingPressure.stats().getPrimaryRejections());
+            assertEquals(2, indexingPressure.stats().getPrimaryDocumentRejections());
+            assertEquals(1024 * 6, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+
+            var forcedOpsExpansionReleasable = indexingPressure.trackPrimaryOperationExpansion(2, 1024 * 8, true);
+            assertEquals(1, indexingPressure.stats().getPrimaryRejections());
+            assertEquals(2, indexingPressure.stats().getPrimaryDocumentRejections());
+            assertEquals(1024 * 14, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+
+            forcedOpsExpansionReleasable.close();
+        }
+
+        assertEquals(1024 * 11, indexingPressure.stats().getTotalPrimaryBytes());
+        assertEquals(2, indexingPressure.stats().getTotalPrimaryOps());
+    }
+
+    public void testReplicaOperationExpansionAccounting() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        // Replica limit is 15kb
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(2, 1024 * 3, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(2, 1024 * 3, false);
+            Releasable replica = indexingPressure.markReplicaOperationStarted(2, 1024 * 3, false);
+        ) {
+            var opsExpansionReleasable = indexingPressure.trackReplicaOperationExpansion(1024 * 3, false);
+            assertEquals(0, indexingPressure.stats().getReplicaRejections());
+            assertEquals(1024 * 6, indexingPressure.stats().getCurrentReplicaBytes());
+
+            opsExpansionReleasable.close();
+        }
+
+        assertEquals(1024 * 6, indexingPressure.stats().getTotalReplicaBytes());
+        // ensure that the expansion does not increase the number of ops twice
+        assertEquals(2, indexingPressure.stats().getTotalReplicaOps());
+    }
+
+    public void testReplicaOperationRejectionsExpansionAccounting() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        // Replica limit is 15kb
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(2, 1024 * 3, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(2, 1024 * 3, false);
+            Releasable replica = indexingPressure.markReplicaOperationStarted(2, 1024 * 3, false);
+        ) {
+            expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.trackReplicaOperationExpansion(1024 * 16, false));
+            assertEquals(1, indexingPressure.stats().getReplicaRejections());
+            assertEquals(1024 * 3, indexingPressure.stats().getCurrentReplicaBytes());
+
+            var forcedReplicaExpansionReleasable = indexingPressure.trackReplicaOperationExpansion(1024 * 16, true);
+            assertEquals(1, indexingPressure.stats().getReplicaRejections());
+            assertEquals(1024 * 19, indexingPressure.stats().getCurrentReplicaBytes());
+            forcedReplicaExpansionReleasable.close();
+        }
+
+        assertEquals(1024 * 19, indexingPressure.stats().getTotalReplicaBytes());
+        // ensure that the expansion does not increase the number of ops twice
+        assertEquals(2, indexingPressure.stats().getTotalReplicaOps());
+    }
+
+    public void testLargeOperationRejections() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        // max operation size is 128b
+        indexingPressure.checkLargestPrimaryOperationIsWithinLimits(1, 1, false);
+        assertEquals(0L, indexingPressure.stats().getLargeOpsRejections());
+        assertEquals(0L, indexingPressure.stats().getTotalLargeRejectedOpsBytes());
+        assertEquals(0L, indexingPressure.stats().getPrimaryRejections());
+        assertEquals(0L, indexingPressure.stats().getPrimaryDocumentRejections());
+
+        expectThrows(
+            EsRejectedExecutionException.class,
+            () -> indexingPressure.checkLargestPrimaryOperationIsWithinLimits(12, 2048, false)
+        );
+        assertEquals(1L, indexingPressure.stats().getLargeOpsRejections());
+        assertEquals(1024L * 2, indexingPressure.stats().getTotalLargeRejectedOpsBytes());
+        assertEquals(1L, indexingPressure.stats().getPrimaryRejections());
+        assertEquals(12L, indexingPressure.stats().getPrimaryDocumentRejections());
+
+        indexingPressure.checkLargestPrimaryOperationIsWithinLimits(12, 2048, true);
+        assertEquals(2L, indexingPressure.stats().getLargeOpsRejections());
+        assertEquals(2 * 2048L, indexingPressure.stats().getTotalLargeRejectedOpsBytes());
+        assertEquals(1L, indexingPressure.stats().getPrimaryRejections());
+        assertEquals(12L, indexingPressure.stats().getPrimaryDocumentRejections());
     }
 
     public void testForceExecutionOnCoordinating() {

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
-import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
@@ -73,7 +72,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
 
         String sourceIndex = indexMetadata.getIndex().getName();
         String shrunkenIndex = SHRUNKEN_INDEX_PREFIX + sourceIndex;
-        List<AliasActions> expectedAliasActions = Arrays.asList(
+        List<AliasActions> expectedAliasActions = List.of(
             IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndex),
             IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(sourceIndex),
             IndicesAliasesRequest.AliasActions.add()

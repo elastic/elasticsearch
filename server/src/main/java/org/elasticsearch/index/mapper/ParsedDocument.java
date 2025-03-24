@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -24,6 +25,7 @@ import java.util.List;
  * The result of parsing a document.
  */
 public class ParsedDocument {
+
     private final Field version;
 
     private final String id;
@@ -33,7 +35,7 @@ public class ParsedDocument {
 
     private final List<LuceneDocument> documents;
 
-    private final DocumentSize normalizedSize;
+    private final long normalizedSize;
 
     private BytesReference source;
     private XContentType xContentType;
@@ -61,7 +63,7 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
     }
 
@@ -86,7 +88,7 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
     }
 
@@ -99,7 +101,7 @@ public class ParsedDocument {
         BytesReference source,
         XContentType xContentType,
         Mapping dynamicMappingsUpdate,
-        DocumentSize normalizedSize
+        long normalizedSize
     ) {
         this.version = version;
         this.seqID = seqID;
@@ -178,16 +180,7 @@ public class ParsedDocument {
         return "id";
     }
 
-    public DocumentSize getNormalizedSize() {
+    public long getNormalizedSize() {
         return normalizedSize;
-    }
-
-    /**
-     * Normalized ingested and stored size of a document.
-     * @param ingestedBytes ingest size of the document
-     * @param storedBytes stored retained size of the document
-     */
-    public record DocumentSize(long ingestedBytes, long storedBytes) {
-        public static final DocumentSize UNKNOWN = new DocumentSize(-1, -1);
     }
 }

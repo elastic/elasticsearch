@@ -73,7 +73,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
             buildFile << """
                 plugins {
                     id 'elasticsearch.java-doc'
-                    id 'com.github.johnrengelman.shadow' version '7.1.2'
+                    id 'com.gradleup.shadow'
                     id 'java'
                 }
                 group = 'org.acme.depending'

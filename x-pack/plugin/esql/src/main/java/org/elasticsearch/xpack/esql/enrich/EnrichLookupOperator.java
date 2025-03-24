@@ -16,16 +16,18 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public final class EnrichLookupOperator extends AsyncOperator {
+public final class EnrichLookupOperator extends AsyncOperator<Page> {
     private final EnrichLookupService enrichLookupService;
     private final String sessionId;
     private final CancellableTask parentTask;
@@ -35,6 +37,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
     private final String matchType;
     private final String matchField;
     private final List<NamedExpression> enrichFields;
+    private final Source source;
     private long totalTerms = 0L;
 
     public record Factory(
@@ -47,7 +50,8 @@ public final class EnrichLookupOperator extends AsyncOperator {
         String enrichIndex,
         String matchType,
         String matchField,
-        List<NamedExpression> enrichFields
+        List<NamedExpression> enrichFields,
+        Source source
     ) implements OperatorFactory {
         @Override
         public String describe() {
@@ -75,7 +79,8 @@ public final class EnrichLookupOperator extends AsyncOperator {
                 enrichIndex,
                 matchType,
                 matchField,
-                enrichFields
+                enrichFields,
+                source
             );
         }
     }
@@ -91,9 +96,10 @@ public final class EnrichLookupOperator extends AsyncOperator {
         String enrichIndex,
         String matchType,
         String matchField,
-        List<NamedExpression> enrichFields
+        List<NamedExpression> enrichFields,
+        Source source
     ) {
-        super(driverContext, maxOutstandingRequests);
+        super(driverContext, enrichLookupService.getThreadContext(), maxOutstandingRequests);
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.inputChannel = inputChannel;
@@ -103,23 +109,40 @@ public final class EnrichLookupOperator extends AsyncOperator {
         this.matchType = matchType;
         this.matchField = matchField;
         this.enrichFields = enrichFields;
+        this.source = source;
     }
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<Page> listener) {
         final Block inputBlock = inputPage.getBlock(inputChannel);
         totalTerms += inputBlock.getTotalValueCount();
-        enrichLookupService.lookupAsync(
+        EnrichLookupService.Request request = new EnrichLookupService.Request(
             sessionId,
-            parentTask,
             enrichIndex,
             inputDataType,
             matchType,
             matchField,
-            enrichFields,
             new Page(inputBlock),
-            listener.map(inputPage::appendPage)
+            enrichFields,
+            source
         );
+        CheckedFunction<List<Page>, Page, Exception> handleResponse = pages -> {
+            if (pages.size() != 1) {
+                throw new UnsupportedOperationException("ENRICH should only return a single page");
+            }
+            return inputPage.appendPage(pages.getFirst());
+        };
+        enrichLookupService.lookupAsync(request, parentTask, listener.map(handleResponse));
+    }
+
+    @Override
+    public Page getOutput() {
+        return fetchFromBuffer();
+    }
+
+    @Override
+    protected void releaseFetchedOnAnyThread(Page page) {
+        releasePageOnAnyThread(page);
     }
 
     @Override
@@ -144,8 +167,8 @@ public final class EnrichLookupOperator extends AsyncOperator {
     }
 
     @Override
-    protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
-        return new EnrichLookupOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms);
+    protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
+        return new EnrichLookupOperator.Status(receivedPages, completedPages, processNanos, totalTerms);
     }
 
     public static class Status extends AsyncOperator.Status {
@@ -157,8 +180,8 @@ public final class EnrichLookupOperator extends AsyncOperator {
 
         final long totalTerms;
 
-        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalTerms) {
-            super(receivedPages, completedPages, totalTimeInMillis);
+        Status(long receivedPages, long completedPages, long processNanos, long totalTerms) {
+            super(receivedPages, completedPages, processNanos);
             this.totalTerms = totalTerms;
         }
 

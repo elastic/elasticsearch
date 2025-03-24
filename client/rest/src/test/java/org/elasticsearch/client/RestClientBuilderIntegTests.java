@@ -89,7 +89,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
@@ -97,10 +96,15 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                     client.performRequest(new Request("GET", "/"));
                     fail("connection should have been rejected due to SSL handshake");
                 } catch (Exception e) {
-                    assertThat(e, instanceOf(SSLHandshakeException.class));
+                    if (inFipsJvm()) {
+                        // Bouncy Castle throw a different exception
+                        assertThat(e, instanceOf(IOException.class));
+                        assertThat(e.getCause(), instanceOf(javax.net.ssl.SSLException.class));
+                    } else {
+                        assertThat(e, instanceOf(SSLHandshakeException.class));
+                    }
                 }
             }
-
             SSLContext.setDefault(getSslContext());
             try (RestClient client = buildRestClient()) {
                 Response response = client.performRequest(new Request("GET", "/"));
@@ -112,7 +116,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderSetsThreadName() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             SSLContext.setDefault(getSslContext());

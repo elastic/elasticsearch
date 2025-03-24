@@ -214,8 +214,6 @@ height:double | s:double
 ;
 
 powSalarySquared
-required_capability: pow_double
-
 from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
 salary:integer | s:double
@@ -239,7 +237,7 @@ base: double | value: double | s:double
 ;
 
 logofNegativeValue#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = 2.0, value = -2
+ROW base = 2.0, value = -2
 | EVAL s = LOG(base, value);
 
 warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
@@ -250,7 +248,7 @@ base: double | value: integer | s:double
 ;
 
 logofNegativeBase#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = -2, value = 2.0
+ROW base = -2, value = 2.0
 | EVAL s = LOG(base, value);
 
 warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
@@ -261,7 +259,7 @@ base: integer | value: double | s:double
 ;
 
 logofBaseOne#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = 1, value = 2
+ROW base = 1, value = 2
 | EVAL s = LOG(base, value);
 
 warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
@@ -272,7 +270,7 @@ base: integer | value: integer | s:double
 ;
 
 logofZero#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = 2.0, value = 0.0
+ROW base = 2.0, value = 0.0
 | EVAL s = LOG(base, value);
 
 warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
@@ -283,7 +281,7 @@ base:double | value:double | s:double
 ;
 
 logofNegativeZero#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = 2.0, value = -0.0
+ROW base = 2.0, value = -0.0
 | EVAL s = LOG(base, value);
 
 warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
@@ -294,7 +292,7 @@ base:double | value:double | s:double
 ;
 
 logofIntLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = 10, value = to_long(1000000000000)
+ROW base = 10, value = to_long(1000000000000)
 | EVAL s = LOG(base, value);
 
 base:integer | value:long      | s:double
@@ -302,7 +300,7 @@ base:integer | value:long      | s:double
 ;
 
 logofLongInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = to_long(1000000000000), value = 10
+ROW base = to_long(1000000000000), value = 10
 | EVAL s = LOG(base, value);
 
 base:long             | value:integer | s:double
@@ -310,7 +308,7 @@ base:long             | value:integer | s:double
 ;
 
 logofLongLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = to_long(1000000000000), value = to_long(1000000000000)
+ROW base = to_long(1000000000000), value = to_long(1000000000000)
 | EVAL s = LOG(base, value);
 
 base:long      | value:long     | s:double
@@ -318,7 +316,7 @@ base:long      | value:long     | s:double
 ;
 
 logofLongDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = to_long(1000000000000), value = 10.0
+ROW base = to_long(1000000000000), value = 10.0
 | EVAL s = LOG(base, value);
 
 base:long             | value:double | s:double
@@ -326,7 +324,7 @@ base:long             | value:double | s:double
 ;
 
 logofDoubleLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = 10.0, value = to_long(1000000000000)
+ROW base = 10.0, value = to_long(1000000000000)
 | EVAL s = LOG(base, value);
 
 base:double | value:long     | s:double
@@ -334,7 +332,7 @@ base:double | value:long     | s:double
 ;
 
 logofLongUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = to_long(1000000000000), value = to_ul(1000000000000000000)
+ROW base = to_long(1000000000000), value = to_ul(1000000000000000000)
 | EVAL s = LOG(base, value);
 
 base:long     | value:UNSIGNED_LONG | s:double
@@ -342,7 +340,7 @@ base:long     | value:UNSIGNED_LONG | s:double
 ;
 
 logofUnsignedLongLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = to_ul(1000000000000000000), value = to_long(1000000000000)
+ROW base = to_ul(1000000000000000000), value = to_long(1000000000000)
 | EVAL s = LOG(base, value);
 
 base:UNSIGNED_LONG  | value:long     | s:double
@@ -350,7 +348,7 @@ base:UNSIGNED_LONG  | value:long     | s:double
 ;
 
 logofIntUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = 10, value = to_ul(1000000000000000000)
+ROW base = 10, value = to_ul(1000000000000000000)
 | EVAL s = LOG(base, value);
 
 base:integer | value:UNSIGNED_LONG | s:double
@@ -358,7 +356,7 @@ base:integer | value:UNSIGNED_LONG | s:double
 ;
 
 logofUnsignedLongInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = to_ul(1000000000000000000), value = 10
+ROW base = to_ul(1000000000000000000), value = 10
 | EVAL s = LOG(base, value);
 
 base:UNSIGNED_LONG  | value:integer | s:double
@@ -366,7 +364,7 @@ base:UNSIGNED_LONG  | value:integer | s:double
 ;
 
 logofUnsignedLongUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = to_ul(1000000000000000000), value = to_ul(1000000000000000000)
+ROW base = to_ul(1000000000000000000), value = to_ul(1000000000000000000)
 | EVAL s = LOG(base, value);
 
 base:UNSIGNED_LONG  | value:UNSIGNED_LONG | s:double
@@ -374,7 +372,7 @@ base:UNSIGNED_LONG  | value:UNSIGNED_LONG | s:double
 ;
 
 logofUnsignedLongDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = to_ul(1000000000000000000), value = 1000000000.0
+ROW base = to_ul(1000000000000000000), value = 1000000000.0
 | EVAL s = LOG(base, value);
 
 base:UNSIGNED_LONG  | value:double | s:double
@@ -382,7 +380,7 @@ base:UNSIGNED_LONG  | value:double | s:double
 ;
 
 logofDoubleUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row base = 10.0, value = to_ul(1000000000000000000)
+ROW base = 10.0, value = to_ul(1000000000000000000)
 | EVAL s = LOG(base, value);
 
 base:double | value:UNSIGNED_LONG | s:double
@@ -391,7 +389,7 @@ base:double | value:UNSIGNED_LONG | s:double
 
 logofInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
 // tag::logUnary[]
-row value = 100
+ROW value = 100
 | EVAL s = LOG(value);
 // end::logUnary[]
 
@@ -402,7 +400,7 @@ value: integer | s:double
 ;
 
 logofLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row value = to_long(1000000000000)
+ROW value = to_long(1000000000000)
 | EVAL s = LOG(value);
 
 value: long   | s:double
@@ -410,7 +408,7 @@ value: long   | s:double
 ;
 
 logofUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row value = to_ul(1000000000000000000)
+ROW value = to_ul(1000000000000000000)
 | EVAL s = LOG(value);
 
 value: unsigned_long   | s:double
@@ -418,7 +416,7 @@ value: unsigned_long   | s:double
 ;
 
 logofDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
-row value = 1000000000000.0
+ROW value = 1000000000000.0
 | EVAL s = LOG(value);
 
 value: double   | s:double
@@ -528,7 +526,7 @@ null      | 19.72282600331636  | 10024          | null          | 64675         
 
 log10
 // tag::log10[]
-ROW d = 1000.0 
+ROW d = 1000.0
 | EVAL s = LOG10(d)
 // end::log10[]
 ;
@@ -631,8 +629,6 @@ base:double | exponent:integer | result:double
 ;
 
 powIntInt
-required_capability: pow_double
-
 ROW base = 2, exponent = 2
 | EVAL s = POW(base, exponent)
 ;
@@ -642,8 +638,6 @@ base:integer | exponent:integer | s:double
 ;
 
 powIntIntPlusInt
-required_capability: pow_double
-
 row s = 1 + pow(2, 2);
 
 s:double
@@ -658,8 +652,6 @@ s:double
 ;
 
 powIntUL
-required_capability: pow_double
-
 row x = pow(1, 9223372036854775808);
 
 x:double
@@ -667,8 +659,6 @@ x:double
 ;
 
 powLongUL
-required_capability: pow_double
-
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
 x:double
@@ -676,8 +666,6 @@ x:double
 ;
 
 powUnsignedLongUL
-required_capability: pow_double
-
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
 x:double
@@ -701,8 +689,6 @@ null
 ;
 
 powULInt
-required_capability: pow_double
-
 row x = pow(to_unsigned_long(9223372036854775807), 1);
 
 x:double
@@ -710,8 +696,6 @@ x:double
 ;
 
 powULIntOverrun
-required_capability: pow_double
-
 ROW x = POW(9223372036854775808, 2)
 ;
 
@@ -732,8 +716,6 @@ x:double
 ;
 
 powULLong
-required_capability: pow_double
-
 row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
 x:double
@@ -741,8 +723,6 @@ x:double
 ;
 
 powULLongOverrun
-required_capability: pow_double
-
 row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
 
 x:double
@@ -789,6 +769,28 @@ row ul = round(18446744073709551615);
 
 ul:ul
 18446744073709551615
+;
+
+roundMaxULWithBigNegativeDecimals
+required_capability: fn_round_ul_fixes
+row
+  ul1 = round(18446744073709551615, -6144415263046370459::long),
+  ul2 = round(18446744073709551615, -20::long),
+  ul3 = round(12446744073709551615, -19::long);
+
+ul1:ul | ul2:ul | ul3:ul
+0      | 0      | 10000000000000000000
+;
+
+roundBigULWithRoundULOverflow
+required_capability: fn_round_ul_fixes
+row ul = round(18446744073709551615, -19::long);
+
+warning:Line 1:10: evaluation of [round(18446744073709551615, -19::long)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:10: java.lang.ArithmeticException: unsigned_long overflow
+
+ul:ul
+null
 ;
 
 mvAvg
@@ -1005,6 +1007,33 @@ warning:Line 2:16: java.lang.ArithmeticException: unsigned_long overflow
 
 mvsum:unsigned_long
 null
+;
+
+mvSumOverflowOnNode
+required_capability: functions_source_serialization_warnings
+
+FROM employees
+| SORT first_name ASC
+| EVAL
+    ints = CASE(first_name == "Alejandro", [0, 1, 2147483647], 0),
+    longs = CASE(first_name == "Alejandro", [0, 1, 9223372036854775807], 0),
+    ulongs = CASE(first_name == "Alejandro", [0, 1, 18446744073709551615], 0),
+    intsResult = mv_sum(ints),
+    longsResult = mv_sum(longs),
+    ulongsResult = mv_sum(ulongs)
+| KEEP first_name, intsResult, longsResult, ulongsResult
+| LIMIT 1
+;
+
+warning:Line 7:14: evaluation of [mv_sum(ints)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 7:14: java.lang.ArithmeticException: integer overflow
+warning:Line 8:15: evaluation of [mv_sum(longs)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 8:15: java.lang.ArithmeticException: long overflow
+warning:Line 9:16: evaluation of [mv_sum(ulongs)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 9:16: java.lang.ArithmeticException: unsigned_long overflow
+
+first_name:keyword | intsResult:integer | longsResult:long | ulongsResult:unsigned_long
+Alejandro          | null               | null             | null
 ;
 
 e
@@ -1321,7 +1350,7 @@ cbrt
 required_capability: fn_cbrt
 // tag::cbrt[]
 ROW d = 1000.0
-| EVAL c = cbrt(d)
+| EVAL c = CBRT(d)
 // end::cbrt[]
 ;
 
@@ -1516,7 +1545,7 @@ emp_no:integer | min_plus_max:integer | are_equal:boolean
 
 docsAbs
 //tag::abs[]
-ROW number = -1.0 
+ROW number = -1.0
 | EVAL abs_number = ABS(number)
 //end::abs[]
 ;
@@ -1580,4 +1609,96 @@ from employees
 emp_no: integer | x:date     | y:date
 10001           | 2024-11-03 | 2024-11-06
 10002           | 2024-11-03 | 2024-11-06
+;
+
+greatestWithMixedNumericValues
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW g1=GREATEST(10.0, 5.0, 1, -100.1, 0, 1234, -10000), g2=GREATEST(10.0, 5, 1, -100.1, null);
+
+g1:double |g2:double
+1234      |null
+;
+
+leastWithMixedNumericValues
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW l1=LEAST(10.0, 5.0, 1, -100.1, 0, 1234, -10000), l2=LEAST(10.0, 5, 1, -100.1, null);
+
+l1:double |l2:double
+-10000    |null
+;
+
+greatestWithMixedNumericFields
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL g1 = GREATEST(height, salary, languages), g2 = GREATEST(height, salary, languages, null)
+| KEEP emp_no, g1, g2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | g1:double | g2:double
+10001          | 57305.0   | null
+10002          | 56371.0   | null
+10003          | 61805.0   | null
+;
+
+leastWithMixedNumericFields
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL l1 = LEAST(height, salary, languages), l2 = LEAST(height, salary, languages, null)
+| KEEP emp_no, l1, l2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | l1:double | l2:double
+10001          | 2.0       | null
+10002          | 2.08      | null
+10003          | 1.83      | null
+;
+
+greatestWithMixedNumericValuesWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW g1=GREATEST([10.0, 4], 1), g2=GREATEST([10.0, 4], 1, null);
+
+g1:double |g2:double
+10        |null
+;
+
+leastWithMixedNumericValuesWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW l1=LEAST([10.0, 4], 1), l2=LEAST([10.0, 4], 1, null);
+
+l1:double |l2:double
+1         |null
+;
+
+greatestWithMixedNumericFieldsWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL g1 = GREATEST(salary_change, salary, languages), g2 = GREATEST(salary_change, salary, languages, null)
+| KEEP emp_no, g1, g2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | g1:double | g2:double
+10001          | 57305.0   | null
+10002          | 56371.0   | null
+10003          | 61805.0   | null
+;
+
+leastWithMixedNumericFieldsWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL l1 = LEAST(salary_change, salary, languages), l2 = LEAST(salary_change, salary, languages, null)
+| KEEP emp_no, l1, l2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | l1:double | l2:double
+10001          | 1.19      | null     
+10002          | -7.23     | null     
+10003          | 4.0       | null     
 ;

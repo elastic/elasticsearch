@@ -19,7 +19,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentLookup() throws Exception {
-        parse("row a = 1 | lookup \"foo\" on j", "lookup");
+        parse("row a = 1 | lookup_\uD83D\uDC14 \"foo\" on j", "lookup_\uD83D\uDC14");
     }
 
     public void testDevelopmentMetrics() throws Exception {

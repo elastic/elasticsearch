@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -91,8 +90,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             mock(ThreadPool.class),
             mockDefaultClusterService(),
             mock(Clock.class),
-            mock(XPackLicenseState.class),
-            new FeatureService(List.of())
+            mock(XPackLicenseState.class)
         );
         final String message = service.buildExpirationMessage(time, expired).toString();
         if (expired) {
@@ -187,8 +185,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             mock(ThreadPool.class),
             clusterService,
             clock,
-            mock(XPackLicenseState.class),
-            new FeatureService(List.of())
+            mock(XPackLicenseState.class)
         );
         verify(clusterService).createTaskQueue(eq("license-service-start-basic"), any(), taskExecutorCaptor.capture());
 
@@ -280,8 +277,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             clock,
-            licenseState,
-            new FeatureService(List.of())
+            licenseState
         );
 
         final PutLicenseRequest request = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);

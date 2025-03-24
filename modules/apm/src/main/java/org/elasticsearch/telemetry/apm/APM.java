@@ -92,14 +92,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
-            APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
-            // The settings below are deprecated and are currently kept as fallback.
-            APMAgentSettings.TRACING_APM_SECRET_TOKEN_SETTING,
-            APMAgentSettings.TRACING_APM_API_KEY_SETTING,
-            APMAgentSettings.TRACING_APM_ENABLED_SETTING,
-            APMAgentSettings.TRACING_APM_NAMES_INCLUDE_SETTING,
-            APMAgentSettings.TRACING_APM_NAMES_EXCLUDE_SETTING,
-            APMAgentSettings.TRACING_APM_SANITIZE_FIELD_NAMES
+            APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES
         );
     }
 }

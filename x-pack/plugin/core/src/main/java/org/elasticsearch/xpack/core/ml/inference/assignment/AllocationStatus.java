@@ -42,9 +42,9 @@ public class AllocationStatus implements Writeable, ToXContentObject {
         }
     }
 
-    public static ParseField ALLOCATION_COUNT = new ParseField("allocation_count");
-    public static ParseField TARGET_ALLOCATION_COUNT = new ParseField("target_allocation_count");
-    public static ParseField STATE = new ParseField("state");
+    public static final ParseField ALLOCATION_COUNT = new ParseField("allocation_count");
+    public static final ParseField TARGET_ALLOCATION_COUNT = new ParseField("target_allocation_count");
+    public static final ParseField STATE = new ParseField("state");
 
     private static final ConstructingObjectParser<AllocationStatus, Void> PARSER = new ConstructingObjectParser<>(
         "allocation_health",

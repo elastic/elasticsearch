@@ -1,8 +1,5 @@
 ---
 wildcard field type ignore_above:
-  - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
   - do:
       indices.create:
         index:  test

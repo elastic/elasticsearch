@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -53,7 +52,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.metadata().index(index);
+        IndexMetadata idxMeta = clusterState.metadata().getProject().index(index);
 
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
@@ -158,8 +157,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             if (numberShardsLeftToAllocate < 0) {
                 this.message = "Waiting for all shards to become active";
             } else {
-                this.message = String.format(
-                    Locale.ROOT,
+                this.message = Strings.format(
                     "Waiting for node [%s] to contain [%d] shards, found [%d], remaining [%d]",
                     nodeId,
                     expectedShards,

@@ -99,17 +99,12 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
                 .setSettings(
                     settings.put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.NEW_INDEXVERSION_FORMAT).build()
                 )
-                .setMapping(mapping)
-                .get()
-        );
-
-        assertAcked(
+                .setMapping(mapping),
             indicesAdmin().prepareCreate(afterIndex)
                 .setSettings(
                     settings.put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.TIME_SERIES_ID_HASHING).build()
                 )
                 .setMapping(mapping)
-                .get()
         );
 
         final TimeSeriesDataset timeSeriesDataset = new TimeSeriesDataset();

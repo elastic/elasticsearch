@@ -263,7 +263,6 @@ public class SystemIndicesTests extends ESTestCase {
         SystemIndexDescriptor managed = SystemIndexDescriptor.builder()
             .setIndexPattern(".managed-*")
             .setPrimaryIndex(".managed-primary")
-            .setVersionMetaKey("version")
             .setOrigin("system")
             .setSettings(Settings.EMPTY)
             .setMappings("""

@@ -5,9 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -16,14 +13,13 @@ apply plugin: 'elasticsearch.bwc-test'
 
 
 dependencies {
-  compileOnly project(':x-pack:plugin:core')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('inference'))
   javaRestTestImplementation(testArtifact(project(":qa:rolling-upgrade"), "javaRestTest"))
 }
 
 // Inference API added in 8.11
-BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.11.0")) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible(v -> v.after("8.11.0")) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

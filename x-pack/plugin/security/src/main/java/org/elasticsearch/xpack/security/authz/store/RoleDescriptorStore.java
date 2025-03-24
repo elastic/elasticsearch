@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore.ProjectScoped;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -53,16 +56,18 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     private final RoleProviders roleProviders;
     private final ApiKeyService apiKeyService;
     private final ServiceAccountService serviceAccountService;
+    private final ProjectResolver projectResolver;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
-    private final Cache<String, Boolean> negativeLookupCache;
+    private final Cache<ProjectScoped<String>, Boolean> negativeLookupCache;
 
     public RoleDescriptorStore(
         RoleProviders roleProviders,
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
-        Cache<String, Boolean> negativeLookupCache,
+        ProjectResolver projectResolver,
+        Cache<ProjectScoped<String>, Boolean> negativeLookupCache,
         XPackLicenseState licenseState,
         ThreadContext threadContext,
         Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
@@ -70,6 +75,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         this.roleProviders = roleProviders;
         this.apiKeyService = Objects.requireNonNull(apiKeyService);
         this.serviceAccountService = Objects.requireNonNull(serviceAccountService);
+        this.projectResolver = projectResolver;
         this.licenseState = Objects.requireNonNull(licenseState);
         this.threadContext = threadContext;
         this.effectiveRoleDescriptorsConsumer = Objects.requireNonNull(effectiveRoleDescriptorsConsumer);
@@ -81,13 +87,14 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         RoleReference.NamedRoleReference namedRoleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
+        final var projectId = projectResolver.getProjectId();
         final Set<String> roleNames = Set.copyOf(new HashSet<>(List.of(namedRoleReference.getRoleNames())));
         if (roleNames.isEmpty()) {
             listener.onResponse(RolesRetrievalResult.EMPTY);
         } else if (roleNames.equals(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))) {
             listener.onResponse(RolesRetrievalResult.SUPERUSER);
         } else {
-            resolveRoleNames(roleNames, listener);
+            resolveRoleNames(roleNames, projectId, listener);
         }
     }
 
@@ -150,7 +157,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                     + "but other privileges found for subject ["
                     + crossClusterAccessRoleReference.getUserPrincipal()
                     + "]";
-                logger.debug("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
+                logger.warn("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
                 listener.onFailure(new IllegalArgumentException(message));
                 return;
             }
@@ -195,8 +202,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         listener.onResponse(rolesRetrievalResult);
     }
 
-    private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
-        roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
+    private void resolveRoleNames(Set<String> roleNames, ProjectId projectId, ActionListener<RolesRetrievalResult> listener) {
+        roleDescriptors(roleNames, projectId, ActionListener.wrap(rolesRetrievalResult -> {
             logDeprecatedRoles(rolesRetrievalResult.getRoleDescriptors());
             final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
             if (missingRoles) {
@@ -243,10 +250,10 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false;
     }
 
-    private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {
+    private void roleDescriptors(Set<String> roleNames, ProjectId projectId, ActionListener<RolesRetrievalResult> rolesResultListener) {
         final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
-            if (negativeLookupCache.get(s) != null) {
-                logger.debug(() -> "Requested role [" + s + "] does not exist (cached)");
+            if (negativeLookupCache.get(new ProjectScoped<>(projectId, s)) != null) {
+                logger.debug(() -> "Requested role [" + s + "] does not exist in [" + projectId + "] (cached)");
                 return false;
             } else {
                 return true;

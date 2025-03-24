@@ -7,6 +7,11 @@ setup:
       indices.create:
         index: test-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -18,7 +23,6 @@ setup:
 
 ---
 "Indexes sparse vector document":
-
   # Checks mapping is not updated until first doc arrives
   - do:
       indices.get_mapping:
@@ -33,25 +37,28 @@ setup:
         index: test-index
         id: doc_1
         body:
-          sparse_field:
-            text: "these are not the droids you're looking for. He's free to go around"
+          sparse_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.sparse_field:
             inference:
               inference_id: sparse-inference-id
               model_settings:
                 task_type: sparse_embedding
               chunks:
-                - text: "these are not the droids you're looking for"
-                  embeddings:
-                    feature_0: 1.0
-                    feature_1: 2.0
-                    feature_2: 3.0
-                    feature_3: 4.0
-                - text: "He's free to go around"
-                  embeddings:
-                    feature_4: 0.1
-                    feature_5: 0.2
-                    feature_6: 0.3
-                    feature_7: 0.4
+                sparse_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings:
+                      feature_0: 1.0
+                      feature_1: 2.0
+                      feature_2: 3.0
+                      feature_3: 4.0
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings:
+                      feature_4: 0.1
+                      feature_5: 0.2
+                      feature_6: 0.3
+                      feature_7: 0.4
 
   # Checks mapping is updated when first doc arrives
   - do:
@@ -65,7 +72,6 @@ setup:
 
 ---
 "Field caps with sparse embedding":
-
   - requires:
       cluster_features: "gte_v8.16.0"
       reason: field_caps support for semantic_text added in 8.16.0
@@ -95,25 +101,28 @@ setup:
         index: test-index
         id: doc_1
         body:
-          sparse_field:
-            text: "these are not the droids you're looking for. He's free to go around"
+          sparse_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.sparse_field:
             inference:
               inference_id: sparse-inference-id
               model_settings:
                 task_type: sparse_embedding
               chunks:
-                - text: "these are not the droids you're looking for"
-                  embeddings:
-                    feature_0: 1.0
-                    feature_1: 2.0
-                    feature_2: 3.0
-                    feature_3: 4.0
-                - text: "He's free to go around"
-                  embeddings:
-                    feature_4: 0.1
-                    feature_5: 0.2
-                    feature_6: 0.3
-                    feature_7: 0.4
+                sparse_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings:
+                      feature_0: 1.0
+                      feature_1: 2.0
+                      feature_2: 3.0
+                      feature_3: 4.0
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings:
+                      feature_4: 0.1
+                      feature_5: 0.2
+                      feature_6: 0.3
+                      feature_7: 0.4
         refresh: true
 
   - do:
@@ -125,8 +134,8 @@ setup:
   - match: { indices: [ "test-index" ] }
   - exists: fields.sparse_field
   - exists: fields.dense_field
-  - match: { fields.sparse_field.semantic_text.searchable: true }
-  - match: { fields.dense_field.semantic_text.searchable: true }
+  - match: { fields.sparse_field.text.searchable: true }
+  - match: { fields.dense_field.text.searchable: true }
 
   - do:
       field_caps:
@@ -137,11 +146,10 @@ setup:
   - match: { indices: [ "test-index" ] }
   - exists: fields.sparse_field
   - not_exists: fields.dense_field
-  - match: { fields.sparse_field.semantic_text.searchable: true }
+  - match: { fields.sparse_field.text.searchable: true }
 
 ---
 "Indexes dense vector document":
-
   # Checks mapping is not updated until first doc arrives
   - do:
       indices.get_mapping:
@@ -156,8 +164,8 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field:
-            text: "these are not the droids you're looking for. He's free to go around"
+          dense_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.dense_field:
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -166,10 +174,13 @@ setup:
                 similarity: cosine
                 element_type: float
               chunks:
-                - text: "these are not the droids you're looking for"
-                  embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
-                - text: "He's free to go around"
-                  embeddings: [0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896]
+                dense_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings: [0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896]
 
   # Checks mapping is updated when first doc arrives
   - do:
@@ -183,7 +194,6 @@ setup:
 
 ---
 "Field caps with text embedding":
-
   - requires:
       cluster_features: "gte_v8.16.0"
       reason: field_caps support for semantic_text added in 8.16.0
@@ -213,8 +223,8 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field:
-            text: "these are not the droids you're looking for. He's free to go around"
+          dense_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.dense_field:
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -223,10 +233,13 @@ setup:
                 similarity: cosine
                 element_type: float
               chunks:
-                - text: "these are not the droids you're looking for"
-                  embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
-                - text: "He's free to go around"
-                  embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+                dense_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings: [0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896]
         refresh: true
 
   - do:
@@ -238,8 +251,8 @@ setup:
   - match: { indices: [ "test-index" ] }
   - exists: fields.sparse_field
   - exists: fields.dense_field
-  - match: { fields.sparse_field.semantic_text.searchable: true }
-  - match: { fields.dense_field.semantic_text.searchable: true }
+  - match: { fields.sparse_field.text.searchable: true }
+  - match: { fields.dense_field.text.searchable: true }
 
   - do:
       field_caps:
@@ -250,58 +263,7 @@ setup:
   - match: { indices: [ "test-index" ] }
   - not_exists: fields.sparse_field
   - exists: fields.dense_field
-  - match: { fields.dense_field.semantic_text.searchable: true }
-
----
-"Can't be used as a multifield":
-
-    - do:
-        catch: /Field \[semantic\] of type \[semantic_text\] can't be used in multifields/
-        indices.create:
-          index: test-multi-index
-          body:
-            mappings:
-              properties:
-                text_field:
-                  type: text
-                  fields:
-                    semantic:
-                      type: semantic_text
-                      inference_id: sparse-inference-id
-
----
-"Can't have multifields":
-
-    - do:
-        catch: /semantic_text field \[semantic\] does not support multi-fields/
-        indices.create:
-          index: test-multi-index
-          body:
-            mappings:
-              properties:
-                semantic:
-                  type: semantic_text
-                  inference_id: sparse-inference-id
-                  fields:
-                    keyword_field:
-                      type: keyword
-
----
-"Can't configure copy_to in semantic_text":
-
-    - do:
-        catch: /semantic_text field \[semantic\] does not support \[copy_to\]/
-        indices.create:
-          index: test-copy_to-index
-          body:
-            mappings:
-              properties:
-                semantic:
-                  type: semantic_text
-                  inference_id: sparse-inference-id
-                  copy_to: another_field
-                another_field:
-                  type: keyword
+  - match: { fields.dense_field.text.searchable: true }
 
 ---
 "Cannot be used directly as a nested field":
@@ -371,3 +333,29 @@ setup:
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "semantic_text field [level_1.level_2.sparse_field] cannot be in an object field with
                             subobjects disabled" }
+
+---
+"Mapping always includes inference ID":
+  - requires:
+      cluster_features: "semantic_text.always_emit_inference_id_fix"
+      reason: always emit inference ID fix added in 8.17.0
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [default_elser_2]
+
+  - do:
+      indices.create:
+        index: test-always-include-inference-id-index
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+
+  - do:
+      indices.get_mapping:
+        index: test-always-include-inference-id-index
+
+  - exists: test-always-include-inference-id-index.mappings.properties.semantic_field.inference_id

@@ -37,7 +37,6 @@ public class XPackInfoFeatureAction {
     public static final ActionType<XPackInfoFeatureResponse> CCR = xpackInfoFeatureAction(XPackField.CCR);
     public static final ActionType<XPackInfoFeatureResponse> TRANSFORM = xpackInfoFeatureAction(XPackField.TRANSFORM);
     public static final ActionType<XPackInfoFeatureResponse> VOTING_ONLY = xpackInfoFeatureAction(XPackField.VOTING_ONLY);
-    public static final ActionType<XPackInfoFeatureResponse> FROZEN_INDICES = xpackInfoFeatureAction(XPackField.FROZEN_INDICES);
     public static final ActionType<XPackInfoFeatureResponse> SPATIAL = xpackInfoFeatureAction(XPackField.SPATIAL);
     public static final ActionType<XPackInfoFeatureResponse> ANALYTICS = xpackInfoFeatureAction(XPackField.ANALYTICS);
     public static final ActionType<XPackInfoFeatureResponse> ENRICH = xpackInfoFeatureAction(XPackField.ENRICH);
@@ -48,6 +47,7 @@ public class XPackInfoFeatureAction {
     public static final ActionType<XPackInfoFeatureResponse> ARCHIVE = xpackInfoFeatureAction(XPackField.ARCHIVE);
     public static final ActionType<XPackInfoFeatureResponse> ENTERPRISE_SEARCH = xpackInfoFeatureAction(XPackField.ENTERPRISE_SEARCH);
     public static final ActionType<XPackInfoFeatureResponse> UNIVERSAL_PROFILING = xpackInfoFeatureAction(XPackField.UNIVERSAL_PROFILING);
+    public static final ActionType<XPackInfoFeatureResponse> LOGSDB = xpackInfoFeatureAction(XPackField.LOGSDB);
 
     public static final List<ActionType<XPackInfoFeatureResponse>> ALL = List.of(
         SECURITY,
@@ -65,7 +65,6 @@ public class XPackInfoFeatureAction {
         CCR,
         TRANSFORM,
         VOTING_ONLY,
-        FROZEN_INDICES,
         SPATIAL,
         ANALYTICS,
         ENRICH,
@@ -75,7 +74,8 @@ public class XPackInfoFeatureAction {
         AGGREGATE_METRIC,
         ARCHIVE,
         ENTERPRISE_SEARCH,
-        UNIVERSAL_PROFILING
+        UNIVERSAL_PROFILING,
+        LOGSDB
     );
 
     public static ActionType<XPackInfoFeatureResponse> xpackInfoFeatureAction(String suffix) {

@@ -6,14 +6,10 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.List;
 
@@ -22,28 +18,6 @@ import java.util.List;
  * For example, a logical plan in English would be: "I want to get from DEN to SFO".
  */
 public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Resolvable {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            Aggregate.ENTRY,
-            Dissect.ENTRY,
-            Enrich.ENTRY,
-            EsRelation.ENTRY,
-            EsqlProject.ENTRY,
-            Eval.ENTRY,
-            Filter.ENTRY,
-            Grok.ENTRY,
-            InlineStats.ENTRY,
-            LocalRelation.ENTRY,
-            Limit.ENTRY,
-            Lookup.ENTRY,
-            MvExpand.ENTRY,
-            Join.ENTRY,
-            OrderBy.ENTRY,
-            Project.ENTRY,
-            TopN.ENTRY
-        );
-    }
-
     /**
      * Order is important in the enum; any values should be added at the end.
      */
@@ -100,8 +74,6 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
         }
         return lazyResolved;
     }
-
-    public abstract String commandName();
 
     public abstract boolean expressionsResolved();
 

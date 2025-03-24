@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -65,7 +66,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
                 }
                 deferredAggregations.add(subAggregators[i]);
                 deferredAggregationNames.add(subAggregators[i].name());
-                subAggregators[i] = deferringCollector.wrap(subAggregators[i]);
+                subAggregators[i] = deferringCollector.wrap(subAggregators[i], bigArrays());
             } else {
                 collectors.add(subAggregators[i]);
             }
@@ -87,7 +88,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     /**
      * Build the {@link DeferringBucketCollector}. The default implementation
      * replays all hits against the buckets selected by
-     * {#link {@link DeferringBucketCollector#prepareSelectedBuckets(long...)}.
+     * {#link {@link DeferringBucketCollector#prepareSelectedBuckets(LongArray)}.
      */
     protected DeferringBucketCollector buildDeferringCollector() {
         return new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
@@ -107,7 +108,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected final void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {
+    protected final void prepareSubAggs(LongArray bucketOrdsToCollect) throws IOException {
         if (deferringCollector != null) {
             deferringCollector.prepareSelectedBuckets(bucketOrdsToCollect);
         }

@@ -66,7 +66,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -664,8 +663,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createSnapshot(repo, snapshot, Collections.singletonList(shrunkIdx));
 
         logger.info("--> delete index and stop the data node");
-        assertAcked(indicesAdmin().prepareDelete(sourceIdx).get());
-        assertAcked(indicesAdmin().prepareDelete(shrunkIdx).get());
+        assertAcked(indicesAdmin().prepareDelete(sourceIdx), indicesAdmin().prepareDelete(shrunkIdx));
         internalCluster().stopRandomDataNode();
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TimeValue.timeValueSeconds(30)).setWaitForNodes("1");
 
@@ -1053,8 +1051,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         final AtomicBoolean blocked = new AtomicBoolean(true);
 
-        final TransportService transportService = internalCluster().getInstance(TransportService.class, otherDataNode);
-        transportService.addMessageListener(new TransportMessageListener() {
+        MockTransportService.getInstance(otherDataNode).addMessageListener(new TransportMessageListener() {
             @Override
             public void onRequestSent(
                 DiscoveryNode node,

@@ -109,6 +109,6 @@ public final class GeoTileGridAggregationBuilder extends GeoGridAggregationBuild
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_0_0;
+        return TransportVersions.ZERO;
     }
 }

@@ -156,7 +156,6 @@ import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_ENABLED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
-import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
@@ -257,7 +256,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     public Settings.Builder createRecoverySettingsChunkPerSecond(long chunkSizeBytes) {
         return Settings.builder()
             // Set the chunk size in bytes
-            .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSizeBytes, ByteSizeUnit.BYTES))
+            .put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(), ByteSizeValue.of(chunkSizeBytes, ByteSizeUnit.BYTES))
             // Set one chunk of bytes per second.
             .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSizeBytes, ByteSizeUnit.BYTES);
     }
@@ -280,7 +279,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Settings.builder()
                 // 200mb is an arbitrary number intended to be large enough to avoid more throttling.
                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
-                .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
+                .put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
         );
     }
 
@@ -343,9 +342,17 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(recoveryStats.currentAsSource(), equalTo(0));
         assertThat(recoveryStats.currentAsTarget(), equalTo(0));
         if (isRecoveryThrottlingNode) {
-            assertThat("Throttling should be >0 for '" + nodeName + "'", recoveryStats.throttleTime().millis(), greaterThan(0L));
+            assertThat(
+                "Throttling should be >0 for '" + nodeName + "'. Node stats: " + nodesStatsResponse,
+                recoveryStats.throttleTime().millis(),
+                greaterThan(0L)
+            );
         } else {
-            assertThat("Throttling should be =0 for '" + nodeName + "'", recoveryStats.throttleTime().millis(), equalTo(0L));
+            assertThat(
+                "Throttling should be =0 for '" + nodeName + "'. Node stats: " + nodesStatsResponse,
+                recoveryStats.throttleTime().millis(),
+                equalTo(0L)
+            );
         }
     }
 
@@ -1569,18 +1576,15 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         @Override
         public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-            return singletonMap(
-                "test_token_filter",
-                (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(name, settings) {
-                    @Override
-                    public TokenStream create(TokenStream tokenStream) {
-                        if (throwParsingError.get()) {
-                            throw new MapperParsingException("simulate mapping parsing error");
-                        }
-                        return tokenStream;
+            return singletonMap("test_token_filter", (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(name) {
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    if (throwParsingError.get()) {
+                        throw new MapperParsingException("simulate mapping parsing error");
                     }
+                    return tokenStream;
                 }
-            );
+            });
         }
     }
 
@@ -1760,7 +1764,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         .getIndices();
                     assertThat(nodeIndicesStats.getStore().reservedSizeInBytes(), equalTo(0L));
                     assertThat(
-                        nodeIndicesStats.getShardStats(clusterState.metadata().index(indexName).getIndex())
+                        nodeIndicesStats.getShardStats(clusterState.metadata().getProject().index(indexName).getIndex())
                             .stream()
                             .flatMap(s -> Arrays.stream(s.getShards()))
                             .map(s -> s.getStats().getStore().reservedSizeInBytes())
@@ -1971,7 +1975,14 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final var dataNode = internalCluster().startDataOnlyNode();
         final var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).put(INDEX_MERGE_ENABLED, false).build());
+        final var indexSettingsBuilder = indexSettings(1, 0).put(INDEX_MERGE_ENABLED, false);
+        if (randomBoolean()) {
+            indexSettingsBuilder.put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current())
+            );
+        }
+        createIndex(indexName, indexSettingsBuilder.build());
 
         final var initialSegmentCount = 20;
         for (int i = 0; i < initialSegmentCount; i++) {
@@ -2054,8 +2065,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     IndexMetadata.SETTING_VERSION_CREATED,
                     IndexVersionUtils.randomVersionBetween(
                         random(),
-                        IndexVersionUtils.getFirstVersion(),
-                        IndexVersionUtils.getPreviousVersion(IndexVersions.MERGE_ON_RECOVERY_VERSION)
+                        IndexVersionUtils.getLowestWriteCompatibleVersion(),
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
                     )
                 )
                 .build()

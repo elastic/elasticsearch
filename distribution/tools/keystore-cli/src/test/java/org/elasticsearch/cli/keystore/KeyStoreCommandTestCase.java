@@ -77,11 +77,11 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
     }
 
     void saveKeystore(KeyStoreWrapper keystore, String password) throws Exception {
-        keystore.save(env.configFile(), password.toCharArray());
+        keystore.save(env.configDir(), password.toCharArray());
     }
 
     KeyStoreWrapper loadKeystore(String password) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configDir());
         keystore.decrypt(password.toCharArray());
         return keystore;
     }

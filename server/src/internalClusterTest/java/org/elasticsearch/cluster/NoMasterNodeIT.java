@@ -261,10 +261,11 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        assertHitCount(clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0), 1L);
-
-        logger.info("--> here 3");
-        assertHitCount(clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true), 1L);
+        assertHitCount(
+            1L,
+            clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0),
+            clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true)
+        );
 
         assertResponse(clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0), countResponse -> {
             assertThat(countResponse.getTotalShards(), equalTo(3));

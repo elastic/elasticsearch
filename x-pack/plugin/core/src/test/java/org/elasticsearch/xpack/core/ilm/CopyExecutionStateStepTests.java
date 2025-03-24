@@ -91,6 +91,7 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
         LifecycleExecutionState oldIndexData = originalIndexMetadata.getLifecycleExecutionState();
         LifecycleExecutionState newIndexData = newClusterState.metadata()
+            .getProject()
             .index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
             .getLifecycleExecutionState();
 
@@ -129,6 +130,7 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
         LifecycleExecutionState oldIndexData = originalIndexMetadata.getLifecycleExecutionState();
         LifecycleExecutionState newIndexData = newClusterState.metadata()
+            .getProject()
             .index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
             .getLifecycleExecutionState();
 

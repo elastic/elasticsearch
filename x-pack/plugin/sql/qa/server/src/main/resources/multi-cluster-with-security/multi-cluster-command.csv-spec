@@ -46,21 +46,6 @@ my_remote_cluster|test_emp           |TABLE          |INDEX
 my_remote_cluster|test_emp_copy      |TABLE          |INDEX
 ;
 
-showTablesWithFrozen
-SHOW TABLES CATALOG 'my_remote_cluster' INCLUDE FROZEN;
-
-     catalog     |     name          |     type      |     kind
------------------+-------------------+---------------+---------------
-my_remote_cluster|apps               |TABLE          |INDEX
-my_remote_cluster|empty_mapping      |TABLE          |INDEX
-my_remote_cluster|frozen_emp         |TABLE          |INDEX
-my_remote_cluster|logs               |TABLE          |INDEX
-my_remote_cluster|logs_nanos         |TABLE          |INDEX
-my_remote_cluster|logs_unsigned_long |TABLE          |INDEX
-my_remote_cluster|test_emp           |TABLE          |INDEX
-my_remote_cluster|test_emp_copy      |TABLE          |INDEX
-;
-
 showTablesSimpleLike
 SHOW TABLES CATALOG 'my_remote_cluster' LIKE 'test_emp';
 

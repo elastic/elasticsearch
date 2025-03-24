@@ -1,7 +1,8 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.java'
 
 dependencies {
-  api project(':libs:elasticsearch-x-content')
+  api project(':libs:x-content')
   api project(':test:framework')
   api project(xpackModule('core'))
 }

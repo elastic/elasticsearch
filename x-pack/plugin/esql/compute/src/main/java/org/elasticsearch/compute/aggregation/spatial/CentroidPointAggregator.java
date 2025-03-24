@@ -32,6 +32,13 @@ import java.nio.ByteOrder;
  * This requires that the planner has planned that points are loaded from the index as doc-values.
  */
 abstract class CentroidPointAggregator {
+    public static CentroidState initSingle() {
+        return new CentroidState();
+    }
+
+    public static GroupingCentroidState initGrouping(BigArrays bigArrays) {
+        return new GroupingCentroidState(bigArrays);
+    }
 
     public static void combine(CentroidState current, double xVal, double xDel, double yVal, double yDel, long count) {
         current.add(xVal, xDel, yVal, yDel, count);
@@ -253,7 +260,8 @@ abstract class CentroidPointAggregator {
         }
 
         /** Needed for generated code that does null tracking, which we do not need because we use count */
-        final void enableGroupIdTracking(SeenGroupIds ignore) {}
+        @Override
+        public final void enableGroupIdTracking(SeenGroupIds ignore) {}
 
         private void ensureCapacity(int groupId) {
             if (groupId >= xValues.size()) {

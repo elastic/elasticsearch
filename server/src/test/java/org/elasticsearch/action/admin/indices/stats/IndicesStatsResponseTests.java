@@ -9,7 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -44,8 +45,8 @@ public class IndicesStatsResponseTests extends ESTestCase {
             0,
             0,
             null,
-            ClusterState.EMPTY_STATE.getMetadata(),
-            ClusterState.EMPTY_STATE.routingTable()
+            Metadata.EMPTY_METADATA,
+            RoutingTable.EMPTY_ROUTING_TABLE
         );
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
@@ -93,8 +94,8 @@ public class IndicesStatsResponseTests extends ESTestCase {
             0,
             0,
             null,
-            ClusterState.EMPTY_STATE.getMetadata(),
-            ClusterState.EMPTY_STATE.routingTable()
+            Metadata.EMPTY_METADATA,
+            RoutingTable.EMPTY_ROUTING_TABLE
         );
         Map<String, IndexStats> indexStats = indicesStatsResponse.getIndices();
 
@@ -132,18 +133,18 @@ public class IndicesStatsResponseTests extends ESTestCase {
             shards,
             0,
             null,
-            ClusterState.EMPTY_STATE.getMetadata(),
-            ClusterState.EMPTY_STATE.routingTable()
+            Metadata.EMPTY_METADATA,
+            RoutingTable.EMPTY_ROUTING_TABLE
         );
         AbstractChunkedSerializingTestCase.assertChunkCount(
             indicesStatsResponse,
             new ToXContent.MapParams(Map.of("level", "cluster")),
-            ignored1 -> 4
+            ignored1 -> 3
         );
         AbstractChunkedSerializingTestCase.assertChunkCount(
             indicesStatsResponse,
             new ToXContent.MapParams(Map.of("level", "indices")),
-            ignored -> 5 + 2 * shards
+            ignored -> 4 + 2 * shards
         );
     }
 

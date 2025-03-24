@@ -32,7 +32,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class UpdateConnectorLastSyncStatsAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/update_last_sync_stats";
+    public static final String NAME = "cluster:admin/xpack/connector/update_last_sync_stats";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorLastSyncStatsAction() {/* no instances */}

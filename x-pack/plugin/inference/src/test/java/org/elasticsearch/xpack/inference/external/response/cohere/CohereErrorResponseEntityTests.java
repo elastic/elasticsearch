@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.inference.external.response.cohere;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 
 import java.nio.charset.StandardCharsets;
 
@@ -25,7 +27,7 @@ public class CohereErrorResponseEntityTests extends ESTestCase {
             }
             """;
 
-        CohereErrorResponseEntity errorMessage = CohereErrorResponseEntity.fromResponse(
+        var errorMessage = CohereErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
         assertNotNull(errorMessage);
@@ -42,9 +44,9 @@ public class CohereErrorResponseEntityTests extends ESTestCase {
             }
             """;
 
-        CohereErrorResponseEntity errorMessage = CohereErrorResponseEntity.fromResponse(
+        var errorMessage = CohereErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        assertNull(errorMessage);
+        assertThat(errorMessage, Matchers.sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 }

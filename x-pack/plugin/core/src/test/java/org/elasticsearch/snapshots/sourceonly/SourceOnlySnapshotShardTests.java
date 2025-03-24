@@ -22,8 +22,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -67,7 +68,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
@@ -86,6 +86,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -117,6 +118,55 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             final String id = Integer.toString(i);
             indexDoc(shard, "_doc", id);
         }
+        SnapshotId snapshotId = new SnapshotId("test", "test");
+        IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
+        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository());
+        repository.start();
+        try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(new ShardGeneration(-1L));
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
+            runAsSnapshot(
+                shard.getThreadPool(),
+                () -> repository.snapshotShard(
+                    new SnapshotShardContext(
+                        shard.store(),
+                        shard.mapperService(),
+                        snapshotId,
+                        indexId,
+                        new SnapshotIndexCommit(snapshotRef),
+                        null,
+                        indexShardSnapshotStatus,
+                        IndexVersion.current(),
+                        randomMillisUpToYear9999(),
+                        future
+                    )
+                )
+            );
+            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, future::actionGet);
+            assertEquals(
+                "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source",
+                illegalStateException.getMessage()
+            );
+        }
+        closeShards(shard);
+    }
+
+    public void testSourceIncompleteSyntheticSourceNoDoc() throws IOException {
+        ShardRouting shardRouting = shardRoutingBuilder(
+            new ShardId("index", "_na_", 0),
+            randomAlphaOfLength(10),
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, primaryTerm).build();
+        IndexShard shard = newShard(shardRouting, metadata, null, new InternalEngineFactory());
+        recoverShardFromStore(shard);
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
         SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository());
@@ -306,7 +356,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     )
                 );
                 future.actionGet();
-                final PlainActionFuture<SnapshotInfo> finFuture = new PlainActionFuture<>();
+                final CountDownLatch finishedLatch = new CountDownLatch(2);
                 final ShardGenerations shardGenerations = ShardGenerations.builder()
                     .put(indexId, 0, indexShardSnapshotStatus.generation())
                     .build();
@@ -330,21 +380,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                             Collections.emptyMap()
                         ),
                         IndexVersion.current(),
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(RepositoryData repositoryData) {
-                                // nothing will resolve in the onDone callback below
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                finFuture.onFailure(e);
-                            }
-                        },
-                        finFuture::onResponse
+                        ActionTestUtils.assertNoFailureListener(ignored -> finishedLatch.countDown()),
+                        finishedLatch::countDown
                     )
                 );
-                finFuture.actionGet();
+                safeAwait(finishedLatch);
             });
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());

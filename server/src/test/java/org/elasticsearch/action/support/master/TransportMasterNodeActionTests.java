@@ -89,6 +89,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -215,7 +217,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Response() {}
 
         Response(StreamInput in) throws IOException {
-            super(in);
             identity = in.readLong();
         }
 
@@ -257,7 +258,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 threadPool,
                 new ActionFilters(new HashSet<>()),
                 Request::new,
-                TestIndexNameExpressionResolver.newInstance(),
                 Response::new,
                 executor
             );
@@ -300,7 +300,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 threadPool,
                 new ActionFilters(new HashSet<>()),
                 ClusterUpdateSettingsRequest::new,
-                TestIndexNameExpressionResolver.newInstance(),
                 Response::new,
                 executor
             );
@@ -576,7 +575,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 // simulate master restart followed by a state recovery - this will reset the cluster state version
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
                 nodesBuilder.remove(masterNode);
-                masterNode = DiscoveryNodeUtils.create(masterNode.getId(), masterNode.getAddress(), masterNode.getVersion());
+                masterNode = DiscoveryNodeUtils.create(masterNode.getId(), masterNode.getAddress(), masterNode.getVersionInformation());
                 nodesBuilder.add(masterNode);
                 nodesBuilder.masterNodeId(masterNode.getId());
                 final ClusterState.Builder builder = ClusterState.builder(clusterService.state()).nodes(nodesBuilder);
@@ -855,9 +854,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         assertTrue(action.supportsReservedState());
 
-        assertTrue(
-            expectThrows(IllegalArgumentException.class, () -> action.validateForReservedState(request, clusterState)).getMessage()
-                .contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]")
+        var exception = expectThrows(IllegalArgumentException.class, () -> action.validateForReservedState(request, clusterState));
+        assertThat(
+            exception.getMessage(),
+            allOf(containsString("[a] set as read-only by [namespace_one]"), containsString("[e] set as read-only by [namespace_two]"))
         );
 
         ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)

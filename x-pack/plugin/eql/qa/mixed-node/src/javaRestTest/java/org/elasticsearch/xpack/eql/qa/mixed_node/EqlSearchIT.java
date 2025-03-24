@@ -407,7 +407,16 @@ public class EqlSearchIT extends ESRestTestCase {
         for (int id : ids) {
             eventIds.add(String.valueOf(id));
         }
-        request.setJsonEntity("{\"query\":\"" + query + "\"}");
+
+        StringBuilder payload = new StringBuilder("{\"query\":\"" + query + "\"");
+        if (randomBoolean()) {
+            payload.append(", \"allow_partial_search_results\": " + randomBoolean());
+        }
+        if (randomBoolean()) {
+            payload.append(", \"allow_partial_sequence_results\": " + randomBoolean());
+        }
+        payload.append("}");
+        request.setJsonEntity(payload.toString());
         assertResponse(query, eventIds, runEql(client, request));
         testedFunctions.add(functionName);
     }

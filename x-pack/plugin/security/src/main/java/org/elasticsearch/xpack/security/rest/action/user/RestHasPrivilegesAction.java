@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
@@ -77,7 +77,7 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
          * Consume the body immediately. This ensures that if there is a body and we later reject the request (e.g., because security is not
          * enabled) that the REST infrastructure will not reject the request for not having consumed the body.
          */
-        final Tuple<XContentType, BytesReference> content = request.contentOrSourceParam();
+        final Tuple<XContentType, ReleasableBytesReference> content = request.contentOrSourceParam();
         final String username = getUsername(request);
         if (username == null) {
             return restChannel -> { throw new ElasticsearchSecurityException("there is no authenticated user"); };

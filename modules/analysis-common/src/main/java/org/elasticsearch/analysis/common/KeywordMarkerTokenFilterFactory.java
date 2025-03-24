@@ -45,7 +45,7 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
     private final AnalysisMode analysisMode;
 
     KeywordMarkerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
 
         boolean ignoreCase = settings.getAsBoolean("ignore_case", false);
         String patternString = settings.get("keywords_pattern");

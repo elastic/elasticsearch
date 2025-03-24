@@ -246,4 +246,9 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     public long ramBytesUsed() {
         return ordinals.ramBytesUsed() + bytes.ramBytesUsed();
     }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[ordinals=" + ordinals + ", bytes=" + bytes + "]";
+    }
 }

@@ -55,7 +55,7 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
     static final String REMOTE_CLUSTER = "cluster_a";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of("cluster_a");
     }
 
@@ -129,7 +129,12 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
                 .get();
             client.admin().indices().prepareOpen(index).get();
             assertBusy(() -> {
-                IndexLongFieldRange timestampRange = cluster(cluster).clusterService().state().metadata().index(index).getTimestampRange();
+                IndexLongFieldRange timestampRange = cluster(cluster).clusterService()
+                    .state()
+                    .metadata()
+                    .getProject()
+                    .index(index)
+                    .getTimestampRange();
                 assertTrue(Strings.toString(timestampRange), timestampRange.containsAllShardRanges());
             });
         } else {

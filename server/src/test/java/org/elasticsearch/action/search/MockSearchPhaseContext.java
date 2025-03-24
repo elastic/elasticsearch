@@ -10,13 +10,14 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -30,24 +31,43 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * SearchPhaseContext for tests
  */
-public final class MockSearchPhaseContext implements SearchPhaseContext {
+public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(MockSearchPhaseContext.class);
-    final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
+    public final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
     final int numShards;
     final AtomicInteger numSuccess;
-    final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
+    public final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
     SearchTransportService searchTransport;
     final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
-    final SearchRequest searchRequest = new SearchRequest();
-    final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
-
-    private final List<Releasable> releasables = new ArrayList<>();
+    public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
+        super(
+            "mock",
+            logger,
+            new NamedWriteableRegistry(List.of()),
+            mock(SearchTransportService.class),
+            (clusterAlias, nodeId) -> null,
+            null,
+            null,
+            Runnable::run,
+            new SearchRequest(),
+            ActionListener.noop(),
+            List.of(),
+            null,
+            ClusterState.EMPTY_STATE,
+            new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
+            new ArraySearchPhaseResults<>(numShards),
+            5,
+            null
+        );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);
     }
@@ -59,27 +79,8 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public int getNumShards() {
-        return numShards;
-    }
-
-    @Override
-    public Logger getLogger() {
-        return logger;
-    }
-
-    @Override
-    public SearchTask getTask() {
-        return new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-    }
-
-    @Override
-    public SearchRequest getRequest() {
-        return searchRequest;
-    }
-
-    @Override
     public OriginalIndices getOriginalIndices(int shardIndex) {
+        var searchRequest = getRequest();
         return new OriginalIndices(searchRequest.indices(), searchRequest.indicesOptions());
     }
 
@@ -102,15 +103,14 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
                 searchContextId
             )
         );
-        Releasables.close(releasables);
-        releasables.clear();
+        doneFuture.onResponse(null);
         if (existing != null) {
             existing.decRef();
         }
     }
 
     @Override
-    public void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+    public void onPhaseFailure(String phase, String msg, Throwable cause) {
         phaseFailure.set(cause);
     }
 
@@ -121,8 +121,8 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public Transport.Connection getConnection(String clusterAlias, String nodeId) {
-        return null; // null is ok here for this test
+    protected SearchPhase getNextPhase() {
+        return null;
     }
 
     @Override
@@ -132,31 +132,27 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
+    public void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+        var nextPhase = nextPhaseSupplier.get();
         try {
             nextPhase.run();
         } catch (Exception e) {
-            onPhaseFailure(nextPhase, "phase failed", e);
+            onPhaseFailure(nextPhase.getName(), "phase failed", e);
         }
     }
 
     @Override
-    public void addReleasable(Releasable releasable) {
-        releasables.add(releasable);
+    protected void executePhaseOnShard(
+        SearchShardIterator shardIt,
+        Transport.Connection shard,
+        SearchActionListener<SearchPhaseResult> listener
+    ) {
+        onShardResult(new SearchPhaseResult() {
+        });
     }
 
     @Override
-    public void execute(Runnable command) {
-        command.run();
-    }
-
-    @Override
-    public void onFailure(Exception e) {
-        Assert.fail("should not be called");
-    }
-
-    @Override
-    public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
         releasedSearchContexts.add(contextId);
     }
 

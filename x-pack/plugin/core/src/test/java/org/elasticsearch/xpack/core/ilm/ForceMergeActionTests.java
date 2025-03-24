@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,7 +108,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
             // available
             .skip(1)
             .map(s -> new Tuple<>(s.getKey(), s.getNextStepKey()))
-            .collect(Collectors.toList());
+            .toList();
 
         StepKey checkNotWriteIndex = new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, ForceMergeAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);

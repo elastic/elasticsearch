@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.elasticsearch.ingest.IngestPipelineTestUtils.putJsonPipelineRequest;
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -97,7 +98,7 @@ public class IngestClientIT extends ESIntegTestCase {
         if (randomBoolean()) {
             response = clusterAdmin().prepareSimulatePipeline(bytes, XContentType.JSON).setId("_id").get();
         } else {
-            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes, XContentType.JSON);
+            SimulatePipelineRequest request = jsonSimulatePipelineRequest(bytes);
             request.setId("_id");
             response = clusterAdmin().simulatePipeline(request).get();
         }
@@ -385,11 +386,16 @@ public class IngestClientIT extends ESIntegTestCase {
             factories.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
             factories.put(
                 "fail",
-                (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail", description, new RuntimeException())
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(
+                    tag,
+                    "fail",
+                    description,
+                    new RuntimeException()
+                )
             );
             factories.put(
                 "onfailure_processor",
-                (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail", description, document -> {
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(tag, "fail", description, document -> {
                     String onFailurePipeline = document.getFieldValue("_ingest.on_failure_pipeline", String.class);
                     document.setFieldValue("readme", "pipeline with id [" + onFailurePipeline + "] is a bad pipeline");
                 })

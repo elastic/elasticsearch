@@ -136,6 +136,6 @@ public class DelayedShardAggregationBuilder extends AbstractAggregationBuilder<D
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_10_0;
+        return TransportVersions.ZERO;
     }
 }

@@ -9,14 +9,23 @@
 
 package org.elasticsearch.index;
 
-import java.util.List;
+import java.util.Collections;
+import java.util.NavigableSet;
+import java.util.TreeSet;
 
 /**
  * Provides access to all known index versions
  */
 public class KnownIndexVersions {
     /**
-     * A sorted list of all known transport versions
+     * A sorted list of all known index versions
      */
-    public static final List<IndexVersion> ALL_VERSIONS = List.copyOf(IndexVersions.getAllVersions());
+    public static final NavigableSet<IndexVersion> ALL_VERSIONS = Collections.unmodifiableNavigableSet(
+        new TreeSet<>(IndexVersions.getAllVersions())
+    );
+
+    /**
+     * A sorted list of all known index versions that can be written to
+     */
+    public static final NavigableSet<IndexVersion> ALL_WRITE_VERSIONS = ALL_VERSIONS.tailSet(IndexVersions.MINIMUM_COMPATIBLE, true);
 }

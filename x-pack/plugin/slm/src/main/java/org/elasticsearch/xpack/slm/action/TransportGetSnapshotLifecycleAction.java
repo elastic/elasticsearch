@@ -15,7 +15,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -40,13 +41,15 @@ public class TransportGetSnapshotLifecycleAction extends TransportMasterNodeActi
     GetSnapshotLifecycleAction.Request,
     GetSnapshotLifecycleAction.Response> {
 
+    private final ProjectResolver projectResolver;
+
     @Inject
     public TransportGetSnapshotLifecycleAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             GetSnapshotLifecycleAction.NAME,
@@ -55,10 +58,10 @@ public class TransportGetSnapshotLifecycleAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             GetSnapshotLifecycleAction.Request::new,
-            indexNameExpressionResolver,
             GetSnapshotLifecycleAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -68,7 +71,8 @@ public class TransportGetSnapshotLifecycleAction extends TransportMasterNodeActi
         final ClusterState state,
         final ActionListener<GetSnapshotLifecycleAction.Response> listener
     ) {
-        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+        SnapshotLifecycleMetadata snapMeta = projectMetadata.custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null) {
             if (request.getLifecycleIds().length == 0) {
                 listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));

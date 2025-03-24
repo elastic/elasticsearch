@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -71,6 +72,68 @@ public class ContinuousComputationTests extends ESTestCase {
         assertBusy(() -> assertFalse(computation.isActive()));
 
         assertTrue(Arrays.toString(valuePerThread) + " vs " + result.get(), Arrays.stream(valuePerThread).anyMatch(i -> i == result.get()));
+    }
+
+    public void testCompareAndEnqueue() throws Exception {
+        final var initialInput = new Object();
+        final var compareAndEnqueueCount = between(1, 10);
+        final var remaining = new AtomicInteger(compareAndEnqueueCount);
+        final var computationsExecuted = new AtomicInteger();
+        final var result = new AtomicReference<>();
+        final var computation = new ContinuousComputation<>(threadPool.generic()) {
+            @Override
+            protected void processInput(Object input) {
+                result.set(input);
+                if (remaining.decrementAndGet() >= 0) {
+                    compareAndEnqueue(input, new Object());
+                }
+                computationsExecuted.incrementAndGet();
+            }
+        };
+        computation.onNewInput(initialInput);
+        assertBusy(() -> assertFalse(computation.isActive()));
+        assertNotEquals(result.get(), initialInput);
+        assertEquals(computationsExecuted.get(), 1 + compareAndEnqueueCount);
+    }
+
+    public void testCompareAndEnqueueSkipped() throws Exception {
+        final var barrier = new CyclicBarrier(2);
+        final var computationsExecuted = new AtomicInteger();
+        final var initialInput = new Object();
+        final var conditionalInput = new Object();
+        final var newInput = new Object();
+        final var submitConditional = new AtomicBoolean(true);
+        final var result = new AtomicReference<>();
+
+        final var computation = new ContinuousComputation<>(threadPool.generic()) {
+            @Override
+            protected void processInput(Object input) {
+                assertNotEquals(input, conditionalInput);
+                safeAwait(barrier);  // start
+                safeAwait(barrier);  // continue
+                if (submitConditional.getAndSet(false)) {
+                    compareAndEnqueue(input, conditionalInput);
+                }
+                result.set(input);
+                safeAwait(barrier);  // finished
+                computationsExecuted.incrementAndGet();
+            }
+        };
+        computation.onNewInput(initialInput);
+
+        safeAwait(barrier);  // start
+        computation.onNewInput(newInput);
+        safeAwait(barrier);  // continue
+        safeAwait(barrier);  // finished
+        assertEquals(result.get(), initialInput);
+
+        safeAwait(barrier);  // start
+        safeAwait(barrier);  // continue
+        safeAwait(barrier);  // finished
+
+        assertBusy(() -> assertFalse(computation.isActive()));
+        assertEquals(result.get(), newInput);
+        assertEquals(computationsExecuted.get(), 2);
     }
 
     public void testSkipsObsoleteValues() throws Exception {

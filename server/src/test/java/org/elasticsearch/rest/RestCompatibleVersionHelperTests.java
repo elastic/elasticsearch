@@ -210,12 +210,15 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "A compatible version is required on both Content-Type and Accept headers if either one has requested a "
-                    + "compatible version and the compatible versions must match. "
-                    + "Accept="
-                    + acceptHeader(PREVIOUS_VERSION)
-                    + ", Content-Type="
-                    + contentTypeHeader(OBSOLETE_VERSION)
+                "Content-Type version must be either version "
+                    + CURRENT_VERSION
+                    + " or "
+                    + PREVIOUS_VERSION
+                    + ", but found "
+                    + OBSOLETE_VERSION
+                    + ". "
+                    + "Content-Type="
+                    + acceptHeader(OBSOLETE_VERSION)
             )
         );
     }

@@ -663,8 +663,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             refCounted = AbstractRefCounted.of(() -> activeRequestCount--);
         }
 
-        TestResponse(StreamInput in) throws IOException {
-            super(in);
+        TestResponse(StreamInput in) {
             activeRequestCount++;
             refCounted = AbstractRefCounted.of(() -> activeRequestCount--);
         }

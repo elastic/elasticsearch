@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -22,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class MvExpand extends UnaryPlan {
+public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "MvExpand", MvExpand::new);
 
     private final NamedExpression target;
@@ -83,7 +84,7 @@ public class MvExpand extends UnaryPlan {
         return target.references();
     }
 
-    public String commandName() {
+    public String telemetryLabel() {
         return "MV_EXPAND";
     }
 
@@ -93,7 +94,7 @@ public class MvExpand extends UnaryPlan {
     }
 
     @Override
-    public UnaryPlan replaceChild(LogicalPlan newChild) {
+    public MvExpand replaceChild(LogicalPlan newChild) {
         return new MvExpand(source(), newChild, target, expanded);
     }
 
@@ -120,6 +121,7 @@ public class MvExpand extends UnaryPlan {
         if (false == super.equals(obj)) {
             return false;
         }
-        return Objects.equals(target, ((MvExpand) obj).target) && Objects.equals(expanded, ((MvExpand) obj).expanded);
+        MvExpand other = ((MvExpand) obj);
+        return Objects.equals(target, other.target) && Objects.equals(expanded, other.expanded);
     }
 }

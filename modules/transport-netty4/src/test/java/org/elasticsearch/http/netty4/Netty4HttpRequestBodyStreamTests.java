@@ -11,6 +11,8 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.DefaultEventLoop;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultHttpContent;
@@ -19,24 +21,37 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.flow.FlowControlHandler;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.network.ThreadWatchdog;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.hasEntry;
 
 public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
 
-    EmbeddedChannel channel;
-    Netty4HttpRequestBodyStream stream;
     static HttpBody.ChunkHandler discardHandler = (chunk, isLast) -> chunk.close();
+    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private EmbeddedChannel channel;
+    private Netty4HttpRequestBodyStream stream;
+    private ThreadWatchdog.ActivityTracker activityTracker;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         channel = new EmbeddedChannel();
-        stream = new Netty4HttpRequestBodyStream(channel);
+        activityTracker = new ThreadWatchdog.ActivityTracker();
+        stream = new Netty4HttpRequestBodyStream(channel, threadContext, activityTracker);
         stream.setHandler(discardHandler); // set default handler, each test might override one
         channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
             @Override
@@ -58,7 +73,7 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         for (int i = 0; i < totalChunks; i++) {
             channel.writeInbound(randomContent(1024));
         }
-        assertEquals(totalChunks * 1024, stream.buf().readableBytes());
+        assertEquals(totalChunks * 1024, stream.bufSize());
     }
 
     // ensures all received chunks can be flushed downstream
@@ -110,12 +125,121 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         channel.writeInbound(randomLastContent(chunkSize));
 
         for (int i = 0; i < totalChunks; i++) {
-            assertNull("should not enqueue chunks", stream.buf());
+            assertEquals("should not enqueue chunks", 0, stream.bufSize());
             stream.next();
             channel.runPendingTasks();
             assertEquals("each next() should produce single chunk", i + 1, gotChunks.size());
         }
         assertTrue("should receive last content", gotLast.get());
+    }
+
+    public void testReadFromHasCorrectThreadContext() throws InterruptedException {
+        AtomicReference<Map<String, String>> headers = new AtomicReference<>();
+        var eventLoop = new DefaultEventLoop();
+        var gotLast = new AtomicBoolean(false);
+        var chunkSize = 1024;
+        threadContext.putHeader("header1", "value1");
+        try {
+            // activity tracker requires stream execution in the same thread, setting up stream inside event-loop
+            eventLoop.submit(() -> {
+                channel = new EmbeddedChannel();
+                stream = new Netty4HttpRequestBodyStream(channel, threadContext, new ThreadWatchdog.ActivityTracker());
+                channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
+                    @Override
+                    protected void channelRead0(ChannelHandlerContext ctx, HttpContent msg) {
+                        stream.handleNettyContent(msg);
+                    }
+                });
+                stream.setHandler(new HttpBody.ChunkHandler() {
+                    @Override
+                    public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+                        headers.set(threadContext.getHeaders());
+                        gotLast.set(isLast);
+                        chunk.close();
+                    }
+
+                    @Override
+                    public void close() {
+                        headers.set(threadContext.getHeaders());
+                    }
+                });
+                channel.pipeline().addFirst(new FlowControlHandler()); // block all incoming messages, need explicit channel.read()
+            }).await();
+
+            channel.writeInbound(randomContent(chunkSize));
+            channel.writeInbound(randomLastContent(chunkSize));
+
+            threadContext.putHeader("header2", "value2");
+            stream.next();
+
+            eventLoop.submit(() -> channel.runPendingTasks()).await();
+            assertThat(headers.get(), hasEntry("header1", "value1"));
+            assertThat(headers.get(), hasEntry("header2", "value2"));
+
+            threadContext.putHeader("header3", "value3");
+            stream.next();
+
+            eventLoop.submit(() -> channel.runPendingTasks()).await();
+            assertThat(headers.get(), hasEntry("header1", "value1"));
+            assertThat(headers.get(), hasEntry("header2", "value2"));
+            assertThat(headers.get(), hasEntry("header3", "value3"));
+
+            assertTrue("should receive last content", gotLast.get());
+
+            headers.set(new HashMap<>());
+
+            stream.close();
+
+            assertThat(headers.get(), hasEntry("header1", "value1"));
+            assertThat(headers.get(), hasEntry("header2", "value2"));
+            assertThat(headers.get(), hasEntry("header3", "value3"));
+        } finally {
+            eventLoop.shutdownGracefully(0, 0, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testStreamNextActivityTracker() {
+        var t0 = activityTracker.get();
+        var N = between(1, 10);
+        for (int i = 0; i < N; i++) {
+            channel.writeInbound(randomContent(1024));
+            stream.next();
+            channel.runPendingTasks();
+        }
+        var t1 = activityTracker.get();
+        assertEquals("stream#next() must trigger activity tracker: N*step=" + N + "*2=" + N * 2L + " times", t1, t0 + N * 2L);
+    }
+
+    // ensure that we catch all exceptions and throw them into channel pipeline
+    public void testCatchExceptions() {
+        var gotExceptions = new CountDownLatch(3); // number of tests below
+
+        channel.pipeline().addLast(new ChannelInboundHandlerAdapter() {
+            @Override
+            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                gotExceptions.countDown();
+            }
+        });
+
+        // catch exception for not buffered chunk, will be thrown on channel.fireChannelRead()
+        stream.setHandler((a, b) -> { throw new RuntimeException(); });
+        stream.next();
+        channel.runPendingTasks();
+        channel.writeInbound(randomContent(1));
+
+        // catch exception for buffered chunk, will be thrown from eventLoop.submit()
+        channel.writeInbound(randomContent(1));
+        stream.next();
+        channel.runPendingTasks();
+
+        // should catch OOM exceptions too, see DieWithDignity
+        // swallowing exceptions can result in dangling streams, hanging channels, and delayed shutdowns
+        stream.setHandler((a, b) -> { throw new OutOfMemoryError(); });
+        channel.writeInbound(randomContent(1));
+        stream.next();
+        channel.runPendingTasks();
+
+        safeAwait(gotExceptions);
     }
 
     HttpContent randomContent(int size, boolean isLast) {

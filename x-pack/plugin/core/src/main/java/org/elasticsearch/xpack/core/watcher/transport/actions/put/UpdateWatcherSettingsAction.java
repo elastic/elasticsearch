@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.watcher.transport.actions.put;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
@@ -17,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 import java.util.Map;
@@ -56,30 +54,14 @@ public class UpdateWatcherSettingsAction extends ActionType<AcknowledgedResponse
             this.settings = settings;
         }
 
-        public static Request readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                return new Request(in);
-            } else {
-                return new Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, in);
-            }
-        }
-
-        private Request(StreamInput in) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
-            this.settings = in.readGenericMap();
-        }
-
-        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT) // bwc no longer required
-        private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, StreamInput in) throws IOException {
-            super(masterNodeTimeout, ackTimeout);
             this.settings = in.readGenericMap();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                super.writeTo(out);
-            }
+            super.writeTo(out);
             out.writeGenericMap(this.settings);
         }
 

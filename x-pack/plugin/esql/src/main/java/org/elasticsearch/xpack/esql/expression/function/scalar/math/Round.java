@@ -35,7 +35,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
@@ -63,7 +63,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             optional = true,
             name = "decimals",
-            type = { "integer" },  // TODO long is supported here too
+            type = { "integer", "long" },
             description = "The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`."
         ) Expression decimals
     ) {
@@ -103,7 +103,15 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        return decimals == null ? TypeResolution.TYPE_RESOLVED : isWholeNumber(decimals, sourceText(), SECOND);
+        return decimals == null
+            ? TypeResolution.TYPE_RESOLVED
+            : isType(
+                decimals,
+                dt -> dt.isWholeNumber() && dt != DataType.UNSIGNED_LONG,
+                sourceText(),
+                SECOND,
+                "whole number except unsigned_long or counter types"
+            );
     }
 
     @Override
@@ -123,11 +131,16 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(extraName = "Long")
     static long process(long val, long decimals) {
-        return Maths.round(val, decimals).longValue();
+        return Maths.round(val, decimals);
     }
 
-    @Evaluator(extraName = "UnsignedLong")
+    @Evaluator(extraName = "UnsignedLong", warnExceptions = ArithmeticException.class)
     static long processUnsignedLong(long val, long decimals) {
+        if (decimals <= -20) {
+            // Unsigned long max value is 2^64 - 1, which has 20 digits
+            return longToUnsignedLong(0, false);
+        }
+
         Number ul = unsignedLongAsNumber(val);
         if (ul instanceof BigInteger bi) {
             BigInteger rounded = Maths.round(bi, decimals);

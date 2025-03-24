@@ -159,11 +159,12 @@ y:integer | x:date
 ;
 
 renameIntertwinedWithSort
+required_capability: fix_precision_of_scaled_float_fields
 FROM employees | eval x = salary | rename x as y | rename y as x | sort x | rename x as y | limit 10;
 
 avg_worked_seconds:l | birth_date:date          | emp_no:i             | first_name:s         | gender:s             | height:d             | height.float:d       | height.half_float:d  | height.scaled_float:d| hire_date:date           | is_rehired:bool      | job_positions:s      | languages:i          | languages.byte:i     | languages.long:l     | languages.short:i    | last_name:s          | salary:i             | salary_change:d      | salary_change.int:i  | salary_change.keyword:s | salary_change.long:l | still_hired:bool  | y:i          
 
-390266432            | 1959-08-19T00:00:00.000Z | 10015                | Guoxiang             | null                 | 1.66                 | 1.659999966621399    | 1.66015625           | 1.6600000000000001   | 1987-07-02T00:00:00.000Z | [false, false, false, true]| [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer]  | 5                    | 5                    | 5                    | 5                    | Nooteboom            | 25324                | [12.4, 14.25]               | [12, 14]             | [12.40, 14.25]             | [12, 14]             | true                 | 25324               
+390266432            | 1959-08-19T00:00:00.000Z | 10015                | Guoxiang             | null                 | 1.66                 | 1.659999966621399    | 1.66015625           | 1.66                 | 1987-07-02T00:00:00.000Z | [false, false, false, true]| [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer]  | 5                    | 5                    | 5                    | 5                    | Nooteboom            | 25324                | [12.4, 14.25]               | [12, 14]             | [12.40, 14.25]             | [12, 14]             | true                 | 25324               
 203838153            | 1953-02-08T00:00:00.000Z | 10035                | null                 | M                    | 1.81                 | 1.809999942779541    | 1.8095703125         | 1.81                 | 1988-09-05T00:00:00.000Z | false                      | [Data Scientist, Senior Python Developer]                                               | 5                    | 5                    | 5                    | 5                    | Chappelet            | 25945                | [-6.58, -2.54]              | [-6, -2]             | [-2.54, -6.58]             | [-6, -2]             | false                | 25945               
 313407352            | 1964-10-18T00:00:00.000Z | 10092                | Valdiodio            | F                    | 1.75                 | 1.75                 | 1.75                 | 1.75                 | 1989-09-22T00:00:00.000Z | [false, false, true, true] | [Accountant, Junior Developer]                                                          | 1                    | 1                    | 1                    | 1                    | Niizuma              | 25976                | [-6.77, 0.39, 8.3, 8.78]    | [-6, 0, 8, 8]        | [-6.77, 0.39, 8.30,8.78]   | [-6, 0, 8, 8]        | false                | 25976               
 248451647            | null                     | 10048                | Florian              | M                    | 2.0                  | 2.0                  | 2.0                  | 2.0                  | 1985-02-24T00:00:00.000Z | [true, true]               | Internship                                                                              | 3                    | 3                    | 3                    | 3                    | Syrotiuk             | 26436                | null                        | null                 | null                       | null                 | false                | 26436               
@@ -212,4 +213,86 @@ FROM employees
 x:keyword
 Facello
 Simmel
+;
+
+swappingNames
+required_capability: rename_sequential_processing
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name
+| RENAME first_name AS last_name, last_name AS first_name, first_name as name
+| LIMIT 2
+;
+
+name:keyword
+Georgi
+Bezalel
+;
+
+complexSwappingNames
+required_capability: rename_sequential_processing
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name, emp_no
+| RENAME first_name AS last_name, last_name AS first_name, first_name as emp_no, emp_no AS first_name
+| LIMIT 2
+;
+
+first_name:keyword
+Georgi
+Bezalel
+;
+
+
+reuseRenamedAlias
+required_capability: rename_sequential_processing
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name
+| LIMIT 2
+| RENAME first_name AS x, x AS y, last_name as x
+;
+
+y:keyword   | x:keyword
+Georgi      | Facello
+Bezalel     | Simmel
+;
+
+
+multipleRenamesToSameAliasLastOnePrevails
+required_capability: rename_sequential_processing
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name
+| LIMIT 2
+| RENAME first_name AS x, last_name as x
+;
+
+x:keyword
+Facello
+Simmel
+;
+
+
+swapNames
+required_capability: rename_sequential_processing
+ROW a="keyword", b=5
+| RENAME a AS temp, b AS a, temp AS b
+;
+
+b:keyword | a:integer
+keyword   | 5
+;
+
+
+multipleRenames
+required_capability: rename_sequential_processing
+ROW a="keyword", b=5, c=null
+| RENAME a AS c, b AS a
+| RENAME c AS b
+| RENAME a AS b, b AS a
+;
+
+a:integer
+5
 ;

@@ -7,11 +7,12 @@
 
 package org.elasticsearch.compute.aggregation.spatial;
 
-import org.apache.lucene.geo.XYEncodingUtils;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+
+import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.decodeX;
+import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.decodeY;
 
 /**
  * This aggregator calculates the centroid of a set of cartesian points.
@@ -28,28 +29,11 @@ import org.elasticsearch.compute.ann.IntermediateState;
 )
 @GroupingAggregator
 class SpatialCentroidCartesianPointDocValuesAggregator extends CentroidPointAggregator {
-
-    public static CentroidState initSingle() {
-        return new CentroidState();
-    }
-
-    public static GroupingCentroidState initGrouping(BigArrays bigArrays) {
-        return new GroupingCentroidState(bigArrays);
-    }
-
     public static void combine(CentroidState current, long v) {
         current.add(decodeX(v), decodeY(v));
     }
 
     public static void combine(GroupingCentroidState current, int groupId, long encoded) {
         current.add(decodeX(encoded), 0d, decodeY(encoded), 0d, 1, groupId);
-    }
-
-    private static double decodeX(long encoded) {
-        return XYEncodingUtils.decode((int) (encoded >>> 32));
-    }
-
-    private static double decodeY(long encoded) {
-        return XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFFL));
     }
 }

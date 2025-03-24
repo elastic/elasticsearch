@@ -19,6 +19,7 @@ import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -99,7 +100,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     // Designed to be overridden by subclasses that may score docs by criteria
     // other than Lucene score
     protected TopDocsCollector<? extends ScoreDoc> createTopDocsCollector(int size) throws IOException {
-        return new TopScoreDocCollectorManager(size, null, Integer.MAX_VALUE, false).newCollector();
+        return new TopScoreDocCollectorManager(size, null, Integer.MAX_VALUE).newCollector();
     }
 
     // Can be overridden by subclasses that have a different priority queue implementation
@@ -120,7 +121,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     @Override
-    public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
+    public void prepareSelectedBuckets(LongArray selectedBuckets) {
         // no-op - deferred aggs processed in postCollection call
     }
 

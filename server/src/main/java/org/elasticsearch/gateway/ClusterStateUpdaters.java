@@ -15,8 +15,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -86,20 +88,29 @@ public class ClusterStateUpdaters {
             blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
         }
 
-        for (final IndexMetadata indexMetadata : state.metadata()) {
-            blocks.addBlocks(indexMetadata);
-        }
+        state.forEachProject(projectState -> {
+            for (final IndexMetadata indexMetadata : projectState.metadata()) {
+                blocks.addBlocks(projectState.projectId(), indexMetadata);
+            }
+        });
 
         return ClusterState.builder(state).blocks(blocks).build();
     }
 
     static ClusterState updateRoutingTable(final ClusterState state, ShardRoutingRoleStrategy shardRoutingRoleStrategy) {
         // initialize all index routing tables as empty
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, state.routingTable());
-        for (final IndexMetadata indexMetadata : state.metadata().indices().values()) {
-            routingTableBuilder.addAsRecovery(indexMetadata);
+        final GlobalRoutingTable.Builder globalRoutingTableBuilder = GlobalRoutingTable.builder(state.globalRoutingTable());
+        for (var projectMetadata : state.metadata().projects().values()) {
+            final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(
+                shardRoutingRoleStrategy,
+                state.routingTable(projectMetadata.id())
+            );
+            for (final IndexMetadata indexMetadata : projectMetadata) {
+                routingTableBuilder.addAsRecovery(indexMetadata);
+            }
+            globalRoutingTableBuilder.put(projectMetadata.id(), routingTableBuilder);
         }
-        return ClusterState.builder(state).routingTable(routingTableBuilder.build()).build();
+        return ClusterState.builder(state).routingTable(globalRoutingTableBuilder.build()).build();
     }
 
     static ClusterState removeStateNotRecoveredBlock(final ClusterState state) {
@@ -115,7 +126,7 @@ public class ClusterStateUpdaters {
     }
 
     static ClusterState mixCurrentStateAndRecoveredState(final ClusterState currentState, final ClusterState recoveredState) {
-        assert currentState.metadata().indices().isEmpty();
+        assert currentState.metadata().getTotalNumberOfIndices() == 0;
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).blocks(recoveredState.blocks());
 
@@ -123,8 +134,10 @@ public class ClusterStateUpdaters {
         // automatically generate a UID for the metadata if we need to
         metadataBuilder.generateClusterUuidIfNeeded();
 
-        for (final IndexMetadata indexMetadata : recoveredState.metadata()) {
-            metadataBuilder.put(indexMetadata, false);
+        for (final ProjectMetadata projectMetadata : recoveredState.metadata().projects().values()) {
+            for (final IndexMetadata indexMetadata : projectMetadata) {
+                metadataBuilder.getProject(projectMetadata.id()).put(indexMetadata, false);
+            }
         }
 
         return ClusterState.builder(currentState).blocks(blocks).metadata(metadataBuilder).build();
@@ -135,15 +148,28 @@ public class ClusterStateUpdaters {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
             blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
             blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
-            for (IndexMetadata indexMetadata : state.metadata()) {
-                blocks.removeIndexBlocks(indexMetadata.getIndex().getName());
-            }
+            state.forEachProject(projectState -> {
+                for (IndexMetadata indexMetadata : projectState.metadata()) {
+                    blocks.removeIndexBlocks(projectState.projectId(), indexMetadata.getIndex().getName());
+                }
+            });
             final Metadata metadata = Metadata.builder()
                 .clusterUUID(state.metadata().clusterUUID())
                 .coordinationMetadata(state.metadata().coordinationMetadata())
                 .build();
 
-            return ClusterState.builder(state).metadata(metadata).blocks(blocks.build()).build();
+            assert state.globalRoutingTable().hasIndices() == false
+                : "routing table is not empty: " + state.globalRoutingTable().routingTables();
+
+            // metadata has been rebuilt from scratch, so clear the routing table
+            final GlobalRoutingTable.Builder globalRoutingTableBuilder = GlobalRoutingTable.builder();
+            metadata.projects().keySet().forEach(projectId -> globalRoutingTableBuilder.put(projectId, RoutingTable.EMPTY_ROUTING_TABLE));
+
+            return ClusterState.builder(state)
+                .routingTable(globalRoutingTableBuilder.build())
+                .metadata(metadata)
+                .blocks(blocks.build())
+                .build();
         }
         return state;
     }

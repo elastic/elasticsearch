@@ -27,9 +27,9 @@ import java.util.Objects;
 /**
  * A SearchPlugin to exercise query vector builder
  */
-class TestQueryVectorBuilderPlugin implements SearchPlugin {
+public class TestQueryVectorBuilderPlugin implements SearchPlugin {
 
-    static class TestQueryVectorBuilder implements QueryVectorBuilder {
+    public static class TestQueryVectorBuilder implements QueryVectorBuilder {
         private static final String NAME = "test_query_vector_builder";
 
         private static final ParseField QUERY_VECTOR = new ParseField("query_vector");
@@ -47,11 +47,11 @@ class TestQueryVectorBuilderPlugin implements SearchPlugin {
 
         private List<Float> vectorToBuild;
 
-        TestQueryVectorBuilder(List<Float> vectorToBuild) {
+        public TestQueryVectorBuilder(List<Float> vectorToBuild) {
             this.vectorToBuild = vectorToBuild;
         }
 
-        TestQueryVectorBuilder(float[] expected) {
+        public TestQueryVectorBuilder(float[] expected) {
             this.vectorToBuild = new ArrayList<>(expected.length);
             for (float f : expected) {
                 vectorToBuild.add(f);

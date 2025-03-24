@@ -1,5 +1,0 @@
-pr: 112547
-summary: Remove reduce and `reduceContext` from `DelayedBucket`
-area: Aggregations
-type: enhancement
-issues: []

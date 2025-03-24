@@ -33,6 +33,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
@@ -105,54 +106,32 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         prepareIndex("test").setId("3").setSource("name", "test").get();
         refresh();
 
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 3L);
+            for (SearchHit hit : response.getHits()) {
+                if (hit.getId().equals("1")) {
+                    assertThat(hit.getMatchedQueriesAndScores().size(), equalTo(2));
+                    assertThat(hit.getMatchedQueriesAndScores(), hasKey("name"));
+                    assertThat(hit.getMatchedQueryScore("name"), greaterThan(0f));
+                    assertThat(hit.getMatchedQueriesAndScores(), hasKey("title"));
+                    assertThat(hit.getMatchedQueryScore("title"), greaterThan(0f));
+                } else if (hit.getId().equals("2") || hit.getId().equals("3")) {
+                    assertThat(hit.getMatchedQueriesAndScores().size(), equalTo(1));
+                    assertThat(hit.getMatchedQueriesAndScores(), hasKey("name"));
+                    assertThat(hit.getMatchedQueryScore("name"), greaterThan(0f));
+                } else {
+                    fail("Unexpected document returned with id " + hit.getId());
+                }
+            }
+        },
             prepareSearch().setQuery(matchAllQuery())
                 .setPostFilter(
                     boolQuery().should(termQuery("name", "test").queryName("name")).should(termQuery("title", "title1").queryName("title"))
                 ),
-            response -> {
-                assertHitCount(response, 3L);
-                for (SearchHit hit : response.getHits()) {
-                    if (hit.getId().equals("1")) {
-                        assertThat(hit.getMatchedQueriesAndScores().size(), equalTo(2));
-                        assertThat(hit.getMatchedQueriesAndScores(), hasKey("name"));
-                        assertThat(hit.getMatchedQueryScore("name"), greaterThan(0f));
-                        assertThat(hit.getMatchedQueriesAndScores(), hasKey("title"));
-                        assertThat(hit.getMatchedQueryScore("title"), greaterThan(0f));
-                    } else if (hit.getId().equals("2") || hit.getId().equals("3")) {
-                        assertThat(hit.getMatchedQueriesAndScores().size(), equalTo(1));
-                        assertThat(hit.getMatchedQueriesAndScores(), hasKey("name"));
-                        assertThat(hit.getMatchedQueryScore("name"), greaterThan(0f));
-                    } else {
-                        fail("Unexpected document returned with id " + hit.getId());
-                    }
-                }
-            }
-        );
-
-        assertResponse(
             prepareSearch().setQuery(matchAllQuery())
                 .setPostFilter(
                     boolQuery().should(termQuery("name", "test").queryName("name")).should(termQuery("title", "title1").queryName("title"))
-                ),
-            response -> {
-                assertHitCount(response, 3L);
-                for (SearchHit hit : response.getHits()) {
-                    if (hit.getId().equals("1")) {
-                        assertThat(hit.getMatchedQueriesAndScores().size(), equalTo(2));
-                        assertThat(hit.getMatchedQueriesAndScores(), hasKey("name"));
-                        assertThat(hit.getMatchedQueryScore("name"), greaterThan(0f));
-                        assertThat(hit.getMatchedQueriesAndScores(), hasKey("title"));
-                        assertThat(hit.getMatchedQueryScore("title"), greaterThan(0f));
-                    } else if (hit.getId().equals("2") || hit.getId().equals("3")) {
-                        assertThat(hit.getMatchedQueriesAndScores().size(), equalTo(1));
-                        assertThat(hit.getMatchedQueriesAndScores(), hasKey("name"));
-                        assertThat(hit.getMatchedQueryScore("name"), greaterThan(0f));
-                    } else {
-                        fail("Unexpected document returned with id " + hit.getId());
-                    }
-                }
-            }
+                )
         );
     }
 
@@ -165,43 +144,25 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         prepareIndex("test").setId("3").setSource("name", "test", "title", "title3").get();
         refresh();
 
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 3L);
+            for (SearchHit hit : response.getHits()) {
+                if (hit.getId().equals("1") || hit.getId().equals("2") || hit.getId().equals("3")) {
+                    assertThat(hit.getMatchedQueriesAndScores().size(), equalTo(2));
+                    assertThat(hit.getMatchedQueriesAndScores(), hasKey("name"));
+                    assertThat(hit.getMatchedQueryScore("name"), greaterThan(0f));
+                    assertThat(hit.getMatchedQueriesAndScores(), hasKey("title"));
+                    assertThat(hit.getMatchedQueryScore("title"), greaterThan(0f));
+                } else {
+                    fail("Unexpected document returned with id " + hit.getId());
+                }
+            }
+        },
             prepareSearch().setQuery(
                 boolQuery().must(matchAllQuery()).filter(termsQuery("title", "title1", "title2", "title3").queryName("title"))
             ).setPostFilter(termQuery("name", "test").queryName("name")),
-            response -> {
-                assertHitCount(response, 3L);
-                for (SearchHit hit : response.getHits()) {
-                    if (hit.getId().equals("1") || hit.getId().equals("2") || hit.getId().equals("3")) {
-                        assertThat(hit.getMatchedQueriesAndScores().size(), equalTo(2));
-                        assertThat(hit.getMatchedQueriesAndScores(), hasKey("name"));
-                        assertThat(hit.getMatchedQueryScore("name"), greaterThan(0f));
-                        assertThat(hit.getMatchedQueriesAndScores(), hasKey("title"));
-                        assertThat(hit.getMatchedQueryScore("title"), greaterThan(0f));
-                    } else {
-                        fail("Unexpected document returned with id " + hit.getId());
-                    }
-                }
-            }
-        );
-
-        assertResponse(
             prepareSearch().setQuery(termsQuery("title", "title1", "title2", "title3").queryName("title"))
-                .setPostFilter(matchQuery("name", "test").queryName("name")),
-            response -> {
-                assertHitCount(response, 3L);
-                for (SearchHit hit : response.getHits()) {
-                    if (hit.getId().equals("1") || hit.getId().equals("2") || hit.getId().equals("3")) {
-                        assertThat(hit.getMatchedQueriesAndScores().size(), equalTo(2));
-                        assertThat(hit.getMatchedQueriesAndScores(), hasKey("name"));
-                        assertThat(hit.getMatchedQueryScore("name"), greaterThan(0f));
-                        assertThat(hit.getMatchedQueriesAndScores(), hasKey("title"));
-                        assertThat(hit.getMatchedQueryScore("title"), greaterThan(0f));
-                    } else {
-                        fail("Unexpected document returned with id " + hit.getId());
-                    }
-                }
-            }
+                .setPostFilter(matchQuery("name", "test").queryName("name"))
         );
     }
 

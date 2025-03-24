@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -20,7 +21,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
@@ -46,7 +47,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         return new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, new EnrichResolution()),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()))
+            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }
 
@@ -98,11 +99,11 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertQueryTranslation("""
             FROM test | WHERE "1.2.3" == version""", containsString("""
-            "esql_single_value":{"field":"version","next":{"term":{"version":{"value":"1.2.3"}"""));
+            "esql_single_value":{"field":"version","next":{"term":{"version":{"value":"1.2.3","boost":0.0}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "foo" == keyword""", containsString("""
-            "esql_single_value":{"field":"keyword","next":{"term":{"keyword":{"value":"foo"}"""));
+            "esql_single_value":{"field":"keyword","next":{"term":{"keyword":{"value":"foo","boost":0.0}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" == date""", containsString("""
@@ -110,7 +111,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertQueryTranslation("""
             FROM test | WHERE ip != "127.0.0.1\"""", containsString("""
-            "esql_single_value":{"field":"ip","next":{"bool":{"must_not":[{"term":{"ip":{"value":"127.0.0.1"}"""));
+            "esql_single_value":{"field":"ip","next":{"bool":{"must_not":[{"term":{"ip":{"value":"127.0.0.1","boost":0.0}}"""));
     }
 
     public void testRanges() {
@@ -194,28 +195,28 @@ public class QueryTranslatorTests extends ESTestCase {
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30Z" <= date AND date <= "2024-01-01T10:15:30\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T10:15:30.000Z","lte":"2024-01-01T10:15:30.000Z",\
-            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+            "time_zone":"Z","format":"strict_date_optional_time","boost":0.0}}}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30" <= date AND date <= "2024-01-01T10:15:30Z\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T10:15:30.000Z","lte":"2024-01-01T10:15:30.000Z",\
-            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+            "time_zone":"Z","format":"strict_date_optional_time","boost":0.0}}}"""));
 
         // various timezones
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" < date AND date < "2024-01-01T10:15:30+01:00\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gt":"2007-12-03T09:15:30.000Z","lt":"2024-01-01T09:15:30.000Z",\
-            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+            "time_zone":"Z","format":"strict_date_optional_time","boost":0.0}}}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30-01:00" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T11:15:30.000Z","lte":"2024-01-01T09:15:30.000Z",\
-            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+            "time_zone":"Z","format":"strict_date_optional_time","boost":0.0}}}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T10:15:30.000Z","lte":"2024-01-01T09:15:30.000Z",\
-            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+            "time_zone":"Z","format":"strict_date_optional_time","boost":0.0}}}"""));
     }
 
     public void testIPs() {

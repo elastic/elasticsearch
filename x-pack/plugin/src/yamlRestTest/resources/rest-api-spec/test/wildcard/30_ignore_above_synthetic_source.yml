@@ -1,8 +1,10 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
 ---
 wildcard field type ignore_above:
-  - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
   - do:
       indices.create:
         index:  test
@@ -10,10 +12,9 @@ wildcard field type ignore_above:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a_wildcard:
                 type: wildcard

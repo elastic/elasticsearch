@@ -31,7 +31,7 @@ public class ToVersionTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         String read = "Attribute[channel=0]";
-        String stringEvaluator = "ToVersionFromStringEvaluator[field=" + read + "]";
+        String stringEvaluator = "ToVersionFromStringEvaluator[asString=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         // Converting and IP to an IP doesn't change anything. Everything should succeed.
@@ -60,7 +60,7 @@ public class ToVersionTests extends AbstractScalarFunctionTestCase {
             );
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string or version");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

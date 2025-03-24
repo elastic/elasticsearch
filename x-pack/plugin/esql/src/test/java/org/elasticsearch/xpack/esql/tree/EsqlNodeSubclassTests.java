@@ -15,19 +15,17 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -42,17 +40,25 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.PhasedTests;
+import org.elasticsearch.xpack.esql.plan.logical.Merge;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -88,6 +94,9 @@ import java.util.jar.JarInputStream;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomEsIndex;
+import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -115,10 +124,14 @@ import static org.mockito.Mockito.mock;
  * </ul>
  */
 public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests {
+    private static final String ESQL_CORE_CLASS_PREFIX = "org.elasticsearch.xpack.esql.core";
+    private static final String ESQL_CORE_JAR_LOCATION_SUBSTRING = "x-pack-esql-core";
+    private static final String ESQL_CLASS_PREFIX = "org.elasticsearch.xpack.esql";
+
     private static final Predicate<String> CLASSNAME_FILTER = className -> {
-        boolean esqlCore = className.startsWith("org.elasticsearch.xpack.esql.core") != false;
-        boolean esqlProper = className.startsWith("org.elasticsearch.xpack.esql") != false;
-        return (esqlCore || esqlProper) && className.equals(PhasedTests.Dummy.class.getName()) == false;
+        boolean esqlCore = className.startsWith(ESQL_CORE_CLASS_PREFIX) != false;
+        boolean esqlProper = className.startsWith(ESQL_CLASS_PREFIX) != false;
+        return (esqlCore || esqlProper);
     };
 
     /**
@@ -129,12 +142,12 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     @SuppressWarnings("rawtypes")
     public static List<Object[]> nodeSubclasses() throws IOException {
         return subclassesOf(Node.class, CLASSNAME_FILTER).stream()
-            .filter(c -> testClassFor(c) == null || c != PhasedTests.Dummy.class)
+            .filter(c -> testClassFor(c) == null)
             .map(c -> new Object[] { c })
             .toList();
     }
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class, Merge.class);
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
@@ -164,15 +177,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          * in the parameters and not included.
          */
         expectedCount -= 1;
-
-        // special exceptions with private constructors
-        if (MetadataAttribute.class.equals(subclass) || ReferenceAttribute.class.equals(subclass)) {
-            expectedCount++;
-        }
-
-        if (FieldAttribute.class.equals(subclass)) {
-            expectedCount += 2;
-        }
 
         assertEquals(expectedCount, info(node).properties().size());
     }
@@ -444,8 +448,12 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == JoinType.class) {
-            return JoinType.LEFT;
+            return JoinTypes.LEFT;
+        } else if (List.of(Fork.class, Merge.class, MergeExec.class).contains(toBuildClass) && argType == LogicalPlan.class) {
+            // limit recursion of plans, in order to prevent stackoverflow errors
+            return randomEsRelation();
         }
+
         if (Expression.class == argClass) {
             /*
              * Rather than use any old subclass of expression lets
@@ -496,6 +504,21 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (argClass == Configuration.class) {
             return randomConfiguration();
         }
+        if (argClass == EsField.class) {
+            return EsFieldTests.randomEsField(4);
+        }
+        if (argClass == EsIndex.class) {
+            return randomEsIndex();
+        }
+        if (argClass == JoinConfig.class) {
+            return new JoinConfig(
+                JoinTypes.LEFT,
+                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
+                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
+                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute())
+            );
+        }
+
         try {
             return mock(argClass);
         } catch (MockitoException e) {
@@ -700,6 +723,16 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         );
     }
 
+    static EsRelation randomEsRelation() {
+        return new EsRelation(
+            SourceTests.randomSource(),
+            randomIdentifier(),
+            randomFrom(IndexMode.values()),
+            randomIndexNameWithModes(),
+            randomFieldAttributes(0, 10, false)
+        );
+    }
+
     static FieldAttribute field(String name, DataType type) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Collections.emptyMap(), false));
     }
@@ -737,7 +770,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             // NIO FileSystem API is not used since it trips the SecurityManager
             // https://bugs.openjdk.java.net/browse/JDK-8160798
             // so iterate the jar "by hand"
-            if (path.endsWith(".jar") && path.contains("x-pack-ql")) {
+            if (path.endsWith(".jar") && path.contains(ESQL_CORE_JAR_LOCATION_SUBSTRING)) {
                 try (JarInputStream jar = jarStream(root)) {
                     JarEntry je = null;
                     while ((je = jar.getNextJarEntry()) != null) {

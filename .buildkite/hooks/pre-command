@@ -44,8 +44,13 @@ export GRADLE_BUILD_CACHE_USERNAME
 GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_PASSWORD
 
+DEVELOCITY_ACCESS_KEY="gradle-enterprise.elastic.co=$(vault read -field=accesskey secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)"
+export DEVELOCITY_ACCESS_KEY
+
 BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
 export BUILDKITE_API_TOKEN
+
+export GH_TOKEN="$VAULT_GITHUB_TOKEN"
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)
@@ -89,6 +94,14 @@ if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
   fi
 fi
 
+# Authenticate to the Docker Hub public read-only registry
+if which docker > /dev/null 2>&1; then
+  DOCKERHUB_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+  DOCKERHUB_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+
+  echo "$DOCKERHUB_REGISTRY_PASSWORD" | docker login --username "$DOCKERHUB_REGISTRY_USERNAME" --password-stdin docker.io
+fi
+
 if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
   # Run in the background, while the job continues
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
@@ -117,3 +130,5 @@ if [[ -f /etc/os-release ]] && grep -q '"Amazon Linux 2"' /etc/os-release; then
   echo "$(hostname -i | cut -d' ' -f 2)  $(hostname -f)." | sudo tee /etc/dnsmasq.hosts
   sudo systemctl restart dnsmasq.service
 fi
+
+.buildkite/scripts/get-latest-test-mutes.sh

@@ -13,21 +13,25 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToBoolean}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToBooleanFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToBooleanFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator d;
+
+  public ToBooleanFromDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator d,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.d = d;
   }
 
   @Override
-  public String name() {
-    return "ToBooleanFromDouble";
+  public EvalOperator.ExpressionEvaluator next() {
+    return d;
   }
 
   @Override
@@ -45,7 +49,7 @@ public final class ToBooleanFromDoubleEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static boolean evalValue(DoubleVector container, int index) {
+  private boolean evalValue(DoubleVector container, int index) {
     double value = container.getDouble(index);
     return ToBoolean.fromDouble(value);
   }
@@ -80,29 +84,39 @@ public final class ToBooleanFromDoubleEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static boolean evalValue(DoubleBlock container, int index) {
+  private boolean evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToBoolean.fromDouble(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToBooleanFromDoubleEvaluator[" + "d=" + d + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(d);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory d;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory d) {
       this.source = source;
+      this.d = d;
     }
 
     @Override
     public ToBooleanFromDoubleEvaluator get(DriverContext context) {
-      return new ToBooleanFromDoubleEvaluator(field.get(context), source, context);
+      return new ToBooleanFromDoubleEvaluator(source, d.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToBooleanFromDoubleEvaluator[field=" + field + "]";
+      return "ToBooleanFromDoubleEvaluator[" + "d=" + d + "]";
     }
   }
 }

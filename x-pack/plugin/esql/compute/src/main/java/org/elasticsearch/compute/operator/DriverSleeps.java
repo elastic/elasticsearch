@@ -31,18 +31,28 @@ import java.util.TreeMap;
 public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sleep> last) implements Writeable, ToXContentObject {
     /**
      * A record of a time the driver slept.
-     * @param reason The reason the driver slept
-     * @param sleep Millis since epoch when the driver slept
-     * @param wake Millis since epoch when the driver woke, or 0 if it is currently sleeping
+     *
+     * @param reason     The reason the driver slept
+     * @param threadName The name of the thread this driver was running on when it went to sleep
+     * @param sleep      Millis since epoch when the driver slept
+     * @param wake       Millis since epoch when the driver woke, or 0 if it is currently sleeping
      */
-    public record Sleep(String reason, long sleep, long wake) implements Writeable, ToXContentObject {
+    public record Sleep(String reason, String threadName, long sleep, long wake) implements Writeable, ToXContentObject {
         Sleep(StreamInput in) throws IOException {
-            this(in.readString(), in.readLong(), in.readLong());
+            this(
+                in.readString(),
+                in.getTransportVersion().onOrAfter(TransportVersions.ESQL_THREAD_NAME_IN_DRIVER_PROFILE) ? in.readString() : "",
+                in.readLong(),
+                in.readLong()
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(reason);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_THREAD_NAME_IN_DRIVER_PROFILE)) {
+                out.writeString(threadName);
+            }
             out.writeLong(sleep);
             out.writeLong(wake);
         }
@@ -51,7 +61,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
             if (isStillSleeping() == false) {
                 throw new IllegalStateException("Already awake.");
             }
-            return new Sleep(reason, sleep, now);
+            return new Sleep(reason, Thread.currentThread().getName(), sleep, now);
         }
 
         public boolean isStillSleeping() {
@@ -62,6 +72,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("reason", reason);
+            builder.field("thread_name", threadName);
             builder.timestampFieldsFromUnixEpochMillis("sleep_millis", "sleep", sleep);
             if (wake > 0) {
                 builder.timestampFieldsFromUnixEpochMillis("wake_millis", "wake", wake);
@@ -76,7 +87,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
     static final int RECORDS = 10;
 
     public static DriverSleeps read(StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(TransportVersions.ESQL_PROFILE_SLEEPS)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             return empty();
         }
         return new DriverSleeps(
@@ -88,7 +99,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.ESQL_PROFILE_SLEEPS)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             return;
         }
         out.writeMap(counts, StreamOutput::writeVLong);
@@ -138,7 +149,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
     private List<Sleep> append(List<Sleep> old, String reason, long now) {
         List<Sleep> sleeps = new ArrayList<>(old.size() + 1);
         sleeps.addAll(old);
-        sleeps.add(new Sleep(reason, now, 0));
+        sleeps.add(new Sleep(reason, Thread.currentThread().getName(), now, 0));
         return Collections.unmodifiableList(sleeps);
     }
 
@@ -147,7 +158,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
         for (int i = 1; i < old.size(); i++) {
             sleeps.add(old.get(i));
         }
-        sleeps.add(new Sleep(reason, now, 0));
+        sleeps.add(new Sleep(reason, Thread.currentThread().getName(), now, 0));
         return Collections.unmodifiableList(sleeps);
     }
 

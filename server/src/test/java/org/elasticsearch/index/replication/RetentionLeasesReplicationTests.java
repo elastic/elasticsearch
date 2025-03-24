@@ -147,7 +147,7 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
     public void testTurnOffTranslogRetentionAfterAllShardStarted() throws Exception {
         final Settings.Builder settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
         if (randomBoolean()) {
-            settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomCompatibleVersion(random()));
+            settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomCompatibleWriteVersion(random()));
         }
         try (ReplicationGroup group = createGroup(between(1, 2), settings.build())) {
             group.startAll();

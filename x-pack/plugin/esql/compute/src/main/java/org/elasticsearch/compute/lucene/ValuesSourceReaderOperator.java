@@ -546,8 +546,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     }
 
     @Override
-    protected Status status(long processNanos, int pagesProcessed) {
-        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed);
+    protected Status status(long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
+        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
     public static class Status extends AbstractPageMappingOperator.Status {
@@ -559,8 +559,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         private final Map<String, Integer> readersBuilt;
 
-        Status(Map<String, Integer> readersBuilt, long processNanos, int pagesProcessed) {
-            super(processNanos, pagesProcessed);
+        Status(Map<String, Integer> readersBuilt, long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
+            super(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
             this.readersBuilt = readersBuilt;
         }
 
@@ -697,6 +697,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         @Override
         public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
             return new SingletonOrdinalsBuilder(factory, ordinals, count);
+        }
+
+        @Override
+        public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
+            return factory.newAggregateMetricDoubleBlockBuilder(count);
         }
     }
 

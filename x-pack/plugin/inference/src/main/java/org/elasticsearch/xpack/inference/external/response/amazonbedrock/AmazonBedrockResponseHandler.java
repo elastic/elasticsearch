@@ -15,6 +15,12 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 public abstract class AmazonBedrockResponseHandler implements ResponseHandler {
+
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return false;
+    }
+
     @Override
     public final void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
         throws RetryException {

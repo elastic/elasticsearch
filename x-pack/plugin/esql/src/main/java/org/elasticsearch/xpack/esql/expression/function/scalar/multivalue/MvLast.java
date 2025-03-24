@@ -53,7 +53,6 @@ public class MvLast extends AbstractMultivalueFunction {
             "ip",
             "keyword",
             "long",
-            "text",
             "unsigned_long",
             "version" },
         description = """
@@ -62,9 +61,9 @@ public class MvLast extends AbstractMultivalueFunction {
             columns in a known order like <<esql-split>>.""",
         detailedDescription = """
             The order that <<esql-multivalued-fields, multivalued fields>> are read from
-            underlying storage is not guaranteed. It is *frequently* ascending, but don't
+            underlying storage is not guaranteed. It is **frequently** ascending, but don’t
             rely on that. If you need the maximum value use <<esql-mv_max>> instead of
-            `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn't a
+            `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn’t a
             performance benefit to `MV_LAST`.""",
         examples = @Example(file = "string", tag = "mv_last")
     )

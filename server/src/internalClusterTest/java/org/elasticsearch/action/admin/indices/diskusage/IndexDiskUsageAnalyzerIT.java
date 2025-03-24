@@ -171,7 +171,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .endObject();
             prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
         }
-        Index index = clusterService().state().metadata().index(indexName).getIndex();
+        Index index = clusterService().state().metadata().getProject().index(indexName).getIndex();
         List<ShardId> failedShards = randomSubsetOf(
             between(1, numberOfShards),
             IntStream.range(0, numberOfShards).mapToObj(n -> new ShardId(index, n)).toList()

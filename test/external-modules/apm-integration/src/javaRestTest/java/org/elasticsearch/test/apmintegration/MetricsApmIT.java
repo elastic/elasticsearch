@@ -31,7 +31,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.Map.entry;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -58,25 +61,19 @@ public class MetricsApmIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testApmIntegration() throws Exception {
-        Map<String, Predicate<Map<String, Object>>> sampleAssertions = new HashMap<>(
+        Map<String, Predicate<Map<String, Object>>> valueAssertions = new HashMap<>(
             Map.ofEntries(
                 assertion("es.test.long_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
                 assertion("es.test.double_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
                 assertion("es.test.async_double_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
                 assertion("es.test.async_long_counter.total", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion("es.test.double_gauge.current", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.long_gauge.current", m -> (Integer) m.get("value"), equalTo(1)),
-                assertion(
-                    "es.test.double_histogram.histogram",
-                    m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),
-                    equalTo(2)
-                ),
-                assertion(
-                    "es.test.long_histogram.histogram",
-                    m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),
-                    equalTo(2)
-                )
+                assertion("es.test.long_gauge.current", m -> (Integer) m.get("value"), equalTo(1))
             )
+        );
+
+        Map<String, Integer> histogramAssertions = new HashMap<>(
+            Map.ofEntries(entry("es.test.double_histogram.histogram", 2), entry("es.test.long_histogram.histogram", 2))
         );
 
         CountDownLatch finished = new CountDownLatch(1);
@@ -91,21 +88,35 @@ public class MetricsApmIT extends ESRestTestCase {
                 var samples = (Map<String, Object>) metricset.get("samples");
 
                 samples.forEach((key, value) -> {
-                    var assertion = sampleAssertions.get(key);// sample name
-                    if (assertion != null) {
-                        logger.info("Matched {}", key);
+                    var valueAssertion = valueAssertions.get(key);// sample name
+                    if (valueAssertion != null) {
+                        logger.info("Matched {}:{}", key, value);
                         var sampleObject = (Map<String, Object>) value;
-                        if (assertion.test(sampleObject)) {// sample object
+                        if (valueAssertion.test(sampleObject)) {// sample object
                             logger.info("{} assertion PASSED", key);
-                            sampleAssertions.remove(key);
+                            valueAssertions.remove(key);
                         } else {
-                            logger.error("{} assertion FAILED: {}", key, sampleObject.get("value"));
+                            logger.error("{} assertion FAILED", key);
+                        }
+                    }
+                    var histogramAssertion = histogramAssertions.get(key);
+                    if (histogramAssertion != null) {
+                        logger.info("Matched {}:{}", key, value);
+                        var samplesObject = (Map<String, Object>) value;
+                        var counts = ((Collection<Integer>) samplesObject.get("counts")).stream().mapToInt(Integer::intValue).sum();
+                        var remaining = histogramAssertion - counts;
+                        if (remaining == 0) {
+                            logger.info("{} assertion PASSED", key);
+                            histogramAssertions.remove(key);
+                        } else {
+                            logger.info("{} assertion PENDING: {} remaining", key, remaining);
+                            histogramAssertions.put(key, remaining);
                         }
                     }
                 });
             }
 
-            if (sampleAssertions.isEmpty()) {
+            if (valueAssertions.isEmpty()) {
                 finished.countDown();
             }
         };
@@ -115,7 +126,9 @@ public class MetricsApmIT extends ESRestTestCase {
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
 
         var completed = finished.await(30, TimeUnit.SECONDS);
-        assertTrue("Timeout when waiting for assertions to complete. Remaining assertions to match: " + sampleAssertions, completed);
+        var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
+            .collect(Collectors.joining(","));
+        assertTrue("Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions, completed);
     }
 
     private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(
@@ -123,7 +136,7 @@ public class MetricsApmIT extends ESRestTestCase {
         Function<Map<String, Object>, T> accessor,
         Matcher<T> expected
     ) {
-        return Map.entry(sampleKeyName, new Predicate<>() {
+        return entry(sampleKeyName, new Predicate<>() {
             @Override
             public boolean test(Map<String, Object> sampleObject) {
                 return expected.matches(accessor.apply(sampleObject));

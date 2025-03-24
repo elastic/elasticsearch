@@ -98,7 +98,7 @@ public class Literal extends LeafExpression {
     }
 
     @Override
-    public Object fold() {
+    public Object fold(FoldContext ctx) {
         return value;
     }
 
@@ -122,7 +122,11 @@ public class Literal extends LeafExpression {
 
     @Override
     public String toString() {
-        return String.valueOf(value);
+        String str = String.valueOf(value);
+        if (str.length() > 500) {
+            return str.substring(0, 500) + "...";
+        }
+        return str;
     }
 
     @Override
@@ -134,7 +138,7 @@ public class Literal extends LeafExpression {
      * Utility method for creating a literal out of a foldable expression.
      * Throws an exception if the expression is not foldable.
      */
-    public static Literal of(Expression foldable) {
+    public static Literal of(FoldContext ctx, Expression foldable) {
         if (foldable.foldable() == false) {
             throw new QlIllegalArgumentException("Foldable expression required for Literal creation; received unfoldable " + foldable);
         }
@@ -143,7 +147,7 @@ public class Literal extends LeafExpression {
             return (Literal) foldable;
         }
 
-        return new Literal(foldable.source(), foldable.fold(), foldable.dataType());
+        return new Literal(foldable.source(), foldable.fold(ctx), foldable.dataType());
     }
 
     public static Literal of(Expression source, Object value) {

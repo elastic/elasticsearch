@@ -32,8 +32,8 @@ base {
 }
 
 // rest client sniffer is licenses under Apache 2.0
-projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
-licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
+projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
+licenseFile.set(layout.getSettingsDirectory().file('licenses/APACHE-LICENSE-2.0.txt').asFile)
 
 dependencies {
   api project(":client:rest")
@@ -73,7 +73,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:elasticsearch-core
+// TODO: Not anymore. Now in :libs:core
 tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("testTestingConventions").configure {

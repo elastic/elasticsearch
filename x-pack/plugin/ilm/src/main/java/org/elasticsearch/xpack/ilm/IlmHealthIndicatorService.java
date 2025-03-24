@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -211,16 +210,16 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-        final var currentState = clusterService.state();
-        var ilmMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
-        final var currentMode = currentILMMode(currentState);
+        final var projectMetadata = clusterService.state().metadata().getProject();
+        var ilmMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        final var currentMode = currentILMMode(projectMetadata);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
                 "No Index Lifecycle Management policies configured",
                 createDetails(verbose, ilmMetadata, currentMode),
-                Collections.emptyList(),
-                Collections.emptyList()
+                List.of(),
+                List.of()
             );
         } else if (currentMode != OperationMode.RUNNING) {
             return createIndicator(
@@ -238,8 +237,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                     GREEN,
                     "Index Lifecycle Management is running",
                     createDetails(verbose, ilmMetadata, currentMode),
-                    Collections.emptyList(),
-                    Collections.emptyList()
+                    List.of(),
+                    List.of()
                 );
             } else {
                 return createIndicator(
@@ -345,10 +344,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             var metadata = clusterService.state().metadata();
             var now = nowSupplier.getAsLong();
 
-            return metadata.indices()
+            return metadata.getProject()
+                .indices()
                 .values()
                 .stream()
-                .filter(metadata::isIndexManagedByILM)
+                .filter(metadata.getProject()::isIndexManagedByILM)
                 .filter(md -> isStagnated(rules, now, md))
                 .toList();
         }

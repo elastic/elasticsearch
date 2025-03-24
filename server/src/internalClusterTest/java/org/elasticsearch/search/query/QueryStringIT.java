@@ -30,6 +30,7 @@ import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,14 +51,10 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("3").setSource("f3", "foo bar baz"));
         indexRandom(true, false, reqs);
 
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("foo")), response -> {
+        assertResponses(response -> {
             assertHitCount(response, 2L);
             assertHits(response.getHits(), "1", "3");
-        });
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("bar")), response -> {
-            assertHitCount(response, 2L);
-            assertHits(response.getHits(), "1", "3");
-        });
+        }, prepareSearch("test").setQuery(queryStringQuery("foo")), prepareSearch("test").setQuery(queryStringQuery("bar")));
         assertResponse(prepareSearch("test").setQuery(queryStringQuery("Bar")), response -> {
             assertHitCount(response, 3L);
             assertHits(response.getHits(), "1", "2", "3");
@@ -70,21 +67,17 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01"));
         indexRandom(true, false, reqs);
 
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("foo bar")), response -> {
+        assertResponses(response -> {
             assertHits(response.getHits(), "1", "2");
             assertHitCount(response, 2L);
-        });
+        },
+            prepareSearch("test").setQuery(queryStringQuery("foo bar")),
+            prepareSearch("test").setQuery(queryStringQuery("bar \"2015/09/02\"")),
+            prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\" \"2015/09/01\""))
+        );
         assertResponse(prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\"")), response -> {
             assertHits(response.getHits(), "1");
             assertHitCount(response, 1L);
-        });
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("bar \"2015/09/02\"")), response -> {
-            assertHits(response.getHits(), "1", "2");
-            assertHitCount(response, 2L);
-        });
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\" \"2015/09/01\"")), response -> {
-            assertHits(response.getHits(), "1", "2");
-            assertHitCount(response, 2L);
         });
     }
 
@@ -94,21 +87,17 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01", "f_float", "1.8", "f_ip", "127.0.0.2"));
         indexRandom(true, false, reqs);
 
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("foo bar")), response -> {
+        assertResponses(response -> {
             assertHits(response.getHits(), "1", "2");
             assertHitCount(response, 2L);
-        });
+        },
+            prepareSearch("test").setQuery(queryStringQuery("foo bar")),
+            prepareSearch("test").setQuery(queryStringQuery("127.0.0.2 \"2015/09/02\"")),
+            prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 OR 1.8"))
+        );
         assertResponse(prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\"")), response -> {
             assertHits(response.getHits(), "1");
             assertHitCount(response, 1L);
-        });
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("127.0.0.2 \"2015/09/02\"")), response -> {
-            assertHits(response.getHits(), "1", "2");
-            assertHitCount(response, 2L);
-        });
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 OR 1.8")), response -> {
-            assertHits(response.getHits(), "1", "2");
-            assertHitCount(response, 2L);
         });
     }
 
@@ -118,23 +107,23 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("foo")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("Bar")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("Baz")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("19")), response -> assertHits(response.getHits(), "1"));
-        // nested doesn't match because it's hidden
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("1476383971")), response -> assertHits(response.getHits(), "1"));
-        // bool doesn't match
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("7")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("23")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("1293")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("42")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("1.7")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("1.5")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(queryStringQuery("127.0.0.1")), response -> assertHits(response.getHits(), "1"));
-        // binary doesn't match
-        // suggest doesn't match
-        // geo_point doesn't match
+        assertResponses(
+            response -> assertHits(response.getHits(), "1"),
+            prepareSearch("test").setQuery(queryStringQuery("foo")),
+            prepareSearch("test").setQuery(queryStringQuery("Bar")),
+            prepareSearch("test").setQuery(queryStringQuery("Baz")),
+            prepareSearch("test").setQuery(queryStringQuery("19")),
+            // nested doesn't match because it's hidden
+            prepareSearch("test").setQuery(queryStringQuery("1476383971")),
+            // bool doesn't match
+            prepareSearch("test").setQuery(queryStringQuery("7")),
+            prepareSearch("test").setQuery(queryStringQuery("23")),
+            prepareSearch("test").setQuery(queryStringQuery("1293")),
+            prepareSearch("test").setQuery(queryStringQuery("42")),
+            prepareSearch("test").setQuery(queryStringQuery("1.7")),
+            prepareSearch("test").setQuery(queryStringQuery("1.5")),
+            prepareSearch("test").setQuery(queryStringQuery("127.0.0.1"))
+        );
     }
 
     public void testKeywordWithWhitespace() throws Exception {

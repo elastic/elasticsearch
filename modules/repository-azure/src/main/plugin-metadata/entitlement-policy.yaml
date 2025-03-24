@@ -1,0 +1,18 @@
+io.netty.common:
+  - outbound_network
+  - manage_threads
+  - files:
+    - path: "/etc/os-release"
+      mode: "read"
+    - path: "/usr/lib/os-release"
+      mode: "read"
+    - path: "/proc/sys/net/core/somaxconn"
+      mode: read
+com.azure.identity:
+  - outbound_network
+  - files:
+    - relative_path: "storage-azure/" #/config/storage-azure/azure-federated-token
+      relative_to: config
+      mode: read
+reactor.core:
+  - manage_threads

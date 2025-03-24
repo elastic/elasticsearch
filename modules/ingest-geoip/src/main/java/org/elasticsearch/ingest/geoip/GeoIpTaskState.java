@@ -44,7 +44,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     private static boolean includeSha256(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.V_8_15_0) || version.onOrAfter(TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER);
+        return version.onOrAfter(TransportVersions.V_8_15_0);
     }
 
     private static final ParseField DATABASES = new ParseField("databases");
@@ -132,7 +132,7 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_13_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -206,12 +206,32 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
         }
 
         public boolean isCloseToExpiration() {
-            return Instant.ofEpochMilli(lastCheck).isBefore(Instant.now().minus(25, ChronoUnit.DAYS));
+            final Instant now = Instant.ofEpochMilli(System.currentTimeMillis()); // millisecond precision is sufficient (and faster)
+            return Instant.ofEpochMilli(lastCheck).isBefore(now.minus(25, ChronoUnit.DAYS));
         }
 
+        // these constants support the micro optimization below, see that note
+        private static final TimeValue THIRTY_DAYS = TimeValue.timeValueDays(30);
+        private static final long THIRTY_DAYS_MILLIS = THIRTY_DAYS.millis();
+
         public boolean isNewEnough(Settings settings) {
-            TimeValue valid = settings.getAsTime("ingest.geoip.database_validity", TimeValue.timeValueDays(30));
-            return Instant.ofEpochMilli(lastCheck).isAfter(Instant.now().minus(valid.getMillis(), ChronoUnit.MILLIS));
+            // micro optimization: this looks a little silly, but the expected case is that database_validity is only used in tests.
+            // we run this code on every document, though, so the argument checking and other bits that getAsTime does is enough
+            // to show up in a flame graph.
+
+            // if you grep for "ingest.geoip.database_validity" and you'll see that it's not a 'real' setting -- it's only defined in
+            // AbstractGeoIpIT, that's why it's an inline string constant here and no some static final, and also why it cannot
+            // be the case that this setting exists in a real running cluster
+
+            final long valid;
+            if (settings.hasValue("ingest.geoip.database_validity")) {
+                valid = settings.getAsTime("ingest.geoip.database_validity", THIRTY_DAYS).millis();
+            } else {
+                valid = THIRTY_DAYS_MILLIS;
+            }
+
+            final Instant now = Instant.ofEpochMilli(System.currentTimeMillis()); // millisecond precision is sufficient (and faster)
+            return Instant.ofEpochMilli(lastCheck).isAfter(now.minus(valid, ChronoUnit.MILLIS));
         }
 
         @Override

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.readonly;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -32,12 +33,18 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
     private final APIBlock block;
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private boolean markVerified = true;
 
     public AddIndexBlockRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         block = APIBlock.readFrom(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE)) {
+            markVerified = in.readBoolean();
+        } else {
+            markVerified = false;
+        }
     }
 
     /**
@@ -103,6 +110,15 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         return this;
     }
 
+    public boolean markVerified() {
+        return markVerified;
+    }
+
+    public AddIndexBlockRequest markVerified(boolean markVerified) {
+        this.markVerified = markVerified;
+        return this;
+    }
+
     /**
      * Returns the block to be added
      */
@@ -116,6 +132,9 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         block.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE)) {
+            out.writeBoolean(markVerified);
+        }
     }
 
     @Override
@@ -136,4 +155,5 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }
+
 }

@@ -3,7 +3,6 @@
 ###############################################
 
 convertFromStringQuantize
-required_capability: spatial_points
 
 row wkt = "POINT(42.97109629958868 14.7552534006536)"
 | eval pt = to_geopoint(wkt);
@@ -143,6 +142,70 @@ FROM airports
 c:long  | x:double  | y:double
 872     | 0.0       | 0.0
 19      | null      | null
+;
+
+values
+required_capability: agg_values_spatial
+
+FROM airports
+| WHERE scalerank == 9
+| STATS locations=VALUES(location)
+| EVAL locations = MV_SORT(TO_STRING(locations))
+;
+
+locations:keyword
+[POINT (101.446569298441 0.464600872998505), POINT (105.176060419161 -5.242566777132), POINT (112.711418617258 -7.92998002840567), POINT (126.810839481226 35.1400051390198), POINT (127.495916124681 36.7220227766673), POINT (128.637537699933 35.8999277969087), POINT (129.355731047528 35.5928957527107), POINT (145.243980298582 14.1717712971216), POINT (35.3018728575279 47.8732635579023), POINT (42.97109630194 14.7552534413725), POINT (48.7471065435931 31.3431585560757), POINT (60.900708564915 29.4752941956573), POINT (61.5122589740201 55.2977919496055), POINT (63.0279333519181 25.988794590011), POINT (66.9487311480949 30.249043186181), POINT (72.9878190922305 31.3627435480862), POINT (73.0320498392002 33.5614146278861), POINT (73.3163595376585 54.9576482934059), POINT (73.4084964764375 61.3401672194481), POINT (73.8105674924689 19.9660205672806), POINT (75.3958432922005 19.8672969621082), POINT (75.7584828456005 31.4329422397715), POINT (75.8092915005895 22.727749187571), POINT (75.9330597710755 17.625415183635), POINT (75.9570722403652 30.8503598561702), POINT (76.8017261105242 30.6707248949667), POINT (78.2172186546348 26.285487697937), POINT (78.7089578747476 10.7603571306554), POINT (79.452002687657 28.4218087161144), POINT (81.7317271462187 25.443522027821), POINT (82.6671524525865 55.0095847136264), POINT (83.5504532124038 53.3633850813046), POINT (85.3235970368767 23.3177245989962)]
+;
+
+valuesGrouped
+required_capability: agg_values_spatial
+
+FROM airports
+| WHERE scalerank == 9
+| EVAL first_letter = SUBSTRING(abbrev, 0, 1)
+| STATS locations=VALUES(location) BY first_letter
+| EVAL locations = MV_SORT(TO_STRING(locations))
+| SORT first_letter
+| KEEP first_letter, locations
+;
+
+first_letter:keyword | locations:keyword
+A                    | POINT (48.7471065435931 31.3431585560757)                                                                                                                                                                                                                       
+B                    | POINT (83.5504532124038 53.3633850813046)                                                                                                                                                                                                                       
+C                    | [POINT (127.495916124681 36.7220227766673), POINT (61.5122589740201 55.2977919496055)]                                                                                                                                                                          
+G                    | POINT (78.2172186546348 26.285487697937)                                                                                                                                                                                                                        
+H                    | POINT (42.97109630194 14.7552534413725)                                                                                                                                                                                                                         
+I                    | [POINT (73.8105674924689 19.9660205672806), POINT (75.3958432922005 19.8672969621082), POINT (75.8092915005895 22.727749187571), POINT (76.8017261105242 30.6707248949667), POINT (81.7317271462187 25.443522027821), POINT (85.3235970368767 23.3177245989962)]
+K                    | POINT (126.810839481226 35.1400051390198)                                                                                                                                                                                                                       
+L                    | [POINT (72.9878190922305 31.3627435480862), POINT (75.9570722403652 30.8503598561702)]                                                                                                                                                                          
+M                    | POINT (112.711418617258 -7.92998002840567)                                                                                                                                                                                                                      
+O                    | [POINT (35.3018728575279 47.8732635579023), POINT (73.0320498392002 33.5614146278861), POINT (73.3163595376585 54.9576482934059), POINT (82.6671524525865 55.0095847136264)]                                                                                    
+P                    | POINT (101.446569298441 0.464600872998505)                                                                                                                                                                                                                      
+R                    | POINT (145.243980298582 14.1717712971216)                                                                                                                                                                                                                       
+S                    | [POINT (73.4084964764375 61.3401672194481), POINT (75.9330597710755 17.625415183635)]                                                                                                                                                                           
+T                    | [POINT (128.637537699933 35.8999277969087), POINT (63.0279333519181 25.988794590011), POINT (78.7089578747476 10.7603571306554)]                                                                                                                                
+U                    | [POINT (129.355731047528 35.5928957527107), POINT (66.9487311480949 30.249043186181)]                                                                                                                                                                           
+V                    | [POINT (75.7584828456005 31.4329422397715), POINT (79.452002687657 28.4218087161144)]                                                                                                                                                                           
+W                    | POINT (105.176060419161 -5.242566777132)                                                                                                                                                                                                                        
+Z                    | POINT (60.900708564915 29.4752941956573)             
+;
+
+valuesGroupedByOrdinals
+required_capability: agg_values_spatial
+
+FROM airports
+| WHERE scalerank == 9
+| STATS locations=VALUES(location) BY type
+| EVAL locations = MV_SORT(TO_STRING(locations))
+| SORT type
+| KEEP type, locations
+;
+
+type:keyword | locations:keyword
+major        | [POINT (127.495916124681 36.7220227766673), POINT (76.8017261105242 30.6707248949667)]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+mid          | [POINT (101.446569298441 0.464600872998505), POINT (105.176060419161 -5.242566777132), POINT (112.711418617258 -7.92998002840567), POINT (126.810839481226 35.1400051390198), POINT (128.637537699933 35.8999277969087), POINT (129.355731047528 35.5928957527107), POINT (145.243980298582 14.1717712971216), POINT (35.3018728575279 47.8732635579023), POINT (42.97109630194 14.7552534413725), POINT (48.7471065435931 31.3431585560757), POINT (60.900708564915 29.4752941956573), POINT (61.5122589740201 55.2977919496055), POINT (63.0279333519181 25.988794590011), POINT (66.9487311480949 30.249043186181), POINT (72.9878190922305 31.3627435480862), POINT (73.3163595376585 54.9576482934059), POINT (73.4084964764375 61.3401672194481), POINT (73.8105674924689 19.9660205672806), POINT (75.3958432922005 19.8672969621082), POINT (75.7584828456005 31.4329422397715), POINT (75.8092915005895 22.727749187571), POINT (75.9330597710755 17.625415183635), POINT (78.2172186546348 26.285487697937), POINT (78.7089578747476 10.7603571306554), POINT (82.6671524525865 55.0095847136264), POINT (83.5504532124038 53.3633850813046), POINT (85.3235970368767 23.3177245989962)]
+military     | [POINT (112.711418617258 -7.92998002840567), POINT (126.810839481226 35.1400051390198), POINT (35.3018728575279 47.8732635579023), POINT (72.9878190922305 31.3627435480862), POINT (75.7584828456005 31.4329422397715), POINT (76.8017261105242 30.6707248949667), POINT (78.2172186546348 26.285487697937), POINT (79.452002687657 28.4218087161144), POINT (81.7317271462187 25.443522027821)]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+small        | [POINT (73.0320498392002 33.5614146278861), POINT (75.9570722403652 30.8503598561702)]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
 ;
 
 ###############################################
@@ -482,6 +545,325 @@ FROM airports
 
 centroid:geo_point                            | count:long
 POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+centroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues
+required_capability: st_intersects
+
+FROM airports_no_doc_values
+| WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+centroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues
+required_capability: st_intersects
+
+FROM airports_not_indexed_nor_doc_values
+| WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+centroidFromAirportsAfterIntersectsCompoundPredicateNotIndexed
+required_capability: st_intersects
+
+FROM airports_not_indexed
+| WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+###############################################
+# Tests for ST_EXTENT_AGG on GEO_POINT type
+
+stExtentSingleGeoPoint
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")
+| STATS extent = ST_EXTENT_AGG(point)
+;
+
+extent:geo_shape
+BBOX(42.97109629958868, 42.97109629958868, 14.7552534006536, 14.7552534006536)
+;
+
+stExtentMultipleGeoPoints
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+// tag::st_extent_agg-airports[]
+FROM airports
+| WHERE country == "India"
+| STATS extent = ST_EXTENT_AGG(location)
+// end::st_extent_agg-airports[]
+;
+
+// tag::st_extent_agg-airports-result[]
+extent:geo_shape
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)
+// end::st_extent_agg-airports-result[]
+;
+
+stExtentMultipleGeoPointsCount
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airports
+| WHERE country == "India"
+| STATS extent = ST_EXTENT_AGG(location), count = COUNT()
+;
+
+extent:geo_shape                                                               | count:long
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405) | 50
+;
+
+stExtentMultipleGeoPointsCountNoDocValues
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airports_no_doc_values
+| WHERE country == "India"
+| STATS extent = ST_EXTENT_AGG(location), count = COUNT()
+;
+
+extent:geo_shape                                                               | count:long
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405) | 50
+;
+
+stExtentMultipleGeoPointGrouping
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airports
+| STATS extent = ST_EXTENT_AGG(location), count = COUNT() BY country
+| SORT count DESC, country ASC
+| LIMIT 5
+;
+
+extent:geo_shape                                                                       | count:long | country:keyword
+BBOX (-159.34908430092037, -71.01640669628978, 64.81809809803963, 19.71479767933488)   | 129        | United States
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)         | 50         | India
+BBOX (-117.19751106575131, -86.87441730871797, 32.833958650007844, 14.791128113865852) | 45         | Mexico
+BBOX (76.01301474496722, 130.45620465651155, 46.84301500674337, 18.309095981530845)    | 41         | China
+BBOX (-135.07621010765433, -52.743333745747805, 63.751152316108346, 43.163360520266)   | 37         | Canada
+;
+
+stExtentGeoShapes
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| STATS extent = ST_EXTENT_AGG(city_boundary)
+;
+
+extent:geo_shape
+BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
+;
+
+stExtentGeoPoints
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| STATS extent = ST_EXTENT_AGG(city_location)
+;
+
+extent:geo_shape
+BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+;
+
+stExtentGeoShapesAndPoints
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| STATS extent_shapes = ST_EXTENT_AGG(city_boundary), extent_points = ST_EXTENT_AGG(city_location)
+;
+
+extent_shapes:geo_shape | extent_points:geo_shape
+BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321) | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+;
+
+stExtentGeoShapesGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_boundary) BY prefix
+| KEEP prefix, extent
+| SORT prefix ASC
+;
+
+prefix:keyword | extent:geo_shape
+E              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
+J              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
+L              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
+;
+
+stExtentGeoPointsGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_location) BY prefix
+| KEEP prefix, extent
+| SORT prefix ASC
+;
+
+prefix:keyword | extent:geo_shape
+E              | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+J              | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+L              | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+;
+
+stExtentGeoShapesAndPointsGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent_shapes = ST_EXTENT_AGG(city_boundary), extent_points = ST_EXTENT_AGG(city_location) BY prefix
+| KEEP prefix, extent_shapes, extent_points
+| SORT prefix ASC
+;
+
+prefix:keyword | extent_shapes:geo_shape                                                             | extent_points:geo_shape
+E              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321) | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+J              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321) | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+L              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321) | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+;
+
+stExtentManyGeoShapesGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_boundary) BY prefix
+| KEEP prefix, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent:geo_shape
+A              | BBOX (-171.91890003159642, 175.90319998562336, 64.61419996339828, -37.36450002528727)
+B              | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132)
+C              | BBOX (-107.51820000819862, 172.6055999379605, 55.732699991203845, -43.90400002710521)
+;
+
+stExtentManyGeoPointsGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_location) BY prefix
+| KEEP prefix, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent:geo_shape
+A              | BBOX (-171.75000007264316, 174.73999994806945, 64.54999999143183, -36.84060002211481)
+B              | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
+C              | BBOX (-107.39390007220209, 172.38329996354878, 55.676099974662066, -43.58330002985895)
+;
+
+stExtentManyGeoShapesAndPointsGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent_shapes = ST_EXTENT_AGG(city_boundary), extent_points = ST_EXTENT_AGG(city_location) BY prefix
+| KEEP prefix, extent_shapes, extent_points
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent_shapes:geo_shape                                                               | extent_points:geo_shape
+A              | BBOX (-171.91890003159642, 175.90319998562336, 64.61419996339828, -37.36450002528727) | BBOX (-171.75000007264316, 174.73999994806945, 64.54999999143183, -36.84060002211481)
+B              | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132) | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
+C              | BBOX (-107.51820000819862, 172.6055999379605, 55.732699991203845, -43.90400002710521) | BBOX (-107.39390007220209, 172.38329996354878, 55.676099974662066, -43.58330002985895)
+;
+
+stExtentManyGeoShapesGroupedEnrich
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: enrich_load
+
+FROM airports
+| ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_boundary), count = COUNT() BY prefix
+| KEEP prefix, count, extent
+| SORT count DESC, prefix ASC
+| LIMIT 3
+;
+
+prefix:keyword | count:long | extent:geo_shape
+S              | 77         | BBOX (-136.45440001040697, 178.8686999771744, 61.38089996762574, -33.92440003808588)
+C              | 75         | BBOX (-107.51820000819862, 172.6055999379605, 55.732699991203845, -43.90400002710521)
+B              | 69         | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132)
+;
+
+stExtentManyGeoPointsGroupedEnrich
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: enrich_load
+
+FROM airports
+| ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_location), count = COUNT() BY prefix
+| KEEP prefix, count, extent
+| SORT count DESC, prefix ASC
+| LIMIT 3
+;
+
+prefix:keyword | count:long | extent:geo_shape
+S              | 77         | BBOX (-135.3152000438422, 178.54539999738336, 69.21669997740537, -33.8678000215441)
+C              | 75         | BBOX (-107.39390007220209, 172.38329996354878, 55.676099974662066, -43.58330002985895)
+B              | 69         | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
+;
+
+stExtentManyGeoShapesAndPointsGroupedEnrich
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: enrich_load
+
+FROM airports
+| ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent_shapes = ST_EXTENT_AGG(city_boundary), extent_points = ST_EXTENT_AGG(city_location), count = COUNT() BY prefix
+| KEEP prefix, count, extent_shapes, extent_points
+| SORT count DESC, prefix ASC
+| LIMIT 3
+;
+
+prefix:keyword | count:long | extent_shapes:geo_shape                                                               | extent_points:geo_shape
+S              | 77         | BBOX (-136.45440001040697, 178.8686999771744, 61.38089996762574, -33.92440003808588)  | BBOX (-135.3152000438422, 178.54539999738336, 69.21669997740537, -33.8678000215441)
+C              | 75         | BBOX (-107.51820000819862, 172.6055999379605, 55.732699991203845, -43.90400002710521) | BBOX (-107.39390007220209, 172.38329996354878, 55.676099974662066, -43.58330002985895)
+B              | 69         | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132) | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
 ;
 
 ###############################################
@@ -1661,6 +2043,137 @@ FROM airports_web
 
 centroid:cartesian_point                    | count:long
 POINT (726480.0130685265 3359566.331716279) | 849
+;
+
+###############################################
+# Tests for ST_EXTENT_AGG on CARTESIAN_POINT type
+
+stExtentSingleCartesianPoint
+required_capability: st_extent_agg
+ROW point = TO_CARTESIANPOINT("POINT(429.7109629958868 147.552534006536)")
+| STATS extent = ST_EXTENT_AGG(point)
+;
+
+extent:cartesian_shape
+BBOX (429.7109680175781, 429.7109680175781, 147.5525360107422, 147.5525360107422)
+;
+
+stExtentMultipleCartesianPoints
+required_capability: st_extent_agg
+FROM airports_web | WHERE scalerank == 9 | STATS extent = ST_EXTENT_AGG(location)
+;
+
+extent:cartesian_shape
+BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)
+;
+
+stExtentMultipleCartesianPointsCount
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airports_web
+| STATS extent = ST_EXTENT_AGG(location), count = COUNT()
+;
+
+extent:cartesian_shape                                   | count:long
+BBOX (-1.949601E7, 1.9947946E7, 1.4502138E7, -7128878.5) | 849
+;
+
+stExtentMultipleCartesianPointGrouping
+required_capability: st_extent_agg
+FROM airports_web | STATS extent = ST_EXTENT_AGG(location) BY scalerank | SORT scalerank DESC | LIMIT 3
+;
+
+extent:cartesian_shape                                    | scalerank:integer
+BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)    | 9
+BBOX (-1.936604E7, 1.8695374E7, 1.4502138E7, -3943067.25) | 8
+BBOX (-1.891609E7, 1.9947946E7, 8455470.0, -7128878.5)    | 7
+;
+
+stExtentCartesianShapes
+required_capability: st_extent_agg
+FROM cartesian_multipolygons | STATS extent = ST_EXTENT_AGG(shape)
+;
+
+extent:cartesian_shape
+BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentCartesianShapesGrouping
+required_capability: st_extent_agg
+
+FROM cartesian_multipolygons
+| EVAL key = SUBSTRING(name,1,3)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
+| KEEP count, key, extent
+| SORT count DESC, key ASC
+;
+
+count:long | key:keyword | extent:cartesian_shape
+8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
+8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
+4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentCartesianShapesNoDocValues
+required_capability: st_extent_agg
+FROM cartesian_multipolygons_no_doc_values | STATS extent = ST_EXTENT_AGG(shape)
+;
+
+extent:cartesian_shape
+BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentCartesianShapesGroupingNoDocValues
+required_capability: st_extent_agg
+
+FROM cartesian_multipolygons_no_doc_values
+| EVAL key = SUBSTRING(name,1,3)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
+| KEEP count, key, extent
+| SORT count DESC, key ASC
+;
+
+count:long | key:keyword | extent:cartesian_shape
+8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
+8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
+4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentManyCartesianShapesGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM countries_bbox_web
+| EVAL prefix = SUBSTRING(id, 1, 1)
+| STATS extent = ST_EXTENT_AGG(shape) BY prefix
+| KEEP prefix, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent:cartesian_shape
+A              | BBOX (-2.0037508E7, 2.0037508E7, 6278042.5, -4.748140544E9)
+B              | BBOX (-9931524.0, 1.2841846E7, 7591831.0, -3994093.25)
+C              | BBOX (-1.8462154E7, 1.5002357E7, 1.7926778E7, -7538976.5)
+;
+
+stExtentManyCartesianShapesGroupedCount
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM countries_bbox_web
+| EVAL prefix = SUBSTRING(id, 1, 1)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY prefix
+| KEEP prefix, count, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | count:long | extent:cartesian_shape
+A              | 17         | BBOX (-2.0037508E7, 2.0037508E7, 6278042.5, -4.748140544E9)
+B              | 18         | BBOX (-9931524.0, 1.2841846E7, 7591831.0, -3994093.25)
+C              | 19         | BBOX (-1.8462154E7, 1.5002357E7, 1.7926778E7, -7538976.5)
 ;
 
 ###############################################

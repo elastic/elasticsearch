@@ -13,11 +13,15 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+
+import static org.hamcrest.Matchers.is;
 
 public class TransportDownsampleActionTests extends ESTestCase {
     public void testCopyIndexMetadata() {
@@ -106,5 +110,26 @@ public class TransportDownsampleActionTests extends ESTestCase {
             indexMetadata.getSettings().get(IndexMetadata.SETTING_CREATION_DATE),
             settings.get(IndexMetadata.SETTING_CREATION_DATE)
         );
+    }
+
+    public void testGetSupportedMetrics() {
+        TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.GAUGE;
+        Map<String, Object> fieldProperties = Map.of(
+            "type",
+            "aggregate_metric_double",
+            "metrics",
+            List.of("max", "sum"),
+            "default_metric",
+            "sum"
+        );
+
+        var supported = TransportDownsampleAction.getSupportedMetrics(metricType, fieldProperties);
+        assertThat(supported.defaultMetric(), is("sum"));
+        assertThat(supported.supportedMetrics(), is(List.of("max", "sum")));
+
+        fieldProperties = Map.of("type", "integer");
+        supported = TransportDownsampleAction.getSupportedMetrics(metricType, fieldProperties);
+        assertThat(supported.defaultMetric(), is("max"));
+        assertThat(supported.supportedMetrics(), is(List.of(metricType.supportedAggs())));
     }
 }

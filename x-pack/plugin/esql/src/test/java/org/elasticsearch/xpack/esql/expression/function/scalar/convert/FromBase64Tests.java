@@ -35,27 +35,19 @@ public class FromBase64Tests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD), () -> {
-            BytesRef input = new BytesRef(randomAlphaOfLength(6));
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(input, DataType.KEYWORD, "string")),
-                "FromBase64Evaluator[field=Attribute[channel=0]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(Base64.getDecoder().decode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
-            );
-        }));
+        for (DataType dataType : DataType.stringTypes()) {
+            suppliers.add(new TestCaseSupplier(List.of(dataType), () -> {
+                BytesRef input = new BytesRef(randomAlphaOfLength(54));
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(input, dataType, "string")),
+                    "FromBase64Evaluator[field=Attribute[channel=0]]",
+                    DataType.KEYWORD,
+                    equalTo(new BytesRef(Base64.getDecoder().decode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
+                );
+            }));
+        }
 
-        suppliers.add(new TestCaseSupplier(List.of(DataType.TEXT), () -> {
-            BytesRef input = new BytesRef(randomAlphaOfLength(54));
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(input, DataType.TEXT, "string")),
-                "FromBase64Evaluator[field=Attribute[channel=0]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(Base64.getDecoder().decode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
-            );
-        }));
-
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

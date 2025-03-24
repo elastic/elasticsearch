@@ -7,8 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -17,7 +15,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 publishing {
   publications {
     elastic {
-      artifactId 'elasticsearch'
+      artifactId = 'elasticsearch'
     }
   }
 }
@@ -28,17 +26,18 @@ base {
 
 dependencies {
 
-  api project(':libs:elasticsearch-core')
-  api project(':libs:elasticsearch-logging')
-  api project(':libs:elasticsearch-secure-sm')
-  api project(':libs:elasticsearch-x-content')
-  api project(":libs:elasticsearch-geo")
-  api project(":libs:elasticsearch-lz4")
-  api project(":libs:elasticsearch-plugin-api")
-  api project(":libs:elasticsearch-plugin-analysis-api")
-  api project(':libs:elasticsearch-grok')
-  api project(":libs:elasticsearch-tdigest")
-  implementation project(":libs:elasticsearch-simdvec")
+  api project(':libs:core')
+  api project(':libs:logging')
+  api project(':libs:secure-sm')
+  api project(':libs:x-content')
+  api project(":libs:geo")
+  api project(":libs:lz4")
+  api project(":libs:plugin-api")
+  api project(":libs:plugin-analysis-api")
+  api project(':libs:grok')
+  api project(":libs:tdigest")
+  implementation project(":libs:simdvec")
+  implementation project(":libs:entitlement")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -56,7 +55,7 @@ dependencies {
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  api project(":libs:elasticsearch-cli")
+  api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
 
   // precentil ranks aggregation
@@ -67,7 +66,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // access to native functions
-  implementation project(':libs:elasticsearch-native')
+  implementation project(':libs:native')
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -81,6 +80,7 @@ dependencies {
   }
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
+  internalClusterTestImplementation(project(':modules:data-streams'))
 }
 
 spotless {
@@ -132,7 +132,7 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 sourceSets.main.output.dir(generatedResourcesDir)
 sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
         systemProperty 'es.failure_store_feature_flag_enabled', 'true'
@@ -145,18 +145,30 @@ if (BuildParams.isSnapshotBuild() == false) {
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
+  filter {
+    excludeTestsMatching("*.TransportServiceHandshakeTests.testAcceptsMismatchedServerlessBuildHash")
+  }
   excludes << '**/IndexSettingsOverrideTests.class'
 }
 
-TaskProvider<Test> indexSettingsOverrideTest = tasks.register("indexSettingsOverrideTest", Test) {
+// There are tests rely on system properties to be configured differently. They must run in a separate test job
+// since the default does not work for them and configuring the system properties inside the test class/method
+// is too late because fields based on the system properties are often initialized statically.
+TaskProvider<Test> systemPropertiesOverrideTest = tasks.register("systemPropertiesOverrideTest", Test) {
   include '**/IndexSettingsOverrideTests.class'
+  include '**/TransportServiceHandshakeTests.class'
+  filter {
+    includeTestsMatching("*.TransportServiceHandshakeTests.testAcceptsMismatchedServerlessBuildHash")
+    includeTestsMatching("*.IndexSettingsOverrideTests.*")
+  }
   systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
+  systemProperty 'es.serverless_transport', 'true'
   classpath = sourceSets.test.runtimeClasspath
   testClassesDirs = sourceSets.test.output.classesDirs
 }
 
 tasks.named("check").configure {
-  dependsOn(indexSettingsOverrideTest)
+  dependsOn(systemPropertiesOverrideTest)
 }
 
 tasks.named("thirdPartyAudit").configure {

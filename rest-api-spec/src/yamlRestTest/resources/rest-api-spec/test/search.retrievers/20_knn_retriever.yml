@@ -18,7 +18,7 @@ setup:
                 dims: 5
                 index: true
                 index_options:
-                  type: hnsw
+                  type: int8_hnsw
                 similarity: l2_norm
 
   - do:
@@ -73,3 +73,59 @@ setup:
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._id: "3"}
   - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+---
+"Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn":
+  - requires:
+      reason: 'Quantized vector rescoring is required'
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [knn_quantized_vector_rescore_oversample]
+  - skip:
+      features: "headers"
+
+  # Rescore
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: index1
+        body:
+          knn:
+            field: vector
+            query_vector: [2, 2, 2, 2, 3]
+            k: 3
+            num_candidates: 3
+            rescore_vector:
+              oversample: 1.5
+
+  # Get rescoring scores - hit ordering may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: rescore_score0 }
+  - set: { hits.hits.1._score: rescore_score1 }
+  - set: { hits.hits.2._score: rescore_score2 }
+
+  # Exact knn via script score
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: index1
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "1.0 / (1.0 + Math.pow(l2norm(params.query_vector, 'vector'), 2.0))"
+                params:
+                  query_vector: [2, 2, 2, 2, 3]
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $rescore_score0 }
+  - match: { hits.hits.1._score: $rescore_score1 }
+  - match: { hits.hits.2._score: $rescore_score2 }

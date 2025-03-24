@@ -11,13 +11,15 @@
           "field": [
             "Stacktrace.frame.ids"
           ]
+        },
+        "mapping": {
+          "source": {
+            "mode": "synthetic"
+          }
         }
       }
     },
     "mappings": {
-      "_source": {
-        "mode": "synthetic"
-      },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
         "index-version": ${xpack.profiling.index.stacktraces.version},

@@ -12,11 +12,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
@@ -64,7 +64,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
         String sourceIndexName = index.getName();
-        IndexMetadata sourceIndexMetadata = clusterState.metadata().index(sourceIndexName);
+        IndexMetadata sourceIndexMetadata = clusterState.metadata().getProject().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), sourceIndexName);
@@ -76,11 +76,10 @@ public class CopySettingsStep extends ClusterStateActionStep {
         }
 
         String targetIndexName = targetIndexNameSupplier.apply(sourceIndexName, sourceIndexMetadata.getLifecycleExecutionState());
-        IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = clusterState.metadata().getProject().index(targetIndexName);
         if (targetIndexMetadata == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
-                "index [%s] is being referenced by ILM action [%s] on step [%s] but " + "it doesn't exist",
+            String errorMessage = Strings.format(
+                "index [%s] is being referenced by ILM action [%s] on step [%s] but it doesn't exist",
                 targetIndexName,
                 getKey().action(),
                 getKey().name()

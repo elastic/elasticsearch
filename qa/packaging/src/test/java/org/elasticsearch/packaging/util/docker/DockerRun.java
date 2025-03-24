@@ -29,6 +29,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
  */
 public class DockerRun {
 
+    // Use less secure entropy source to avoid hanging when generating certificates
+    private static final String DEFAULT_JAVA_OPTS = "-Djava.security.egd=file:/dev/urandom";
+
     private Distribution distribution;
     private final Map<String, String> envVars = new HashMap<>();
     private final Map<Path, Path> volumes = new HashMap<>();
@@ -112,6 +115,11 @@ public class DockerRun {
         // Limit container memory
         cmd.add("--memory " + memory);
 
+        // Add default java opts
+        for (String envVar : List.of("CLI_JAVA_OPTS", "ES_JAVA_OPTS")) {
+            this.envVars.put(envVar, this.envVars.getOrDefault(envVar, "") + " " + DEFAULT_JAVA_OPTS);
+        }
+
         this.envVars.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
 
         // Map ports in the container to the host, so that we can send requests
@@ -163,9 +171,7 @@ public class DockerRun {
     public static String getImageName(Distribution distribution) {
         String suffix = switch (distribution.packaging) {
             case DOCKER -> "";
-            case DOCKER_UBI -> "-ubi";
             case DOCKER_IRON_BANK -> "-ironbank";
-            case DOCKER_CLOUD -> "-cloud";
             case DOCKER_CLOUD_ESS -> "-cloud-ess";
             case DOCKER_WOLFI -> "-wolfi";
             default -> throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);

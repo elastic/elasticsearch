@@ -27,8 +27,6 @@ import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
 
-    private URI uri;
-
     public GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -113,10 +111,6 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
     @Override
     public GoogleDiscoveryEngineRateLimitServiceSettings rateLimitServiceSettings() {
         return (GoogleDiscoveryEngineRateLimitServiceSettings) super.rateLimitServiceSettings();
-    }
-
-    public URI uri() {
-        return uri;
     }
 
     @Override

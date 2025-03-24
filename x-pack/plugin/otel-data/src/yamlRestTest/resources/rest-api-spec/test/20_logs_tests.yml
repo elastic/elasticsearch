@@ -105,6 +105,7 @@ Event body:
                 service.name: my-service
             attributes:
               event.name: foo
+            event_name: foo
             body:
               structured:
                 foo:
@@ -118,7 +119,8 @@ Event body:
       indices.get_mapping:
         index: $datastream-backing-index
   - is_true: $datastream-backing-index
-  - match: { .$datastream-backing-index.mappings.properties.body.properties.structured.properties.foo\.bar.type: "keyword" }
+  - match: { .$datastream-backing-index.mappings.properties.body.properties.structured.type: "flattened" }
+  - match: { .$datastream-backing-index.mappings.properties.event_name.type: "keyword" }
 ---
 Structured log body:
   - do:
@@ -132,7 +134,7 @@ Structured log body:
               attributes:
                 service.name: my-service
             body:
-              flattened:
+              structured:
                 foo:
                   bar: baz
   - is_false: errors
@@ -144,7 +146,7 @@ Structured log body:
       indices.get_mapping:
         index: $datastream-backing-index
   - is_true: $datastream-backing-index
-  - match: { .$datastream-backing-index.mappings.properties.body.properties.flattened.type: "flattened" }
+  - match: { .$datastream-backing-index.mappings.properties.body.properties.structured.type: "flattened" }
 ---
 "event.dataset alias must point to data_stream.dataset":
   - do:
@@ -187,3 +189,42 @@ host.name pass-through:
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.resource\.attributes\.host\.name: [ "localhost" ] }
   - match: { hits.hits.0.fields.host\.name: [ "localhost" ] }
+---
+"kubernetes.* -> resource.attributes.k8s.* aliases":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: { }
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            data_stream:
+              dataset: generic.otel
+              namespace: default
+            resource:
+              attributes:
+                k8s.container.name: myContainerName
+                k8s.cronjob.name: myCronJobName
+                k8s.job.name: myJobName
+                k8s.statefulset.name: myStatefulsetName
+                k8s.daemonset.name: myDaemonsetName
+                k8s.replicaset.name: myReplicasetName
+                k8s.node.uid: myNodeUid
+                k8s.node.hostname: myNodeHostname
+                k8s.cluster.name: myClusterName
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          fields: ["kubernetes.container.name", "kubernetes.cronjob.name", "kubernetes.job.name", "kubernetes.statefulset.name", "kubernetes.daemonset.name", "kubernetes.replicaset.name", "kubernetes.node.uid", "kubernetes.node.hostname", "orchestrator.cluster.name" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.kubernetes\.container\.name : ["myContainerName"] }
+  - match: { hits.hits.0.fields.kubernetes\.cronjob\.name : ["myCronJobName"] }
+  - match: { hits.hits.0.fields.kubernetes\.job\.name : ["myJobName"] }
+  - match: { hits.hits.0.fields.kubernetes\.statefulset\.name : ["myStatefulsetName"] }
+  - match: { hits.hits.0.fields.kubernetes\.daemonset\.name : ["myDaemonsetName"] }
+  - match: { hits.hits.0.fields.kubernetes\.replicaset\.name : ["myReplicasetName"] }
+  - match: { hits.hits.0.fields.kubernetes\.node\.uid : ["myNodeUid"] }
+  - match: { hits.hits.0.fields.kubernetes\.node\.hostname : ["myNodeHostname"] }
+  - match: { hits.hits.0.fields.orchestrator\.cluster\.name : ["myClusterName"] }

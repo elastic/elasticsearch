@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-graph'
-  description 'Elasticsearch Expanded Pack Plugin - Graph'
-  classname 'org.elasticsearch.xpack.graph.Graph'
+  name = 'x-pack-graph'
+  description = 'Elasticsearch Expanded Pack Plugin - Graph'
+  classname ='org.elasticsearch.xpack.graph.Graph'
   extendedPlugins = ['x-pack-core']
 }
 base {

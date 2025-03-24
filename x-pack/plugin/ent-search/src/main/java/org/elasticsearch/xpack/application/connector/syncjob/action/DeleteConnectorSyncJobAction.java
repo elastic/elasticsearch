@@ -28,7 +28,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class DeleteConnectorSyncJobAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/sync_job/delete";
+    public static final String NAME = "cluster:admin/xpack/connector/sync_job/delete";
     public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(NAME);
 
     private DeleteConnectorSyncJobAction() {/* no instances */}

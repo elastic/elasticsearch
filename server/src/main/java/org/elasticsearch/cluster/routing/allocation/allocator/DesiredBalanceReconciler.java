@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -30,10 +31,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.telemetry.metric.DoubleGauge;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-import org.elasticsearch.telemetry.metric.LongGaugeMetric;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
@@ -53,6 +50,10 @@ public class DesiredBalanceReconciler {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceReconciler.class);
 
+    /**
+     * The minimum interval that log messages will be written if the number of undesired shard allocations reaches the percentage of total
+     * shards set by {@link #UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING}.
+     */
     public static final Setting<TimeValue> UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.desired_balance.undesired_allocations.log_interval",
         TimeValue.timeValueHours(1),
@@ -61,6 +62,10 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Warning log messages may be periodically written if the number of shards that are on undesired nodes reaches this percentage setting.
+     * Works together with {@link #UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING} to log on a periodic basis.
+     */
     public static final Setting<Double> UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING = Setting.doubleSetting(
         "cluster.routing.allocation.desired_balance.undesired_allocations.threshold",
         0.1,
@@ -74,22 +79,7 @@ public class DesiredBalanceReconciler {
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
 
-    // stats
-    /**
-     * Number of unassigned shards during last reconciliation
-     */
-    protected final LongGaugeMetric unassignedShards;
-    /**
-     * Total number of assigned shards during last reconciliation
-     */
-    protected final LongGaugeMetric totalAllocations;
-    /**
-     * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
-     */
-    protected final LongGaugeMetric undesiredAllocations;
-    private final DoubleGauge undesiredAllocationsRatio;
-
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(
             threadPool.relativeTimeInMillisSupplier(),
             TimeValue.timeValueMinutes(5)
@@ -99,42 +89,21 @@ public class DesiredBalanceReconciler {
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
         );
-
-        unassignedShards = LongGaugeMetric.create(
-            meterRegistry,
-            "es.allocator.desired_balance.shards.unassigned.current",
-            "Current number of unassigned shards",
-            "{shard}"
-        );
-        totalAllocations = LongGaugeMetric.create(
-            meterRegistry,
-            "es.allocator.desired_balance.shards.current",
-            "Total number of shards",
-            "{shard}"
-        );
-        undesiredAllocations = LongGaugeMetric.create(
-            meterRegistry,
-            "es.allocator.desired_balance.allocations.undesired.current",
-            "Total number of shards allocated on undesired nodes excluding shutting down nodes",
-            "{shard}"
-        );
-        undesiredAllocationsRatio = meterRegistry.registerDoubleGauge(
-            "es.allocator.desired_balance.allocations.undesired.ratio",
-            "Ratio of undesired allocations to shard count excluding shutting down nodes",
-            "1",
-            () -> {
-                var total = totalAllocations.get();
-                var undesired = undesiredAllocations.get();
-                return new DoubleWithAttributes(total != 0 ? (double) undesired / total : 0.0);
-            }
-        );
     }
 
-    public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+    /**
+     * Applies a desired shard allocation to the routing table by initializing and relocating shards in the cluster state.
+     *
+     * @param desiredBalance The new desired cluster shard allocation
+     * @param allocation Cluster state information with which to make decisions, contains routing table metadata that will be modified to
+     *                   reach the given desired balance.
+     * @return {@link DesiredBalanceMetrics.AllocationStats} for this round of reconciliation changes.
+     */
+    public DesiredBalanceMetrics.AllocationStats reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         var nodeIds = allocation.routingNodes().getAllNodeIds();
         allocationOrdering.retainNodes(nodeIds);
         moveOrdering.retainNodes(nodeIds);
-        new Reconciliation(desiredBalance, allocation).run();
+        return new Reconciliation(desiredBalance, allocation).run();
     }
 
     public void clear() {
@@ -142,6 +111,11 @@ public class DesiredBalanceReconciler {
         moveOrdering.clear();
     }
 
+    /**
+     * Handles updating the {@code RoutingNodes} to reflect the next steps towards the new {@code DesiredBalance}. Updates are limited by
+     * throttling (there are limits on the number of concurrent shard moves) or resource constraints (some shard moves might not be
+     * immediately possible until other shards move first).
+     */
     private class Reconciliation {
 
         private final DesiredBalance desiredBalance;
@@ -154,7 +128,7 @@ public class DesiredBalanceReconciler {
             this.routingNodes = allocation.routingNodes();
         }
 
-        void run() {
+        DesiredBalanceMetrics.AllocationStats run() {
             try (var ignored = allocation.withReconcilingFlag()) {
 
                 logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
@@ -163,13 +137,13 @@ public class DesiredBalanceReconciler {
                     // no data nodes, so fail allocation to report red health
                     failAllocationOfNewPrimaries(allocation);
                     logger.trace("no nodes available, nothing to reconcile");
-                    return;
+                    return DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS;
                 }
 
                 if (desiredBalance.assignments().isEmpty()) {
                     // no desired state yet but it is on its way and we'll reroute again when it is ready
                     logger.trace("desired balance is empty, nothing to reconcile");
-                    return;
+                    return DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS;
                 }
 
                 // compute next moves towards current desired balance:
@@ -182,24 +156,34 @@ public class DesiredBalanceReconciler {
                 // 2. move any shards that cannot remain where they are
                 logger.trace("Reconciler#moveShards");
                 moveShards();
+
                 // 3. move any other shards that are desired elsewhere
+                // This is the rebalancing work. The previous calls were necessary, to assign unassigned shard copies, and move shards that
+                // violate resource thresholds. Now we run moves to improve the relative node resource loads.
                 logger.trace("Reconciler#balance");
-                balance();
+                DesiredBalanceMetrics.AllocationStats allocationStats = balance();
 
                 logger.debug("Reconciliation is complete");
+                return allocationStats;
             }
         }
 
+        /**
+         * Checks whether every shard is either assigned or ignored. Expected to be called after {@link #allocateUnassigned()}.
+         */
         private boolean allocateUnassignedInvariant() {
-            // after allocateUnassigned, every shard must be either assigned or ignored
-
             assert routingNodes.unassigned().isEmpty();
 
-            final var shardCounts = allocation.metadata().stream().filter(indexMetadata ->
-            // skip any pre-7.2 closed indices which have no routing table entries at all
-            indexMetadata.getCreationVersion().onOrAfter(IndexVersions.V_7_2_0)
-                || indexMetadata.getState() == IndexMetadata.State.OPEN
-                || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
+            final var shardCounts = allocation.metadata()
+                .projects()
+                .values()
+                .stream()
+                .flatMap(ProjectMetadata::stream)
+                .filter(indexMetadata ->
+                // skip any pre-7.2 closed indices which have no routing table entries at all
+                indexMetadata.getCreationVersion().onOrAfter(IndexVersions.V_7_2_0)
+                    || indexMetadata.getState() == IndexMetadata.State.OPEN
+                    || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
                 .flatMap(
                     indexMetadata -> IntStream.range(0, indexMetadata.getNumberOfShards())
                         .mapToObj(
@@ -261,45 +245,55 @@ public class DesiredBalanceReconciler {
             }
 
             /*
+             * Create some comparators to sort the unassigned shard copies in priority to allocate order.
              * TODO: We could be smarter here and group the shards by index and then
              * use the sorter to save some iterations.
              */
-            final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
-            final Comparator<ShardRouting> comparator = (o1, o2) -> {
+            final PriorityComparator indexPriorityComparator = PriorityComparator.getAllocationComparator(allocation);
+            final Comparator<ShardRouting> shardAllocationPriorityComparator = (o1, o2) -> {
+                // Prioritize assigning a primary shard copy, if one is a primary and the other is not.
                 if (o1.primary() ^ o2.primary()) {
                     return o1.primary() ? -1 : 1;
                 }
+
+                // Then order shards in the same index arbitrarily by shard ID.
                 if (o1.getIndexName().compareTo(o2.getIndexName()) == 0) {
                     return o1.getId() - o2.getId();
                 }
+
+                // Lastly, prioritize system indices, then use index priority of non-system indices, then by age, etc.
+                //
                 // this comparator is more expensive than all the others up there
                 // that's why it's added last even though it could be easier to read
                 // if we'd apply it earlier. this comparator will only differentiate across
                 // indices all shards of the same index is treated equally.
-                final int secondary = secondaryComparator.compare(o1, o2);
-                assert secondary != 0 : "Index names are equal, should be returned early.";
-                return secondary;
+                final int secondaryComparison = indexPriorityComparator.compare(o1, o2);
+                assert secondaryComparison != 0 : "Index names are equal, should be returned early.";
+                return secondaryComparison;
             };
+
             /*
              * we use 2 arrays and move replicas to the second array once we allocated an identical
              * replica in the current iteration to make sure all indices get allocated in the same manner.
-             * The arrays are sorted by primaries first and then by index and shard ID so a 2 indices with
+             * The arrays are sorted by primaries first and then by index and shard ID so 2 indices with
              * 2 replica and 1 shard would look like:
              * [(0,P,IDX1), (0,P,IDX2), (0,R,IDX1), (0,R,IDX1), (0,R,IDX2), (0,R,IDX2)]
              * if we allocate for instance (0, R, IDX1) we move the second replica to the secondary array and proceed with
              * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ignoreUnassigned.
              */
-            ShardRouting[] primary = unassigned.drain();
-            ShardRouting[] secondary = new ShardRouting[primary.length];
-            int secondaryLength = 0;
-            int primaryLength = primary.length;
-            ArrayUtil.timSort(primary, comparator);
+            ShardRouting[] orderedShardAllocationList = unassigned.drain();
+            ShardRouting[] deferredShardAllocationList = new ShardRouting[orderedShardAllocationList.length];
+            int deferredShardAllocationListLength = 0;
+            int orderedShardAllocationListLength = orderedShardAllocationList.length;
+            ArrayUtil.timSort(orderedShardAllocationList, shardAllocationPriorityComparator);
 
             do {
-                nextShard: for (int i = 0; i < primaryLength; i++) {
-                    final var shard = primary[i];
+                nextShard: for (int i = 0; i < orderedShardAllocationListLength; i++) {
+                    final var shard = orderedShardAllocationList[i];
                     final var assignment = desiredBalance.getAssignment(shard.shardId());
+                    // An ignored shard copy is one that has no desired balance assignment.
                     final boolean ignored = assignment == null || isIgnored(routingNodes, shard, assignment);
+
                     AllocationStatus unallocatedStatus;
                     if (ignored) {
                         unallocatedStatus = AllocationStatus.NO_ATTEMPT;
@@ -329,8 +323,13 @@ public class DesiredBalanceReconciler {
                                     if (shard.primary() == false) {
                                         // copy over the same replica shards to the secondary array so they will get allocated
                                         // in a subsequent iteration, allowing replicas of other shards to be allocated first
-                                        while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
-                                            secondary[secondaryLength++] = primary[++i];
+                                        while (i < orderedShardAllocationListLength - 1
+                                            && shardAllocationPriorityComparator.compare(
+                                                orderedShardAllocationList[i],
+                                                orderedShardAllocationList[i + 1]
+                                            ) == 0) {
+                                            deferredShardAllocationList[deferredShardAllocationListLength++] =
+                                                orderedShardAllocationList[++i];
                                         }
                                     }
                                     continue nextShard;
@@ -350,18 +349,23 @@ public class DesiredBalanceReconciler {
                     logger.debug("No eligible node found to assign shard [{}]", shard);
                     unassigned.ignoreShard(shard, unallocatedStatus, allocation.changes());
                     if (shard.primary() == false) {
-                        // we could not allocate it and we are a replica - check if we can ignore the other replicas
-                        while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
-                            unassigned.ignoreShard(primary[++i], unallocatedStatus, allocation.changes());
+                        // We could not allocate the shard copy and the copy is a replica: check if we can ignore the other unassigned
+                        // replicas.
+                        while (i < orderedShardAllocationListLength - 1
+                            && shardAllocationPriorityComparator.compare(
+                                orderedShardAllocationList[i],
+                                orderedShardAllocationList[i + 1]
+                            ) == 0) {
+                            unassigned.ignoreShard(orderedShardAllocationList[++i], unallocatedStatus, allocation.changes());
                         }
                     }
                 }
-                primaryLength = secondaryLength;
-                ShardRouting[] tmp = primary;
-                primary = secondary;
-                secondary = tmp;
-                secondaryLength = 0;
-            } while (primaryLength > 0);
+                ShardRouting[] tmp = orderedShardAllocationList;
+                orderedShardAllocationList = deferredShardAllocationList;
+                deferredShardAllocationList = tmp;
+                orderedShardAllocationListLength = deferredShardAllocationListLength;
+                deferredShardAllocationListLength = 0;
+            } while (orderedShardAllocationListLength > 0);
         }
 
         private final class NodeIdsIterator implements Iterator<String> {
@@ -369,11 +373,7 @@ public class DesiredBalanceReconciler {
             private final ShardRouting shard;
             private final RoutingNodes routingNodes;
             /**
-             * Contains the source of the nodeIds used for shard assignment. It could be:
-             * * desired - when using desired nodes
-             * * forced initial allocation - when initial allocation is forced to certain nodes by shrink/split/clone index operation
-             * * fallback - when assigning the primary shard is temporarily not possible on desired nodes,
-             *              and it is assigned elsewhere in the cluster
+             * Contains the source of the nodeIds used for shard assignment.
              */
             private NodeIdSource source;
             private Iterator<String> nodeIds;
@@ -429,11 +429,21 @@ public class DesiredBalanceReconciler {
         }
 
         private enum NodeIdSource {
+            // Using desired nodes.
             DESIRED,
+            // Initial allocation is forced to certain nodes by shrink/split/clone index operation.
             FORCED_INITIAL_ALLOCATION,
+            // Assigning the primary shard is temporarily not possible on desired nodes, and it is assigned elsewhere in the cluster.
             FALLBACK;
         }
 
+        /**
+         * Checks whether the {@code shard} copy has been assigned to a node or not in {@code assignment}.
+         * @param routingNodes The current routing information
+         * @param shard A particular shard copy
+         * @param assignment The assignments for shard primary and replica copies
+         * @return Whether the shard has a node assignment.
+         */
         private boolean isIgnored(RoutingNodes routingNodes, ShardRouting shard, ShardAssignment assignment) {
             if (assignment.ignored() == 0) {
                 // no shards are ignored
@@ -510,11 +520,7 @@ public class DesiredBalanceReconciler {
             }
         }
 
-        private void balance() {
-            if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
-                return;
-            }
-
+        private DesiredBalanceMetrics.AllocationStats balance() {
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
             int totalAllocations = 0;
             int undesiredAllocationsExcludingShuttingDownNodes = 0;
@@ -544,7 +550,13 @@ public class DesiredBalanceReconciler {
                 }
 
                 if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
+                    // shard is not on a shutting down node, nor is it on a desired node per the previous check.
                     undesiredAllocationsExcludingShuttingDownNodes++;
+                }
+
+                if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
+                    // Rebalancing is disabled, we're just here to collect the AllocationStats to return.
+                    continue;
                 }
 
                 if (allocation.deciders().canRebalance(shardRouting, allocation).type() != Decision.Type.YES) {
@@ -578,11 +590,12 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            DesiredBalanceReconciler.this.unassignedShards.set(unassignedShards);
-            DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocationsExcludingShuttingDownNodes);
-            DesiredBalanceReconciler.this.totalAllocations.set(totalAllocations);
-
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
+            return new DesiredBalanceMetrics.AllocationStats(
+                unassignedShards,
+                totalAllocations,
+                undesiredAllocationsExcludingShuttingDownNodes
+            );
         }
 
         private void maybeLogUndesiredAllocationsWarning(int totalAllocations, int undesiredAllocations, int nodeCount) {

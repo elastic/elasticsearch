@@ -33,18 +33,19 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AnyOperatorTestCase;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -172,12 +173,11 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         var metricField = new NumberFieldMapper.NumberFieldType("metric", NumberFieldMapper.NumberType.LONG);
         OperatorTestCase.runDriver(
-            new Driver(
+            TestDriverFactory.create(
                 driverContext,
                 timeSeriesFactory.get(driverContext),
                 List.of(ValuesSourceReaderOperatorTests.factory(reader, metricField, ElementType.LONG).get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         );
         docs.sort(Comparator.comparing(Doc::host).thenComparing(Comparator.comparingLong(Doc::timestamp).reversed()));
@@ -246,12 +246,11 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 var driverContext = driverContext();
                 List<Page> results = new ArrayList<>();
                 OperatorTestCase.runDriver(
-                    new Driver(
+                    TestDriverFactory.create(
                         driverContext,
                         timeSeriesFactory.get(driverContext),
                         List.of(),
-                        new TestResultPageSinkOperator(results::add),
-                        () -> {}
+                        new TestResultPageSinkOperator(results::add)
                     )
                 );
                 assertThat(results, empty());
@@ -304,15 +303,14 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         var voltageField = new NumberFieldMapper.NumberFieldType("voltage", NumberFieldMapper.NumberType.LONG);
         var hostnameField = new KeywordFieldMapper.KeywordFieldType("hostname");
         OperatorTestCase.runDriver(
-            new Driver(
+            TestDriverFactory.create(
                 ctx,
                 timeSeriesFactory.get(ctx),
                 List.of(
                     ValuesSourceReaderOperatorTests.factory(reader, voltageField, ElementType.LONG).get(ctx),
                     ValuesSourceReaderOperatorTests.factory(reader, hostnameField, ElementType.BYTES_REF).get(ctx)
                 ),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         );
         OperatorTestCase.assertDriverContext(ctx);
@@ -363,12 +361,12 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
         fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-        final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
+        var routingPathFields = new RoutingPathFields(null);
         for (int i = 0; i < dimensions.length; i += 2) {
             if (dimensions[i + 1] instanceof Number n) {
-                builder.addLong(dimensions[i].toString(), n.longValue());
+                routingPathFields.addLong(dimensions[i].toString(), n.longValue());
             } else {
-                builder.addString(dimensions[i].toString(), dimensions[i + 1].toString());
+                routingPathFields.addString(dimensions[i].toString(), dimensions[i + 1].toString());
                 fields.add(new SortedSetDocValuesField(dimensions[i].toString(), new BytesRef(dimensions[i + 1].toString())));
             }
         }
@@ -382,7 +380,9 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             }
         }
         // Use legacy tsid to make tests easier to understand:
-        fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.buildLegacyTsid().toBytesRef()));
+        fields.add(
+            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef())
+        );
         iw.addDocument(fields);
     }
 }

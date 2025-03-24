@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 
-import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
@@ -61,7 +61,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata originalIndexMetadata = clusterState.metadata().index(index);
+        IndexMetadata originalIndexMetadata = clusterState.metadata().getProject().index(index);
         if (originalIndexMetadata == null) {
             // Index must have been since deleted, skip the shrink action
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", NAME, index.getName());
@@ -71,12 +71,11 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         String originalIndex = index.getName();
         String targetIndexName = targetIndexNameSupplier.apply(originalIndex, originalIndexMetadata.getLifecycleExecutionState());
         String policyName = originalIndexMetadata.getLifecyclePolicyName();
-        IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
+            String errorMessage = Strings.format(
                 "index [%s] is not part of a data stream. stopping execution of lifecycle "
                     + "[%s] until the index is added to a data stream",
                 originalIndex,
@@ -86,10 +85,9 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
             throw new IllegalStateException(errorMessage);
         }
 
-        boolean isFailureStoreWriteIndex = index.equals(dataStream.getFailureStoreWriteIndex());
+        boolean isFailureStoreWriteIndex = index.equals(dataStream.getWriteFailureIndex());
         if (isFailureStoreWriteIndex || dataStream.getWriteIndex().equals(index)) {
-            String errorMessage = String.format(
-                Locale.ROOT,
+            String errorMessage = Strings.format(
                 "index [%s] is the%s write index for data stream [%s], pausing "
                     + "ILM execution of lifecycle [%s] until this index is no longer the write index for the data stream via manual or "
                     + "automated rollover",
@@ -102,11 +100,10 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
             throw new IllegalStateException(errorMessage);
         }
 
-        IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = clusterState.metadata().getProject().index(targetIndexName);
         if (targetIndexMetadata == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
-                "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for" + " index [%s]",
+            String errorMessage = Strings.format(
+                "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for index [%s]",
                 targetIndexName,
                 policyName,
                 originalIndex

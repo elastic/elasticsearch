@@ -12,19 +12,20 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.rule.Rule;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 /**
  * Replace any reference attribute with its source, if it does not affect the result.
  * This avoids ulterior look-ups between attributes and its source across nodes.
  */
-public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
+public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext> {
 
     @Override
-    public LogicalPlan apply(LogicalPlan plan) {
+    public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
         var collectRefs = new AttributeMap<Expression>();
 
         java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
@@ -39,7 +40,7 @@ public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan>
                 shouldCollect = c.foldable();
             }
             if (shouldCollect) {
-                collectRefs.put(a.toAttribute(), Literal.of(c));
+                collectRefs.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
             }
         });
         if (collectRefs.isEmpty()) {

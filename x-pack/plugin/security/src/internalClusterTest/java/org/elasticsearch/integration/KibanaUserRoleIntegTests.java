@@ -14,13 +14,16 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRespon
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.util.Map;
+import java.util.Random;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -58,6 +61,14 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
     @Override
     public String configUsersRoles() {
         return super.configUsersRoles() + "my_kibana_user:kibana_user\n" + "kibana_user:kibana_user";
+    }
+
+    @Override
+    protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
+        // Prevent INDEX_CHECK_ON_STARTUP as a random setting since it could result in indices being checked for corruption before opening.
+        // When corruption is detected, it will prevent the shard from being opened. This check is expensive in terms of CPU and memory
+        // usage and causes intermittent CI failures due to timeout.
+        return super.setRandomIndexSettings(random, builder).put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false);
     }
 
     public void testFieldMappings() throws Exception {
@@ -138,12 +149,12 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String field = "foo";
         indexRandom(true, prepareIndex(index).setSource(field, "bar"));
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
 
         response = client().filterWithHeader(
             singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
-        ).admin().indices().prepareGetIndex().setIndices(index).get();
+        ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
     }
 
@@ -155,7 +166,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
         GetMappingsResponse response = client().filterWithHeader(
             singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
-        ).admin().indices().prepareGetMappings("logstash-*").get();
+        ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "logstash-*").get();
         Map<String, MappingMetadata> mappingsMap = response.getMappings();
         assertNotNull(mappingsMap);
         assertNotNull(mappingsMap.get(index));

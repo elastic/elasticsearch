@@ -1,6 +1,0 @@
-pr: 110603
-summary: Stop iterating over all fields to extract @timestamp value
-area: TSDB
-type: enhancement
-issues:
- - 92297

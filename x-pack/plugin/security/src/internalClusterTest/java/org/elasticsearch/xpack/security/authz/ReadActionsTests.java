@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,9 +39,14 @@ import static org.hamcrest.number.OrderingComparison.greaterThan;
 
 public class ReadActionsTests extends SecurityIntegTestCase {
 
+    @After
+    public void cleanupSecurityIndex() {
+        super.deleteSecurityIndex();
+    }
+
     @Override
     protected String configRoles() {
-        return Strings.format("""
+        return super.configRoles() + "\n" + Strings.format("""
             %s:
               cluster: [ ALL ]
               indices:

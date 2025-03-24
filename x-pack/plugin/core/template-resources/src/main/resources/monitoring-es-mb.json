@@ -464,6 +464,13 @@
                             }
                           }
                         },
+                        "threads": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
                         "gc": {
                           "properties": {
                             "collectors": {
@@ -562,6 +569,20 @@
                                   "type": "long"
                                 }
                               }
+                            },
+                            "fetch_total": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "fetch_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
                             }
                           }
                         },
@@ -586,11 +607,54 @@
                             }
                           }
                         },
+                        "get": {
+                          "properties": {
+                            "total": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "merges": {
+                          "properties": {
+                            "total": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "total_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
                         "fielddata": {
                           "properties": {
                             "memory": {
                               "properties": {
                                 "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "evictions": {
+                              "properties": {
+                                "count": {
                                   "type": "long"
                                 }
                               }
@@ -645,6 +709,60 @@
                             "memory": {
                               "properties": {
                                 "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "translog": {
+                          "properties": {
+                            "operations": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "refresh": {
+                          "properties": {
+                            "total": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "total_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "flush": {
+                          "properties": {
+                            "total": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "total_time": {
+                              "properties": {
+                                "ms": {
                                   "type": "long"
                                 }
                               }
@@ -768,6 +886,20 @@
                     },
                     "process": {
                       "properties": {
+                        "mem": {
+                          "properties": {
+                            "total_virtual": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "open_file_descriptors": {
+                          "type": "long"
+                        },
                         "cpu": {
                           "properties": {
                             "pct": {
@@ -882,6 +1014,88 @@
                                 }
                               }
                             },
+                            "active": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "force_merge": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "active": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "flush": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "active": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "search_worker": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "active": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
                             "queue": {
                               "properties": {
                                 "count": {
@@ -894,6 +1108,38 @@
                         "get": {
                           "properties": {
                             "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "active": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "system_read": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "active": {
                               "properties": {
                                 "count": {
                                   "type": "long"
@@ -918,6 +1164,38 @@
                                 }
                               }
                             },
+                            "active": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "esql_worker": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "active": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
                             "queue": {
                               "properties": {
                                 "count": {
@@ -930,6 +1208,38 @@
                         "bulk": {
                           "properties": {
                             "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "active": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "system_write": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "active": {
                               "properties": {
                                 "count": {
                                   "type": "long"
@@ -954,12 +1264,194 @@
                                 }
                               }
                             },
+                            "active": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
                             "queue": {
                               "properties": {
                                 "count": {
                                   "type": "long"
                                 }
                               }
+                            }
+                          }
+                        },
+                        "snapshot": {
+                          "properties": {
+                            "rejected": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "active": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "queue": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "transport": {
+                      "properties": {
+                        "tx": {
+                          "properties": {
+                            "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "rx": {
+                          "properties": {
+                            "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "ingest": {
+                      "properties": {
+                        "total": {
+                          "properties": {
+                            "current": {
+                              "type": "long"
+                            },
+                            "time_in_millis": {
+                              "type": "long"
+                            },
+                            "count": {
+                              "type": "long"
+                            },
+                            "failed": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "indexing_pressure": {
+                      "properties": {
+                        "memory": {
+                          "properties": {
+                            "current": {
+                              "properties": {
+                                "all": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "coordinating": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "replica": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "combined_coordinating_and_primary": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "primary": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "total": {
+                              "properties": {
+                                "all": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "coordinating": {
+                                  "properties": {
+                                    "rejections": {
+                                      "type": "long"
+                                    },
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "replica": {
+                                  "properties": {
+                                    "rejections": {
+                                      "type": "long"
+                                    },
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "combined_coordinating_and_primary": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "primary": {
+                                  "properties": {
+                                    "rejections": {
+                                      "type": "long"
+                                    },
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "limit_in_bytes": {
+                              "type": "long"
                             }
                           }
                         }
@@ -1514,6 +2006,17 @@
                   "type": "keyword"
                 },
                 "status": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "tier_preference": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "creation_date": {
+                  "type": "date"
+                },
+                "version": {
                   "ignore_above": 1024,
                   "type": "keyword"
                 },

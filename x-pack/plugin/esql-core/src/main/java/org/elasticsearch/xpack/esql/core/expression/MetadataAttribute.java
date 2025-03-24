@@ -29,8 +29,10 @@ import java.util.Objects;
 import static org.elasticsearch.core.Tuple.tuple;
 
 public class MetadataAttribute extends TypedAttribute {
-    public static final String TIMESTAMP_FIELD = "@timestamp";
+    public static final String TIMESTAMP_FIELD = "@timestamp"; // this is not a true metadata attribute
     public static final String TSID_FIELD = "_tsid";
+    public static final String SCORE = "_score";
+    public static final String INDEX = "_index";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -41,7 +43,7 @@ public class MetadataAttribute extends TypedAttribute {
     private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
         "_version",
         tuple(DataType.LONG, false), // _version field is not searchable
-        "_index",
+        INDEX,
         tuple(DataType.KEYWORD, true),
         IdFieldMapper.NAME,
         tuple(DataType.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
@@ -50,7 +52,9 @@ public class MetadataAttribute extends TypedAttribute {
         SourceFieldMapper.NAME,
         tuple(DataType.SOURCE, false),
         IndexModeFieldMapper.NAME,
-        tuple(DataType.KEYWORD, true)
+        tuple(DataType.KEYWORD, true),
+        SCORE,
+        tuple(DataType.DOUBLE, false)
     );
 
     private final boolean searchable;
@@ -147,26 +151,7 @@ public class MetadataAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(
-            this,
-            (source, name, dataType, qualifier, nullability, id, synthetic, searchable1) -> new MetadataAttribute(
-                source,
-                name,
-                dataType,
-                qualifier,
-                nullability,
-                id,
-                synthetic,
-                searchable1
-            ),
-            name(),
-            dataType(),
-            (String) null,
-            nullable(),
-            id(),
-            synthetic(),
-            searchable
-        );
+        return NodeInfo.create(this, MetadataAttribute::new, name(), dataType(), nullable(), id(), synthetic(), searchable);
     }
 
     public boolean searchable() {

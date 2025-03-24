@@ -10,7 +10,8 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
@@ -35,7 +36,7 @@ public interface IndexSettingProvider {
      *                                              otherwise <code>null</code>
      * @param templateIndexMode                     The index mode defined in template if template creates data streams,
      *                                              otherwise <code>null</code> is returned.
-     * @param metadata                              The current metadata instance that doesn't yet contain the index to be created
+     * @param projectMetadata                       The current project metadata instance that doesn't yet contain the index to be created
      * @param resolvedAt                            The time the request to create this new index was accepted.
      * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
      *                                              defined on the create index request
@@ -45,7 +46,7 @@ public interface IndexSettingProvider {
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
@@ -54,7 +55,7 @@ public interface IndexSettingProvider {
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.
      */
-    record Parameters(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
+    record Parameters(ClusterService clusterService, CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
 
     }
 

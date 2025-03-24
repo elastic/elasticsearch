@@ -16,6 +16,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -35,16 +36,13 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
@@ -56,6 +54,10 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_
 public final class DocumentParser {
 
     public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
+    static final NodeFeature FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE = new NodeFeature(
+        "mapper.fix_parsing_subobjects_false_dynamic_false"
+    );
+    private static final String NOOP_FIELD_MAPPER_NAME = "no-op";
 
     private final XContentParserConfiguration parserConfiguration;
     private final MappingParserContext mappingParserContext;
@@ -80,10 +82,14 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
-        XContentMeteringParserDecorator meteringParserDecorator = source.getDocumentSizeObserver();
+        XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
         try (
             XContentParser parser = meteringParserDecorator.decorate(
-                XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
+                XContentHelper.createParser(
+                    parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
+                    source.source(),
+                    xContentType
+                )
             )
         ) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
@@ -148,137 +154,13 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
-            // Record additional entries for {@link IgnoredSourceFieldMapper} before calling #postParse, so that they get stored.
-            addIgnoredSourceMissingValues(context);
-
+            context.processArrayOffsets(context);
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }
-    }
-
-    private void addIgnoredSourceMissingValues(DocumentParserContext context) throws IOException {
-        Collection<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues = context.getIgnoredFieldsMissingValues();
-        if (ignoredFieldsMissingValues.isEmpty()) {
-            return;
-        }
-
-        // Clean up any conflicting ignored values, to avoid double-printing them as array elements in synthetic source.
-        Map<String, IgnoredSourceFieldMapper.NameValue> fields = new HashMap<>(ignoredFieldsMissingValues.size());
-        for (var field : ignoredFieldsMissingValues) {
-            fields.put(field.name(), field);
-        }
-        context.deduplicateIgnoredFieldValues(fields.keySet());
-
-        assert context.mappingLookup().isSourceSynthetic();
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                parserConfiguration,
-                context.sourceToParse().source(),
-                context.sourceToParse().getXContentType()
-            )
-        ) {
-            DocumentParserContext newContext = new RootDocumentParserContext(
-                context.mappingLookup(),
-                mappingParserContext,
-                context.sourceToParse(),
-                parser
-            );
-            var nameValues = parseDocForMissingValues(newContext, fields);
-            for (var nameValue : nameValues) {
-                context.addIgnoredField(nameValue);
-            }
-        }
-    }
-
-    /**
-     * Simplified parsing version for retrieving the source of a given set of fields.
-     */
-    private static List<IgnoredSourceFieldMapper.NameValue> parseDocForMissingValues(
-        DocumentParserContext context,
-        Map<String, IgnoredSourceFieldMapper.NameValue> fields
-    ) throws IOException {
-        // Generate all possible parent names for the given fields.
-        // This is used to skip processing objects that can't generate missing values.
-        Set<String> parentNames = getPossibleParentNames(fields.keySet());
-        List<IgnoredSourceFieldMapper.NameValue> result = new ArrayList<>();
-
-        XContentParser parser = context.parser();
-        XContentParser.Token currentToken = parser.nextToken();
-        List<String> path = new ArrayList<>();
-        List<Boolean> isObjectInPath = new ArrayList<>();  // Tracks if path components correspond to an object or an array.
-        String fieldName = null;
-        while (currentToken != null) {
-            while (currentToken != XContentParser.Token.FIELD_NAME) {
-                if (fieldName != null
-                    && (currentToken == XContentParser.Token.START_OBJECT || currentToken == XContentParser.Token.START_ARRAY)) {
-                    if (parentNames.contains(getCurrentPath(path, fieldName)) == false) {
-                        // No missing value under this parsing subtree, skip it.
-                        parser.skipChildren();
-                    } else {
-                        path.add(fieldName);
-                        isObjectInPath.add(currentToken == XContentParser.Token.START_OBJECT);
-                    }
-                    fieldName = null;
-                } else if (currentToken == XContentParser.Token.END_OBJECT || currentToken == XContentParser.Token.END_ARRAY) {
-                    // Remove the path, if the scope type matches the one when the path was added.
-                    if (isObjectInPath.isEmpty() == false
-                        && (isObjectInPath.getLast() && currentToken == XContentParser.Token.END_OBJECT
-                            || isObjectInPath.getLast() == false && currentToken == XContentParser.Token.END_ARRAY)) {
-                        path.removeLast();
-                        isObjectInPath.removeLast();
-                    }
-                    fieldName = null;
-                }
-                currentToken = parser.nextToken();
-                if (currentToken == null) {
-                    return result;
-                }
-            }
-            fieldName = parser.currentName();
-            String fullName = getCurrentPath(path, fieldName);
-            var leaf = fields.get(fullName);  // There may be multiple matches for array elements, don't use #remove.
-            if (leaf != null) {
-                parser.nextToken();  // Advance the parser to the value to be read.
-                result.add(leaf.cloneWithValue(context.encodeFlattenedToken()));
-                fieldName = null;
-            }
-            currentToken = parser.nextToken();
-        }
-        return result;
-    }
-
-    private static String getCurrentPath(List<String> path, String fieldName) {
-        assert fieldName != null;
-        return path.isEmpty() ? fieldName : String.join(".", path) + "." + fieldName;
-    }
-
-    /**
-     * Generates all possible parent object names for the given full names.
-     * For instance, for input ['path.to.foo', 'another.path.to.bar'], it returns:
-     * [ 'path', 'path.to', 'another', 'another.path', 'another.path.to' ]
-     */
-    private static Set<String> getPossibleParentNames(Set<String> fullPaths) {
-        if (fullPaths.isEmpty()) {
-            return Collections.emptySet();
-        }
-        Set<String> paths = new HashSet<>();
-        for (String fullPath : fullPaths) {
-            String[] split = fullPath.split("\\.");
-            if (split.length < 2) {
-                continue;
-            }
-            StringBuilder builder = new StringBuilder(split[0]);
-            paths.add(builder.toString());
-            for (int i = 1; i < split.length - 1; i++) {
-                builder.append(".");
-                builder.append(split[i]);
-                paths.add(builder.toString());
-            }
-        }
-        return paths;
     }
 
     private static void executeIndexTimeScripts(DocumentParserContext context) {
@@ -426,7 +308,10 @@ public final class DocumentParser {
             throwOnConcreteValue(context.parent(), currentFieldName, context);
         }
 
-        if (context.canAddIgnoredField() && getSourceKeepMode(context, context.parent().sourceKeepMode()) == Mapper.SourceKeepMode.ALL) {
+        var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
+        if (context.canAddIgnoredField()
+            && (sourceKeepMode == Mapper.SourceKeepMode.ALL
+                || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope()))) {
             context = context.addIgnoredFieldFromContext(
                 new IgnoredSourceFieldMapper.NameValue(
                     context.parent().fullPath(),
@@ -571,9 +456,11 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
+                var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
-                        || getSourceKeepMode(context, fieldMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL
+                        || sourceKeepMode == Mapper.SourceKeepMode.ALL
+                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
                     context = context.addIgnoredFieldFromContext(
                         IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
@@ -633,6 +520,7 @@ public final class DocumentParser {
 
     private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
         assert currentFieldName != null;
+        context.setImmediateXContentParent(context.parser().currentToken());
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
             doParseObject(context, currentFieldName, objectMapper);
@@ -654,7 +542,8 @@ public final class DocumentParser {
 
     private static void parseObjectDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
         ensureNotStrict(context, currentFieldName);
-        if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
+        // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
+        if (context.dynamic() == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
             if (context.canAddIgnoredField()) {
                 context.addIgnoredField(
@@ -724,6 +613,12 @@ public final class DocumentParser {
     }
 
     private static void parseArray(DocumentParserContext context, String lastFieldName) throws IOException {
+        // Record previous immediate parent, so that it can be reset after array has been parsed.
+        // This is for recording array offset with synthetic source. Only if the immediate parent is an array,
+        // then the offsets can be accounted accurately.
+        var prev = context.getImmediateXContentParent();
+        context.setImmediateXContentParent(context.parser().currentToken());
+
         Mapper mapper = getLeafMapper(context, lastFieldName);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
@@ -737,6 +632,8 @@ public final class DocumentParser {
         } else {
             parseArrayDynamic(context, lastFieldName);
         }
+        // Reset previous immediate parent
+        context.setImmediateXContentParent(prev);
     }
 
     private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
@@ -801,19 +698,18 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
+        boolean supportStoringArrayOffsets = mapper != null && mapper.supportStoringArrayOffsets();
         String fullPath = context.path().pathAsText(arrayFieldName);
 
         // Check if we need to record the array source. This only applies to synthetic source.
         boolean canRemoveSingleLeafElement = false;
-        if (context.canAddIgnoredField()) {
+        if (context.canAddIgnoredField() && supportStoringArrayOffsets == false) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
             if (mapper instanceof ObjectMapper objectMapper) {
                 mode = getSourceKeepMode(context, objectMapper.sourceKeepMode());
                 objectWithFallbackSyntheticSource = mode == Mapper.SourceKeepMode.ALL
-                    // Inside nested objects we always store object arrays as a workaround for #115261.
-                    || ((context.inNestedScope() || mode == Mapper.SourceKeepMode.ARRAYS)
-                        && objectMapper instanceof NestedObjectMapper == false);
+                    || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false);
             }
             boolean fieldWithFallbackSyntheticSource = false;
             boolean fieldWithStoredArraySource = false;
@@ -826,6 +722,8 @@ public final class DocumentParser {
 
             canRemoveSingleLeafElement = mapper instanceof FieldMapper
                 && mode == Mapper.SourceKeepMode.ARRAYS
+                && context.inArrayScope() == false
+                && mapper.leafName().equals(NOOP_FIELD_MAPPER_NAME) == false
                 && fieldWithFallbackSyntheticSource == false
                 && copyToFieldHasValuesInDocument == false;
 
@@ -849,13 +747,14 @@ public final class DocumentParser {
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
+        XContentParser.Token previousToken = parser.currentToken();
         int elements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                elements = Integer.MAX_VALUE;
+                elements = 2;
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
-                elements = Integer.MAX_VALUE;
+                elements = 2;
                 parseArray(context, lastFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 elements++;
@@ -867,6 +766,14 @@ public final class DocumentParser {
                 elements++;
                 parseValue(context, lastFieldName);
             }
+            previousToken = token;
+        }
+        if (mapper != null
+            && context.canAddIgnoredField()
+            && mapper.supportStoringArrayOffsets()
+            && previousToken == XContentParser.Token.START_ARRAY
+            && context.isImmediateParentAnArray()) {
+            context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
         }
         if (elements <= 1 && canRemoveSingleLeafElement) {
             context.removeLastIgnoredField(fullPath);
@@ -1045,28 +952,34 @@ public final class DocumentParser {
     }
 
     private static FieldMapper noopFieldMapper(String path) {
-        return new FieldMapper("no-op", new MappedFieldType("no-op", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
-            @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-                throw new UnsupportedOperationException();
-            }
+        return new FieldMapper(
+            NOOP_FIELD_MAPPER_NAME,
+            new MappedFieldType(NOOP_FIELD_MAPPER_NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+                @Override
+                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                    throw new UnsupportedOperationException();
+                }
 
-            @Override
-            public String typeName() {
-                throw new UnsupportedOperationException();
-            }
+                @Override
+                public String typeName() {
+                    throw new UnsupportedOperationException();
+                }
 
-            @Override
-            public Query termQuery(Object value, SearchExecutionContext context) {
-                throw new UnsupportedOperationException();
-            }
-        }, FieldMapper.BuilderParams.empty()) {
+                @Override
+                public Query termQuery(Object value, SearchExecutionContext context) {
+                    throw new UnsupportedOperationException();
+                }
+            },
+            FieldMapper.BuilderParams.empty()
+        ) {
 
             @Override
             protected void parseCreateField(DocumentParserContext context) {
                 // Run-time fields are mapped to this mapper, so it needs to handle storing values for use in synthetic source.
                 // #parseValue calls this method once the run-time field is created.
-                if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
+                var fieldType = context.mappingLookup().getFieldType(path);
+                boolean isRuntimeField = fieldType instanceof AbstractScriptFieldType;
+                if ((context.dynamic() == ObjectMapper.Dynamic.RUNTIME || isRuntimeField) && context.canAddIgnoredField()) {
                     try {
                         context.addIgnoredField(
                             IgnoredSourceFieldMapper.NameValue.fromContext(context, path, context.encodeFlattenedToken())
@@ -1134,7 +1047,7 @@ public final class DocumentParser {
             protected SyntheticSourceSupport syntheticSourceSupport() {
                 // Opt out of fallback synthetic source implementation
                 // since there is custom logic in #parseCreateField().
-                return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
+                return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
             }
         };
     }

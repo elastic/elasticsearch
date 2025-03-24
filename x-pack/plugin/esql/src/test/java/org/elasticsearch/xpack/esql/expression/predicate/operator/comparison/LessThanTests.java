@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -111,10 +112,10 @@ public class LessThanTests extends AbstractScalarFunctionTestCase {
                 "LessThanLongsEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Number) l).longValue() < ((Number) r).longValue(),
+                (l, r) -> ((Instant) l).isBefore((Instant) r),
                 DataType.BOOLEAN,
-                TestCaseSupplier.dateCases(),
-                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateNanosCases(),
                 List.of(),
                 false
             )
@@ -125,10 +126,38 @@ public class LessThanTests extends AbstractScalarFunctionTestCase {
                 "LessThanLongsEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Number) l).longValue() < ((Number) r).longValue(),
+                (l, r) -> ((Instant) l).isBefore((Instant) r),
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanNanosMillisEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((Instant) l).isBefore((Instant) r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((Instant) l).isBefore((Instant) r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
                 List.of(),
                 false
             )
@@ -143,17 +172,7 @@ public class LessThanTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(true, suppliers),
-                (o, v, t) -> AbstractScalarFunctionTestCase.errorMessageStringForBinaryOperators(
-                    o,
-                    v,
-                    t,
-                    (l, p) -> "date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
-                )
-            )
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -28,8 +28,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -53,7 +57,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.builder()
@@ -72,10 +76,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     .allowAliasToMultipleIndices(false)
                     .allowClosedIndices(true)
                     .ignoreThrottled(false)
-                    .allowFailureIndices(true)
+                    .allowSelectors(false)
                     .build()
             )
             .build();
+
         private boolean includeDefaults = false;
         private boolean verbose = false;
 
@@ -103,6 +108,16 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return null;
         }
 
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
@@ -112,23 +127,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             } else {
                 this.includeDefaults = false;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 this.verbose = in.readBoolean();
             } else {
                 this.verbose = false;
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalStringArray(names);
-            indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeBoolean(includeDefaults);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
-                out.writeBoolean(verbose);
             }
         }
 
@@ -231,9 +233,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             );
             public static final ParseField FAILURE_STORE_ENABLED = new ParseField("enabled");
             public static final ParseField MAXIMUM_TIMESTAMP = new ParseField("maximum_timestamp");
+            public static final ParseField INDEX_MODE = new ParseField("index_mode");
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
+            private final boolean failureStoreEffectivelyEnabled; // Must be serialized independently of dataStream as depends on settings
             @Nullable
             private final String indexTemplate;
             @Nullable
@@ -244,18 +248,23 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final boolean templatePreferIlmValue;
             @Nullable
             private final Long maximumTimestamp;
+            @Nullable
+            private final String indexMode;
 
             public DataStreamInfo(
                 DataStream dataStream,
+                boolean failureStoreEffectivelyEnabled,
                 ClusterHealthStatus dataStreamStatus,
                 @Nullable String indexTemplate,
                 @Nullable String ilmPolicyName,
                 @Nullable TimeSeries timeSeries,
                 Map<Index, IndexProperties> indexSettingsValues,
                 boolean templatePreferIlmValue,
-                @Nullable Long maximumTimestamp
+                @Nullable Long maximumTimestamp,
+                @Nullable String indexMode
             ) {
                 this.dataStream = dataStream;
+                this.failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
                 this.ilmPolicyName = ilmPolicyName;
@@ -263,24 +272,15 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.indexSettingsValues = indexSettingsValues;
                 this.templatePreferIlmValue = templatePreferIlmValue;
                 this.maximumTimestamp = maximumTimestamp;
-            }
-
-            @SuppressWarnings("unchecked")
-            DataStreamInfo(StreamInput in) throws IOException {
-                this(
-                    DataStream.read(in),
-                    ClusterHealthStatus.readFrom(in),
-                    in.readOptionalString(),
-                    in.readOptionalString(),
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
-                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readMap(Index::new, IndexProperties::new) : Map.of(),
-                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true,
-                    in.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE) ? in.readOptionalVLong() : null
-                );
+                this.indexMode = indexMode;
             }
 
             public DataStream getDataStream() {
                 return dataStream;
+            }
+
+            public boolean isFailureStoreEffectivelyEnabled() {
+                return failureStoreEffectivelyEnabled;
             }
 
             public ClusterHealthStatus getDataStreamStatus() {
@@ -315,9 +315,22 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return maximumTimestamp;
             }
 
+            @Nullable
+            public String getIndexModeName() {
+                return indexMode;
+            }
+
+            /**
+             * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+             * we no longer need to support calling this action remotely.
+             */
+            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
+                    out.writeBoolean(failureStoreEffectivelyEnabled);
+                }
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
@@ -328,8 +341,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.GET_DATA_STREAMS_VERBOSE)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                     out.writeOptionalVLong(maximumTimestamp);
+                }
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
+                    out.writeOptionalString(indexMode);
                 }
             }
 
@@ -381,6 +397,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (this.maximumTimestamp != null) {
                     builder.field(MAXIMUM_TIMESTAMP.getPreferredName(), this.maximumTimestamp);
                 }
+                if (this.indexMode != null) {
+                    builder.field(INDEX_MODE.getPreferredName(), indexMode);
+                }
                 addAutoShardingEvent(builder, params, dataStream.getAutoShardingEvent());
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
@@ -398,13 +417,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), dataStream.isFailureStoreEnabled());
+                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
                     builder.field(
                         DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
-                        dataStream.getFailureIndices().isRolloverOnWrite()
+                        dataStream.getFailureComponent().isRolloverOnWrite()
                     );
-                    indicesToXContent(builder, dataStream.getFailureIndices().getIndices());
-                    addAutoShardingEvent(builder, params, dataStream.getFailureIndices().getAutoShardingEvent());
+                    indicesToXContent(builder, dataStream.getFailureIndices());
+                    addAutoShardingEvent(builder, params, dataStream.getFailureComponent().getAutoShardingEvent());
                     builder.endObject();
                 }
                 builder.endObject();
@@ -424,6 +443,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                             builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
                         }
                         builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
+                        builder.field(INDEX_MODE.getPreferredName(), indexProperties.indexMode);
                     }
                     builder.endObject();
                 }
@@ -451,7 +471,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
              */
             public ManagedBy getNextGenerationManagedBy() {
                 // both ILM and DSL are configured so let's check the prefer_ilm setting to see which system takes precedence
-                if (ilmPolicyName != null && dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                if (ilmPolicyName != null && dataStream.getLifecycle() != null && dataStream.getLifecycle().enabled()) {
                     return templatePreferIlmValue ? ManagedBy.ILM : ManagedBy.LIFECYCLE;
                 }
 
@@ -459,7 +479,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     return ManagedBy.ILM;
                 }
 
-                if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                if (dataStream.getLifecycle() != null && dataStream.getLifecycle().enabled()) {
                     return ManagedBy.LIFECYCLE;
                 }
 
@@ -477,12 +497,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 DataStreamInfo that = (DataStreamInfo) o;
                 return templatePreferIlmValue == that.templatePreferIlmValue
                     && Objects.equals(dataStream, that.dataStream)
+                    && failureStoreEffectivelyEnabled == that.failureStoreEffectivelyEnabled
                     && dataStreamStatus == that.dataStreamStatus
                     && Objects.equals(indexTemplate, that.indexTemplate)
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName)
                     && Objects.equals(timeSeries, that.timeSeries)
                     && Objects.equals(indexSettingsValues, that.indexSettingsValues)
-                    && Objects.equals(maximumTimestamp, that.maximumTimestamp);
+                    && Objects.equals(maximumTimestamp, that.maximumTimestamp)
+                    && Objects.equals(indexMode, that.indexMode);
             }
 
             @Override
@@ -490,22 +512,25 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return Objects.hash(
                     dataStream,
                     dataStreamStatus,
+                    failureStoreEffectivelyEnabled,
                     indexTemplate,
                     ilmPolicyName,
                     timeSeries,
                     indexSettingsValues,
                     templatePreferIlmValue,
-                    maximumTimestamp
+                    maximumTimestamp,
+                    indexMode
                 );
             }
         }
 
         public record TimeSeries(List<Tuple<Instant, Instant>> temporalRanges) implements Writeable {
 
-            TimeSeries(StreamInput in) throws IOException {
-                this(in.readCollectionAsList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));
-            }
-
+            /**
+             * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+             * we no longer need to support calling this action remotely.
+             */
+            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeCollection(temporalRanges, (out1, value) -> {
@@ -532,9 +557,18 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
          * Encapsulates the configured properties we want to display for each backing index.
          * They'll usually be settings values, but could also be additional properties derived from settings.
          */
-        public record IndexProperties(boolean preferIlm, @Nullable String ilmPolicyName, ManagedBy managedBy) implements Writeable {
+        public record IndexProperties(boolean preferIlm, @Nullable String ilmPolicyName, ManagedBy managedBy, @Nullable String indexMode)
+            implements
+                Writeable {
             public IndexProperties(StreamInput in) throws IOException {
-                this(in.readBoolean(), in.readOptionalString(), in.readEnum(ManagedBy.class));
+                this(
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readEnum(ManagedBy.class),
+                    in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)
+                        ? in.readOptionalString()
+                        : "unknown"
+                );
             }
 
             @Override
@@ -542,6 +576,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeBoolean(preferIlm);
                 out.writeOptionalString(ilmPolicyName);
                 out.writeEnum(managedBy);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
+                    out.writeOptionalString(indexMode);
+                }
             }
         }
 
@@ -565,16 +602,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             this.globalRetention = globalRetention;
         }
 
-        public Response(StreamInput in) throws IOException {
-            this(
-                in.readCollectionAsList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                    ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
-                    : null
-            );
-        }
-
         public List<DataStreamInfo> getDataStreams() {
             return dataStreams;
         }
@@ -589,6 +616,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return globalRetention;
         }
 
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);

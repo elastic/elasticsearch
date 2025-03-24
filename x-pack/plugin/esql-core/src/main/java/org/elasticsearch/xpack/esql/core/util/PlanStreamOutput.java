@@ -37,7 +37,7 @@ public interface PlanStreamOutput {
     void writeCachedString(String field) throws IOException;
 
     static void writeCachedStringWithVersionCheck(StreamOutput planStreamOutput, String string) throws IOException {
-        if (planStreamOutput.getTransportVersion().before(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
+        if (planStreamOutput.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             planStreamOutput.writeString(string);
         } else {
             ((PlanStreamOutput) planStreamOutput).writeCachedString(string);

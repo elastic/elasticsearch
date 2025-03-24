@@ -15,11 +15,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -132,7 +132,6 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             assertBusy(() -> assertThat(transportService.getRequestsSentPerNode(), equalTo(expectedRequestCounts)));
             pendingRequests.addAll(transportService.getCapturedRequests(true));
         }
-        assertBusy(future::isDone);
         AnalyzeIndexDiskUsageResponse response = future.actionGet();
         assertThat(response.getTotalShards(), equalTo(numberOfShards));
         assertThat(response.getFailedShards(), equalTo(0));
@@ -292,24 +291,29 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             transportService,
             mock(IndicesService.class),
             new ActionFilters(new HashSet<>()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            new IndexNameExpressionResolver(
+                new ThreadContext(Settings.EMPTY),
+                EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            ) {
                 @Override
-                public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+                public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
                     return request.indices();
                 }
             }
         ) {
             @Override
-            protected GroupShardsIterator<ShardIterator> shards(
+            protected List<ShardIterator> shards(
                 ClusterState clusterState,
                 AnalyzeIndexDiskUsageRequest request,
                 String[] concreteIndices
             ) {
                 final List<ShardIterator> shardIterators = new ArrayList<>(targetShards.size());
                 for (Map.Entry<ShardId, List<ShardRouting>> e : targetShards.entrySet()) {
-                    shardIterators.add(new PlainShardIterator(e.getKey(), e.getValue()));
+                    shardIterators.add(new ShardIterator(e.getKey(), e.getValue()));
                 }
-                return new GroupShardsIterator<>(shardIterators);
+                return shardIterators;
             }
         };
     }

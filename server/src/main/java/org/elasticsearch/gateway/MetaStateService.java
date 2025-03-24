@@ -12,22 +12,17 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
 
 /**
@@ -43,118 +38,6 @@ public class MetaStateService {
     public MetaStateService(NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
         this.nodeEnv = nodeEnv;
         this.namedXContentRegistry = namedXContentRegistry;
-    }
-
-    /**
-     * Loads the full state, which includes both the global state and all the indices meta data. <br>
-     * When loading, manifest file is consulted (represented by {@link Manifest} class), to load proper generations. <br>
-     * If there is no manifest file on disk, this method fallbacks to BWC mode, where latest generation of global and indices
-     * metadata is loaded. Please note that currently there is no way to distinguish between manifest file being removed and manifest
-     * file was not yet created. It means that this method always fallbacks to BWC mode, if there is no manifest file.
-     *
-     * @return tuple of {@link Manifest} and {@link Metadata} with global metadata and indices metadata. If there is no state on disk,
-     * meta state with globalGeneration -1 and empty meta data is returned.
-     * @throws IOException if some IOException when loading files occurs or there is no metadata referenced by manifest file.
-     */
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    public Tuple<Manifest, Metadata> loadFullState() throws IOException {
-        final Manifest manifest = Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
-        if (manifest == null) {
-            return loadFullStateBWC();
-        }
-
-        final Metadata.Builder metadataBuilder;
-        if (manifest.isGlobalGenerationMissing()) {
-            metadataBuilder = Metadata.builder();
-        } else {
-            final Metadata globalMetadata = Metadata.FORMAT.loadGeneration(
-                logger,
-                namedXContentRegistry,
-                manifest.globalGeneration(),
-                nodeEnv.nodeDataPaths()
-            );
-            if (globalMetadata != null) {
-                metadataBuilder = Metadata.builder(globalMetadata);
-            } else {
-                throw new IOException("failed to find global metadata [generation: " + manifest.globalGeneration() + "]");
-            }
-        }
-
-        for (Map.Entry<Index, Long> entry : manifest.indexGenerations().entrySet()) {
-            final Index index = entry.getKey();
-            final long generation = entry.getValue();
-            final String indexFolderName = index.getUUID();
-            final IndexMetadata indexMetadata = IndexMetadata.FORMAT.loadGeneration(
-                logger,
-                namedXContentRegistry,
-                generation,
-                nodeEnv.resolveIndexFolder(indexFolderName)
-            );
-            if (indexMetadata != null) {
-                metadataBuilder.put(indexMetadata, false);
-            } else {
-                throw new IOException(
-                    "failed to find metadata for existing index "
-                        + index.getName()
-                        + " [location: "
-                        + indexFolderName
-                        + ", generation: "
-                        + generation
-                        + "]"
-                );
-            }
-        }
-
-        return new Tuple<>(manifest, metadataBuilder.build());
-    }
-
-    /**
-     * "Manifest-less" BWC version of loading metadata from disk. See also {@link #loadFullState()}
-     */
-    private Tuple<Manifest, Metadata> loadFullStateBWC() throws IOException {
-        Map<Index, Long> indices = new HashMap<>();
-        Metadata.Builder metadataBuilder;
-
-        Tuple<Metadata, Long> metadataAndGeneration = Metadata.FORMAT.loadLatestStateWithGeneration(
-            logger,
-            namedXContentRegistry,
-            nodeEnv.nodeDataPaths()
-        );
-        Metadata globalMetadata = metadataAndGeneration.v1();
-        long globalStateGeneration = metadataAndGeneration.v2();
-
-        final IndexGraveyard indexGraveyard;
-        if (globalMetadata != null) {
-            metadataBuilder = Metadata.builder(globalMetadata);
-            indexGraveyard = globalMetadata.custom(IndexGraveyard.TYPE);
-        } else {
-            metadataBuilder = Metadata.builder();
-            indexGraveyard = IndexGraveyard.builder().build();
-        }
-
-        for (String indexFolderName : nodeEnv.availableIndexFolders()) {
-            Tuple<IndexMetadata, Long> indexMetadataAndGeneration = IndexMetadata.FORMAT.loadLatestStateWithGeneration(
-                logger,
-                namedXContentRegistry,
-                nodeEnv.resolveIndexFolder(indexFolderName)
-            );
-            IndexMetadata indexMetadata = indexMetadataAndGeneration.v1();
-            long generation = indexMetadataAndGeneration.v2();
-            if (indexMetadata != null) {
-                if (indexGraveyard.containsIndex(indexMetadata.getIndex())) {
-                    logger.debug("[{}] found metadata for deleted index [{}]", indexFolderName, indexMetadata.getIndex());
-                    // this index folder is cleared up when state is recovered
-                } else {
-                    indices.put(indexMetadata.getIndex(), generation);
-                    metadataBuilder.put(indexMetadata, false);
-                }
-            } else {
-                logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
-            }
-        }
-
-        Manifest manifest = Manifest.unknownCurrentTermAndVersion(globalStateGeneration, indices);
-        return new Tuple<>(manifest, metadataBuilder.build());
     }
 
     /**
@@ -193,7 +76,7 @@ public class MetaStateService {
     }
 
     /**
-     * Loads the global state, *without* index state, see {@link #loadFullState()} for that.
+     * Loads the global state, *without* index state
      */
     Metadata loadGlobalState() throws IOException {
         return Metadata.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());

@@ -13,7 +13,9 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -22,6 +24,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -78,7 +81,7 @@ public final class Mapping implements ToXContentFragment {
     /**
      * Returns the root object for the current mapping
      */
-    RootObjectMapper getRoot() {
+    public RootObjectMapper getRoot() {
         return root;
     }
 
@@ -103,7 +106,7 @@ public final class Mapping implements ToXContentFragment {
         return (T) metadataMappersMap.get(clazz);
     }
 
-    MetadataFieldMapper getMetadataMapperByName(String mapperName) {
+    public MetadataFieldMapper getMetadataMapperByName(String mapperName) {
         return metadataMappersByName.get(mapperName);
     }
 
@@ -126,9 +129,9 @@ public final class Mapping implements ToXContentFragment {
         return sfm != null && sfm.isSynthetic();
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        var stream = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream());
-        return root.syntheticFieldLoader(stream);
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
+        var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).collect(Collectors.toList());
+        return root.syntheticFieldLoader(filter, mappers, false);
     }
 
     /**

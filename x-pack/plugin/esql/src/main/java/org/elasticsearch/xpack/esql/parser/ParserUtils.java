@@ -14,7 +14,6 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -25,6 +24,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.EMPTY;
 
 public final class ParserUtils {
     public enum ParamClassification {
@@ -42,6 +42,10 @@ public final class ParserUtils {
             paramClassifications.put(e.name(), e);
         }
     }
+
+    private static final int SINGLE_PARAM = "?".length();
+
+    private static final int DOUBLE_PARAM = "??".length();
 
     private ParserUtils() {}
 
@@ -133,5 +137,18 @@ public final class ParserUtils {
      */
     public static String text(ParseTree node) {
         return node == null ? null : node.getText();
+    }
+
+    /**
+     * Extract the name or the position of a parameter.
+     */
+    public static String nameOrPosition(Token token) {
+        int tokenType = token.getType();
+        String s = token.getText();
+        return switch (tokenType) {
+            case EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> s.substring(SINGLE_PARAM);
+            case EsqlBaseLexer.NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> s.substring(DOUBLE_PARAM);
+            default -> EMPTY;
+        };
     }
 }

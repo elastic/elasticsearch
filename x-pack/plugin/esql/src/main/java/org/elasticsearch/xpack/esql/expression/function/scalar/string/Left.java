@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -46,7 +47,7 @@ public class Left extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns the substring that extracts 'length' chars from 'string' starting from the left.",
+        description = "Returns the substring that extracts *length* chars from *string* starting from the left.",
         examples = { @Example(file = "string", tag = "left") }
     )
     public Left(
@@ -77,8 +78,8 @@ public class Left extends EsqlScalarFunction {
 
     @Evaluator
     static BytesRef process(
-        @Fixed(includeInToString = false, build = true) BytesRef out,
-        @Fixed(includeInToString = false, build = true) UnicodeUtil.UTF8CodePoint cp,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef out,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) UnicodeUtil.UTF8CodePoint cp,
         BytesRef str,
         int length
     ) {

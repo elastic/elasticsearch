@@ -63,6 +63,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -94,7 +96,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         client().prepareIndex("index").setId("1").setSource("a.x", 1).get();
         client().prepareIndex("index").setId("2").setSource("a.y", 2).get();
 
-        Map<String, Object> mappings = indicesAdmin().prepareGetMappings("index").get().mappings().get("index").sourceAsMap();
+        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+            .get()
+            .mappings()
+            .get("index")
+            .sourceAsMap();
         assertTrue(new WriteField("properties.a", () -> mappings).exists());
         assertTrue(new WriteField("properties.a.properties.x", () -> mappings).exists());
     }
@@ -181,13 +187,46 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfFieldsToCreate; ++i) {
             assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
-        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings("index").get();
+        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index").get();
         MappingMetadata indexMappings = mappings.getMappings().get("index");
         assertNotNull(indexMappings);
         Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
         return properties;
+    }
+
+    public void testConcurrentDynamicMappingsWithConflictingType() throws Throwable {
+        int numberOfDocsToCreate = 16;
+        indicesAdmin().prepareCreate("index").setSettings(Settings.builder()).get();
+        ensureGreen("index");
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        startInParallel(numberOfDocsToCreate, i -> {
+            try {
+                assertEquals(
+                    DocWriteResponse.Result.CREATED,
+                    prepareIndex("index").setId(Integer.toString(i)).setSource("field" + i, 0, "field" + (i + 1), 0.1).get().getResult()
+                );
+            } catch (Exception e) {
+                error.compareAndSet(null, e);
+            }
+        });
+        if (error.get() != null) {
+            throw error.get();
+        }
+        client().admin().indices().prepareRefresh("index").get();
+        for (int i = 0; i < numberOfDocsToCreate; ++i) {
+            assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
+        }
+        Map<String, Object> index = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+            .get()
+            .getMappings()
+            .get("index")
+            .getSourceAsMap();
+        for (int i = 0, j = 1; i < numberOfDocsToCreate; i++, j++) {
+            assertThat(new WriteField("properties.field" + i + ".type", () -> index).get(null), is(oneOf("long", "float")));
+            assertThat(new WriteField("properties.field" + j + ".type", () -> index).get(null), is(oneOf("long", "float")));
+        }
     }
 
     public void testPreflightCheckAvoidsMaster() throws InterruptedException, IOException {
@@ -494,9 +533,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testMappingVersionAfterDynamicMappingUpdate() throws Exception {
         createIndex("test");
         final ClusterService clusterService = internalCluster().clusterService();
-        final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
+        final long previousVersion = clusterService.state().metadata().getProject().index("test").getMappingVersion();
         prepareIndex("test").setId("1").setSource("field", "text").get();
-        assertBusy(() -> assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
+        assertBusy(
+            () -> assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(1 + previousVersion))
+        );
     }
 
     public void testBulkRequestWithDynamicTemplates() throws Exception {
@@ -652,9 +693,12 @@ public class DynamicMappingIT extends ESIntegTestCase {
         BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")), 1);
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)), 1);
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one.two.three", "1")), 1);
+        assertHitCount(
+            1,
+            prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("one.two.three", "1"))
+        );
     }
 
     public void testDynamicRuntimeObjectFields() {
@@ -691,10 +735,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
         BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("obj.one", 1)), 1);
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("anything", "anything")), 1);
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one", "one")), 1);
-        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1")), 1);
+        assertHitCount(
+            1,
+            prepareSearch("test").setQuery(new MatchQueryBuilder("obj.one", 1)),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("anything", "anything")),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one", "one")),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1"))
+        );
 
         Exception exception = expectThrows(DocumentParsingException.class, prepareIndex("test").setSource("obj.runtime", "value"));
         assertThat(
@@ -769,7 +816,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         assertBusy(() -> {
-            Map<String, Object> mappings = indicesAdmin().prepareGetMappings("test").get().mappings().get("test").sourceAsMap();
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .mappings()
+                .get("test")
+                .sourceAsMap();
             @SuppressWarnings("unchecked")
             Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
             assertEquals(4, properties.size());
@@ -814,7 +865,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         assertBusy(() -> {
-            Map<String, Object> mappings = indicesAdmin().prepareGetMappings("test").get().mappings().get("test").sourceAsMap();
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .mappings()
+                .get("test")
+                .sourceAsMap();
             Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
             Map<String, Object> foo = (Map<String, Object>) properties.get("foo");
             properties = (Map<String, Object>) foo.get("properties");

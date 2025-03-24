@@ -16,7 +16,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -58,7 +58,7 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
         return enabled;
     }
 
-    public static class Usage extends XPackFeatureSet.Usage {
+    public static class Usage extends XPackFeatureUsage {
 
         private final int numberOfFollowerIndices;
         private final int numberOfAutoFollowPatterns;
@@ -90,7 +90,7 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_0_0;
+            return TransportVersions.ZERO;
         }
 
         public int getNumberOfFollowerIndices() {

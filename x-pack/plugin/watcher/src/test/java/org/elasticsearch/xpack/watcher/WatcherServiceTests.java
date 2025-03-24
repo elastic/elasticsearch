@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -77,7 +78,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -165,7 +165,7 @@ public class WatcherServiceTests extends ESTestCase {
         // response setup, successful refresh response
         BroadcastResponse refreshResponse = mock(BroadcastResponse.class);
         when(refreshResponse.getSuccessfulShards()).thenReturn(
-            clusterState.getMetadata().getIndices().get(Watch.INDEX).getNumberOfShards()
+            clusterState.getMetadata().getProject().indices().get(Watch.INDEX).getNumberOfShards()
         );
         doAnswer(invocation -> {
             ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocation.getArguments()[2];
@@ -216,25 +216,7 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            ActionListener.respondAndRelease(
-                listener,
-                new SearchResponse(
-                    searchHits,
-                    null,
-                    null,
-                    false,
-                    false,
-                    null,
-                    1,
-                    "scrollId",
-                    1,
-                    1,
-                    0,
-                    10,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
-                )
-            );
+            ActionListener.respondAndRelease(listener, SearchResponseUtils.response(searchHits).scrollId("scrollId").build());
             return null;
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
 
@@ -374,8 +356,11 @@ public class WatcherServiceTests extends ESTestCase {
         };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        Metadata metadata = spy(Metadata.builder().build());
-        when(metadata.getIndicesLookup()).thenThrow(RuntimeException.class); // simulate exception in WatcherService's private loadWatches()
+        Metadata metadata = mock(Metadata.class);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        // simulate exception in WatcherService's private loadWatches()
+        when(project.getIndicesLookup()).thenThrow(RuntimeException.class);
 
         service.reload(csBuilder.metadata(metadata).build(), "whatever", exception -> {});
         verify(triggerService).pauseExecution();

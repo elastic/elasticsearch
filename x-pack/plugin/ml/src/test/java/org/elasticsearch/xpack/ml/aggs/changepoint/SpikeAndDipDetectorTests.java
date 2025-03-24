@@ -184,4 +184,14 @@ public class SpikeAndDipDetectorTests extends ESTestCase {
         assertThat(change, instanceOf(ChangeType.Spike.class));
         assertThat(change.changePoint(), equalTo(10));
     }
+
+    public void testSpikeAtTail() {
+        MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
+            null,
+            new double[] { 2, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 9, 8 }
+        );
+        ChangeType change = new SpikeAndDipDetector(bucketValues).detect(0.01);
+        assertThat(change, instanceOf(ChangeType.Spike.class));
+        assertThat(change.changePoint(), equalTo(27));
+    }
 }

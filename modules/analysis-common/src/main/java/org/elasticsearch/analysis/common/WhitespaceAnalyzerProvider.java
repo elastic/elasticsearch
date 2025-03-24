@@ -20,7 +20,7 @@ public class WhitespaceAnalyzerProvider extends AbstractIndexAnalyzerProvider<Wh
     private final WhitespaceAnalyzer analyzer;
 
     public WhitespaceAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         this.analyzer = new WhitespaceAnalyzer();
     }
 

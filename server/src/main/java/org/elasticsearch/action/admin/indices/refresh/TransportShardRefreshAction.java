@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -75,7 +75,14 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             ReplicaActionExecution.SubjectToCircuitBreaker
         );
         // registers the unpromotable version of shard refresh action
-        new TransportUnpromotableShardRefreshAction(clusterService, transportService, shardStateAction, actionFilters, indicesService);
+        new TransportUnpromotableShardRefreshAction(
+            clusterService,
+            transportService,
+            shardStateAction,
+            actionFilters,
+            indicesService,
+            threadPool
+        );
         this.refreshExecutor = transportService.getThreadPool().executor(ThreadPool.Names.REFRESH);
     }
 
@@ -119,28 +126,18 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             IndexShardRoutingTable indexShardRoutingTable,
             ActionListener<Void> listener
         ) {
-            assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
-            boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(
-                clusterService.state().metadata().index(indexShardRoutingTable.shardId().getIndex()).getSettings()
-            );
+            var primaryTerm = replicaRequest.primaryRefreshResult.primaryTerm();
+            assert Engine.UNKNOWN_PRIMARY_TERM < primaryTerm : primaryTerm;
 
-            // Indices marked with fast refresh do not rely on refreshing the unpromotables
-            if (fastRefresh) {
-                listener.onResponse(null);
-            } else {
-                UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
-                    indexShardRoutingTable,
-                    replicaRequest.primaryRefreshResult.primaryTerm(),
-                    replicaRequest.primaryRefreshResult.generation(),
-                    false
-                );
-                transportService.sendRequest(
-                    transportService.getLocalNode(),
-                    TransportUnpromotableShardRefreshAction.NAME,
-                    unpromotableReplicaRequest,
-                    new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
-                );
-            }
+            var generation = replicaRequest.primaryRefreshResult.generation();
+            assert Engine.RefreshResult.UNKNOWN_GENERATION < generation : generation;
+
+            transportService.sendRequest(
+                transportService.getLocalNode(),
+                TransportUnpromotableShardRefreshAction.NAME,
+                new UnpromotableShardRefreshRequest(indexShardRoutingTable, primaryTerm, generation, false),
+                new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
+            );
         }
     }
 }

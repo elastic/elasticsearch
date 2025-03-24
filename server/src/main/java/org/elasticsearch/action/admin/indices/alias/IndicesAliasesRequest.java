@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -74,7 +75,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
                 .ignoreThrottled(false)
-                .allowFailureIndices(true)
+                .allowSelectors(false)
                 .build()
         )
         .build();
@@ -85,8 +86,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         origin = in.readOptionalString();
     }
 
-    public IndicesAliasesRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public IndicesAliasesRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout, ackTimeout);
     }
 
     /**
@@ -161,8 +162,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return new AliasActions(AliasActions.Type.REMOVE_INDEX);
         }
 
-        private static ObjectParser<AliasActions, Void> parser(String name, Supplier<AliasActions> supplier) {
-            ObjectParser<AliasActions, Void> parser = new ObjectParser<>(name, supplier);
+        private static ObjectParser<AliasActions, Factory> parser(String name, Supplier<AliasActions> supplier) {
+            ObjectParser<AliasActions, Factory> parser = new ObjectParser<>(name, supplier);
             parser.declareString((action, index) -> {
                 if (action.indices() != null) {
                     throw new IllegalArgumentException("Only one of [index] and [indices] is supported");
@@ -190,9 +191,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return parser;
         }
 
-        private static final ObjectParser<AliasActions, Void> ADD_PARSER = parser(ADD.getPreferredName(), AliasActions::add);
-        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
-        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(
+        private static final ObjectParser<AliasActions, Factory> ADD_PARSER = parser(ADD.getPreferredName(), AliasActions::add);
+        private static final ObjectParser<AliasActions, Factory> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
+        private static final ObjectParser<AliasActions, Factory> REMOVE_INDEX_PARSER = parser(
             REMOVE_INDEX.getPreferredName(),
             AliasActions::removeIndex
         );
@@ -216,7 +217,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         /**
          * Parser for any one {@link AliasAction}.
          */
-        public static final ConstructingObjectParser<AliasActions, Void> PARSER = new ConstructingObjectParser<>("alias_action", a -> {
+        public static final ConstructingObjectParser<AliasActions, Factory> PARSER = new ConstructingObjectParser<>("alias_action", a -> {
             // Take the first action and complain if there are more than one actions
             AliasActions action = null;
             for (Object o : a) {
@@ -690,7 +691,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         return builder;
     }
 
-    public static final ObjectParser<IndicesAliasesRequest, Void> PARSER = new ObjectParser<>("aliases", IndicesAliasesRequest::new);
+    public interface Factory {
+        IndicesAliasesRequest create();
+    }
+
+    public static final ObjectParser<IndicesAliasesRequest, Factory> PARSER = ObjectParser.fromBuilder("aliases", Factory::create);
     static {
         PARSER.declareObjectArray((request, actions) -> {
             for (AliasActions action : actions) {
@@ -699,7 +704,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }, AliasActions.PARSER, new ParseField("actions"));
     }
 
-    public static IndicesAliasesRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static IndicesAliasesRequest fromXContent(Factory factory, XContentParser parser) {
+        return PARSER.apply(parser, factory);
     }
 }

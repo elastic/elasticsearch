@@ -76,7 +76,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         assertThat(indicesStatsResponse.getIndices().size(), equalTo(2));
 
         ClusterState before = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        assertThat(before.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(2));
+        assertThat(before.getMetadata().getProject().dataStreams().get(dataStreamName).getIndices(), hasSize(2));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DataStream> brokenDataStreamHolder = new AtomicReference<>();
@@ -85,13 +85,13 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
             .submitUnbatchedStateUpdateTask(getTestName(), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
+                    DataStream original = currentState.getMetadata().getProject().dataStreams().get(dataStreamName);
                     String brokenIndexName = shouldBreakIndexName
                         ? original.getIndices().get(0).getName() + "-broken"
                         : original.getIndices().get(0).getName();
                     DataStream broken = original.copy()
                         .setBackingIndices(
-                            original.getBackingIndices()
+                            original.getDataComponent()
                                 .copy()
                                 .setIndices(List.of(new Index(brokenIndexName, "broken"), original.getIndices().get(1)))
                                 .build()
@@ -133,7 +133,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
             )
         );
         ClusterState after = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        assertThat(after.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
+        assertThat(after.getMetadata().getProject().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
 
         // Data stream resolves now to one backing index.
         // Note, that old backing index still exists, but it is still hidden.

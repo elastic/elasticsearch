@@ -20,6 +20,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -80,6 +81,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
+import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -147,33 +149,46 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
+        return newInstance(
+            name,
+            indices,
+            generation,
+            metadata,
+            replicated,
+            lifecycle,
+            failureStores,
+            failureStores.isEmpty() ? DataStreamOptions.EMPTY : DataStreamOptions.FAILURE_STORE_ENABLED
+        );
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        DataStreamLifecycle lifecycle,
+        List<Index> failureStores,
+        DataStreamOptions dataStreamOptions
+    ) {
         return DataStream.builder(name, indices)
             .setGeneration(generation)
             .setMetadata(metadata)
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
-            .setDataStreamOptions(failureStores.isEmpty() ? DataStreamOptions.EMPTY : DataStreamOptions.FAILURE_STORE_ENABLED)
+            .setDataStreamOptions(dataStreamOptions)
             .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
             .build();
     }
 
-    public static String getLegacyDefaultBackingIndexName(
-        String dataStreamName,
-        long generation,
-        long epochMillis,
-        boolean isNewIndexNameFormat
-    ) {
-        if (isNewIndexNameFormat) {
-            return String.format(
-                Locale.ROOT,
-                BACKING_INDEX_PREFIX + "%s-%s-%06d",
-                dataStreamName,
-                DATE_FORMATTER.formatMillis(epochMillis),
-                generation
-            );
-        } else {
-            return getLegacyDefaultBackingIndexName(dataStreamName, generation);
-        }
+    public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis) {
+        return String.format(
+            Locale.ROOT,
+            BACKING_INDEX_PREFIX + "%s-%s-%06d",
+            dataStreamName,
+            DATE_FORMATTER.formatMillis(epochMillis),
+            generation
+        );
     }
 
     public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation) {
@@ -347,7 +362,7 @@ public final class DataStreamTestHelper {
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
+            randomBoolean() ? DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build() : null,
             failureStore ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             DataStream.DataStreamIndices.backingIndicesBuilder(indices)
                 .setRolloverOnWrite(replicated == false && randomBoolean())
@@ -404,25 +419,29 @@ public final class DataStreamTestHelper {
      * @param dataStreams The names of the data streams to create with their respective number of backing indices
      * @param indexNames  The names of indices to create that do not back any data streams
      */
+    @FixForMultiProject(description = "Don't use default project id")
+    @Deprecated(forRemoval = true)
     public static ClusterState getClusterStateWithDataStreams(List<Tuple<String, Integer>> dataStreams, List<String> indexNames) {
-        return getClusterStateWithDataStreams(dataStreams, indexNames, 1);
+        return getClusterStateWithDataStreams(Metadata.DEFAULT_PROJECT_ID, dataStreams, indexNames);
     }
 
     /**
      * Constructs {@code ClusterState} with the specified data streams and indices.
      *
+     * @param projectId The id of the project to which the data streams should be added to
      * @param dataStreams The names of the data streams to create with their respective number of backing indices
-     * @param indexNames  The names of indices to create that do not back any data streams
-     * @param replicas number of replicas
+     * @param indexNames The names of indices to create that do not back any data streams
      */
     public static ClusterState getClusterStateWithDataStreams(
+        ProjectId projectId,
         List<Tuple<String, Integer>> dataStreams,
-        List<String> indexNames,
-        int replicas
+        List<String> indexNames
     ) {
-        return getClusterStateWithDataStreams(dataStreams, indexNames, System.currentTimeMillis(), Settings.EMPTY, replicas);
+        return getClusterStateWithDataStreams(projectId, dataStreams, indexNames, System.currentTimeMillis(), Settings.EMPTY, 1);
     }
 
+    @FixForMultiProject(description = "Don't use default project id")
+    @Deprecated(forRemoval = true)
     public static ClusterState getClusterStateWithDataStreams(
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,
@@ -430,10 +449,22 @@ public final class DataStreamTestHelper {
         Settings settings,
         int replicas
     ) {
-        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, false);
+        return getClusterStateWithDataStreams(Metadata.DEFAULT_PROJECT_ID, dataStreams, indexNames, currentTime, settings, replicas);
     }
 
     public static ClusterState getClusterStateWithDataStreams(
+        ProjectId projectId,
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        long currentTime,
+        Settings settings,
+        int replicas
+    ) {
+        return getClusterStateWithDataStreams(projectId, dataStreams, indexNames, currentTime, settings, replicas, false);
+    }
+
+    public static ClusterState getClusterStateWithDataStreams(
+        ProjectId projectId,
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,
         long currentTime,
@@ -441,44 +472,31 @@ public final class DataStreamTestHelper {
         int replicas,
         boolean replicated
     ) {
-        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, replicated, false);
+        return getClusterStateWithDataStreams(projectId, dataStreams, indexNames, currentTime, settings, replicas, replicated, false);
     }
 
     public static ClusterState getClusterStateWithDataStreams(
+        ProjectId projectId,
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,
         long currentTime,
         Settings settings,
         int replicas,
         boolean replicated,
-        boolean storeFailures
+        Boolean storeFailures
     ) {
-        Metadata.Builder builder = Metadata.builder();
-        getClusterStateWithDataStreams(builder, dataStreams, indexNames, currentTime, settings, replicas, replicated, storeFailures);
-        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
-    }
-
-    public static void getClusterStateWithDataStreams(
-        Metadata.Builder builder,
-        List<Tuple<String, Integer>> dataStreams,
-        List<String> indexNames,
-        long currentTime,
-        Settings settings,
-        int replicas,
-        boolean replicated,
-        boolean storeFailures
-    ) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         builder.put(
             "template_1",
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
-                .dataStreamTemplate(
-                    new ComposableIndexTemplate.DataStreamTemplate(
-                        false,
-                        false,
-                        DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures
-                    )
+                .template(
+                    Template.builder()
+                        .dataStreamOptions(
+                            DataStream.isFailureStoreFeatureFlagEnabled() ? createDataStreamOptionsTemplate(storeFailures) : null
+                        )
                 )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
 
@@ -493,7 +511,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && Boolean.TRUE.equals(storeFailures)) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(
@@ -526,16 +544,39 @@ public final class DataStreamTestHelper {
         for (IndexMetadata index : allIndices) {
             builder.put(index, false);
         }
+        return ClusterState.builder(new ClusterName("_name")).putProjectMetadata(builder.build()).build();
     }
 
+    @FixForMultiProject(description = "Don't use default project id")
+    @Deprecated(forRemoval = true)
     public static ClusterState getClusterStateWithDataStream(String dataStream, List<Tuple<Instant, Instant>> timeSlices) {
-        Metadata.Builder builder = Metadata.builder();
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(getProjectWithDataStream(Metadata.DEFAULT_PROJECT_ID, dataStream, timeSlices))
+            .build();
+    }
+
+    public static ClusterState getClusterStateWithDataStream(
+        ProjectId projectId,
+        String dataStream,
+        List<Tuple<Instant, Instant>> timeSlices
+    ) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(getProjectWithDataStream(projectId, dataStream, timeSlices))
+            .build();
+    }
+
+    public static ProjectMetadata getProjectWithDataStream(
+        ProjectId projectId,
+        String dataStream,
+        List<Tuple<Instant, Instant>> timeSlices
+    ) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         getClusterStateWithDataStream(builder, dataStream, timeSlices);
-        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
+        return builder.build();
     }
 
     public static void getClusterStateWithDataStream(
-        Metadata.Builder builder,
+        ProjectMetadata.Builder builder,
         String dataStreamName,
         List<Tuple<Instant, Instant>> timeSlices
     ) {
@@ -649,7 +690,7 @@ public final class DataStreamTestHelper {
         ).build(MapperBuilderContext.root(false, true));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         Environment env = mock(Environment.class);
-        when(env.sharedDataFile()).thenReturn(null);
+        when(env.sharedDataDir()).thenReturn(null);
         AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
         when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
@@ -707,6 +748,17 @@ public final class DataStreamTestHelper {
         Map<String, Object> fieldsMapping = new HashMap<>();
         fieldsMapping.put("enabled", true);
         MappingParserContext mockedParserContext = mock(MappingParserContext.class);
+        when(mockedParserContext.getIndexSettings()).thenReturn(
+            new IndexSettings(
+                IndexMetadata.builder("_na_")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .creationDate(System.currentTimeMillis())
+                    .build(),
+                Settings.EMPTY
+            )
+        );
         return DataStreamTimestampFieldMapper.PARSER.parse("field", fieldsMapping, mockedParserContext).build();
     }
 
@@ -749,4 +801,12 @@ public final class DataStreamTestHelper {
         return indicesService;
     }
 
+    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStore) {
+        if (failureStore == null) {
+            return DataStreamOptions.Template.EMPTY;
+        }
+        return new DataStreamOptions.Template(
+            ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(failureStore)))
+        );
+    }
 }

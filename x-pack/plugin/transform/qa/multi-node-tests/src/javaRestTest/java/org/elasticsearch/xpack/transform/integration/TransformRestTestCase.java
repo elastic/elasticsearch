@@ -437,7 +437,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
             Request req = new Request("PUT", indexName);
             req.setEntity(indexMappings);
             req.setOptions(RequestOptions.DEFAULT);
-            assertAcknowledged(adminClient().performRequest(req));
+            assertOKAndConsume(adminClient().performRequest(req));
         }
 
         // create index

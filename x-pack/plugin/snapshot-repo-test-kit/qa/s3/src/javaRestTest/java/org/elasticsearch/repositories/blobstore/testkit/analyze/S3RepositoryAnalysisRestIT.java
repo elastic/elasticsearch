@@ -31,13 +31,6 @@ public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTe
         .setting("s3.client.repo_test_kit.protocol", () -> "http", (n) -> USE_FIXTURE)
         .setting("s3.client.repo_test_kit.endpoint", s3Fixture::getAddress, (n) -> USE_FIXTURE)
         .setting("xpack.security.enabled", "false")
-        // Additional tracing related to investigation into https://github.com/elastic/elasticsearch/issues/102294
-        .setting("logger.org.elasticsearch.repositories.s3", "TRACE")
-        .setting("logger.org.elasticsearch.repositories.blobstore.testkit", "TRACE")
-        .setting("logger.com.amazonaws.request", "DEBUG")
-        .setting("logger.org.apache.http.wire", "DEBUG")
-        // Necessary to permit setting the above two restricted loggers to DEBUG
-        .jvmArg("-Des.insecure_network_trace_enabled=true")
         .build();
 
     @ClassRule

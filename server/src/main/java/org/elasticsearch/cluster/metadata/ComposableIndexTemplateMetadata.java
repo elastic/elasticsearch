@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -31,10 +31,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The {@link ComposableIndexTemplateMetadata} class is a custom {@link Metadata.Custom} implementation that
+ * The {@link ComposableIndexTemplateMetadata} class is a custom {@link Metadata.ProjectCustom} implementation that
  * stores a map of ids to {@link ComposableIndexTemplate} templates.
  */
-public class ComposableIndexTemplateMetadata implements Metadata.Custom {
+public class ComposableIndexTemplateMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "index_template";
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
     @SuppressWarnings("unchecked")
@@ -79,11 +79,11 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new ComposableIndexTemplateMetadataDiff((ComposableIndexTemplateMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ComposableIndexTemplateMetadataDiff(in);
     }
 
@@ -94,7 +94,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_7_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -103,8 +103,8 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).xContentObjectFields(INDEX_TEMPLATE.getPreferredName(), indexTemplates);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.xContentObjectFields(INDEX_TEMPLATE.getPreferredName(), indexTemplates);
     }
 
     @Override
@@ -129,7 +129,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
-    static class ComposableIndexTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class ComposableIndexTemplateMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, ComposableIndexTemplate>> indexTemplateDiff;
 
@@ -151,7 +151,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new ComposableIndexTemplateMetadata(indexTemplateDiff.apply(((ComposableIndexTemplateMetadata) part).indexTemplates));
         }
 
@@ -167,7 +167,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_7_0;
+            return TransportVersions.ZERO;
         }
     }
 }

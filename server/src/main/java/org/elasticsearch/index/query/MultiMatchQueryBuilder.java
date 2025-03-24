@@ -124,7 +124,7 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
          */
         BOOL_PREFIX(MatchQueryParser.Type.BOOLEAN_PREFIX, 1.0f, new ParseField("bool_prefix"));
 
-        private MatchQueryParser.Type matchQueryType;
+        private final MatchQueryParser.Type matchQueryType;
         private final float tieBreaker;
         private final ParseField parseField;
 

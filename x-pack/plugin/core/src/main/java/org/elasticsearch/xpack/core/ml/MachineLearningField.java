@@ -22,9 +22,6 @@ import java.util.stream.Collectors;
 
 public final class MachineLearningField {
 
-    public static final String DEPRECATED_ALLOW_NO_JOBS_PARAM = "allow_no_jobs";
-    public static final String DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM = "allow_no_datafeeds";
-
     public static final Setting<Boolean> AUTODETECT_PROCESS = Setting.boolSetting(
         "xpack.ml.autodetect_process",
         true,
@@ -67,12 +64,8 @@ public final class MachineLearningField {
         License.OperationMode.PLATINUM
     );
 
-    // Ideally this would be 7.0.0, but it has to be 6.4.0 because due to an oversight it's impossible
-    // for the Java code to distinguish the model states for versions 6.4.0 to 7.9.3 inclusive.
-    public static final MlConfigVersion MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION = MlConfigVersion.fromString("6.4.0");
-    // We tell the user we support model snapshots newer than 7.0.0 as that's the major version
-    // boundary, even though behind the scenes we have to support back to 6.4.0.
-    public static final MlConfigVersion MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION = MlConfigVersion.V_7_0_0;
+    // This is the last version when we changed the ML job snapshot format.
+    public static final MlConfigVersion MIN_SUPPORTED_SNAPSHOT_VERSION = MlConfigVersion.V_8_3_0;
 
     private MachineLearningField() {}
 

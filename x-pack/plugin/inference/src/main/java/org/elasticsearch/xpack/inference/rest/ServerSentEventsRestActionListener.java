@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.inference.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -29,20 +31,22 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE;
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
+import static org.elasticsearch.xpack.core.inference.results.XContentFormattedException.X_CONTENT_PARAM;
 
 /**
  * A version of {@link org.elasticsearch.rest.action.RestChunkedToXContentListener} that reads from a {@link Flow.Publisher} and encodes
@@ -54,6 +58,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     private final AtomicBoolean isLastPart = new AtomicBoolean(false);
     private final RestChannel channel;
     private final ToXContent.Params params;
+    private final SetOnce<ThreadPool> threadPool;
 
     /**
      * A listener for the first part of the next entry to become available for transmission.
@@ -65,13 +70,14 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
      */
     private ActionListener<ChunkedRestResponseBodyPart> nextBodyPartListener;
 
-    public ServerSentEventsRestActionListener(RestChannel channel) {
-        this(channel, channel.request());
+    public ServerSentEventsRestActionListener(RestChannel channel, SetOnce<ThreadPool> threadPool) {
+        this(channel, channel.request(), threadPool);
     }
 
-    public ServerSentEventsRestActionListener(RestChannel channel, ToXContent.Params params) {
+    public ServerSentEventsRestActionListener(RestChannel channel, ToXContent.Params params, SetOnce<ThreadPool> threadPool) {
         this.channel = channel;
-        this.params = params;
+        this.params = new ToXContent.DelegatingMapParams(Map.of(X_CONTENT_PARAM, String.valueOf(channel.detailedErrorsEnabled())), params);
+        this.threadPool = Objects.requireNonNull(threadPool);
     }
 
     @Override
@@ -98,7 +104,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     }
 
     private void initializeStream(InferenceAction.Response response) {
-        nextBodyPartListener = ActionListener.wrap(bodyPart -> {
+        ActionListener<ChunkedRestResponseBodyPart> chunkedResponseBodyActionListener = ActionListener.wrap(bodyPart -> {
             // this is the first response, so we need to send the RestResponse to open the stream
             // all subsequent bytes will be delivered through the nextBodyPartListener
             channel.sendResponse(RestResponse.chunked(RestStatus.OK, bodyPart, this::release));
@@ -114,6 +120,12 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
                 )
             );
         });
+
+        nextBodyPartListener = ContextPreservingActionListener.wrapPreservingContext(
+            chunkedResponseBodyActionListener,
+            threadPool.get().getThreadContext()
+        );
+
         // subscribe will call onSubscribe, which requests the first chunk
         response.publisher().subscribe(subscriber);
     }
@@ -141,48 +153,30 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
         }
     }
 
-    // taken indirectly from "new Response(channel, e)"
-    // except we need to emit the error as SSE
     private ChunkedToXContent errorChunk(Throwable t) {
+        // if we've already formatted it, just return that format
+        if (ExceptionsHelper.unwrapCause(t) instanceof XContentFormattedException xContentFormattedException) {
+            return xContentFormattedException;
+        }
+
+        // else, try to parse the format and return something that the ES client knows how to interpret
         var status = ExceptionsHelper.status(t);
-        return params -> Iterators.concat(ChunkedToXContentHelper.startObject(), ChunkedToXContentHelper.singleChunk((b, p) -> {
-            // Render the exception with a simple message
-            if (channel.detailedErrorsEnabled() == false) {
-                String message = "No ElasticsearchException found";
-                var inner = t;
-                for (int counter = 0; counter < 10 && inner != null; counter++) {
-                    if (inner instanceof ElasticsearchException) {
-                        message = inner.getClass().getSimpleName() + "[" + inner.getMessage() + "]";
-                        break;
-                    }
-                    inner = inner.getCause();
-                }
-                return b.field("error", message);
-            }
 
-            var errorParams = p;
-            if (errorParams.paramAsBoolean("error_trace", false) && status != RestStatus.UNAUTHORIZED) {
-                errorParams = new ToXContent.DelegatingMapParams(
-                    Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "false", REST_EXCEPTION_SKIP_CAUSE, "true"),
-                    params
-                );
-            }
-
-            // Render the exception with all details
-            final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(t);
-            b.startObject("error");
-            {
-                b.startArray("root_cause");
-                for (ElasticsearchException rootCause : rootCauses) {
-                    b.startObject();
-                    rootCause.toXContent(b, errorParams);
-                    b.endObject();
-                }
-                b.endArray();
-            }
-            ElasticsearchException.generateThrowableXContent(b, errorParams, t);
-            return b.endObject();
-        }), ChunkedToXContentHelper.field("status", status.getStatus()), ChunkedToXContentHelper.endObject());
+        Exception e;
+        if (t instanceof Exception) {
+            e = (Exception) t;
+        } else {
+            // if not exception, then error, and we should not let it escape. rethrow on another thread, and inform the user we're stopping.
+            ExceptionsHelper.maybeDieOnAnotherThread(t);
+            e = new RuntimeException("Fatal error while streaming response. Please retry the request.");
+            logger.error(e.getMessage(), t);
+        }
+        return params -> Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            Iterators.single((b, p) -> ElasticsearchException.generateFailureXContent(b, p, e, channel.detailedErrorsEnabled())),
+            Iterators.single((b, p) -> b.field("status", status.getStatus())),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     private void requestNextChunk(ActionListener<ChunkedRestResponseBodyPart> listener) {
@@ -223,7 +217,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
         @Override
         public void onError(Throwable throwable) {
             if (isLastPart.compareAndSet(false, true)) {
-                logger.error("A failure occurred in ElasticSearch while streaming the response.", throwable);
+                logger.warn("A failure occurred in ElasticSearch while streaming the response.", throwable);
                 nextBodyPartListener().onResponse(new ServerSentEventResponseBodyPart(ServerSentEvents.ERROR, errorChunk(throwable)));
             }
         }

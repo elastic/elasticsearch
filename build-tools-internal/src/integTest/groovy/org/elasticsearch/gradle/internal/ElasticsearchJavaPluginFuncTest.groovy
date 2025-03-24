@@ -20,9 +20,6 @@ class ElasticsearchJavaPluginFuncTest extends AbstractGradleInternalPluginFuncTe
         when:
         buildFile.text << """
         import org.elasticsearch.gradle.Architecture
-        import org.elasticsearch.gradle.internal.info.BuildParams
-        BuildParams.init { it.setMinimumRuntimeVersion(JavaVersion.VERSION_1_10) }
-
         assert tasks.named('compileJava').get().sourceCompatibility == JavaVersion.VERSION_1_10.toString()
         assert tasks.named('compileJava').get().targetCompatibility == JavaVersion.VERSION_1_10.toString()
         """

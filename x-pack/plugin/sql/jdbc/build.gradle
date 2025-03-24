@@ -1,6 +1,6 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
 
 description = 'JDBC driver for Elasticsearch'
 
@@ -20,11 +20,20 @@ dependencies {
   testImplementation project(':modules:rest-root')
 }
 
-tasks.named("compileJava").configure {
+java {
   targetCompatibility = JavaVersion.VERSION_1_8
   sourceCompatibility = JavaVersion.VERSION_1_8
 }
 
+tasks.named("compileTestJava").configure {
+  targetCompatibility = buildParams.getMinimumRuntimeVersion()
+  sourceCompatibility = buildParams.getMinimumRuntimeVersion()
+}
+
+tasks.named("test").configure {
+  // reset the unit test classpath as using the shadow jar won't work due to relocated packages
+  classpath = sourceSets.test.runtimeClasspath
+}
 
 tasks.named("shadowJar").configure {
   relocate 'com.fasterxml', 'shadow.fasterxml'
@@ -34,7 +43,3 @@ tasks.named("shadowJar").configure {
   }
 }
 
-tasks.named("test").configure {
-  // reset the unit test classpath as using the shadow jar won't work due to relocated packages
-  classpath = sourceSets.test.runtimeClasspath
-}

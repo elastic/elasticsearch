@@ -28,7 +28,13 @@ import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
 
-    private URI uri;
+    public static GoogleVertexAiEmbeddingsModel of(GoogleVertexAiEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var requestTaskSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+        return new GoogleVertexAiEmbeddingsModel(
+            model,
+            GoogleVertexAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings)
+        );
+    }
 
     public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
@@ -53,6 +59,10 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
 
     public GoogleVertexAiEmbeddingsModel(GoogleVertexAiEmbeddingsModel model, GoogleVertexAiEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
+    }
+
+    public GoogleVertexAiEmbeddingsModel(GoogleVertexAiEmbeddingsModel model, GoogleVertexAiEmbeddingsTaskSettings taskSettings) {
+        super(model, taskSettings);
     }
 
     // Should only be used directly for testing
@@ -117,10 +127,6 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
     @Override
     public GoogleVertexAiEmbeddingsRateLimitServiceSettings rateLimitServiceSettings() {
         return (GoogleVertexAiEmbeddingsRateLimitServiceSettings) super.rateLimitServiceSettings();
-    }
-
-    public URI uri() {
-        return uri;
     }
 
     @Override

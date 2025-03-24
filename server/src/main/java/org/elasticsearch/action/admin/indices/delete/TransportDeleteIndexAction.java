@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
@@ -42,6 +44,8 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexAction.class);
 
     private final MetadataDeleteIndexService deleteIndexService;
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
@@ -51,6 +55,7 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
         ThreadPool threadPool,
         MetadataDeleteIndexService deleteIndexService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DestructiveOperations destructiveOperations
     ) {
@@ -61,10 +66,11 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteIndexRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.deleteIndexService = deleteIndexService;
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
     }
 
@@ -76,7 +82,12 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
 
     @Override
     protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
-        return state.blocks().indicesAllowReleaseResources(indexNameExpressionResolver.concreteIndexNames(state, request));
+        final ProjectId projectId = projectResolver.getProjectId();
+        return state.blocks()
+            .indicesAllowReleaseResources(
+                projectId,
+                indexNameExpressionResolver.concreteIndexNames(state.metadata().getProject(projectId), request)
+            );
     }
 
     @Override

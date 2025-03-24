@@ -28,7 +28,7 @@ final class ResponseXContentUtils {
      * Returns the column headings for the given columns.
      */
     static Iterator<? extends ToXContent> allColumns(List<ColumnInfoImpl> columns, String name) {
-        return ChunkedToXContentHelper.singleChunk((builder, params) -> {
+        return ChunkedToXContentHelper.chunk((builder, params) -> {
             builder.startArray(name);
             for (ColumnInfo col : columns) {
                 col.toXContent(builder, params);
@@ -42,7 +42,7 @@ final class ResponseXContentUtils {
      * for always-null columns to a {@code null_columns} section.
      */
     static Iterator<? extends ToXContent> nonNullColumns(List<ColumnInfoImpl> columns, boolean[] nullColumns, String name) {
-        return ChunkedToXContentHelper.singleChunk((builder, params) -> {
+        return ChunkedToXContentHelper.chunk((builder, params) -> {
             builder.startArray(name);
             for (int c = 0; c < columns.size(); c++) {
                 if (nullColumns[c] == false) {

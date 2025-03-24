@@ -173,6 +173,11 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                         }
 
                         @Override
+                        public long getLogTime() {
+                            return result.getEndTime();
+                        }
+
+                        @Override
                         public String getMessage() {
                             return message;
                         }

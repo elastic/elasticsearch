@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
@@ -40,6 +40,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -49,6 +50,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
             service,
             IbmWatsonxEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -64,10 +66,11 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         String service,
         IbmWatsonxEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
+        ChunkingSettings chunkingsettings,
         @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingsettings),
             new ModelSecrets(secrets),
             serviceSettings
         );
@@ -115,7 +118,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
     }
 
     @Override
-    public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }
 

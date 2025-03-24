@@ -59,8 +59,6 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
             InternalSignificantTerms.Bucket<?> sampledBucket = sampledIt.next();
             assertEquals(sampledBucket.subsetDf, samplingContext.scaleUp(reducedBucket.subsetDf));
             assertEquals(sampledBucket.supersetDf, samplingContext.scaleUp(reducedBucket.supersetDf));
-            assertEquals(sampledBucket.subsetSize, samplingContext.scaleUp(reducedBucket.subsetSize));
-            assertEquals(sampledBucket.supersetSize, samplingContext.scaleUp(reducedBucket.supersetSize));
             assertThat(sampledBucket.score, closeTo(reducedBucket.score, 1e-14));
         }
     }

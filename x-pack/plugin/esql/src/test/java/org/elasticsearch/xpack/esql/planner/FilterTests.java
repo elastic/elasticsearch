@@ -30,13 +30,13 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.BeforeClass;
@@ -51,8 +51,10 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.MUST;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.SHOULD;
@@ -77,9 +79,9 @@ public class FilterTests extends ESTestCase {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+        logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG));
-        mapper = new Mapper(false);
+        mapper = new Mapper();
 
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
@@ -109,7 +111,7 @@ public class FilterTests extends ESTestCase {
         var plan = plan(query, null);
 
         var filter = filterQueryForTransportNodes(plan);
-        var expected = singleValueQuery(query, rangeQuery(EMP_NO).gt(value), EMP_NO, ((SingleValueQuery.Builder) filter).source());
+        var expected = singleValueQuery(query, unscore(rangeQuery(EMP_NO).gt(value)), EMP_NO, ((SingleValueQuery.Builder) filter).source());
         assertEquals(expected.toString(), filter.toString());
     }
 
@@ -127,7 +129,7 @@ public class FilterTests extends ESTestCase {
         var builder = ((BoolQueryBuilder) filter).filter().get(1);
         var queryFilter = singleValueQuery(
             query,
-            rangeQuery(EMP_NO).gt(value).includeUpper(false),
+            unscore(rangeQuery(EMP_NO).gt(value).includeUpper(false)),
             EMP_NO,
             ((SingleValueQuery.Builder) builder).source()
         );
@@ -148,8 +150,18 @@ public class FilterTests extends ESTestCase {
 
         var filter = filterQueryForTransportNodes(plan);
         var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
-        var left = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
-        var right = singleValueQuery(query, rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
+        var left = singleValueQuery(
+            query,
+            unscore(rangeQuery(EMP_NO).gt(lowValue)),
+            EMP_NO,
+            ((SingleValueQuery.Builder) musts.get(0)).source()
+        );
+        var right = singleValueQuery(
+            query,
+            unscore(rangeQuery(EMP_NO).lt(highValue)),
+            EMP_NO,
+            ((SingleValueQuery.Builder) musts.get(1)).source()
+        );
         var must = Queries.combine(MUST, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, must));
         assertEquals(expected.toString(), filter.toString());
@@ -183,8 +195,18 @@ public class FilterTests extends ESTestCase {
 
         var filter = filterQueryForTransportNodes(plan);
         var shoulds = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).should();
-        var left = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) shoulds.get(0)).source());
-        var right = singleValueQuery(query, rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) shoulds.get(1)).source());
+        var left = singleValueQuery(
+            query,
+            unscore(rangeQuery(EMP_NO).gt(lowValue)),
+            EMP_NO,
+            ((SingleValueQuery.Builder) shoulds.get(0)).source()
+        );
+        var right = singleValueQuery(
+            query,
+            unscore(rangeQuery(EMP_NO).lt(highValue)),
+            EMP_NO,
+            ((SingleValueQuery.Builder) shoulds.get(1)).source()
+        );
         var should = Queries.combine(SHOULD, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, should));
         assertEquals(expected.toString(), filter.toString());
@@ -204,8 +226,18 @@ public class FilterTests extends ESTestCase {
 
         var filter = filterQueryForTransportNodes(plan);
         var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
-        var left = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
-        var right = singleValueQuery(query, rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
+        var left = singleValueQuery(
+            query,
+            unscore(rangeQuery(EMP_NO).gt(lowValue)),
+            EMP_NO,
+            ((SingleValueQuery.Builder) musts.get(0)).source()
+        );
+        var right = singleValueQuery(
+            query,
+            unscore(rangeQuery(EMP_NO).lt(highValue)),
+            EMP_NO,
+            ((SingleValueQuery.Builder) musts.get(1)).source()
+        );
         var must = Queries.combine(MUST, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, must));
         assertEquals(expected.toString(), filter.toString());
@@ -228,7 +260,12 @@ public class FilterTests extends ESTestCase {
 
         var filter = filterQueryForTransportNodes(plan);
         var builder = ((BoolQueryBuilder) filter).filter().get(1);
-        var queryFilter = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) builder).source());
+        var queryFilter = singleValueQuery(
+            query,
+            unscore(rangeQuery(EMP_NO).gt(lowValue)),
+            EMP_NO,
+            ((SingleValueQuery.Builder) builder).source()
+        );
         var expected = Queries.combine(FILTER, asList(restFilter, queryFilter));
         assertEquals(expected.toString(), filter.toString());
     }
@@ -304,7 +341,7 @@ public class FilterTests extends ESTestCase {
         // System.out.println("physical\n" + physical);
         physical = physical.transformUp(
             FragmentExec.class,
-            f -> new FragmentExec(f.source(), f.fragment(), restFilter, f.estimatedRowSize(), f.reducer())
+            f -> new FragmentExec(f.source(), f.fragment(), restFilter, f.estimatedRowSize())
         );
         physical = physicalPlanOptimizer.optimize(physical);
         // System.out.println("optimized\n" + physical);
@@ -313,11 +350,11 @@ public class FilterTests extends ESTestCase {
     }
 
     private QueryBuilder restFilterQuery(String field) {
-        return rangeQuery(field).lt("2020-12-34");
+        return unscore(rangeQuery(field).lt("2020-12-34"));
     }
 
     private QueryBuilder filterQueryForTransportNodes(PhysicalPlan plan) {
-        return PlannerUtils.detectFilter(plan, EMP_NO, x -> true);
+        return PlannerUtils.detectFilter(plan, EMP_NO::equals);
     }
 
     @Override

@@ -44,7 +44,7 @@ public class SharedBytes extends AbstractRefCounted {
     );
     private static final Logger logger = LogManager.getLogger(SharedBytes.class);
 
-    public static int PAGE_SIZE = 4096;
+    public static final int PAGE_SIZE = 4096;
 
     private static final String CACHE_FILE_NAME = "shared_snapshot_cache";
 

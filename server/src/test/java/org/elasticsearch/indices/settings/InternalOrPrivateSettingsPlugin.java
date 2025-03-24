@@ -104,9 +104,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         static class Response extends ActionResponse {
             Response() {}
 
-            Response(StreamInput in) throws IOException {
-                super(in);
-            }
+            Response(StreamInput in) {}
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {}
@@ -133,7 +131,6 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 threadPool,
                 actionFilters,
                 UpdateInternalOrPrivateAction.Request::new,
-                indexNameExpressionResolver,
                 UpdateInternalOrPrivateAction.Response::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
@@ -150,9 +147,11 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 @Override
                 public ClusterState execute(final ClusterState currentState) throws Exception {
                     final Metadata.Builder builder = Metadata.builder(currentState.metadata());
-                    final IndexMetadata.Builder imdBuilder = IndexMetadata.builder(currentState.metadata().index(request.index));
+                    final IndexMetadata.Builder imdBuilder = IndexMetadata.builder(
+                        currentState.metadata().getProject().index(request.index)
+                    );
                     final Settings.Builder settingsBuilder = Settings.builder()
-                        .put(currentState.metadata().index(request.index).getSettings())
+                        .put(currentState.metadata().getProject().index(request.index).getSettings())
                         .put(request.key, request.value);
                     imdBuilder.settings(settingsBuilder);
                     imdBuilder.settingsVersion(1 + imdBuilder.settingsVersion());

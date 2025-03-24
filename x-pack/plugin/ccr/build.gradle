@@ -1,11 +1,11 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-ccr'
-  description 'Elasticsearch Expanded Pack Plugin - CCR'
-  classname 'org.elasticsearch.xpack.ccr.Ccr'
-  hasNativeController false
-  requiresKeystore true
+  name = 'x-pack-ccr'
+  description = 'Elasticsearch Expanded Pack Plugin - CCR'
+  classname ='org.elasticsearch.xpack.ccr.Ccr'
+  hasNativeController =false
+  requiresKeystore =true
   extendedPlugins = ['x-pack-core']
 }
 base {

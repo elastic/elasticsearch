@@ -81,12 +81,27 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         );
         public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting(READONLY_SETTING_KEY, false, Property.NodeScope);
         // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
-        private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
+        private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = ByteSizeValue.of(256, ByteSizeUnit.MB);
         public static final Setting<ByteSizeValue> MAX_SINGLE_PART_UPLOAD_SIZE_SETTING = Setting.byteSizeSetting(
             "max_single_part_upload_size",
             DEFAULT_MAX_SINGLE_UPLOAD_SIZE,
             Property.NodeScope
         );
+
+        /**
+         * The batch size for batched delete requests
+         */
+        static final Setting<Integer> DELETION_BATCH_SIZE_SETTING = Setting.intSetting(
+            "delete_objects_max_size",
+            AzureBlobStore.MAX_ELEMENTS_PER_BATCH,
+            1,
+            AzureBlobStore.MAX_ELEMENTS_PER_BATCH
+        );
+
+        /**
+         * The maximum number of concurrent batch deletes
+         */
+        static final Setting<Integer> MAX_CONCURRENT_BATCH_DELETES_SETTING = Setting.intSetting("max_concurrent_batch_deletes", 10, 1, 100);
     }
 
     private final ByteSizeValue chunkSize;

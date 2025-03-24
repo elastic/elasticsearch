@@ -25,11 +25,11 @@ public class ClusterChangedEventUtils {
         final ClusterState state = event.state();
         final ClusterState previousState = event.previousState();
         final List<String> created = new ArrayList<>();
-        for (Map.Entry<String, IndexMetadata> cursor : state.metadata().indices().entrySet()) {
+        for (Map.Entry<String, IndexMetadata> cursor : state.metadata().getProject().indices().entrySet()) {
             final String index = cursor.getKey();
-            if (previousState.metadata().hasIndex(index)) {
+            if (previousState.metadata().getProject().hasIndex(index)) {
                 final IndexMetadata currIndexMetadata = cursor.getValue();
-                final IndexMetadata prevIndexMetadata = previousState.metadata().index(index);
+                final IndexMetadata prevIndexMetadata = previousState.metadata().getProject().index(index);
                 if (currIndexMetadata.getIndexUUID().equals(prevIndexMetadata.getIndexUUID()) == false) {
                     created.add(index);
                 }

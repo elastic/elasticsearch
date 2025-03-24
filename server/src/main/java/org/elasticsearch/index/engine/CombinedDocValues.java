@@ -24,6 +24,7 @@ final class CombinedDocValues {
     private final NumericDocValues primaryTermDV;
     private final NumericDocValues tombstoneDV;
     private final NumericDocValues recoverySource;
+    private final NumericDocValues recoverySourceSize;
 
     CombinedDocValues(LeafReader leafReader) throws IOException {
         this.versionDV = Objects.requireNonNull(leafReader.getNumericDocValues(VersionFieldMapper.NAME), "VersionDV is missing");
@@ -34,6 +35,7 @@ final class CombinedDocValues {
         );
         this.tombstoneDV = leafReader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
         this.recoverySource = leafReader.getNumericDocValues(SourceFieldMapper.RECOVERY_SOURCE_NAME);
+        this.recoverySourceSize = leafReader.getNumericDocValues(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME);
     }
 
     long docVersion(int segmentDocId) throws IOException {
@@ -78,5 +80,13 @@ final class CombinedDocValues {
         }
         assert recoverySource.docID() < segmentDocId;
         return recoverySource.advanceExact(segmentDocId);
+    }
+
+    long recoverySourceSize(int segmentDocId) throws IOException {
+        if (recoverySourceSize == null) {
+            return -1;
+        }
+        assert recoverySourceSize.docID() < segmentDocId;
+        return recoverySourceSize.advanceExact(segmentDocId) ? recoverySourceSize.longValue() : -1;
     }
 }

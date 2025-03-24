@@ -786,6 +786,45 @@
                     },
                     "sampling": {
                       "properties": {
+                        "tail": {
+                          "properties": {
+                            "dynamic_service_groups": {
+                              "type": "long"
+                            },
+                            "events": {
+                              "properties": {
+                                "dropped": {
+                                  "type": "long"
+                                },
+                                "failed_writes": {
+                                  "type": "long"
+                                },
+                                "head_unsampled": {
+                                  "type": "long"
+                                },
+                                "processed": {
+                                  "type": "long"
+                                },
+                                "sampled": {
+                                  "type": "long"
+                                },
+                                "stored": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "storage": {
+                              "properties": {
+                                "lsm_size": {
+                                  "type": "long"
+                                },
+                                "value_log_size": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
                         "transactions_dropped": {
                           "type": "long"
                         }
@@ -2219,6 +2258,54 @@
                     },
                     "sampling": {
                       "properties": {
+                        "tail": {
+                          "properties": {
+                            "dynamic_service_groups": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.sampling.tail.dynamic_service_groups"
+                            },
+                            "events": {
+                              "properties": {
+                                "dropped": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.dropped"
+                                },
+                                "failed_writes": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.failed_writes"
+                                },
+                                "head_unsampled": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.head_unsampled"
+                                },
+                                "processed": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.processed"
+                                },
+                                "sampled": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.sampled"
+                                },
+                                "stored": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.stored"
+                                }
+                              }
+                            },
+                            "storage": {
+                              "properties": {
+                                "lsm_size": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.storage.lsm_size"
+                                },
+                                "value_log_size": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.storage.value_log_size"
+                                }
+                              }
+                            }
+                          }
+                        },
                         "transactions_dropped": {
                           "type": "alias",
                           "path": "beat.stats.apm_server.sampling.transactions_dropped"

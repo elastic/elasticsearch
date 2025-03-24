@@ -23,7 +23,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
@@ -109,7 +108,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ThreadPool threadPool,
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         TrainedModelAssignmentService trainedModelAssignmentService,
         MlMemoryTracker memoryTracker,
         InferenceAuditor auditor
@@ -121,7 +119,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             threadPool,
             actionFilters,
             StartTrainedModelDeploymentAction.Request::new,
-            indexNameExpressionResolver,
             CreateTrainedModelAssignmentAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -190,11 +187,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     () -> "[" + request.getDeploymentId() + "] creating new assignment for model [" + request.getModelId() + "] failed",
                     e
                 );
-                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException resourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
                         RestStatus.CONFLICT,
-                        e,
+                        resourceAlreadyExistsException,
                         request.getDeploymentId()
                     );
                 }
@@ -215,7 +212,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 perDeploymentMemoryBytes.get(),
                 perAllocationMemoryBytes.get()
             );
-            PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata persistentTasks = clusterService.state()
+                .getMetadata()
+                .getProject()
+                .custom(PersistentTasksCustomMetadata.TYPE);
             memoryTracker.refresh(
                 persistentTasks,
                 ActionListener.wrap(
@@ -671,7 +671,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 deploymentId
             ).orElse(null);
             if (trainedModelAssignment == null) {
-                // Something weird happened, it should NEVER be null...
+                // The assignment may be null if it was stopped by another action while waiting
+                this.exception = new ElasticsearchStatusException(
+                    "Error waiting for the model deployment to start. The trained model assignment was removed while waiting",
+                    RestStatus.BAD_REQUEST
+                );
                 logger.trace(() -> format("[%s] assignment was null while waiting for state [%s]", deploymentId, waitForState));
                 return true;
             }

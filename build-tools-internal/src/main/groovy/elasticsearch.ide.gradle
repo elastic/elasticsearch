@@ -9,8 +9,9 @@
 
 import org.elasticsearch.gradle.util.Pair
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.TestUtil
+import org.elasticsearch.gradle.internal.idea.EnablePreviewFeaturesTask
+import org.elasticsearch.gradle.internal.idea.IdeaXmlUtil
 import org.jetbrains.gradle.ext.JUnit
 
 import java.nio.file.Files
@@ -25,12 +26,17 @@ allprojects {
   }
 }
 
+interface Injected {
+  @Inject FileSystemOperations getFs()
+}
+
 // Applying this stuff, particularly the idea-ext plugin, has a cost so avoid it unless we're running in the IDE
 if (providers.systemProperty('idea.active').getOrNull() == 'true') {
   project.apply(plugin: org.jetbrains.gradle.ext.IdeaExtPlugin)
 
   def elasticsearchProject = locateElasticsearchWorkspace(gradle)
 
+  def rootFolder = project.rootDir
   tasks.register('configureIdeCheckstyle') {
     group = 'ide'
     description = 'Generated a suitable checkstyle config for IDEs'
@@ -40,10 +46,10 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     String checkstyleConfig = "${resources}/checkstyle.xml"
     String checkstyleSuppressions = "${resources}/checkstyle_suppressions.xml"
     String checkstyleIdeFragment = "${resources}/checkstyle_ide_fragment.xml"
-    String checkstyleIdeConfig = "${rootDir}/checkstyle_ide.xml"
+    String checkstyleIdeConfig = "${rootFolder}/checkstyle_ide.xml"
 
     String checkstylePluginConfigTemplate = "${resources}/checkstyle-idea.xml"
-    String checkstylePluginConfig = "${rootDir}/.idea/checkstyle-idea.xml"
+    String checkstylePluginConfig = "${rootFolder}/.idea/checkstyle-idea.xml"
 
     inputs.files(
       file(checkstyleConfig),
@@ -54,31 +60,33 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       file(checkstyleIdeConfig),
       file(checkstylePluginConfig)
     )
+    def injected = project.objects.newInstance(Injected)
 
+    def projectFolder = project.layout.projectDirectory.asFile
     doLast {
       // Configure the IntelliJ Checkstyle plugin by copying a standard file. We don't simply commit
       // the result to version control, because the plugin has a habit of modifying the file and
       // replacing the `$PROJECT_DIR$` placeholders, which developers must then revert.
-      project.copy {
+      injected.fs.copy {
         from(checkstylePluginConfigTemplate)
-        into("${rootDir}/.idea")
+        into("${rootFolder}/.idea")
         expand(jarLocation: buildConventionsJar, configLocation: checkstyleIdeConfig)
       }
 
       // Create an IDE-specific checkstyle config by first copying the standard config
       Files.copy(
-        Paths.get(file(checkstyleConfig).getPath()),
-        Paths.get(file(checkstyleIdeConfig).getPath()),
+        Paths.get(new File(checkstyleConfig).getPath()),
+        Paths.get(new File(checkstyleIdeConfig).getPath()),
         StandardCopyOption.REPLACE_EXISTING
       )
 
       // There are some rules that we only want to enable in an IDE. These
       // are extracted to a separate file, and merged into the IDE-specific
       // Checkstyle config.
-      Node xmlFragment = parseXml(checkstyleIdeFragment)
+      Node xmlFragment = IdeaXmlUtil.parseXml(checkstyleIdeFragment)
 
       // Edit the copy so that IntelliJ can copy with it
-      modifyXml(checkstyleIdeConfig, { xml ->
+      IdeaXmlUtil.modifyXml(checkstyleIdeConfig, { xml ->
         // Add all the nodes from the fragment file
         Node treeWalker = xml.module.find { it.'@name' == 'TreeWalker' }
         xmlFragment.module.each { treeWalker.append(it) }
@@ -104,7 +112,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     description = 'Configures the appropriate JVM for Gradle'
 
     doLast {
-      modifyXml('.idea/gradle.xml') { xml ->
+      IdeaXmlUtil.modifyXml('.idea/gradle.xml') { xml ->
         def gradleSettings = xml.component.find { it.'@name' == 'GradleSettings' }.option[0].GradleProjectSettings
         // Remove configured JVM option to force IntelliJ to use the project JDK for Gradle
         gradleSettings.option.findAll { it.'@name' == 'gradleJvm' }.each { it.parent().remove(it) }
@@ -122,26 +130,60 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       .findAll { it != null }
   }
 
+  // force IntelliJ to generate *.iml files for each imported module
+  tasks.register("enableExternalConfiguration") {
+    group = 'ide'
+    description = 'Enable per-module *.iml files'
+
+    doLast {
+      IdeaXmlUtil.modifyXml('.idea/misc.xml') {xml ->
+        def externalStorageConfig = xml.component.find { it.'@name' == 'ExternalStorageConfigurationManager' }
+        if (externalStorageConfig) {
+          xml.remove(externalStorageConfig)
+        }
+      }
+    }
+  }
+
+  // modifies the idea module config to enable preview features on module that need them
+  tasks.register("enablePreviewFeatures", EnablePreviewFeaturesTask) {
+    group = 'ide'
+    description = 'Enables preview features on modules that need them'
+    dependsOn tasks.named("enableExternalConfiguration")
+    doLast {
+      enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.main.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.test.iml', 'JDK_21_PREVIEW')
+      // due to org.elasticsearch.plugins.PluginsLoader
+      enablePreview('.idea/modules/server/elasticsearch.server.main.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/server/elasticsearch.server.test.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/elasticsearch.libs.entitlement.main.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/elasticsearch.libs.entitlement.test.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/bridge/elasticsearch.libs.entitlement.bridge.main.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/bridge/elasticsearch.libs.entitlement.bridge.test.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/qa/entitlement-test-plugin/elasticsearch.libs.entitlement.qa.entitlement-test-plugin.main.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/qa/entitlement-test-plugin/elasticsearch.libs.entitlement.qa.entitlement-test-plugin.test.iml', 'JDK_21_PREVIEW')
+    }
+  }
+
   tasks.register('buildDependencyArtifacts') {
     group = 'ide'
     description = 'Builds artifacts needed as dependency for IDE modules'
-    dependsOn([':plugins:repository-hdfs:hadoop-client-api:shadowJar',
-      ':x-pack:plugin:esql:compute:ann:jar',
+    dependsOn([':x-pack:plugin:esql:compute:ann:jar',
       ':x-pack:plugin:esql:compute:gen:jar',
       ':server:generateModulesList',
       ':server:generatePluginsList',
       ':generateProviderImpls',
-      ':libs:elasticsearch-native:elasticsearch-native-libraries:extractLibs',
+      ':libs:native:native-libraries:extractLibs',
       ':x-pack:libs:es-opensaml-security-api:shadowJar'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }
 
   // this path is produced by the extractLibs task above
   String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/libs/native/libraries/build/platform")
-
+  def enableIdeaCC = providers.gradleProperty("org.elasticsearch.idea-configuration-cache").getOrElse("true").toBoolean()
   idea {
     project {
       vcs = 'Git'
-      jdkName = BuildParams.minimumCompilerVersion.majorVersion
+      jdkName = buildParams.minimumCompilerVersion.majorVersion
 
       settings {
         delegateActions {
@@ -149,7 +191,10 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
           testRunner = 'choose_per_test'
         }
         taskTriggers {
-          afterSync tasks.named('configureIdeCheckstyle'), tasks.named('configureIdeaGradleJvm'), tasks.named('buildDependencyArtifacts')
+          afterSync tasks.named('configureIdeCheckstyle'),
+            tasks.named('configureIdeaGradleJvm'),
+            tasks.named('buildDependencyArtifacts'),
+            tasks.named('enablePreviewFeatures')
         }
         encodings {
           encoding = 'UTF-8'
@@ -164,6 +209,11 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
           }
         }
         runConfigurations {
+          defaults(org.jetbrains.gradle.ext.Gradle) {
+            scriptParameters = enableIdeaCC ? [
+              '--configuration-cache'
+            ].join(' ') : ''
+          }
           defaults(JUnit) {
             vmParameters = [
               '-ea',
@@ -231,42 +281,6 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       }
     }
   }
-}
-
-/**
- * Parses a given XML file, applies a set of changes, and writes those changes back to the original file.
- *
- * @param path Path to existing XML file
- * @param action Action to perform on parsed XML document
- * @param preface optional front matter to add after the XML declaration
- * but before the XML document, e.g. a doctype or comment
- */
-void modifyXml(Object path, Action<? super Node> action, String preface = null) {
-  if (project.file(path).exists()) {
-    Node xml = parseXml(path)
-    action.execute(xml)
-
-    File xmlFile = project.file(path)
-    xmlFile.withPrintWriter { writer ->
-      def printer = new XmlNodePrinter(writer)
-      printer.namespaceAware = true
-      printer.preserveWhitespace = true
-      writer.write("<?xml version=\"1.0\"?>\n")
-
-      if (preface != null) {
-        writer.write(preface)
-      }
-      printer.print(xml)
-    }
-  }
-}
-
-Node parseXml(Object path) {
-  File xmlFile = project.file(path)
-  XmlParser xmlParser = new XmlParser(false, true, true)
-  xmlParser.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
-  Node xml = xmlParser.parse(xmlFile)
-  return xml
 }
 
 Pair<File, IncludedBuild> locateElasticsearchWorkspace(Gradle gradle) {

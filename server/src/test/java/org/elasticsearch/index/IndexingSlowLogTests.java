@@ -28,10 +28,10 @@ import org.elasticsearch.index.IndexingSlowLog.IndexingSlowLogMessage;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.ParsedDocument.DocumentSize;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
@@ -81,7 +81,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         String uuid = UUIDs.randomBase64UUID();
         IndexMetadata metadata = createIndexMetadata("index-precedence", settings(uuid));
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), randomNonNegativeLong(), doc);
@@ -142,7 +142,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             ),
             Settings.EMPTY
         );
-        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mock(SlowLogFields.class));
 
         IndexSettings index2Settings = new IndexSettings(
             createIndexMetadata(
@@ -155,7 +155,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             ),
             Settings.EMPTY
         );
-        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mock(SlowLogFields.class));
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), randomNonNegativeLong(), doc);
@@ -179,12 +179,12 @@ public class IndexingSlowLogTests extends ESTestCase {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
         IndexSettings index1Settings = new IndexSettings(createIndexMetadata("index1", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
-        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mock(SlowLogFields.class));
 
         int numberOfLoggersBefore = context.getLoggers().size();
 
         IndexSettings index2Settings = new IndexSettings(createIndexMetadata("index2", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
-        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mock(SlowLogFields.class));
         context = (LoggerContext) LogManager.getContext(false);
 
         int numberOfLoggersAfter = context.getLoggers().size();
@@ -217,7 +217,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -246,7 +246,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -276,7 +276,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
         Index index = new Index("foo", "123");
 
@@ -295,7 +295,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -327,7 +327,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
 
         final XContentParseException e = expectThrows(
@@ -355,7 +355,7 @@ public class IndexingSlowLogTests extends ESTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
         assertFalse(log.isReformat());
         settings.updateIndexMetadata(
             newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING.getKey(), "true").build())
@@ -372,7 +372,7 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
+        log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
         assertTrue(log.isReformat());
         try {
             settings.updateIndexMetadata(
@@ -405,7 +405,7 @@ public class IndexingSlowLogTests extends ESTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
         assertEquals(TimeValue.timeValueMillis(100).nanos(), log.getIndexTraceThreshold());
         assertEquals(TimeValue.timeValueMillis(200).nanos(), log.getIndexDebugThreshold());
         assertEquals(TimeValue.timeValueMillis(300).nanos(), log.getIndexInfoThreshold());
@@ -436,7 +436,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexWarnThreshold());
 
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
+        log = new IndexingSlowLog(settings, mock(SlowLogFields.class));
 
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexTraceThreshold());
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexDebugThreshold());

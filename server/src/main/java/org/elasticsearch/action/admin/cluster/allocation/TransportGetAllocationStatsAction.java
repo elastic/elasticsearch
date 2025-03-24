@@ -13,24 +13,27 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -40,6 +43,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAction<
     TransportGetAllocationStatsAction.Request,
@@ -47,9 +51,19 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     public static final ActionType<TransportGetAllocationStatsAction.Response> TYPE = new ActionType<>("cluster:monitor/allocation/stats");
 
-    private final AllocationStatsService allocationStatsService;
+    public static final TimeValue DEFAULT_CACHE_TTL = TimeValue.timeValueMinutes(1);
+    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.stats.cache.ttl",
+        DEFAULT_CACHE_TTL,
+        TimeValue.ZERO,
+        TimeValue.timeValueMinutes(10),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private final AllocationStatsCache allocationStatsCache;
+    private final SingleResultDeduplicator<Map<String, NodeAllocationStats>> allocationStatsSupplier;
     private final DiskThresholdSettings diskThresholdSettings;
-    private final FeatureService featureService;
 
     @Inject
     public TransportGetAllocationStatsAction(
@@ -57,9 +71,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        AllocationStatsService allocationStatsService,
-        FeatureService featureService
+        AllocationStatsService allocationStatsService
     ) {
         super(
             TYPE.name(),
@@ -68,13 +80,28 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             threadPool,
             actionFilters,
             TransportGetAllocationStatsAction.Request::new,
-            indexNameExpressionResolver,
             TransportGetAllocationStatsAction.Response::new,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            // DIRECT is ok here because we fork the allocation stats computation onto a MANAGEMENT thread if needed, or else we return
+            // very cheaply.
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.allocationStatsService = allocationStatsService;
+        final var managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+        this.allocationStatsCache = new AllocationStatsCache(threadPool, DEFAULT_CACHE_TTL);
+        this.allocationStatsSupplier = new SingleResultDeduplicator<>(threadPool.getThreadContext(), l -> {
+            final var cachedStats = allocationStatsCache.get();
+            if (cachedStats != null) {
+                l.onResponse(cachedStats);
+                return;
+            }
+
+            managementExecutor.execute(ActionRunnable.supply(l, () -> {
+                final var stats = allocationStatsService.stats();
+                allocationStatsCache.put(stats);
+                return stats;
+            }));
+        });
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
-        this.featureService = featureService;
+        clusterService.getClusterSettings().initializeAndWatch(CACHE_TTL_SETTING, this.allocationStatsCache::setTTL);
     }
 
     @Override
@@ -89,15 +116,15 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        listener.onResponse(
-            new Response(
-                request.metrics().contains(Metric.ALLOCATIONS) ? allocationStatsService.stats() : Map.of(),
-                request.metrics().contains(Metric.FS)
-                    && featureService.clusterHasFeature(clusterService.state(), AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
-                        ? diskThresholdSettings
-                        : null
-            )
-        );
+        // NB we are still on a transport thread here - if adding more functionality here make sure to fork to a different pool
+
+        final SubscribableListener<Map<String, NodeAllocationStats>> allocationStatsStep = request.metrics().contains(Metric.ALLOCATIONS)
+            ? SubscribableListener.newForked(allocationStatsSupplier::execute)
+            : SubscribableListener.newSucceeded(Map.of());
+
+        allocationStatsStep.andThenApply(
+            allocationStats -> new Response(allocationStats, request.metrics().contains(Metric.FS) ? diskThresholdSettings : null)
+        ).addListener(listener);
     }
 
     @Override
@@ -118,7 +145,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.metrics = in.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)
+            this.metrics = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readEnumSet(Metric.class)
                 : EnumSet.of(Metric.ALLOCATIONS, Metric.FS);
         }
@@ -127,7 +154,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         public void writeTo(StreamOutput out) throws IOException {
             assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0);
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeEnumSet(metrics);
             }
         }
@@ -154,7 +181,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.nodeAllocationStats = in.readImmutableMap(StreamInput::readString, NodeAllocationStats::new);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 this.diskThresholdSettings = in.readOptionalWriteable(DiskThresholdSettings::readFrom);
@@ -180,6 +206,43 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         @Nullable // for bwc
         public DiskThresholdSettings getDiskThresholdSettings() {
             return diskThresholdSettings;
+        }
+    }
+
+    private record CachedAllocationStats(Map<String, NodeAllocationStats> stats, long timestampMillis) {}
+
+    private static class AllocationStatsCache {
+        private volatile long ttlMillis;
+        private final ThreadPool threadPool;
+        private final AtomicReference<CachedAllocationStats> cachedStats;
+
+        AllocationStatsCache(ThreadPool threadPool, TimeValue ttl) {
+            this.threadPool = threadPool;
+            this.cachedStats = new AtomicReference<>();
+            setTTL(ttl);
+        }
+
+        void setTTL(TimeValue ttl) {
+            ttlMillis = ttl.millis();
+            if (ttlMillis == 0L) {
+                cachedStats.set(null);
+            }
+        }
+
+        Map<String, NodeAllocationStats> get() {
+            if (ttlMillis == 0L) {
+                return null;
+            }
+
+            // We don't set the atomic ref to null here upon expiration since we know it is about to be replaced with a fresh instance.
+            final var stats = cachedStats.get();
+            return stats == null || threadPool.relativeTimeInMillis() - stats.timestampMillis > ttlMillis ? null : stats.stats;
+        }
+
+        void put(Map<String, NodeAllocationStats> stats) {
+            if (ttlMillis > 0L) {
+                cachedStats.set(new CachedAllocationStats(stats, threadPool.relativeTimeInMillis()));
+            }
         }
     }
 }

@@ -13,7 +13,8 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -52,6 +53,8 @@ import java.util.function.Supplier;
  *
 **/
 public final class IndexSortConfig {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndexSortConfig.class);
 
     /**
      * The list of field names
@@ -99,12 +102,23 @@ public final class IndexSortConfig {
         Setting.Property.ServerlessPublic
     );
 
-    public static final FieldSortSpec[] TIME_SERIES_SORT;
-
+    public static final FieldSortSpec[] TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
     static {
         FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         timeStampSpec.order = SortOrder.DESC;
         TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
+        TIMESTAMP_SORT = new FieldSortSpec[] { timeStampSpec };
+
+        FieldSortSpec hostnameSpec = new FieldSortSpec(IndexMode.HOST_NAME);
+        hostnameSpec.order = SortOrder.ASC;
+        hostnameSpec.missingValue = "_last";
+        hostnameSpec.mode = MultiValueMode.MIN;
+        HOSTNAME_TIMESTAMP_SORT = new FieldSortSpec[] { hostnameSpec, timeStampSpec };
+
+        // Older indexes use ascending ordering for host name and timestamp.
+        HOSTNAME_TIMESTAMP_BWC_SORT = new FieldSortSpec[] {
+            new FieldSortSpec(IndexMode.HOST_NAME),
+            new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
     }
 
     private static String validateMissingValue(String missing) {
@@ -134,32 +148,50 @@ public final class IndexSortConfig {
 
     // visible for tests
     final FieldSortSpec[] sortSpecs;
+    private final IndexVersion indexCreatedVersion;
+    private final String indexName;
     private final IndexMode indexMode;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
+        this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
+        this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.getMode();
 
-        if (this.indexMode == IndexMode.TIME_SERIES) {
-            this.sortSpecs = TIME_SERIES_SORT;
+        if (indexMode == IndexMode.TIME_SERIES) {
+            sortSpecs = TIME_SERIES_SORT;
             return;
         }
 
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
-        if (this.indexMode == IndexMode.LOGSDB && fields.isEmpty()) {
-            fields = List.of("host.name", DataStream.TIMESTAMP_FIELD_NAME);
+        if (indexMode == IndexMode.LOGSDB && INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
+            if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
+                var order = INDEX_SORT_ORDER_SETTING.get(settings);
+                throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.order:" + order + ", size mismatch");
+            }
+            if (INDEX_SORT_MODE_SETTING.exists(settings)) {
+                var mode = INDEX_SORT_MODE_SETTING.get(settings);
+                throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.mode:" + mode + ", size mismatch");
+            }
+            if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
+                var missing = INDEX_SORT_MISSING_SETTING.get(settings);
+                throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.missing:" + missing + ", size mismatch");
+            }
+            var version = indexSettings.getIndexVersionCreated();
+            if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
+                || version.between(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
+                sortSpecs = (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings)) ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
+            } else {
+                sortSpecs = HOSTNAME_TIMESTAMP_BWC_SORT;
+            }
+            return;
         }
-        this.sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
+        sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
 
         if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
             List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
-            if (this.indexMode == IndexMode.LOGSDB && orders.isEmpty()) {
-                orders = List.of(SortOrder.DESC, SortOrder.DESC);
-            }
             if (orders.size() != sortSpecs.length) {
-                throw new IllegalArgumentException(
-                    "index.sort.field:" + fields + " index.sort.order:" + orders.toString() + ", size mismatch"
-                );
+                throw new IllegalArgumentException("index.sort.field:" + fields + " index.sort.order:" + orders + ", size mismatch");
             }
             for (int i = 0; i < sortSpecs.length; i++) {
                 sortSpecs[i].order = orders.get(i);
@@ -168,9 +200,6 @@ public final class IndexSortConfig {
 
         if (INDEX_SORT_MODE_SETTING.exists(settings)) {
             List<MultiValueMode> modes = INDEX_SORT_MODE_SETTING.get(settings);
-            if (this.indexMode == IndexMode.LOGSDB && modes.isEmpty()) {
-                modes = List.of(MultiValueMode.MIN, MultiValueMode.MIN);
-            }
             if (modes.size() != sortSpecs.length) {
                 throw new IllegalArgumentException("index.sort.field:" + fields + " index.sort.mode:" + modes + ", size mismatch");
             }
@@ -181,9 +210,6 @@ public final class IndexSortConfig {
 
         if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
             List<String> missingValues = INDEX_SORT_MISSING_SETTING.get(settings);
-            if (this.indexMode == IndexMode.LOGSDB && missingValues.isEmpty()) {
-                missingValues = List.of("_first", "_first");
-            }
             if (missingValues.size() != sortSpecs.length) {
                 throw new IllegalArgumentException(
                     "index.sort.field:" + fields + " index.sort.missing:" + missingValues + ", size mismatch"
@@ -230,7 +256,22 @@ public final class IndexSortConfig {
                 throw new IllegalArgumentException(err);
             }
             if (Objects.equals(ft.name(), sortSpec.field) == false) {
-                throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
+                if (this.indexCreatedVersion.onOrAfter(IndexVersions.V_7_13_0)) {
+                    throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
+                } else {
+                    DEPRECATION_LOGGER.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "index-sort-aliases",
+                        "Index sort for index ["
+                            + indexName
+                            + "] defined on field ["
+                            + sortSpec.field
+                            + "] which resolves to field ["
+                            + ft.name()
+                            + "]. "
+                            + "You will not be able to define an index sort over aliased fields in new indexes"
+                    );
+                }
             }
             boolean reverse = sortSpec.order == null ? false : (sortSpec.order == SortOrder.DESC);
             MultiValueMode mode = sortSpec.mode;
@@ -259,6 +300,15 @@ public final class IndexSortConfig {
         if (ALLOWED_INDEX_SORT_TYPES.contains(type) == false) {
             throw new IllegalArgumentException("invalid index sort field:[" + sortField.getField() + "]");
         }
+    }
+
+    public boolean hasSortOnField(final String fieldName) {
+        for (FieldSortSpec sortSpec : sortSpecs) {
+            if (sortSpec.field.equals(fieldName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static class FieldSortSpec {

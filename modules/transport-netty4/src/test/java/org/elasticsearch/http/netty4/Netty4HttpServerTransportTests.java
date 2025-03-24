@@ -40,6 +40,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -48,6 +49,7 @@ import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
@@ -93,13 +95,13 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -110,6 +112,7 @@ import java.util.function.BiConsumer;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
@@ -347,14 +350,14 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
-                final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
+                final String url = "/" + new String(new byte[maxInitialLineLength], StandardCharsets.UTF_8);
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {
                     assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
                     assertThat(
-                        new String(response.content().array(), Charset.forName("UTF-8")),
+                        new String(response.content().array(), StandardCharsets.UTF_8),
                         containsString("you sent a bad request and you should feel bad")
                     );
                 } finally {
@@ -1039,8 +1042,16 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
     }
 
-    public void testRespondAfterClose() throws Exception {
-        final String url = "/thing";
+    public void testRespondAfterServiceCloseWithClientCancel() throws Exception {
+        runRespondAfterServiceCloseTest(true);
+    }
+
+    public void testRespondAfterServiceCloseWithServerCancel() throws Exception {
+        runRespondAfterServiceCloseTest(false);
+    }
+
+    private void runRespondAfterServiceCloseTest(boolean clientCancel) throws Exception {
+        final String url = "/" + randomIdentifier();
         final CountDownLatch responseReleasedLatch = new CountDownLatch(1);
         final SubscribableListener<Void> transportClosedFuture = new SubscribableListener<>();
         final CountDownLatch handlingRequestLatch = new CountDownLatch(1);
@@ -1066,7 +1077,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
-                Settings.EMPTY,
+                clientCancel
+                    ? Settings.EMPTY
+                    : Settings.builder().put(SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(1)).build(),
                 networkService,
                 threadPool,
                 xContentRegistry(),
@@ -1082,11 +1095,24 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             transport.start();
             final var address = randomFrom(transport.boundAddress().boundAddresses()).address();
             try (var client = RestClient.builder(new HttpHost(address.getAddress(), address.getPort())).build()) {
-                client.performRequestAsync(new Request("GET", url), ActionTestUtils.wrapAsRestResponseListener(ActionListener.noop()));
+                final var responseExceptionFuture = new PlainActionFuture<Exception>();
+                final var cancellable = client.performRequestAsync(
+                    new Request("GET", url),
+                    ActionTestUtils.wrapAsRestResponseListener(ActionTestUtils.assertNoSuccessListener(responseExceptionFuture::onResponse))
+                );
                 safeAwait(handlingRequestLatch);
+                if (clientCancel) {
+                    threadPool.generic().execute(cancellable::cancel);
+                }
                 transport.close();
                 transportClosedFuture.onResponse(null);
                 safeAwait(responseReleasedLatch);
+                final var responseException = safeGet(responseExceptionFuture);
+                if (clientCancel) {
+                    assertThat(responseException, instanceOf(CancellationException.class));
+                } else {
+                    assertThat(responseException, instanceOf(ConnectionClosedException.class));
+                }
             }
         }
     }

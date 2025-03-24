@@ -19,9 +19,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.test.ListMatcher;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -257,63 +257,32 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testTsdb() throws IOException {
-        final Version oldClusterVersion = Version.fromString(getOldClusterVersion());
-        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_NEW_INDEX_FORMAT));
-
         StringBuilder bulk = new StringBuilder();
         if (isOldCluster()) {
             createTsdbIndex();
             tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[0], TSDB_TIMES[1], 0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[0], TSDB_TIMES[1], -0.1);
             bulk("tsdb", bulk.toString());
-            assertTsdbAgg(oldClusterVersion, EXPECTED_TSDB_TSIDS_NODES_0, closeTo(215.95, 0.005), closeTo(-215.95, 0.005));
+            assertTsdbAgg(EXPECTED_TSDB_TSIDS_NODES_0, closeTo(215.95, 0.005), closeTo(-215.95, 0.005));
         } else if (isFirstMixedCluster()) {
             tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[1], TSDB_TIMES[2], 0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[1], TSDB_TIMES[2], -0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[0], TSDB_TIMES[2], 1.1);
             bulk("tsdb", bulk.toString());
-            if (oldClusterVersion.onOrAfter(Version.V_8_13_0)) {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_1,
-                    closeTo(217.45, 0.005),
-                    closeTo(2391.95, 0.005),
-                    closeTo(-217.45, 0.005)
-                );
-            } else {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_1,
-                    closeTo(217.45, 0.005),
-                    closeTo(-217.45, 0.005),
-                    closeTo(2391.95, 0.005)
-                );
-            }
+            assertTsdbAgg(EXPECTED_TSDB_TSIDS_NODES_1, closeTo(217.45, 0.005), closeTo(2391.95, 0.005), closeTo(-217.45, 0.005));
         } else if (isMixedCluster()) {
             tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[2], TSDB_TIMES[3], 0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[2], TSDB_TIMES[3], -0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[2], TSDB_TIMES[3], 1.1);
             tsdbBulk(bulk, TSDB_DIMS.get(3), TSDB_TIMES[0], TSDB_TIMES[3], 10);
             bulk("tsdb", bulk.toString());
-            if (oldClusterVersion.onOrAfter(Version.V_8_13_0)) {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_2,
-                    closeTo(218.95, 0.5),
-                    closeTo(21895.0, 0.005),
-                    closeTo(2408.45, 0.005),
-                    closeTo(-218.95, 0.005)
-                );
-            } else {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_2,
-                    closeTo(218.95, 0.005),
-                    closeTo(-218.95, 0.005),
-                    closeTo(2408.45, 0.005),
-                    closeTo(21895, 0.5)
-                );
-            }
+            assertTsdbAgg(
+                EXPECTED_TSDB_TSIDS_NODES_2,
+                closeTo(218.95, 0.5),
+                closeTo(21895.0, 0.005),
+                closeTo(2408.45, 0.005),
+                closeTo(-218.95, 0.005)
+            );
         } else {
             tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[3], TSDB_TIMES[4], 0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[3], TSDB_TIMES[4], -0.1);
@@ -321,27 +290,14 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
             tsdbBulk(bulk, TSDB_DIMS.get(3), TSDB_TIMES[3], TSDB_TIMES[4], 10);
             tsdbBulk(bulk, TSDB_DIMS.get(4), TSDB_TIMES[0], TSDB_TIMES[4], -5);
             bulk("tsdb", bulk.toString());
-            if (oldClusterVersion.onOrAfter(Version.V_8_13_0)) {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_3,
-                    closeTo(220.45, 0.005),
-                    closeTo(-11022.5, 0.5),
-                    closeTo(22045, 0.5),
-                    closeTo(2424.95, 0.005),
-                    closeTo(-220.45, 0.005)
-                );
-            } else {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_3,
-                    closeTo(220.45, 0.005),
-                    closeTo(-220.45, 0.005),
-                    closeTo(2424.95, 0.005),
-                    closeTo(22045, 0.5),
-                    closeTo(-11022.5, 0.5)
-                );
-            }
+            assertTsdbAgg(
+                EXPECTED_TSDB_TSIDS_NODES_3,
+                closeTo(220.45, 0.005),
+                closeTo(-11022.5, 0.5),
+                closeTo(22045, 0.5),
+                closeTo(2424.95, 0.005),
+                closeTo(-220.45, 0.005)
+            );
         }
     }
 
@@ -383,9 +339,7 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         }
     }
 
-    private void assertTsdbAgg(final Version oldClusterVersion, final List<String> expectedTsids, final Matcher<?>... expected)
-        throws IOException {
-        boolean onOrAfterTsidHashingVersion = oldClusterVersion.onOrAfter(Version.V_8_13_0);
+    private void assertTsdbAgg(final List<String> expectedTsids, final Matcher<?>... expected) throws IOException {
         Request request = new Request("POST", "/tsdb/_search");
         request.addParameter("size", "0");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
@@ -402,8 +356,7 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         request.setJsonEntity(Strings.toString(body.endObject()));
         ListMatcher tsidsExpected = matchesList();
         for (int d = 0; d < expected.length; d++) {
-            // NOTE: from Version 8.12.0 on we use tsid hashing for the _tsid field
-            Object key = onOrAfterTsidHashingVersion ? expectedTsids.get(d) : Map.of("dim", IndexingIT.TSDB_DIMS.get(d));
+            Object key = expectedTsids.get(d);
             tsidsExpected = tsidsExpected.item(matchesMap().extraOk().entry("key", key).entry("avg", Map.of("value", expected[d])));
         }
         assertMap(
@@ -414,14 +367,18 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testSyntheticSource() throws IOException {
-        assumeTrue("added in 8.4.0", oldClusterHasFeature(RestTestLegacyFeatures.SYNTHETIC_SOURCE_SUPPORTED));
-
         if (isOldCluster()) {
             Request createIndex = new Request("PUT", "/synthetic");
             XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
+            boolean useIndexSetting = SourceFieldMapper.onOrAfterDeprecateModeVersion(getOldClusterIndexVersion());
+            if (useIndexSetting) {
+                indexSpec.startObject("settings").field("index.mapping.source.mode", "synthetic").endObject();
+            }
             indexSpec.startObject("mappings");
             {
-                indexSpec.startObject("_source").field("mode", "synthetic").endObject();
+                if (useIndexSetting == false) {
+                    indexSpec.startObject("_source").field("mode", "synthetic").endObject();
+                }
                 indexSpec.startObject("properties").startObject("kwd").field("type", "keyword").endObject().endObject();
             }
             indexSpec.endObject();

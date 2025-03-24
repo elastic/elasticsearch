@@ -9,16 +9,14 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
-import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.List;
-import java.util.stream.Stream;
 
 public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCase<EsqlQueryResponse.Profile> {
     @Override
@@ -38,9 +36,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(
-            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), Block.getNamedWriteables().stream()).toList()
-        );
+        return new NamedWriteableRegistry(List.of(AbstractPageMappingOperator.Status.ENTRY));
     }
 
     private List<DriverProfile> randomDriverProfiles() {
@@ -49,6 +45,9 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     private DriverProfile randomDriverProfile() {
         return new DriverProfile(
+            randomIdentifier(),
+            randomIdentifier(),
+            randomIdentifier(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -59,11 +58,16 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         );
     }
 
-    private DriverStatus.OperatorStatus randomOperatorStatus() {
+    private OperatorStatus randomOperatorStatus() {
         String name = randomAlphaOfLength(4);
         Operator.Status status = randomBoolean()
             ? null
-            : new AbstractPageMappingOperator.Status(randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
-        return new DriverStatus.OperatorStatus(name, status);
+            : new AbstractPageMappingOperator.Status(
+                randomNonNegativeLong(),
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
+        return new OperatorStatus(name, status);
     }
 }

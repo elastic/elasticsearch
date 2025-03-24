@@ -39,7 +39,6 @@ gradle @elastic/es-delivery
 build-conventions @elastic/es-delivery
 build-tools @elastic/es-delivery
 build-tools-internal @elastic/es-delivery
-*.gradle @elastic/es-delivery
 .buildkite @elastic/es-delivery
 .ci @elastic/es-delivery
 .idea @elastic/es-delivery
@@ -50,6 +49,7 @@ distribution/docker/src @elastic/es-delivery
 # Core/Infra
 distribution/tools @elastic/es-core-infra
 libs/core @elastic/es-core-infra
+libs/entitlement @elastic/es-core-infra
 libs/logging @elastic/es-core-infra
 libs/native @elastic/es-core-infra
 libs/plugin-analysis-api @elastic/es-core-infra
@@ -66,6 +66,30 @@ server/src/main/java/org/elasticsearch/bootstrap @elastic/es-core-infra
 server/src/main/java/org/elasticsearch/node @elastic/es-core-infra
 server/src/main/java/org/elasticsearch/plugins @elastic/es-core-infra
 server/src/main/java/org/elasticsearch/threadpool @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/breaker @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/bytes @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/cli @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/collect @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/component @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/compress @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/document @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/file @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/hash @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/io @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/logging @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/metrics @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/network @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/path @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/recycler @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/regex @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/scheduler @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/settings @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/text @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/time @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/transport @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/unit @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/util @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/common/xcontent @elastic/es-core-infra
 
 # Security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege @elastic/es-security

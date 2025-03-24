@@ -37,7 +37,28 @@ public class EqlExtraIT extends EqlExtraSpecTestCase {
         return REMOTE_CLUSTER.getHttpAddresses();
     }
 
-    public EqlExtraIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
-        super(remoteClusterIndex(TEST_EXTRA_INDEX), query, name, eventIds, joinKeys, size, maxSamplesPerKey);
+    public EqlExtraIT(
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
+    ) {
+        super(
+            remoteClusterIndex(TEST_EXTRA_INDEX),
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 }

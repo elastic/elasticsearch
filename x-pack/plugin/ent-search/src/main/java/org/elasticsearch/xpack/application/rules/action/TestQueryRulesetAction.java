@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,8 +33,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TestQueryRulesetAction {
-
-    public static final NodeFeature QUERY_RULES_TEST_API = new NodeFeature("query_rules.test");
 
     // TODO - We'd like to transition this to require less stringent permissions
     public static final ActionType<TestQueryRulesetAction.Response> TYPE = new ActionType<>("cluster:admin/xpack/query_rules/test");
@@ -153,7 +150,6 @@ public class TestQueryRulesetAction {
         private static final ParseField MATCHED_RULES_FIELD = new ParseField("matched_rules");
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.totalMatchedRules = in.readVInt();
             this.matchedRules = in.readCollectionAsList(MatchedRule::new);
         }

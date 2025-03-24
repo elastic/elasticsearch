@@ -179,8 +179,7 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testAllVersionsMatchId() throws Exception {
-        final Set<Version> releasedVersions = new HashSet<>(VersionUtils.allReleasedVersions());
-        final Set<Version> unreleasedVersions = new HashSet<>(VersionUtils.allUnreleasedVersions());
+        final Set<Version> versions = new HashSet<>(VersionUtils.allVersions());
         Map<String, Version> maxBranchVersions = new HashMap<>();
         for (java.lang.reflect.Field field : Version.class.getFields()) {
             if (field.getName().matches("_ID")) {
@@ -195,41 +194,13 @@ public class VersionTests extends ESTestCase {
 
                 Version v = (Version) versionConstant.get(null);
                 logger.debug("Checking {}", v);
-                if (field.getName().endsWith("_UNRELEASED")) {
-                    assertTrue(unreleasedVersions.contains(v));
-                } else {
-                    assertTrue(releasedVersions.contains(v));
-                }
+                assertTrue(versions.contains(v));
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
                 String number = v.toString();
                 assertEquals("V_" + number.replace('.', '_'), constantName);
-
-                // only the latest version for a branch should be a snapshot (ie unreleased)
-                String branchName = "" + v.major + "." + v.minor;
-                Version maxBranchVersion = maxBranchVersions.get(branchName);
-                if (maxBranchVersion == null) {
-                    maxBranchVersions.put(branchName, v);
-                } else if (v.after(maxBranchVersion)) {
-                    if (v == Version.CURRENT) {
-                        // Current is weird - it counts as released even though it shouldn't.
-                        continue;
-                    }
-                    assertFalse(
-                        "Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists",
-                        VersionUtils.allUnreleasedVersions().contains(maxBranchVersion)
-                    );
-                    maxBranchVersions.put(branchName, v);
-                }
             }
         }
-    }
-
-    public static void assertUnknownVersion(Version version) {
-        assertFalse(
-            "Version " + version + " has been releaed don't use a new instance of this version",
-            VersionUtils.allReleasedVersions().contains(version)
-        );
     }
 
     public void testIsCompatible() {
@@ -277,14 +248,6 @@ public class VersionTests extends ESTestCase {
         boolean result = left.isCompatible(right);
         assert result == right.isCompatible(left);
         return result;
-    }
-
-    // This exists because 5.1.0 was never released due to a mistake in the release process.
-    // This verifies that we never declare the version as "released" accidentally.
-    // It would never pass qa tests later on, but those come very far in the build and this is quick to check now.
-    public void testUnreleasedVersion() {
-        Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
-        VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
     }
 
     public void testIllegalMinorAndPatchNumbers() {

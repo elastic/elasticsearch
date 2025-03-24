@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -43,8 +42,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public static final ParseField LIMIT_FIELD = new ParseField("limit");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids_field");
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // Remove this BWC layer and allow only AGGREGATION_FIELDS
-    public static final ParseField AGGREGATION_FIELD = new ParseField("aggregation_field");
     public static final ParseField AGGREGATION_FIELDS = new ParseField("aggregation_fields");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
     public static final ParseField AWS_COST_FACTOR_FIELD = new ParseField("aws_cost_factor");
@@ -62,8 +59,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private String[] indices;
     private boolean userProvidedIndices;
     private String stackTraceIdsField;
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // Remove this BWC layer and allow only aggregationFields
-    private String aggregationField;
     private String[] aggregationFields;
     private Double requestedDuration;
     private Double awsCostFactor;
@@ -83,7 +78,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private Integer shardSeed;
 
     public GetStackTracesRequest() {
-        this(null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        this(null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public GetStackTracesRequest(
@@ -94,7 +89,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         QueryBuilder query,
         String[] indices,
         String stackTraceIdsField,
-        String aggregationField,
         String[] aggregationFields,
         Double customCO2PerKWH,
         Double customDatacenterPUE,
@@ -110,7 +104,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.indices = indices;
         this.userProvidedIndices = indices != null && indices.length > 0;
         this.stackTraceIdsField = stackTraceIdsField;
-        this.aggregationField = aggregationField;
         this.aggregationFields = aggregationFields;
         this.customCO2PerKWH = customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE;
@@ -184,21 +177,13 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         return stackTraceIdsField;
     }
 
-    public String getAggregationField() {
-        return aggregationField;
-    }
-
     public String[] getAggregationFields() {
-        return aggregationField != null ? new String[] { aggregationField } : aggregationFields;
+        return aggregationFields;
     }
 
     public boolean hasAggregationFields() {
         String[] f = getAggregationFields();
         return f != null && f.length > 0;
-    }
-
-    public boolean isLegacyAggregationField() {
-        return aggregationField != null;
     }
 
     public boolean isAdjustSampleCount() {
@@ -237,8 +222,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     this.limit = parser.intValue();
                 } else if (STACKTRACE_IDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.stackTraceIdsField = parser.text();
-                } else if (AGGREGATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    this.aggregationField = parser.text();
                 } else if (REQUESTED_DURATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.requestedDuration = parser.doubleValue();
                 } else if (AWS_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -322,17 +305,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 );
             }
         }
-        if (aggregationField != null && aggregationFields != null) {
-            validationException = addValidationError(
-                "["
-                    + AGGREGATION_FIELD.getPreferredName()
-                    + "] must not be set when ["
-                    + AGGREGATION_FIELDS.getPreferredName()
-                    + "] is also set",
-                validationException
-            );
-
-        }
         if (aggregationFields != null) {
             // limit so we avoid an explosion of buckets
             if (aggregationFields.length < 1 || aggregationFields.length > 2) {
@@ -346,13 +318,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 );
             }
 
-        }
-
-        if (aggregationField != null && aggregationField.isBlank()) {
-            validationException = addValidationError(
-                "[" + AGGREGATION_FIELD.getPreferredName() + "] must be non-empty",
-                validationException
-            );
         }
 
         validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
@@ -386,7 +351,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 StringBuilder sb = new StringBuilder();
                 appendField(sb, "indices", indices);
                 appendField(sb, "stacktrace_ids_field", stackTraceIdsField);
-                appendField(sb, "aggregation_field", aggregationField);
                 appendField(sb, "aggregation_fields", aggregationFields);
                 appendField(sb, "sample_size", sampleSize);
                 appendField(sb, "limit", limit);

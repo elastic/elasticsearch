@@ -48,6 +48,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     public static final String NAME = "geo_distance";
     public static final ValuesSourceRegistry.RegistryKey<GeoDistanceAggregatorSupplier> REGISTRY_KEY =
         new ValuesSourceRegistry.RegistryKey<>(NAME, GeoDistanceAggregatorSupplier.class);
+    /**
+     * The point from which to measure the distance. This has many other names that have been
+     * deprecated since 2014, but we have no plans to remove these names so we don't break anyone
+     * using them.
+     */
     static final ParseField ORIGIN_FIELD = new ParseField("origin", "center", "point", "por");
     static final ParseField UNIT_FIELD = new ParseField("unit");
     static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");

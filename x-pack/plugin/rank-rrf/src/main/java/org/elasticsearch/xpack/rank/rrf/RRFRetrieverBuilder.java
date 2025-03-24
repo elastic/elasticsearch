@@ -8,9 +8,8 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -43,11 +42,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
 
     public static final String NAME = "rrf";
-    public static final NodeFeature RRF_RETRIEVER_SUPPORTED = new NodeFeature("rrf_retriever_supported");
-    public static final NodeFeature RRF_RETRIEVER_COMPOSITION_SUPPORTED = new NodeFeature("rrf_retriever_composition_supported");
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
     public static final int DEFAULT_RANK_CONSTANT = 60;
@@ -75,16 +71,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         }, RETRIEVERS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        if (context.clusterSupportsFeature(RRF_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
-        }
-        if (context.clusterSupportsFeature(RRF_RETRIEVER_COMPOSITION_SUPPORTED) == false) {
-            throw new UnsupportedOperationException("[rrf] retriever composition feature is not supported by all nodes in the cluster");
-        }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
         }
@@ -108,12 +98,15 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers) {
-        return new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
+        RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+        clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
+        clone.retrieverName = retrieverName;
+        return clone;
     }
 
     @Override
-    protected RRFRankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RRFRankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         // combine the disjointed sets of TopDocs into a single set or RRFRankDocs
         // each RRFRankDoc will have both the position and score for each query where
         // it was within the result set for that query
@@ -129,20 +122,26 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 final int frank = rank;
                 docsToRankResults.compute(new RankDoc.RankKey(scoreDoc.doc, scoreDoc.shardIndex), (key, value) -> {
                     if (value == null) {
-                        value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries, rankConstant);
+                        if (explain) {
+                            value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries, rankConstant);
+                        } else {
+                            value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex);
+                        }
                     }
 
                     // calculate the current rrf score for this document
                     // later used to sort and covert to a rank
                     value.score += 1.0f / (rankConstant + frank);
 
-                    // record the position for each query
-                    // for explain and debugging
-                    value.positions[findex] = frank - 1;
+                    if (explain && value.positions != null && value.scores != null) {
+                        // record the position for each query
+                        // for explain and debugging
+                        value.positions[findex] = frank - 1;
 
-                    // record the score for each query
-                    // used to later re-rank on the coordinator
-                    value.scores[findex] = scoreDoc.score;
+                        // record the score for each query
+                        // used to later re-rank on the coordinator
+                        value.scores[findex] = scoreDoc.score;
+                    }
 
                     return value;
                 });

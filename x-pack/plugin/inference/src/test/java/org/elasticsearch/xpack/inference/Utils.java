@@ -8,18 +8,23 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -30,15 +35,14 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -46,12 +50,15 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public final class Utils {
+
+    public static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
 
     private Utils() {
         throw new UnsupportedOperationException("Utils is a utility class and should not be instantiated");
@@ -70,7 +77,8 @@ public final class Utils {
             ThrottlerManager.getSettingsDefinitions(),
             RetrySettings.getSettingsDefinitions(),
             Truncator.getSettingsDefinitions(),
-            RequestExecutorServiceSettings.getSettingsDefinitions()
+            RequestExecutorServiceSettings.getSettingsDefinitions(),
+            ElasticInferenceServiceSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toSet());
 
         var cSettings = new ClusterSettings(settings, registeredSettings);
@@ -90,16 +98,16 @@ public final class Utils {
         );
     }
 
-    public static void storeSparseModel(Client client) throws Exception {
+    public static void storeSparseModel(ModelRegistry modelRegistry) throws Exception {
         Model model = new TestSparseInferenceServiceExtension.TestSparseModel(
             TestSparseInferenceServiceExtension.TestInferenceService.NAME,
             new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
         );
-        storeModel(client, model);
+        storeModel(modelRegistry, model);
     }
 
     public static void storeDenseModel(
-        Client client,
+        ModelRegistry modelRegistry,
         int dimensions,
         SimilarityMeasure similarityMeasure,
         DenseVectorFieldMapper.ElementType elementType
@@ -108,63 +116,31 @@ public final class Utils {
             TestDenseInferenceServiceExtension.TestInferenceService.NAME,
             new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType)
         );
-
-        storeModel(client, model);
+        storeModel(modelRegistry, model);
     }
 
-    public static void storeModel(Client client, Model model) throws Exception {
-        ModelRegistry modelRegistry = new ModelRegistry(client);
-
-        AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
-        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-
-        blockingCall(listener -> modelRegistry.storeModel(model, listener), storeModelHolder, exceptionHolder);
-
-        assertThat(storeModelHolder.get(), is(true));
-        assertThat(exceptionHolder.get(), is(nullValue()));
+    public static void storeModel(ModelRegistry modelRegistry, Model model) throws Exception {
+        PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
+        modelRegistry.storeModel(model, listener, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        assertTrue(listener.actionGet(TimeValue.THIRTY_SECONDS));
     }
 
-    private static <T> void blockingCall(
-        Consumer<ActionListener<T>> function,
-        AtomicReference<T> response,
-        AtomicReference<Exception> error
-    ) throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<T> listener = ActionListener.wrap(r -> {
-            response.set(r);
-            latch.countDown();
-        }, e -> {
-            error.set(e);
-            latch.countDown();
-        });
-
-        function.accept(listener);
-        latch.await();
-    }
-
-    public static class TestInferencePlugin extends InferencePlugin {
-        public TestInferencePlugin(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-            return List.of(
-                TestSparseInferenceServiceExtension.TestInferenceService::new,
-                TestDenseInferenceServiceExtension.TestInferenceService::new
-            );
-        }
-    }
-
-    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName, TaskType taskType) {
         var mockConfigs = mock(ModelConfigurations.class);
         when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockConfigs.getService()).thenReturn(serviceName);
+        when(mockConfigs.getTaskType()).thenReturn(taskType);
 
         var mockModel = mock(Model.class);
+        when(mockModel.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockModel.getConfigurations()).thenReturn(mockConfigs);
+        when(mockModel.getTaskType()).thenReturn(taskType);
 
         return mockModel;
+    }
+
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+        return getInvalidModel(inferenceEntityId, serviceName, TaskType.TEXT_EMBEDDING);
     }
 
     public static SimilarityMeasure randomSimilarityMeasure() {
@@ -248,5 +224,15 @@ public final class Utils {
             assertThat(e, Matchers.instanceOf(exceptionClass));
             assertThat(e.getMessage(), is(expectedMessage));
         });
+    }
+
+    public static void assertJsonEquals(String actual, String expected) throws IOException {
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        try (
+            var actualParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, actual);
+            var expectedParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, expected);
+        ) {
+            assertThat(actualParser.mapOrdered(), equalTo(expectedParser.mapOrdered()));
+        }
     }
 }

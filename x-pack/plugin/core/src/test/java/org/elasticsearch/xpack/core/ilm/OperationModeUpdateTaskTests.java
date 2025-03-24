@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
@@ -97,15 +96,15 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         OperationMode requestMode,
         boolean assertSameClusterState
     ) {
-        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
+        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Map.of(), currentMode);
         SnapshotLifecycleMetadata snapshotLifecycleMetadata = new SnapshotLifecycleMetadata(
-            Collections.emptyMap(),
+            Map.of(),
             currentMode,
             new SnapshotLifecycleStats()
         );
         Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build());
         if (metadataInstalled) {
-            metadata.customs(
+            metadata.projectCustoms(
                 Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
             );
         }
@@ -117,8 +116,10 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         } else {
             assertThat("expected a different state instance but they were the same", state, not(equalTo(newState)));
         }
-        LifecycleOperationMetadata newMetadata = newState.metadata().custom(LifecycleOperationMetadata.TYPE);
-        IndexLifecycleMetadata oldMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        LifecycleOperationMetadata newMetadata = newState.metadata().getProject().custom(LifecycleOperationMetadata.TYPE);
+        IndexLifecycleMetadata oldMetadata = newState.metadata()
+            .getProject()
+            .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         return Optional.ofNullable(newMetadata)
             .map(LifecycleOperationMetadata::getILMOperationMode)
             .orElseGet(oldMetadata::getOperationMode);
@@ -131,15 +132,15 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         OperationMode requestMode,
         boolean assertSameClusterState
     ) {
-        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
+        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Map.of(), currentMode);
         SnapshotLifecycleMetadata snapshotLifecycleMetadata = new SnapshotLifecycleMetadata(
-            Collections.emptyMap(),
+            Map.of(),
             currentMode,
             new SnapshotLifecycleStats()
         );
         Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build());
         if (metadataInstalled) {
-            metadata.customs(
+            metadata.projectCustoms(
                 Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
             );
         }
@@ -151,8 +152,10 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         } else {
             assertThat(state, not(equalTo(newState)));
         }
-        LifecycleOperationMetadata newMetadata = newState.metadata().custom(LifecycleOperationMetadata.TYPE);
-        SnapshotLifecycleMetadata oldMetadata = newState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+        LifecycleOperationMetadata newMetadata = newState.metadata().getProject().custom(LifecycleOperationMetadata.TYPE);
+        SnapshotLifecycleMetadata oldMetadata = newState.metadata()
+            .getProject()
+            .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         return Optional.ofNullable(newMetadata)
             .map(LifecycleOperationMetadata::getSLMOperationMode)
             .orElseGet(oldMetadata::getOperationMode);

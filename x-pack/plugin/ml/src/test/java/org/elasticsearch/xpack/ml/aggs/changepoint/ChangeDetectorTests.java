@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.DoubleStream;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -191,7 +192,7 @@ public class ChangeDetectorTests extends AggregatorTestCase {
             ChangeType type = new ChangeDetector(bucketValues).detect(0.05);
             tp += type instanceof ChangeType.TrendChange ? 1 : 0;
         }
-        assertThat(tp, greaterThan(90));
+        assertThat(tp, greaterThan(80));
     }
 
     public void testProblemDistributionChange() {
@@ -242,5 +243,15 @@ public class ChangeDetectorTests extends AggregatorTestCase {
         );
         ChangeType type = new ChangeDetector(bucketValues).detect(0.05);
         assertThat(type, instanceOf(ChangeType.DistributionChange.class));
+    }
+
+    public void testUncertainNonStationary() {
+        MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
+            null,
+            new double[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 700, 735, 715 }
+        );
+        ChangeType type = new ChangeDetector(bucketValues).detect(0.01);
+        assertThat(type, instanceOf(ChangeType.NonStationary.class));
+        assertThat(((ChangeType.NonStationary) type).getTrend(), equalTo("increasing"));
     }
 }

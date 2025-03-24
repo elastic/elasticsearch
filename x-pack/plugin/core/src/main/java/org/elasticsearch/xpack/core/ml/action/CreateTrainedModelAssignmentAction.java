@@ -47,7 +47,7 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
         public Request(StreamInput in) throws IOException {
             super(in);
             this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
             } else {
                 this.adaptiveAllocationsSettings = null;
@@ -63,7 +63,7 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             taskParams.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
             }
         }
@@ -114,7 +114,6 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.trainedModelAssignment = new TrainedModelAssignment(in);
         }
 

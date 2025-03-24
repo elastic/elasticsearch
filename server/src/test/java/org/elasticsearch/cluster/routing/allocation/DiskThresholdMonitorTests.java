@@ -21,10 +21,14 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -37,6 +41,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLog;
@@ -58,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DiskThresholdMonitorTests extends ESAllocationTestCase {
@@ -66,7 +72,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AllocationService allocation = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
-        Metadata metadata = Metadata.builder()
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder("test")
                     .settings(settings(IndexVersion.current()).put("index.routing.allocation.require._id", "node2"))
@@ -93,21 +100,25 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             )
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
-            .addAsNew(metadata.index("test_1"))
-            .addAsNew(metadata.index("test_2"))
-            .addAsNew(metadata.index("frozen"))
+            .addAsNew(projectMetadata.index("test"))
+            .addAsNew(projectMetadata.index("test_1"))
+            .addAsNew(projectMetadata.index("test_2"))
+            .addAsNew(projectMetadata.index("frozen"))
             .build();
+
+        final Index test1Index = routingTable.index("test_1").getIndex();
+        final Index test2Index = routingTable.index("test_2").getIndex();
+
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(metadata)
-                .routingTable(routingTable)
+                .metadata(Metadata.builder().put(projectMetadata))
+                .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
                 .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2")).add(newFrozenOnlyNode("frozen")))
                 .build(),
             allocation
         );
         AtomicBoolean reroute = new AtomicBoolean(false);
-        AtomicReference<Set<String>> indices = new AtomicReference<>();
+        AtomicReference<Set<Index>> indices = new AtomicReference<>();
         AtomicLong currentTime = new AtomicLong();
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(
             Settings.EMPTY,
@@ -119,11 +130,17 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 assertTrue(reroute.compareAndSet(false, true));
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            TestProjectResolvers.singleProject(projectId)
         ) {
 
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
+            protected void updateIndicesReadOnly(
+                ClusterState state,
+                Set<Index> indicesToMarkReadOnly,
+                Releasable onCompletion,
+                boolean readOnly
+            ) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 assertTrue(readOnly);
                 onCompletion.close();
@@ -153,7 +170,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final ClusterInfo initialClusterInfo = clusterInfo(builder);
         monitor.onNewInfo(initialClusterInfo);
         assertTrue(reroute.get()); // reroute on new nodes
-        assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indices.get());
+        assertThat(indices.get(), containsInAnyOrder(test1Index, test2Index));
 
         indices.set(null);
         reroute.set(false);
@@ -183,27 +200,27 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         currentTime.addAndGet(randomLongBetween(60000, 120000));
         monitor.onNewInfo(clusterInfo(builder));
         assertTrue(reroute.get());
-        assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indices.get());
-        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test_2"))
+        assertThat(indices.get(), containsInAnyOrder(test1Index, test2Index));
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().getProject(projectId).index("test_2"))
             .settings(
                 Settings.builder()
-                    .put(clusterState.metadata().index("test_2").getSettings())
+                    .put(clusterState.metadata().getProject(projectId).index("test_2").getSettings())
                     .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
             )
             .build();
 
         // now we mark one index as read-only and assert that we don't mark it as such again
         final ClusterState anotherFinalClusterState = ClusterState.builder(clusterState)
-            .metadata(
-                Metadata.builder(clusterState.metadata())
-                    .put(clusterState.metadata().index("test"), false)
-                    .put(clusterState.metadata().index("test_1"), false)
+            .putProjectMetadata(
+                ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
+                    .put(clusterState.metadata().getProject(projectId).index("test"), false)
+                    .put(clusterState.metadata().getProject(projectId).index("test_1"), false)
                     .put(indexMetadata, true)
                     .build()
             )
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata).build())
             .build();
-        assertTrue(anotherFinalClusterState.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
+        assertTrue(anotherFinalClusterState.blocks().indexBlocked(projectId, ClusterBlockLevel.WRITE, "test_2"));
 
         monitor = new DiskThresholdMonitor(
             Settings.EMPTY,
@@ -215,10 +232,16 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 assertTrue(reroute.compareAndSet(false, true));
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            TestProjectResolvers.singleProject(projectId)
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
+            protected void updateIndicesReadOnly(
+                ClusterState state,
+                Set<Index> indicesToMarkReadOnly,
+                Releasable onCompletion,
+                boolean readOnly
+            ) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 assertTrue(readOnly);
                 onCompletion.close();
@@ -248,7 +271,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
         monitor.onNewInfo(clusterInfo(builder));
         assertTrue(reroute.get());
-        assertEquals(Collections.singleton("test_1"), indices.get());
+        assertThat(indices.get(), containsInAnyOrder(test1Index));
     }
 
     public void testMarkFloodStageIndicesReadOnlyWithPercentages() {
@@ -275,10 +298,16 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
                 assertTrue(listenerReference.compareAndSet(null, listener));
-            }
+            },
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
+            protected void updateIndicesReadOnly(
+                ClusterState state,
+                Set<Index> indicesToMarkReadOnly,
+                Releasable onCompletion,
+                boolean readOnly
+            ) {
                 throw new AssertionError("unexpected");
             }
         };
@@ -427,23 +456,24 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void doTestAutoReleaseIndices(boolean testMaxHeadroom) {
-        AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
-        AtomicReference<Set<String>> indicesToRelease = new AtomicReference<>();
+        AtomicReference<Set<Index>> indicesToMarkReadOnly = new AtomicReference<>();
+        AtomicReference<Set<Index>> indicesToRelease = new AtomicReference<>();
         AllocationService allocation = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
-        Metadata metadata = Metadata.builder()
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata project = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder("test_1").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .put(IndexMetadata.builder("test_2").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test_1"))
-            .addAsNew(metadata.index("test_2"))
+            .addAsNew(project.index("test_1"))
+            .addAsNew(project.index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(metadata)
-                .routingTable(routingTable)
+                .metadata(Metadata.builder().put(project))
+                .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
                 .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2")))
                 .build(),
             allocation
@@ -474,10 +504,16 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            TestProjectResolvers.singleProject(projectId)
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
+            protected void updateIndicesReadOnly(
+                ClusterState state,
+                Set<Index> indicesToUpdate,
+                Releasable onCompletion,
+                boolean readOnly
+            ) {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
@@ -510,7 +546,9 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
-        assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indicesToMarkReadOnly.get());
+        final Index test1Index = routingTable.index("test_1").getIndex();
+        final Index test2Index = routingTable.index("test_2").getIndex();
+        assertEquals(new HashSet<>(Arrays.asList(test1Index, test2Index)), indicesToMarkReadOnly.get());
         assertNull(indicesToRelease.get());
 
         // Reserved space is ignored when applying block
@@ -542,20 +580,20 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(indicesToRelease.get());
 
         // Change cluster state so that "test_2" index is blocked (read only)
-        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test_2"))
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().getProject(projectId).index("test_2"))
             .settings(
                 Settings.builder()
-                    .put(clusterState.metadata().index("test_2").getSettings())
+                    .put(clusterState.metadata().getProject(projectId).index("test_2").getSettings())
                     .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
             )
             .build();
 
         ClusterState clusterStateWithBlocks = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true).build())
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .putProjectMetadata(ProjectMetadata.builder(clusterState.metadata().getProject(projectId)).put(indexMetadata, true))
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata).build())
             .build();
 
-        assertTrue(clusterStateWithBlocks.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
+        assertTrue(clusterStateWithBlocks.blocks().indexBlocked(projectId, ClusterBlockLevel.WRITE, "test_2"));
         monitor = new DiskThresholdMonitor(
             Settings.EMPTY,
             () -> clusterStateWithBlocks,
@@ -566,10 +604,16 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            TestProjectResolvers.singleProject(projectId)
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
+            protected void updateIndicesReadOnly(
+                ClusterState state,
+                Set<Index> indicesToUpdate,
+                Releasable onCompletion,
+                boolean readOnly
+            ) {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
@@ -603,7 +647,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
-        assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
+        assertThat(indicesToMarkReadOnly.get(), contains(test1Index));
         assertNull(indicesToRelease.get());
 
         // When free disk on node1 and node2 goes above the high watermark then release index block, ignoring reserved space
@@ -632,7 +676,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
         assertNull(indicesToMarkReadOnly.get());
-        assertThat(indicesToRelease.get(), contains("test_2"));
+        assertThat(indicesToRelease.get(), contains(test2Index));
 
         // When no usage information is present for node2, we don't release the block
         indicesToMarkReadOnly.set(null);
@@ -649,7 +693,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             )
         );
         monitor.onNewInfo(clusterInfo(builder));
-        assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
+        assertThat(indicesToMarkReadOnly.get(), contains(test1Index));
         assertNull(indicesToRelease.get());
 
         // When disk usage on one node is between the high and flood-stage watermarks, nothing changes
@@ -749,7 +793,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             );
         }
         monitor.onNewInfo(clusterInfo(builder));
-        assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
+        assertThat(indicesToMarkReadOnly.get(), contains(test1Index));
         assertNull(indicesToRelease.get());
     }
 
@@ -762,24 +806,29 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void doTestNoAutoReleaseOfIndicesOnReplacementNodes(boolean testMaxHeadroom) {
-        AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
-        AtomicReference<Set<String>> indicesToRelease = new AtomicReference<>();
+        AtomicReference<Set<Index>> indicesToMarkReadOnly = new AtomicReference<>();
+        AtomicReference<Set<Index>> indicesToRelease = new AtomicReference<>();
         AtomicReference<ClusterState> currentClusterState = new AtomicReference<>();
         AllocationService allocation = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
-        Metadata metadata = Metadata.builder()
+        final var projectId = randomProjectIdOrDefault();
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder("test_1").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .put(IndexMetadata.builder("test_2").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .build();
-        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test_1"))
-            .addAsNew(metadata.index("test_2"))
+        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(projectMetadata.index("test_1"))
+            .addAsNew(projectMetadata.index("test_2"))
             .build();
+
+        final Index test1Index = routingTable.index("test_1").getIndex();
+        final Index test2Index = routingTable.index("test_2").getIndex();
+
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(metadata)
-                .routingTable(routingTable)
+                .metadata(Metadata.builder().put(projectMetadata).build())
+                .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
                 .nodes(DiscoveryNodes.builder().add(newNormalNode("node1", "my-node1")).add(newNormalNode("node2", "my-node2")))
                 .build(),
             allocation
@@ -812,10 +861,16 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            TestProjectResolvers.singleProject(projectId)
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
+            protected void updateIndicesReadOnly(
+                ClusterState state,
+                Set<Index> indicesToUpdate,
+                Releasable onCompletion,
+                boolean readOnly
+            ) {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
@@ -848,7 +903,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
-        assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indicesToMarkReadOnly.get());
+        assertThat(indicesToMarkReadOnly.get(), containsInAnyOrder(test1Index, test2Index));
         assertNull(indicesToRelease.get());
 
         // Reserved space is ignored when applying block
@@ -880,10 +935,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(indicesToRelease.get());
 
         // Change cluster state so that "test_2" index is blocked (read only)
-        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test_2"))
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().getProject(projectId).index("test_2"))
             .settings(
                 Settings.builder()
-                    .put(clusterState.metadata().index("test_2").getSettings())
+                    .put(clusterState.metadata().getProject(projectId).index("test_2").getSettings())
                     .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
             )
             .build();
@@ -901,7 +956,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final ClusterState clusterStateWithBlocks = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())
-                    .put(indexMetadata, true)
+                    .put(ProjectMetadata.builder(clusterState.metadata().getProject(projectId)).put(indexMetadata, true))
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
@@ -909,6 +964,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                                 sourceNode,
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(sourceNode)
+                                    .setNodeEphemeralId(sourceNode)
                                     .setReason("testing")
                                     .setType(SingleNodeShutdownMetadata.Type.REPLACE)
                                     .setTargetNodeName(targetNode)
@@ -919,10 +975,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                     )
                     .build()
             )
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata).build())
             .build();
 
-        assertTrue(clusterStateWithBlocks.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
+        assertTrue(clusterStateWithBlocks.blocks().indexBlocked(projectId, ClusterBlockLevel.WRITE, "test_2"));
 
         currentClusterState.set(clusterStateWithBlocks);
 
@@ -951,7 +1007,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
-        assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
+        assertThat(indicesToMarkReadOnly.get(), contains(test1Index));
         assertNull(indicesToRelease.get());
 
         // While the REPLACE is ongoing the lock will not be removed from the index
@@ -984,10 +1040,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
         final ClusterState clusterStateNoShutdown = ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true).removeCustom(NodesShutdownMetadata.TYPE).build())
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata).build())
             .build();
 
-        assertTrue(clusterStateNoShutdown.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
+        assertTrue(clusterStateNoShutdown.blocks().indexBlocked(projectId, ClusterBlockLevel.WRITE, "test_2"));
 
         currentClusterState.set(clusterStateNoShutdown);
 
@@ -1017,7 +1073,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
         assertNull(indicesToMarkReadOnly.get());
-        assertThat(indicesToRelease.get(), contains("test_2"));
+        assertThat(indicesToRelease.get(), contains(test2Index));
     }
 
     public void testNoAutoReleaseOfIndicesOnReplacementNodesWithPercentages() {
@@ -1056,10 +1112,16 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             timeSupplier,
-            (reason, priority, listener) -> listener.onResponse(null)
+            (reason, priority, listener) -> listener.onResponse(null),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
+            protected void updateIndicesReadOnly(
+                ClusterState state,
+                Set<Index> indicesToMarkReadOnly,
+                Releasable onCompletion,
+                boolean readOnly
+            ) {
                 onCompletion.close();
             }
 
@@ -1282,9 +1344,14 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     public void testSkipDiskThresholdMonitorWhenStateNotRecovered() {
-        Metadata.Builder metadataBuilder = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1));
+        final var projectId = randomProjectIdOrDefault();
         boolean shutdownMetadataInState = randomBoolean();
+        final Metadata.Builder metadataBuilder = Metadata.builder()
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+                    .build()
+            );
         if (shutdownMetadataInState) {
             metadataBuilder.putCustom(
                 NodesShutdownMetadata.TYPE,
@@ -1293,6 +1360,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                         "node1",
                         SingleNodeShutdownMetadata.builder()
                             .setNodeId("node1")
+                            .setNodeEphemeralId("node1")
                             .setReason("testing")
                             .setType(SingleNodeShutdownMetadata.Type.REPLACE)
                             .setTargetNodeName("node3")
@@ -1302,9 +1370,9 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 )
             );
         }
-        Metadata metadata = metadataBuilder.build();
-        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+        final Metadata metadata = metadataBuilder.build();
+        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.getProject(projectId).index("test"))
             .build();
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder()
             .add(newNormalNode("node1", "node1"))
@@ -1314,16 +1382,22 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             discoveryNodes.add(newNormalNode("node3", "node3"));
         }
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(discoveryNodes).build(),
+            ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(metadata)
+                .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
+                .nodes(discoveryNodes)
+                .build(),
             createAllocationService(Settings.EMPTY)
         );
+        final Index testIndex = routingTable.index("test").getIndex();
+
         Map<String, DiskUsage> diskUsages = new HashMap<>();
         diskUsages.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
         diskUsages.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(0, 4)));
         final ClusterInfo clusterInfo = clusterInfo(diskUsages);
         var result = runDiskThresholdMonitor(clusterState, clusterInfo);
         assertTrue(result.v1()); // reroute on new nodes
-        assertEquals(Set.of("test"), result.v2());
+        assertThat(result.v2(), contains(testIndex));
 
         final ClusterState blockedClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
@@ -1337,9 +1411,9 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
     // Runs a disk threshold monitor with a given cluster state and cluster info and returns whether a reroute should
     // happen and any indices that should be marked as read-only.
-    private Tuple<Boolean, Set<String>> runDiskThresholdMonitor(ClusterState clusterState, ClusterInfo clusterInfo) {
+    private Tuple<Boolean, Set<Index>> runDiskThresholdMonitor(ClusterState clusterState, ClusterInfo clusterInfo) {
         AtomicBoolean reroute = new AtomicBoolean(false);
-        AtomicReference<Set<String>> indices = new AtomicReference<>();
+        AtomicReference<Set<Index>> indices = new AtomicReference<>();
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(
             Settings.EMPTY,
             () -> clusterState,
@@ -1349,11 +1423,17 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> {
                 reroute.set(true);
                 listener.onResponse(null);
-            }
+            },
+            TestProjectResolvers.allProjects()
         ) {
 
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
+            protected void updateIndicesReadOnly(
+                ClusterState state,
+                Set<Index> indicesToMarkReadOnly,
+                Releasable onCompletion,
+                boolean readOnly
+            ) {
                 assertTrue(readOnly);
                 indices.set(indicesToMarkReadOnly);
                 onCompletion.close();

@@ -17,7 +17,7 @@ public enum AmazonBedrockProvider {
     META,
     MISTRAL;
 
-    public static String NAME = "amazon_bedrock_provider";
+    public static final String NAME = "amazon_bedrock_provider";
 
     public static AmazonBedrockProvider fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

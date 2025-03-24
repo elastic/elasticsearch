@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
@@ -17,14 +16,13 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.MockNode;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -48,7 +46,7 @@ public class MockSearchService extends SearchService {
 
     private Consumer<SearchContext> onCreateSearchContext = context -> {};
 
-    private Function<SearchShardTask, SearchShardTask> onCheckCancelled = Function.identity();
+    private Function<CancellableTask, CancellableTask> onCheckCancelled = Function.identity();
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
@@ -83,9 +81,7 @@ public class MockSearchService extends SearchService {
         ThreadPool threadPool,
         ScriptService scriptService,
         BigArrays bigArrays,
-        RankFeatureShardPhase rankFeatureShardPhase,
         FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer
@@ -96,9 +92,7 @@ public class MockSearchService extends SearchService {
             threadPool,
             scriptService,
             bigArrays,
-            rankFeatureShardPhase,
             fetchPhase,
-            responseCollectorService,
             circuitBreakerService,
             executorSelector,
             tracer
@@ -138,7 +132,7 @@ public class MockSearchService extends SearchService {
     protected SearchContext createContext(
         ReaderContext readerContext,
         ShardSearchRequest request,
-        SearchShardTask task,
+        CancellableTask task,
         ResultsType resultsType,
         boolean includeAggregations
     ) throws IOException {
@@ -160,12 +154,12 @@ public class MockSearchService extends SearchService {
         return searchContext;
     }
 
-    public void setOnCheckCancelled(Function<SearchShardTask, SearchShardTask> onCheckCancelled) {
+    public void setOnCheckCancelled(Function<CancellableTask, CancellableTask> onCheckCancelled) {
         this.onCheckCancelled = onCheckCancelled;
     }
 
     @Override
-    protected void checkCancelled(SearchShardTask task) {
+    protected void checkCancelled(CancellableTask task) {
         super.checkCancelled(onCheckCancelled.apply(task));
     }
 }

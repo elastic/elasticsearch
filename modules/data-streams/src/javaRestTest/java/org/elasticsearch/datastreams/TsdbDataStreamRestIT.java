@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
-import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -54,6 +53,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
                         "number_of_replicas": 1,
                         "number_of_shards": 2,
                         "mode": "time_series"
+                        SOURCEMODE
                     }
                 },
                 "mappings":{
@@ -201,15 +201,35 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "elephant", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876eb4", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}
             """;
 
+    private static String getTemplate() {
+        return TEMPLATE.replace("SOURCEMODE", randomFrom("", """
+            , "mapping": { "source": { "mode": "stored" } }""", """
+            , "mapping": { "source": { "mode": "synthetic" } }"""));
+    }
+
+    private static boolean trialStarted = false;
+
     @Before
     public void setup() throws IOException {
+        if (trialStarted == false) {
+            // Start trial to support synthetic source.
+            Request startTrial = new Request("POST", "/_license/start_trial");
+            startTrial.addParameter("acknowledge", "true");
+            try {
+                client().performRequest(startTrial);
+            } catch (Exception e) {
+                // Ignore failures, the API is not present in Serverless.
+            }
+            trialStarted = true;
+        }
+
         // Add component template:
         var request = new Request("POST", "/_component_template/custom_template");
         request.setJsonEntity(COMPONENT_TEMPLATE);
         assertOK(client().performRequest(request));
         // Add composable index template
         request = new Request("POST", "/_index_template/1");
-        request.setJsonEntity(TEMPLATE);
+        request.setJsonEntity(getTemplate());
         assertOK(client().performRequest(request));
     }
 
@@ -220,7 +240,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
     public void testTsdbDataStreamsNanos() throws Exception {
         // Overwrite template to use date_nanos field type:
         var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
-        putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE.replace("date", "date_nanos"));
+        putComposableIndexTemplateRequest.setJsonEntity(getTemplate().replace("date", "date_nanos"));
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         assertTsdbDataStream();
@@ -407,7 +427,6 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         var response = client().performRequest(simulateIndexTemplateRequest);
         assertOK(response);
         var responseBody = entityAsMap(response);
-        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index"), aMapWithSize(6));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_shards"), equalTo("2"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("1"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.mode"), equalTo("time_series"));
@@ -493,7 +512,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
 
         // Update template
         putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
-        putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE);
+        putComposableIndexTemplateRequest.setJsonEntity(getTemplate());
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         var rolloverRequest = new Request("POST", "/k8s/_rollover");

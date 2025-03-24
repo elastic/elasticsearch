@@ -1,0 +1,15 @@
+{
+    "packaged_model_id": "rerank-v1",
+    "minimum_version": "9.0.0",
+    "size": 12419194,
+    "sha256": "8d37d7240175b59a1a82f409e572c4d0136acff875da980ec5e5e1783263a042",
+    "description": "Elastic Rerank v1",
+    "model_type": "pytorch",
+    "tags": [
+          "curated"
+    ],
+    "inference_config": {
+        "text_similarity": {"tokenization": {"deberta_v2": {"truncate": "balanced"}}}
+    },
+    "vocabulary_file": "rerank-v1.vocab.json"
+  }

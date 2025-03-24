@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -19,24 +19,22 @@ import java.util.Objects;
 public class SubGroup implements ToXContentFragment {
     private final String name;
     private Long count;
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove legacy XContent rendering
-    private final boolean renderLegacyXContent;
+    @UpdateForV10(owner = UpdateForV10.Owner.PROFILING) // remove legacy XContent rendering
     private final Map<String, SubGroup> subgroups;
 
-    public static SubGroup root(String name, boolean renderLegacyXContent) {
-        return new SubGroup(name, null, renderLegacyXContent, new HashMap<>());
+    public static SubGroup root(String name) {
+        return new SubGroup(name, null, new HashMap<>());
     }
 
-    public SubGroup(String name, Long count, boolean renderLegacyXContent, Map<String, SubGroup> subgroups) {
+    public SubGroup(String name, Long count, Map<String, SubGroup> subgroups) {
         this.name = name;
         this.count = count;
-        this.renderLegacyXContent = renderLegacyXContent;
         this.subgroups = subgroups;
     }
 
     public SubGroup addCount(String name, long count) {
         if (this.subgroups.containsKey(name) == false) {
-            this.subgroups.put(name, new SubGroup(name, count, renderLegacyXContent, new HashMap<>()));
+            this.subgroups.put(name, new SubGroup(name, count, new HashMap<>()));
         } else {
             SubGroup s = this.subgroups.get(name);
             s.count += count;
@@ -46,7 +44,7 @@ public class SubGroup implements ToXContentFragment {
 
     public SubGroup getOrAddChild(String name) {
         if (subgroups.containsKey(name) == false) {
-            this.subgroups.put(name, new SubGroup(name, null, renderLegacyXContent, new HashMap<>()));
+            this.subgroups.put(name, new SubGroup(name, null, new HashMap<>()));
         }
         return this.subgroups.get(name);
     }
@@ -65,32 +63,22 @@ public class SubGroup implements ToXContentFragment {
         for (Map.Entry<String, SubGroup> subGroup : subgroups.entrySet()) {
             copy.put(subGroup.getKey(), subGroup.getValue().copy());
         }
-        return new SubGroup(name, count, renderLegacyXContent, copy);
+        return new SubGroup(name, count, copy);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (renderLegacyXContent) {
-            // This assumes that we only have one level of sub groups
-            if (subgroups != null && subgroups.isEmpty() == false) {
-                for (SubGroup subgroup : subgroups.values()) {
-                    builder.field(subgroup.name, subgroup.count);
-                }
-            }
-            return builder;
-        } else {
-            builder.startObject(name);
-            // only the root node has no count
-            if (count != null) {
-                builder.field("count", count);
-            }
-            if (subgroups != null && subgroups.isEmpty() == false) {
-                for (SubGroup subgroup : subgroups.values()) {
-                    subgroup.toXContent(builder, params);
-                }
-            }
-            return builder.endObject();
+        builder.startObject(name);
+        // only the root node has no count
+        if (count != null) {
+            builder.field("count", count);
         }
+        if (subgroups != null && subgroups.isEmpty() == false) {
+            for (SubGroup subgroup : subgroups.values()) {
+                subgroup.toXContent(builder, params);
+            }
+        }
+        return builder.endObject();
     }
 
     @Override

@@ -7,17 +7,10 @@
 
 package org.elasticsearch.xpack.logsdb.qa;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Locale;
-
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This test compares behavior of a logsdb data stream and a standard index mode data stream
@@ -45,34 +38,11 @@ public class LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT extends 
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.logsDbMapping(builder);
+        dataGenerationHelper.writeLogsDbMapping(builder);
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.standardMapping(builder);
-    }
-
-    @Override
-    public Response indexContenderDocuments(CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier) throws IOException {
-        var reindexRequest = new Request("POST", "/_reindex?refresh=true");
-        reindexRequest.setJsonEntity(String.format(Locale.ROOT, """
-            {
-                "source": {
-                    "index": "%s"
-                },
-                "dest": {
-                  "index": "%s",
-                  "op_type": "create"
-                }
-            }
-            """, getBaselineDataStreamName(), getContenderDataStreamName()));
-        var response = client.performRequest(reindexRequest);
-        assertOK(response);
-
-        var body = entityAsMap(response);
-        assertThat("encountered failures when performing reindex:\n " + body, body.get("failures"), equalTo(List.of()));
-
-        return response;
+        dataGenerationHelper.writeStandardMapping(builder);
     }
 }

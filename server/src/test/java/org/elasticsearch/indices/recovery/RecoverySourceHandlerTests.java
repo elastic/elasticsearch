@@ -721,7 +721,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
-                indexSettings(IndexVersionUtils.randomVersion(random()), between(1, 5), between(0, 5)).put(
+                indexSettings(IndexVersionUtils.randomVersion(), between(1, 5), between(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     UUIDs.randomBase64UUID(random())
                 )
@@ -1077,50 +1077,6 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             assertNotNull(ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class));
         }
         store.close();
-    }
-
-    public void testVerifySeqNoStatsWhenRecoverWithSyncId() throws Exception {
-        IndexShard shard = mock(IndexShard.class);
-        when(shard.state()).thenReturn(IndexShardState.STARTED);
-        RecoverySourceHandler handler = new RecoverySourceHandler(
-            shard,
-            new TestRecoveryTargetHandler(),
-            threadPool,
-            getStartRecoveryRequest(),
-            between(1, 16),
-            between(1, 4),
-            between(1, 4),
-            between(1, 4),
-            false,
-            recoveryPlannerService
-        );
-
-        String syncId = UUIDs.randomBase64UUID();
-        int numDocs = between(0, 1000);
-        long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        assertTrue(
-            handler.hasSameLegacySyncId(
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs)
-            )
-        );
-
-        AssertionError error = expectThrows(AssertionError.class, () -> {
-            long localCheckpointOnTarget = randomValueOtherThan(
-                localCheckpoint,
-                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
-            );
-            long maxSeqNoOnTarget = randomValueOtherThan(
-                maxSeqNo,
-                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
-            );
-            handler.hasSameLegacySyncId(
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
-                newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs)
-            );
-        });
-        assertThat(error.getMessage(), containsString("try to recover [index][1] with sync id but seq_no stats are mismatched:"));
     }
 
     public void testRecoveryPlannerServiceIsUsed() throws Exception {
@@ -1730,7 +1686,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             0
         );
 
-        ByteSizeValue partSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        ByteSizeValue partSize = ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES);
 
         List<StoreFileMetadata> filesToRecoverFromSource = sourceFiles.subList(0, sourceFileCount);
         List<StoreFileMetadata> filesToRecoverFromSnapshot = sourceFiles.subList(sourceFileCount, sourceFiles.size());
@@ -1784,7 +1740,6 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
     private Store.MetadataSnapshot newMetadataSnapshot(String syncId, String localCheckpoint, String maxSeqNo, int numDocs) {
         Map<String, String> userData = new HashMap<>();
-        userData.put(Engine.SYNC_COMMIT_ID, syncId);
         if (localCheckpoint != null) {
             userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
         }

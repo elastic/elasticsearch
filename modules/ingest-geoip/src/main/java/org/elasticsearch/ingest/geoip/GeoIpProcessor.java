@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -36,8 +37,6 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 public final class GeoIpProcessor extends AbstractProcessor {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoIpProcessor.class);
-    static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
-        + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
     static final String UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE = "the geoip processor will no longer support database type [{}] "
         + "in a future version of Elasticsearch"; // TODO add a message about migration?
 
@@ -229,7 +228,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             final Map<String, Processor.Factory> registry,
             final String processorTag,
             final String description,
-            final Map<String, Object> config
+            final Map<String, Object> config,
+            final ProjectId projectId
         ) throws IOException {
             String ipField = readStringProperty(type, processorTag, config, "field");
             String targetField = readStringProperty(type, processorTag, config, "target_field", type);
@@ -240,12 +240,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
             // validate (and consume) the download_database_on_pipeline_creation property even though the result is not used by the factory
             readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
-
-            // noop, should be removed in 9.0
-            Object value = config.remove("fallback_to_default_databases");
-            if (value != null) {
-                deprecationLogger.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
-            }
 
             final String databaseType;
             try (IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(databaseFile)) {

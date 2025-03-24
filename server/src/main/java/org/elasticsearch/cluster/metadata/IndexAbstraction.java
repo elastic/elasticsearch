@@ -39,6 +39,16 @@ public interface IndexAbstraction {
     List<Index> getIndices();
 
     /**
+     * It retrieves the failure indices of an index abstraction given it supports the failure store.
+     * @param metadata certain abstractions require the project matadata to lazily retrieve the failure indices.
+     * @return All concrete failure indices this index abstraction is referring to. If the failure store is
+     * not supported, it returns an empty list.
+     */
+    default List<Index> getFailureIndices(@Nullable ProjectMetadata metadata) {
+        return List.of();
+    }
+
+    /**
      * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index abstraction.
      * <p>
      * A write index may also be a regular concrete index of a index abstraction and may therefore also be returned
@@ -50,7 +60,19 @@ public interface IndexAbstraction {
     @Nullable
     Index getWriteIndex();
 
-    default Index getWriteIndex(IndexRequest request, Metadata metadata) {
+    /**
+     * A write failure index is a dedicated concrete index, that accepts all the new documents that belong to the failure store of
+     * an index abstraction. Only an index abstraction with true {@link #isDataStreamRelated()} supports a failure store.
+     * @param metadata certain index abstraction require the project metadata to lazily retrieve the failure indices
+     * @return the write failure index of this index abstraction or <code>null</code> if this index abstraction doesn't have
+     * a write failure index or it does not support the failure store.
+     */
+    @Nullable
+    default Index getWriteFailureIndex(ProjectMetadata metadata) {
+        return null;
+    }
+
+    default Index getWriteIndex(IndexRequest request, ProjectMetadata metadata) {
         return getWriteIndex();
     }
 
@@ -75,6 +97,13 @@ public interface IndexAbstraction {
      * @return whether this index abstraction is related to data streams
      */
     default boolean isDataStreamRelated() {
+        return false;
+    }
+
+    /**
+     * @return whether this index abstraction is a failure index of a data stream
+     */
+    default boolean isFailureIndexOfDataStream() {
         return false;
     }
 
@@ -162,6 +191,11 @@ public interface IndexAbstraction {
         }
 
         @Override
+        public boolean isFailureIndexOfDataStream() {
+            return getParentDataStream() != null && getParentDataStream().isFailureStoreIndex(getName());
+        }
+
+        @Override
         public boolean isHidden() {
             return isHidden;
         }
@@ -199,9 +233,10 @@ public interface IndexAbstraction {
         private final boolean isHidden;
         private final boolean isSystem;
         private final boolean dataStreamAlias;
+        private final List<String> dataStreams;
 
         public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indexMetadatas) {
-            // note: don't capture a reference to any of these indexMetadatas here
+            // note: don't capture a reference to any of these indexMetadata here
             this.aliasName = aliasMetadata.getAlias();
             this.referenceIndices = new ArrayList<>(indexMetadatas.size());
             boolean isSystem = true;
@@ -226,15 +261,22 @@ public interface IndexAbstraction {
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
             this.isSystem = isSystem;
             dataStreamAlias = false;
+            dataStreams = List.of();
         }
 
-        public Alias(DataStreamAlias dataStreamAlias, List<Index> indicesOfAllDataStreams, Index writeIndexOfWriteDataStream) {
+        public Alias(
+            DataStreamAlias dataStreamAlias,
+            List<Index> indicesOfAllDataStreams,
+            Index writeIndexOfWriteDataStream,
+            List<String> dataStreams
+        ) {
             this.aliasName = dataStreamAlias.getName();
             this.referenceIndices = indicesOfAllDataStreams;
             this.writeIndex = writeIndexOfWriteDataStream;
             this.isHidden = false;
             this.isSystem = false;
             this.dataStreamAlias = true;
+            this.dataStreams = dataStreams;
         }
 
         @Override
@@ -251,18 +293,45 @@ public interface IndexAbstraction {
             return referenceIndices;
         }
 
+        @Override
+        public List<Index> getFailureIndices(ProjectMetadata metadata) {
+            if (isDataStreamRelated() == false) {
+                return List.of();
+            }
+            assert metadata != null : "metadata must not be null to be able to retrieve the failure indices";
+            List<Index> failureIndices = new ArrayList<>();
+            for (String dataStreamName : dataStreams) {
+                DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+                if (dataStream != null && dataStream.getFailureIndices().isEmpty() == false) {
+                    failureIndices.addAll(dataStream.getFailureIndices());
+                }
+            }
+            return failureIndices;
+        }
+
         @Nullable
         public Index getWriteIndex() {
             return writeIndex;
         }
 
+        @Nullable
         @Override
-        public Index getWriteIndex(IndexRequest request, Metadata metadata) {
+        public Index getWriteFailureIndex(ProjectMetadata metadata) {
+            if (isDataStreamRelated() == false || writeIndex == null) {
+                return null;
+            }
+            assert metadata != null : "metadata must not be null to be able to retrieve the failure indices";
+            DataStream dataStream = metadata.getIndicesLookup().get(writeIndex.getName()).getParentDataStream();
+            return dataStream == null ? null : dataStream.getWriteFailureIndex();
+        }
+
+        @Override
+        public Index getWriteIndex(IndexRequest request, ProjectMetadata project) {
             if (dataStreamAlias == false) {
                 return getWriteIndex();
             }
 
-            return metadata.getIndicesLookup().get(getWriteIndex().getName()).getParentDataStream().getWriteIndex(request, metadata);
+            return project.getIndicesLookup().get(getWriteIndex().getName()).getParentDataStream().getWriteIndex(request, project);
         }
 
         @Override

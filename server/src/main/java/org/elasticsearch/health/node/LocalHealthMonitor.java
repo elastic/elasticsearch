@@ -24,8 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -63,7 +61,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Client client;
-    private final FeatureService featureService;
 
     private volatile TimeValue monitorInterval;
     private volatile boolean enabled;
@@ -89,7 +86,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        FeatureService featureService,
         List<HealthTracker<?>> healthTrackers
     ) {
         this.threadPool = threadPool;
@@ -97,7 +93,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
         this.enabled = HealthNodeTaskExecutor.ENABLED_SETTING.get(settings);
         this.clusterService = clusterService;
         this.client = client;
-        this.featureService = featureService;
         this.healthTrackers = healthTrackers;
     }
 
@@ -106,17 +101,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        FeatureService featureService,
         List<HealthTracker<?>> healthTrackers
     ) {
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(
-            settings,
-            clusterService,
-            threadPool,
-            client,
-            featureService,
-            healthTrackers
-        );
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(settings, clusterService, threadPool, client, healthTrackers);
         localHealthMonitor.registerListeners();
         return localHealthMonitor;
     }
@@ -200,7 +187,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
             }
         }
         prerequisitesFulfilled = event.state().clusterRecovered()
-            && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)
             && HealthMetadata.getFromClusterState(event.state()) != null
             && currentHealthNode != null
             && currentMasterNode != null;

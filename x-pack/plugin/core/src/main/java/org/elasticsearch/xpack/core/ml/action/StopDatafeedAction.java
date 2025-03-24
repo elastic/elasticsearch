@@ -13,9 +13,7 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -28,10 +26,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.core.RestApiVersion.equalTo;
-import static org.elasticsearch.core.RestApiVersion.onOrAfter;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM;
 
 public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> {
 
@@ -47,11 +41,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
-        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // v7 REST API no longer exists: eliminate forRestApiVersion
-        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match").forRestApiVersion(onOrAfter(RestApiVersion.V_8));
-        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
-        public static final ParseField ALLOW_NO_MATCH_V7 = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM)
-            .forRestApiVersion(equalTo(RestApiVersion.V_7));
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
@@ -62,7 +52,6 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             );
             PARSER.declareBoolean(Request::setForce, FORCE);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
-            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH_V7);
         }
 
         public static Request parseRequest(String datafeedId, XContentParser parser) {

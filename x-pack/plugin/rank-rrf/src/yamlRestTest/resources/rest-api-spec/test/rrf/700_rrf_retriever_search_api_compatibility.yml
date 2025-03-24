@@ -1,9 +1,6 @@
 setup:
   - skip:
       features: close_to
-  - requires:
-      cluster_features: 'rrf_retriever_composition_supported'
-      reason: 'test requires rrf retriever composition support'
 
   - do:
       indices.create:
@@ -35,6 +32,16 @@ setup:
                 properties:
                   views:
                     type: long
+              nested_inner_hits:
+                type: nested
+                properties:
+                  data:
+                    type: keyword
+                  paragraph_id:
+                    type: dense_vector
+                    dims: 1
+                    index: true
+                    similarity: l2_norm
 
   - do:
       index:
@@ -125,6 +132,16 @@ setup:
           integer: 2
           keyword: "technology"
           nested: { views: 10}
+          nested_inner_hits: [{"data": "foo"}, {"data": "bar"}, {"data": "baz"}]
+
+  - do:
+      index:
+        index: test
+        id: "10"
+        body:
+          id: 10
+          integer: 3
+          nested_inner_hits: [ {"data": "foo", "paragraph_id": [1]}]
   - do:
       indices.refresh: {}
 
@@ -960,3 +977,168 @@ setup:
   - length: { hits.hits : 1 }
 
   - match: { hits.hits.0._id: "1" }
+
+---
+"rrf retriever with inner_hits for sub-retriever":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ nested_retriever_inner_hits_support ]
+      test_runner_features: capabilities
+      reason: "Support for propagating nested retrievers' inner hits to the top-level compound retriever is required"
+
+  - do:
+      search:
+        _source: false
+        index: test
+        body:
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  # this will return doc 9 and doc 10
+                  standard: {
+                    query: {
+                      nested: {
+                        path: nested_inner_hits,
+                        inner_hits: {
+                          name: nested_data_field,
+                          _source: false,
+                          "sort": [ {
+                              "nested_inner_hits.data": "asc"
+                            }
+                          ],
+                          fields: [ nested_inner_hits.data ]
+                        },
+                        query: {
+                          match_all: { }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  # this will return doc 10
+                  standard: {
+                    query: {
+                      nested: {
+                        path: nested_inner_hits,
+                        inner_hits: {
+                          name: nested_vector_field,
+                          _source: false,
+                          size: 1,
+                          "fields": [ "nested_inner_hits.paragraph_id" ]
+                        },
+                        query: {
+                          knn: {
+                            field: nested_inner_hits.paragraph_id,
+                            query_vector: [ 1 ],
+                            num_candidates: 10
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  standard: {
+                    query: {
+                      match_all: { }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 10
+              rank_constant: 10
+          size: 3
+
+  - match: { hits.total.value: 10 }
+
+  - match: { hits.hits.0.inner_hits.nested_data_field.hits.total.value: 1 }
+  - match: { hits.hits.0.inner_hits.nested_data_field.hits.hits.0.fields.nested_inner_hits.0.data.0: foo }
+  - match: { hits.hits.0.inner_hits.nested_vector_field.hits.total.value: 1 }
+  - match: { hits.hits.0.inner_hits.nested_vector_field.hits.hits.0.fields.nested_inner_hits.0.paragraph_id: [ 1 ] }
+
+  - match: { hits.hits.1.inner_hits.nested_data_field.hits.total.value: 3 }
+  - match: { hits.hits.1.inner_hits.nested_data_field.hits.hits.0.fields.nested_inner_hits.0.data.0: bar }
+  - match: { hits.hits.1.inner_hits.nested_data_field.hits.hits.1.fields.nested_inner_hits.0.data.0: baz }
+  - match: { hits.hits.1.inner_hits.nested_data_field.hits.hits.2.fields.nested_inner_hits.0.data.0: foo }
+  - match: { hits.hits.1.inner_hits.nested_vector_field.hits.total.value: 0 }
+
+  - match: { hits.hits.2.inner_hits.nested_data_field.hits.total.value: 0 }
+  - match: { hits.hits.2.inner_hits.nested_vector_field.hits.total.value: 0 }
+
+
+---
+"rrf retriever with filters to be passed to nested rrf retrievers":
+  - requires:
+      cluster_features: 'inner_retrievers_filter_support'
+      reason: 'requires fix for properly propagating filters to nested sub-retrievers'
+
+  - do:
+      search:
+        _source: false
+        index: test
+        body:
+          retriever:
+            {
+              rrf:
+                {
+                  filter: {
+                    term: {
+                      keyword: "technology"
+                    }
+                  },
+                  retrievers: [
+                    {
+                      rrf: {
+                        retrievers: [
+                          {
+                            # this should only return docs 3 and 5 due to top level filter
+                            standard: {
+                              query: {
+                                knn: {
+                                  field: vector,
+                                  query_vector: [ 4.0 ],
+                                  k: 3
+                                }
+                              }
+                            } },
+                          {
+                            # this should return no docs as no docs match both biology and technology
+                            standard: {
+                              query: {
+                                term: {
+                                  keyword: "biology"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        rank_window_size: 10,
+                        rank_constant: 10
+                      }
+                    },
+                    # this should only return doc 5
+                    {
+                      standard: {
+                        query: {
+                          term: {
+                            text: "term5"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  rank_window_size: 10,
+                  rank_constant: 10
+                }
+            }
+          size: 10
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.1._id: "3" }
+
+

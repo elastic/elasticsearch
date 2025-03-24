@@ -101,8 +101,8 @@ public class PutSearchApplicationAction {
             return Objects.hash(searchApp, create);
         }
 
-        public static ParseField SEARCH_APPLICATION = new ParseField("searchApp");
-        public static ParseField CREATE = new ParseField("create");
+        public static final ParseField SEARCH_APPLICATION = new ParseField("searchApp");
+        public static final ParseField CREATE = new ParseField("create");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
@@ -135,7 +135,6 @@ public class PutSearchApplicationAction {
         final DocWriteResponse.Result result;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             result = DocWriteResponse.Result.readFrom(in);
         }
 

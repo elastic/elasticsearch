@@ -19,6 +19,7 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.plugins.quality.CheckstyleExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -41,19 +42,25 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
         File checkstyleDir = new File(project.getBuildDir(), "checkstyle");
         File checkstyleSuppressions = new File(checkstyleDir, "checkstyle_suppressions.xml");
         File checkstyleConf = new File(checkstyleDir, "checkstyle.xml");
-        TaskProvider<Task> copyCheckstyleConf = project.getTasks().register("copyCheckstyleConf");
-
+        TaskProvider<CopyCheckStyleConfTask> copyCheckstyleConf = project.getTasks()
+            .register("copyCheckstyleConf", CopyCheckStyleConfTask.class);
         // configure inputs and outputs so up to date works properly
         copyCheckstyleConf.configure(t -> t.getOutputs().files(checkstyleSuppressions, checkstyleConf));
         if ("jar".equals(checkstyleConfUrl.getProtocol())) {
             try {
                 JarURLConnection jarURLConnection = (JarURLConnection) checkstyleConfUrl.openConnection();
-                copyCheckstyleConf.configure(t -> t.getInputs().file(jarURLConnection.getJarFileURL()));
+                copyCheckstyleConf.configure(
+                    t -> t.getInputs().file(jarURLConnection.getJarFileURL()).withPathSensitivity(PathSensitivity.RELATIVE)
+                );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         } else if ("file".equals(checkstyleConfUrl.getProtocol())) {
-            copyCheckstyleConf.configure(t -> t.getInputs().files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile()));
+            copyCheckstyleConf.configure(
+                t -> t.getInputs()
+                    .files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile())
+                    .withPathSensitivity(PathSensitivity.RELATIVE)
+            );
         }
 
         // Explicitly using an Action interface as java lambdas

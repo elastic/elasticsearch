@@ -8,13 +8,11 @@ package org.elasticsearch.xpack.esql.core.querydsl.query;
 
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Collections;
@@ -23,56 +21,74 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.ALLOW_LEADING_WILDCARD_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.ANALYZER_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.ANALYZE_WILDCARD_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_FIELD_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_OPERATOR_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.ENABLE_POSITION_INCREMENTS_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.ESCAPE_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.FUZZINESS_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.FUZZY_MAX_EXPANSIONS_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.FUZZY_PREFIX_LENGTH_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.FUZZY_REWRITE_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.LENIENT_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.MAX_DETERMINIZED_STATES_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.PHRASE_SLOP_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.QUOTE_ANALYZER_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.QUOTE_FIELD_SUFFIX_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.REWRITE_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.TIE_BREAKER_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.TIME_ZONE_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.TYPE_FIELD;
 
 public class QueryStringQuery extends Query {
 
-    // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
-    private static final Map<String, BiConsumer<QueryStringQueryBuilder, String>> BUILDER_APPLIERS = Map.ofEntries(
-        entry("allow_leading_wildcard", (qb, s) -> qb.allowLeadingWildcard(Booleans.parseBoolean(s))),
-        entry("analyze_wildcard", (qb, s) -> qb.analyzeWildcard(Booleans.parseBoolean(s))),
-        entry("analyzer", QueryStringQueryBuilder::analyzer),
-        entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
-        entry("default_field", QueryStringQueryBuilder::defaultField),
-        entry("default_operator", (qb, s) -> qb.defaultOperator(Operator.fromString(s))),
-        entry("enable_position_increments", (qb, s) -> qb.enablePositionIncrements(Booleans.parseBoolean(s))),
-        entry("escape", (qb, s) -> qb.escape(Booleans.parseBoolean(s))),
-        entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
-        entry("fuzzy_max_expansions", (qb, s) -> qb.fuzzyMaxExpansions(Integer.valueOf(s))),
-        entry("fuzzy_prefix_length", (qb, s) -> qb.fuzzyPrefixLength(Integer.valueOf(s))),
-        entry("fuzzy_rewrite", QueryStringQueryBuilder::fuzzyRewrite),
-        entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
-        entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
-        entry("max_determinized_states", (qb, s) -> qb.maxDeterminizedStates(Integer.valueOf(s))),
-        entry("minimum_should_match", QueryStringQueryBuilder::minimumShouldMatch),
-        entry("phrase_slop", (qb, s) -> qb.phraseSlop(Integer.valueOf(s))),
-        entry("rewrite", QueryStringQueryBuilder::rewrite),
-        entry("quote_analyzer", QueryStringQueryBuilder::quoteAnalyzer),
-        entry("quote_field_suffix", QueryStringQueryBuilder::quoteFieldSuffix),
-        entry("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s))),
-        entry("time_zone", QueryStringQueryBuilder::timeZone),
-        entry("type", (qb, s) -> qb.type(MultiMatchQueryBuilder.Type.parse(s, LoggingDeprecationHandler.INSTANCE)))
+    private static final Map<String, BiConsumer<QueryStringQueryBuilder, Object>> BUILDER_APPLIERS = Map.ofEntries(
+        entry(ALLOW_LEADING_WILDCARD_FIELD.getPreferredName(), (qb, obj) -> qb.allowLeadingWildcard((Boolean) obj)),
+        entry(ANALYZE_WILDCARD_FIELD.getPreferredName(), (qb, obj) -> qb.analyzeWildcard((Boolean) obj)),
+        entry(ANALYZER_FIELD.getPreferredName(), (qb, obj) -> qb.analyzer((String) obj)),
+        entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), (qb, obj) -> qb.autoGenerateSynonymsPhraseQuery((Boolean) obj)),
+        entry(DEFAULT_FIELD_FIELD.getPreferredName(), (qb, obj) -> qb.defaultField((String) obj)),
+        entry(DEFAULT_OPERATOR_FIELD.getPreferredName(), (qb, obj) -> qb.defaultOperator(Operator.fromString((String) obj))),
+        entry(ENABLE_POSITION_INCREMENTS_FIELD.getPreferredName(), (qb, obj) -> qb.enablePositionIncrements((Boolean) obj)),
+        entry(ESCAPE_FIELD.getPreferredName(), (qb, obj) -> qb.escape((Boolean) obj)),
+        entry(FUZZINESS_FIELD.getPreferredName(), (qb, obj) -> qb.fuzziness(Fuzziness.fromString((String) obj))),
+        entry(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), (qb, obj) -> qb.fuzzyMaxExpansions((Integer) obj)),
+        entry(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), (qb, obj) -> qb.fuzzyPrefixLength((Integer) obj)),
+        entry(FUZZY_REWRITE_FIELD.getPreferredName(), (qb, obj) -> qb.fuzzyRewrite((String) obj)),
+        entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), (qb, obj) -> qb.fuzzyTranspositions((Boolean) obj)),
+        entry(LENIENT_FIELD.getPreferredName(), (qb, obj) -> qb.lenient((Boolean) obj)),
+        entry(MAX_DETERMINIZED_STATES_FIELD.getPreferredName(), (qb, obj) -> qb.maxDeterminizedStates((Integer) obj)),
+        entry(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), (qb, obj) -> qb.minimumShouldMatch((String) obj)),
+        entry(PHRASE_SLOP_FIELD.getPreferredName(), (qb, obj) -> qb.phraseSlop((Integer) obj)),
+        entry(REWRITE_FIELD.getPreferredName(), (qb, obj) -> qb.rewrite((String) obj)),
+        entry(QUOTE_ANALYZER_FIELD.getPreferredName(), (qb, obj) -> qb.quoteAnalyzer((String) obj)),
+        entry(QUOTE_FIELD_SUFFIX_FIELD.getPreferredName(), (qb, obj) -> qb.quoteFieldSuffix((String) obj)),
+        entry(TIE_BREAKER_FIELD.getPreferredName(), (qb, obj) -> qb.tieBreaker((Float) obj)),
+        entry(TIME_ZONE_FIELD.getPreferredName(), (qb, obj) -> qb.timeZone((String) obj)),
+        entry(
+            TYPE_FIELD.getPreferredName(),
+            (qb, obj) -> qb.type(MultiMatchQueryBuilder.Type.parse((String) obj, LoggingDeprecationHandler.INSTANCE))
+        )
     );
 
     private final String query;
     private final Map<String, Float> fields;
-    private StringQueryPredicate predicate;
-    private final Map<String, String> options;
+    private final Map<String, Object> options;
 
-    // dedicated constructor for QueryTranslator
-    public QueryStringQuery(Source source, String query, String fieldName) {
-        this(source, query, Collections.singletonMap(fieldName, Float.valueOf(1.0f)), null);
-    }
-
-    public QueryStringQuery(Source source, String query, Map<String, Float> fields, StringQueryPredicate predicate) {
+    public QueryStringQuery(Source source, String query, Map<String, Float> fields, Map<String, Object> options) {
         super(source);
         this.query = query;
         this.fields = fields;
-        this.predicate = predicate;
-        this.options = predicate == null ? Collections.emptyMap() : predicate.optionMap();
+        this.options = options == null ? Collections.emptyMap() : options;
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         final QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(query);
         queryBuilder.fields(fields);
         options.forEach((k, v) -> {
@@ -95,7 +111,7 @@ public class QueryStringQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, fields, predicate);
+        return Objects.hash(query, fields);
     }
 
     @Override
@@ -109,11 +125,16 @@ public class QueryStringQuery extends Query {
         }
 
         QueryStringQuery other = (QueryStringQuery) obj;
-        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(predicate, other.predicate);
+        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(options, other.options);
     }
 
     @Override
     protected String innerToString() {
         return fields + ":" + query;
+    }
+
+    @Override
+    public boolean scorable() {
+        return true;
     }
 }

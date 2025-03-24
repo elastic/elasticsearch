@@ -25,8 +25,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -434,6 +437,42 @@ class ClientTransformIndexer extends TransformIndexer {
     protected void afterFinishOrFailure() {
         closePointInTime();
         super.afterFinishOrFailure();
+    }
+
+    @Override
+    public boolean maybeTriggerAsyncJob(long now) {
+        if (TransformMetadata.upgradeMode(clusterService.state())) {
+            logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
+            return false;
+        }
+        if (context.isWaitingForIndexToUnblock()) {
+            if (destinationIndexHasWriteBlock()) {
+                logger.debug("[{}] schedule was triggered but the destination index has a write block. Ignoring trigger.", getJobId());
+                return false;
+            }
+            logger.debug("[{}] destination index is no longer blocked.", getJobId());
+            context.setIsWaitingForIndexToUnblock(false);
+        }
+
+        return super.maybeTriggerAsyncJob(now);
+    }
+
+    private boolean destinationIndexHasWriteBlock() {
+        var clusterState = clusterService.state();
+        if (clusterState == null) {
+            // if we can't determine if the index is blocked, we assume it isn't, even though the bulk request may fail again
+            return false;
+        }
+
+        var destinationIndexName = transformConfig.getDestination().getIndex();
+        var destinationIndex = indexNameExpressionResolver.concreteWriteIndex(
+            clusterState,
+            IndicesOptions.lenientExpandOpen(),
+            destinationIndexName,
+            true,
+            false
+        );
+        return destinationIndex != null && clusterState.blocks().indexBlocked(ClusterBlockLevel.WRITE, destinationIndex.getName());
     }
 
     @Override

@@ -20,7 +20,7 @@ public class EventPayload extends AbstractPayload {
     private final List<Event> values;
 
     public EventPayload(SearchResponse response) {
-        super(response.isTimedOut(), response.getTook());
+        super(response.isTimedOut(), response.getTook(), response.getShardFailures());
 
         SearchHits hits = response.getHits();
         values = new ArrayList<>(hits.getHits().length);

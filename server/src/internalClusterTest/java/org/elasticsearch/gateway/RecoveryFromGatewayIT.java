@@ -14,8 +14,6 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
@@ -30,7 +28,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -144,7 +141,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
         final Map<String, long[]> result = new HashMap<>();
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        for (IndexMetadata indexMetadata : state.metadata().indices().values()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject().indices().values()) {
             final String index = indexMetadata.getIndex().getName();
             final long[] previous = previousTerms.get(index);
             final long[] current = IntStream.range(0, indexMetadata.getNumberOfShards()).mapToLong(indexMetadata::primaryTerm).toArray();
@@ -410,7 +407,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        indicesAdmin().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value"))
+            .get();
 
         logger.info("--> stopping the second node");
         internalCluster().stopRandomDataNode();
@@ -435,9 +434,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
 
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(state.metadata().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
-        assertThat(state.metadata().index("test").getAliases().get("test_alias"), notNullValue());
-        assertThat(state.metadata().index("test").getAliases().get("test_alias").filter(), notNullValue());
+        assertThat(state.metadata().getProject().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
+        assertThat(state.metadata().getProject().index("test").getAliases().get("test_alias"), notNullValue());
+        assertThat(state.metadata().getProject().index("test").getAliases().get("test_alias").filter(), notNullValue());
     }
 
     public void testReuseInFileBasedPeerRecovery() throws Exception {
@@ -577,19 +576,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
     }
 
-    public void assertSyncIdsNotNull() {
-        IndexStats indexStats = indicesAdmin().prepareStats("test").get().getIndex("test");
-        for (ShardStats shardStats : indexStats.getShards()) {
-            assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-        }
-    }
-
     public void testStartedShardFoundIfStateNotYetProcessed() throws Exception {
         // nodes may need to report the shards they processed the initial recovered cluster state from the master
         final String nodeName = internalCluster().startNode();
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build());
         final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
-            indicesAdmin().prepareGetSettings("test").get().getIndexToSettings().get("test")
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get().getIndexToSettings().get("test")
         );
         final Index index = resolveIndex("test");
         final ShardId shardId = new ShardId(index, 0);

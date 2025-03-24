@@ -27,6 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
+
+import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
 
 public class EsRelation extends LeafPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -35,30 +38,41 @@ public class EsRelation extends LeafPlan {
         EsRelation::readFrom
     );
 
-    private final EsIndex index;
-    private final List<Attribute> attrs;
-    private final boolean frozen;
+    private final String indexPattern;
     private final IndexMode indexMode;
+    private final Map<String, IndexMode> indexNameWithModes;
+    private final List<Attribute> attrs;
 
-    public EsRelation(Source source, EsIndex index, IndexMode indexMode, boolean frozen) {
-        this(source, index, flatten(source, index.mapping()), indexMode, frozen);
+    public EsRelation(Source source, EsIndex index, IndexMode indexMode) {
+        this(source, index.name(), indexMode, index.indexNameWithModes(), flatten(source, index.mapping()));
     }
 
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, IndexMode indexMode) {
-        this(source, index, attributes, indexMode, false);
-    }
-
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, IndexMode indexMode, boolean frozen) {
+    public EsRelation(
+        Source source,
+        String indexPattern,
+        IndexMode indexMode,
+        Map<String, IndexMode> indexNameWithModes,
+        List<Attribute> attributes
+    ) {
         super(source);
-        this.index = index;
-        this.attrs = attributes;
+        this.indexPattern = indexPattern;
         this.indexMode = indexMode;
-        this.frozen = frozen;
+        this.indexNameWithModes = indexNameWithModes;
+        this.attrs = attributes;
     }
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
-        EsIndex esIndex = new EsIndex(in);
+        String indexPattern;
+        Map<String, IndexMode> indexNameWithModes;
+        if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            indexPattern = in.readString();
+            indexNameWithModes = in.readMap(IndexMode::readFrom);
+        } else {
+            var index = EsIndex.readFrom(in);
+            indexPattern = index.name();
+            indexNameWithModes = index.indexNameWithModes();
+        }
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         if (supportingEsSourceOptions(in.getTransportVersion())) {
             // We don't do anything with these strings
@@ -67,23 +81,32 @@ public class EsRelation extends LeafPlan {
             in.readOptionalString();
         }
         IndexMode indexMode = readIndexMode(in);
-        boolean frozen = in.readBoolean();
-        return new EsRelation(source, esIndex, attributes, indexMode, frozen);
+        if (in.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            in.readBoolean();
+        }
+        return new EsRelation(source, indexPattern, indexMode, indexNameWithModes, attributes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        index().writeTo(out);
-        out.writeNamedWriteableCollection(output());
+        if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            out.writeString(indexPattern);
+            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
+        } else {
+            new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
+        }
+        out.writeNamedWriteableCollection(attrs);
         if (supportingEsSourceOptions(out.getTransportVersion())) {
             // write (null) string fillers expected by remote
             out.writeOptionalString(null);
             out.writeOptionalString(null);
             out.writeOptionalString(null);
         }
-        writeIndexMode(out, indexMode());
-        out.writeBoolean(frozen());
+        writeIndexMode(out, indexMode);
+        if (out.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            out.writeBoolean(false);
+        }
     }
 
     private static boolean supportingEsSourceOptions(TransportVersion version) {
@@ -97,7 +120,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, index, attrs, indexMode, frozen);
+        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, indexNameWithModes, attrs);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
@@ -128,16 +151,16 @@ public class EsRelation extends LeafPlan {
         return list;
     }
 
-    public EsIndex index() {
-        return index;
-    }
-
-    public boolean frozen() {
-        return frozen;
+    public String indexPattern() {
+        return indexPattern;
     }
 
     public IndexMode indexMode() {
         return indexMode;
+    }
+
+    public Map<String, IndexMode> indexNameWithModes() {
+        return indexNameWithModes;
     }
 
     @Override
@@ -145,9 +168,8 @@ public class EsRelation extends LeafPlan {
         return attrs;
     }
 
-    @Override
-    public String commandName() {
-        return "FROM";
+    public Set<String> concreteIndices() {
+        return indexNameWithModes.keySet();
     }
 
     @Override
@@ -159,7 +181,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, indexMode, frozen, attrs);
+        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attrs);
     }
 
     @Override
@@ -173,15 +195,20 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index)
-            && indexMode == other.indexMode()
-            && frozen == other.frozen
+        return Objects.equals(indexPattern, other.indexPattern)
+            && Objects.equals(indexMode, other.indexMode)
+            && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && Objects.equals(attrs, other.attrs);
     }
 
     @Override
     public String nodeString() {
-        return nodeName() + "[" + index + "]" + NodeUtils.limitedToString(attrs);
+        return nodeName()
+            + "["
+            + indexPattern
+            + "]"
+            + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
+            + NodeUtils.limitedToString(attrs);
     }
 
     public static IndexMode readIndexMode(StreamInput in) throws IOException {
@@ -198,5 +225,9 @@ public class EsRelation extends LeafPlan {
         } else if (indexMode != IndexMode.STANDARD) {
             throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");
         }
+    }
+
+    public EsRelation withAttributes(List<Attribute> newAttributes) {
+        return new EsRelation(source(), indexPattern, indexMode, indexNameWithModes, newAttributes);
     }
 }

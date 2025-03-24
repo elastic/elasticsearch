@@ -49,8 +49,6 @@ public class HealthService {
      */
     private static final String REASON = "reasons";
 
-    private static final Logger logger = LogManager.getLogger(HealthService.class);
-
     // Indicators that are run first and represent a serious cascading health problem
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
     // Indicators that are run if the preflight indicators return GREEN results
@@ -89,8 +87,6 @@ public class HealthService {
         int maxAffectedResourcesCount,
         ActionListener<List<HealthIndicatorResult>> listener
     ) {
-        logger.info("Calling HealthService!");
-
         if (maxAffectedResourcesCount < 0) {
             throw new IllegalArgumentException("The max number of resources must be a positive integer");
         }

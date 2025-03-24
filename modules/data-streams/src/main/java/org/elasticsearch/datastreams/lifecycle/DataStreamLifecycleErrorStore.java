@@ -136,6 +136,4 @@ public class DataStreamLifecycleErrorStore {
             )
             .collect(Collectors.toList());
     }
-
-    record ProjectIndex(ProjectId projectId, String index) {}
 }

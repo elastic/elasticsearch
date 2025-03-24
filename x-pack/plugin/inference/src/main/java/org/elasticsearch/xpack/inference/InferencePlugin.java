@@ -180,6 +180,8 @@ public class InferencePlugin extends Plugin
         Setting.Property.Dynamic
     );
 
+    public static final String INFERENCE_BYTES_CIRCUIT_BREAKER_NAME = "inference.bytes";
+    public static final double INFERENCE_BYTES_CIRCUIT_BREAKER_OVERHEAD = 1.0;
     public static final Setting<ByteSizeValue> INFERENCE_BYTES_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
         "indices.breaker.inference.bytes.limit",
         "25%",
@@ -194,8 +196,6 @@ public class InferencePlugin extends Plugin
     );
 
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
-
-    public static final String INFERENCE_BYTES_CIRCUIT_BREAKER_NAME = "inference.bytes";
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
@@ -341,6 +341,11 @@ public class InferencePlugin extends Plugin
         var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), serviceRegistry, modelRegistry, getLicenseState());
         actionFilter.setInferenceBytesCircuitBreaker(inferenceBytesBreaker.get());
         shardBulkInferenceActionFilter.set(actionFilter);
+
+        services.clusterService().getClusterSettings().addSettingsUpdateConsumer(
+            INFERENCE_BYTES_CIRCUIT_BREAKER_LIMIT_SETTING,
+            this::updateCircuitBreaker
+        );
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
         var inferenceStats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
@@ -560,7 +565,7 @@ public class InferencePlugin extends Plugin
         return new BreakerSettings(
             INFERENCE_BYTES_CIRCUIT_BREAKER_NAME,
             INFERENCE_BYTES_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
-            1.0,
+            INFERENCE_BYTES_CIRCUIT_BREAKER_OVERHEAD,
             CircuitBreaker.Type.MEMORY,
             CircuitBreaker.Durability.TRANSIENT
         );
@@ -570,6 +575,15 @@ public class InferencePlugin extends Plugin
     public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
         assert circuitBreaker.getName().equals(INFERENCE_BYTES_CIRCUIT_BREAKER_NAME);
         this.inferenceBytesBreaker.set(circuitBreaker);
+    }
+
+    private void updateCircuitBreaker(ByteSizeValue inferenceBytesLimit) {
+        CircuitBreaker circuitBreaker = this.inferenceBytesBreaker.get();
+        if (circuitBreaker == null) {
+            throw new IllegalStateException("[" + INFERENCE_BYTES_CIRCUIT_BREAKER_NAME + "] circuit breaker not set");
+        }
+
+        circuitBreaker.setLimitAndOverhead(inferenceBytesLimit.getBytes(), INFERENCE_BYTES_CIRCUIT_BREAKER_OVERHEAD);
     }
 
     @Override

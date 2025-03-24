@@ -81,7 +81,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         assertThat(
             decision.getExplanation(),
             equalTo(
-                "shard has failed to be restored from the snapshot [_repository:_missing/_uuid] - manually close or "
+                "shard has failed to be restored from the snapshot [default:_repository:_missing/_uuid] - manually close or "
                     + "delete the index [test] in order to retry to restore the snapshot again or use the reroute API "
                     + "to force the allocation of an empty primary shard. Details: [restore_source[_repository/_missing]]"
             )

@@ -686,8 +686,94 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 "application": {}
             }
             """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": [".security-7"],
+                        "privileges": ["read_failure_store", "read", "all"],
+                        "allow_restricted_indices": true
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    ".security-7": {
+                        "read_failure_store": false,
+                        "read": false,
+                        "all": false
+                    }
+                },
+                "application": {}
+            }
+            """);
 
-        // TODO restricted indices
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": [".*"],
+                  "privileges": ["read_failure_store"],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [".*"],
+                  "privileges": ["read"],
+                  "allow_restricted_indices": false
+                }
+              ]
+            }
+            """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [
+                        {
+                            "names": [".*"],
+                            "privileges": ["read_failure_store"],
+                            "allow_restricted_indices": true
+                        },
+                        {
+                            "names": [".*"],
+                            "privileges": ["read"],
+                            "allow_restricted_indices": false
+                        }
+                    ]
+                }
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": [".security-7"],
+                        "privileges": ["read_failure_store", "read", "all"],
+                        "allow_restricted_indices": true
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    ".security-7": {
+                        "read_failure_store": true,
+                        "read": false,
+                        "all": false
+                    }
+                },
+                "application": {}
+            }
+            """);
     }
 
     public void testRoleWithSelectorInIndexPattern() throws Exception {

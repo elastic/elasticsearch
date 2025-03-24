@@ -21,11 +21,13 @@ public class OnGoingMerge {
 
     private final String id;
     private final MergePolicy.OneMerge oneMerge;
+    private final long memoryBytesNeeded;
 
-    public OnGoingMerge(MergePolicy.OneMerge merge) {
+    public OnGoingMerge(MergePolicy.OneMerge merge, long memoryBytesNeeded) {
         this.id = Integer.toString(System.identityHashCode(merge));
         this.oneMerge = merge;
 
+        this.memoryBytesNeeded = memoryBytesNeeded;
     }
 
     /**
@@ -53,5 +55,9 @@ public class OnGoingMerge {
 
     public MergePolicy.OneMerge getMerge() {
         return oneMerge;
+    }
+
+    public long getMemoryBytesNeeded() {
+        return memoryBytesNeeded;
     }
 }

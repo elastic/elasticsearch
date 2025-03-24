@@ -44,9 +44,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SemanticTextIndexVersionIT extends ESIntegTestCase {
     private static final IndexVersion SEMANTIC_TEXT_INTRODUCED_VERSION = IndexVersion.fromId(8512000);
-
+    private static final double PERCENTAGE_TO_TEST = 0.5;
     private Set<IndexVersion> availableVersions;
-    private static final int MIN_NUMBER_OF_TESTS_TO_RUN = 10;
 
     @Before
     public void setup() throws Exception {
@@ -54,8 +53,6 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
         availableVersions = IndexVersionUtils.allReleasedVersions().stream()
             .filter(indexVersion -> indexVersion.after(SEMANTIC_TEXT_INTRODUCED_VERSION))
             .collect(Collectors.toSet());
-
-        logger.info("Available versions for testing: {}", availableVersions);
     }
 
     @Override
@@ -86,7 +83,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
      * @return Map of created indices with their versions
      */
     protected Map<String, IndexVersion> createRandomVersionIndices() throws IOException {
-        int versionsCount = Math.min(MIN_NUMBER_OF_TESTS_TO_RUN, availableVersions.size());
+        int versionsCount = (int) Math.ceil(availableVersions.size() * PERCENTAGE_TO_TEST);
         List<IndexVersion> selectedVersions = randomSubsetOf(versionsCount, availableVersions);
         Map<String, IndexVersion> result = new HashMap<>();
 
@@ -100,11 +97,14 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
         return result;
     }
 
+    /**
+     * This test creates an index, ingests data, and performs searches (including highlighting when applicable)
+     * for a selected subset of index versions.
+     */
     public void testSemanticText() throws Exception {
         Map<String, IndexVersion> indices = createRandomVersionIndices();
         for (String indexName : indices.keySet()) {
             IndexVersion version = indices.get(indexName);
-            logger.info("Testing index [{}] with version [{}] [{}]", indexName, version, version.toReleaseVersion());
 
             // Test index creation
             assertTrue("Index " + indexName + " should exist", indexExists(indexName));
@@ -155,7 +155,6 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 assertHitCount(response, 1L);
             });
 
-            //Semantic Search with highlighter only available from 8.18 and 9.0
             Settings settings = client().admin()
                 .indices()
                 .prepareGetSettings(TimeValue.THIRTY_SECONDS, indexName)
@@ -163,6 +162,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 .getIndexToSettings()
                 .get(indexName);
 
+            //Semantic Search with highlighter only available from 8.18 and 9.0
             if (InferenceMetadataFieldsMapper.isEnabled(settings)) {
                 SearchSourceBuilder sourceHighlighterBuilder = new SearchSourceBuilder()
                     .query(new SemanticQueryBuilder("semantic_field", "inference"))

@@ -774,6 +774,20 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 "application": {}
             }
             """);
+
+        expectThrows(() -> expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1", "test1::failures"],
+                        "privileges": ["read_failure_store", "read", "all"],
+                        "allow_restricted_indices": false
+                    }
+                ]
+            }
+            """, """
+            {}
+            """), 400);
     }
 
     public void testRoleWithSelectorInIndexPattern() throws Exception {

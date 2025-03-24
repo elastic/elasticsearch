@@ -14,6 +14,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -338,13 +339,24 @@ public interface AuthorizationEngine {
             if (index == null) {
                 validationException = addValidationError("indexPrivileges must not be null", validationException);
             } else {
-                for (int i = 0; i < index.length; i++) {
-                    BytesReference query = index[i].getQuery();
+                for (RoleDescriptor.IndicesPrivileges indicesPrivileges : index) {
+                    BytesReference query = indicesPrivileges.getQuery();
                     if (query != null) {
                         validationException = addValidationError(
                             "may only check index privileges without any DLS query [" + query.utf8ToString() + "]",
                             validationException
                         );
+                    }
+                    // best effort prevent users from attempting to use selectors in privilege check
+                    for (String indexPattern : indicesPrivileges.getIndices()) {
+                        if (IndexNameExpressionResolver.hasSelector(indexPattern, IndexComponentSelector.FAILURES)
+                            || IndexNameExpressionResolver.hasSelector(indexPattern, IndexComponentSelector.DATA)) {
+                            validationException = addValidationError(
+                                "may only check index privileges without any selectors index patterns [" + indexPattern + "]",
+                                validationException
+                            );
+                            break;
+                        }
                     }
                 }
             }

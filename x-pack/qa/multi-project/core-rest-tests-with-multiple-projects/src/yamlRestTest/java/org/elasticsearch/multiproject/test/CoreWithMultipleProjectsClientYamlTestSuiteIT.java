@@ -47,7 +47,7 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .systemProperty("es.queryable_built_in_roles_enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.FAILURE_STORE_ENABLED)
-        .nodes(1)
+        .nodes(2)
         .build();
 
     public CoreWithMultipleProjectsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -173,7 +173,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         }
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
         error = unwrapIfWrappedInRemoteComputeException(error);
-        assertThat(error.getCause().getMessage(), containsString("proxy timeout"));
+        assertThat(error.getMessage(), containsString("proxy timeout"));
     }
 
     public void testSameRemoteClusters() throws Exception {
@@ -295,6 +295,6 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
 
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
         error = unwrapIfWrappedInRemoteComputeException(error);
-        assertThat(error.getCause(), instanceOf(TaskCancelledException.class));
+        assertThat(error, instanceOf(TaskCancelledException.class));
     }
 }

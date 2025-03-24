@@ -254,7 +254,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves) {
+    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves) {
         int numSegments = 0;
         int totalFields = 0;
         long usages = 0;

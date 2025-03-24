@@ -70,7 +70,7 @@ public class CefProcessorTests extends ESTestCase {
         IngestDocument invalidIngestDocument = new IngestDocument("index", "id", 1L, null, null, invalidSource);
 
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
-        processor.execute(invalidIngestDocument);
+        expectThrows(IllegalArgumentException.class, () -> processor.execute(invalidIngestDocument));
     }
 
     @SuppressWarnings("unchecked")

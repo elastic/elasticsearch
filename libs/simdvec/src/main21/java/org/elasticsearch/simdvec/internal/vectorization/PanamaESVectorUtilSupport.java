@@ -238,7 +238,6 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
         sectionLength = INT_SPECIES_256.length();
         if (q.length - i >= sectionLength) {
-            // don't unroll this, we want to catch as many as we can before going scalar
             IntVector acc = IntVector.zero(INT_SPECIES_256);
             int limit = limit(q.length, sectionLength);
             for (; i < limit; i += sectionLength) {
@@ -252,11 +251,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             sum += acc.reduceLanes(VectorOperators.ADD);
         }
 
-        if (i < q.length) {
-            // do the tail
-            // default implementation uses length of data vector, not query vector
-            sum += DefaultESVectorUtilSupport.ipByteBitImpl(q, d, i / 8);
-        }
+        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
+        assert i == q.length;
         return sum;
     }
 
@@ -295,11 +291,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                 + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        if (i < q.length) {
-            // do the tail
-            // default implementation uses length of data vector, not query vector
-            sum += DefaultESVectorUtilSupport.ipByteBitImpl(q, d, i / 8);
-        }
+        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
+        assert i == q.length;
         return sum;
     }
 
@@ -341,7 +334,6 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
         sectionLength = FLOAT_SPECIES_256.length();
         if (q.length - i >= sectionLength) {
-            // don't unroll this, we want to catch as many as we can before going scalar
             FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
             int limit = limit(q.length, sectionLength);
             for (; i < limit; i += sectionLength) {
@@ -355,12 +347,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             sum += acc.reduceLanes(VectorOperators.ADD);
         }
 
-        if (i < q.length) {
-            // do the tail
-            // default implementation uses length of data vector, not query vector
-            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, d, i / 8);
-        }
-
+        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
+        assert i == q.length;
         return sum;
     }
 
@@ -397,12 +385,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                 + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        if (i < q.length) {
-            // do the tail
-            // default implementation uses length of data vector, not query vector
-            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, d, i / 8);
-        }
-
+        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
+        assert i == q.length;
         return sum;
     }
 

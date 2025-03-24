@@ -49,7 +49,7 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
         ActionListener<InferenceServiceResults> listener
     ) {
         EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
-        List<String> docsInput = ChunkInferenceInput.convertToStrings(input.getInputs());
+        List<String> docsInput = input.getStringInputs();
         InputType inputType = input.getInputType();
 
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());

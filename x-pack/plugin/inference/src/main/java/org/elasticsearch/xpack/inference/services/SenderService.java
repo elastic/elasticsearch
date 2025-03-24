@@ -82,7 +82,7 @@ public abstract class SenderService implements InferenceService {
         @Nullable String query,
         boolean stream
     ) {
-        List<String> textInput = ChunkInferenceInput.convertToStrings(input);
+        List<String> textInput = ChunkInferenceInput.asStrings(input);
         return switch (model.getTaskType()) {
             case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(textInput, stream);
             case RERANK -> new QueryAndDocsInputs(query, textInput, stream);

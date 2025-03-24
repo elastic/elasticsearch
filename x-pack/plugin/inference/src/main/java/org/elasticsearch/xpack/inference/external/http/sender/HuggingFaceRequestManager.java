@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -61,7 +60,7 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = ChunkInferenceInput.convertToStrings(EmbeddingsInput.of(inferenceInputs).getInputs());
+        List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getStringInputs();
         var truncatedInput = truncate(docsInput, model.getTokenLimit());
         var request = new HuggingFaceInferenceRequest(truncator, truncatedInput, model);
 

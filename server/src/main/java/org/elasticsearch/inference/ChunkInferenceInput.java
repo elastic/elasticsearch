@@ -19,7 +19,7 @@ public record ChunkInferenceInput(String input, @Nullable ChunkingSettings chunk
         this(input, null);
     }
 
-    public static List<String> convertToStrings(List<ChunkInferenceInput> chunkInferenceInputs) {
+    public static List<String> asStrings(List<ChunkInferenceInput> chunkInferenceInputs) {
         return chunkInferenceInputs.stream().map(ChunkInferenceInput::input).toList();
     }
 }

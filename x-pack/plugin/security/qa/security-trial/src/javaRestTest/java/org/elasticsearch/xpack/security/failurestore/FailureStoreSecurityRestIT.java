@@ -407,6 +407,55 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 "application": {}
             }
             """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": [".security-7"],
+                        "privileges": ["read_failure_store"],
+                        "allow_restricted_indices": true
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    ".security-7": {
+                        "read_failure_store": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": [".security-7", "test1"],
+                        "privileges": ["read_failure_store"],
+                        "allow_restricted_indices": true
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    ".security-7": {
+                        "read_failure_store": false
+                    },
+                    "test1": {
+                        "read_failure_store": true
+                    }
+                },
+                "application": {}
+            }
+            """);
 
         upsertRole("""
             {

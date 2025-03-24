@@ -317,13 +317,13 @@ public final class IndicesPermission {
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
         boolean allMatch = true;
-        Map<Automaton, Automaton> indexGroupAutomatonsForDataAccess = indexGroupAutomatons(
+        Map<Automaton, Automaton> indexGroupAutomatonsForDataSelector = indexGroupAutomatons(
             combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
             IndexComponentSelector.DATA
         );
         // optimization: if there are no failures access privileges in the set of privileges to check, we can skip building the automaton
-        final boolean containsFailuresAccessPrivileges = containsFailuresAccessPrivileges(checkForPrivileges);
-        Map<Automaton, Automaton> indexGroupAutomatonsForFailuresAccess = false == containsFailuresAccessPrivileges
+        final boolean containsPrivilegesForFailuresSelector = containsPrivilegesForFailuresSelector(checkForPrivileges);
+        Map<Automaton, Automaton> indexGroupAutomatonsForFailuresSelector = false == containsPrivilegesForFailuresSelector
             ? Map.of()
             : indexGroupAutomatons(
                 combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
@@ -335,12 +335,12 @@ public final class IndicesPermission {
                 checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
-                Automaton allowedPrivilegesAutomatonForDataAccess = getIndexPrivilegesAutomaton(
-                    indexGroupAutomatonsForDataAccess,
+                Automaton allowedPrivilegesAutomatonForDataSelector = getIndexPrivilegesAutomaton(
+                    indexGroupAutomatonsForDataSelector,
                     checkIndexAutomaton
                 );
-                Automaton allowedPrivilegesAutomatonForFailuresAccess = getIndexPrivilegesAutomaton(
-                    indexGroupAutomatonsForFailuresAccess,
+                Automaton allowedPrivilegesAutomatonForFailuresSelector = getIndexPrivilegesAutomaton(
+                    indexGroupAutomatonsForFailuresSelector,
                     checkIndexAutomaton
                 );
                 for (String privilege : checkForPrivileges) {
@@ -349,19 +349,19 @@ public final class IndicesPermission {
                     final boolean checkFailuresAccess = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.FAILURES);
                     assert checkDataAccess || checkFailuresAccess
                         : "index privilege must map to at least one of [data, failures] selectors";
-                    assert containsFailuresAccessPrivileges
+                    assert containsPrivilegesForFailuresSelector
                         || indexPrivilege.getSelectorPredicate() != IndexComponentSelectorPredicate.FAILURES
                         : "no failures access privileges should be present in the set of privileges to check";
                     final Automaton automatonToCheck = indexPrivilege.getAutomaton();
                     if (checkDataAccess
-                        && allowedPrivilegesAutomatonForDataAccess != null
-                        && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForDataAccess)) {
+                        && allowedPrivilegesAutomatonForDataSelector != null
+                        && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForDataSelector)) {
                         if (resourcePrivilegesMapBuilder != null) {
                             resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                         }
                     } else if (checkFailuresAccess
-                        && allowedPrivilegesAutomatonForFailuresAccess != null
-                        && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForFailuresAccess)) {
+                        && allowedPrivilegesAutomatonForFailuresSelector != null
+                        && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForFailuresSelector)) {
                             if (resourcePrivilegesMapBuilder != null) {
                                 resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                             }
@@ -864,7 +864,7 @@ public final class IndicesPermission {
         return allAutomatons;
     }
 
-    private static boolean containsFailuresAccessPrivileges(Set<String> checkForPrivileges) {
+    private static boolean containsPrivilegesForFailuresSelector(Set<String> checkForPrivileges) {
         for (String privilege : checkForPrivileges) {
             // use getNamedOrNull since only a named privilege can be a failures-only privilege (raw action names are always data access)
             IndexPrivilege named = IndexPrivilege.getNamedOrNull(privilege);

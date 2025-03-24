@@ -21,6 +21,8 @@ Using a simple periodic timer, the {transform} checks for changes to the source
 indices. This check is done based on the interval defined in the transform's 
 `frequency` property.
 +
+If new data is ingested with a slight delay, it might not be immediately available when the {transform} runs. To prevent missing documents, you can use the `delay` parameter in the `sync` configuration. This shifts the search window backward, ensuring that late-arriving data is included before a checkpoint processes it. Adjusting this value based on your data ingestion patterns can help ensure completeness.
++
 If the source indices remain unchanged or if a checkpoint is already in progress
 then it waits for the next timer.
 +

@@ -1,0 +1,6 @@
+pr: 124898
+summary: Add cache support in `TransportGetAllocationStatsAction`
+area: Allocation
+type: enhancement
+issues:
+ - 110716

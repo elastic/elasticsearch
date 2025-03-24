@@ -850,6 +850,23 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(document.getIngestMetadata().size(), equalTo(0));
     }
 
+    public void testRemoveFieldIgnoreMissing() {
+        document.removeField("foo", randomBoolean());
+        assertThat(document.getSourceAndMetadata().size(), equalTo(10));
+        assertThat(document.getSourceAndMetadata().containsKey("foo"), equalTo(false));
+        document.removeField("_index", randomBoolean());
+        assertThat(document.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(document.getSourceAndMetadata().containsKey("_index"), equalTo(false));
+
+        // if ignoreMissing is false, we throw an exception for values that aren't found
+        IllegalArgumentException e;
+        e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
+        assertThat(e.getMessage(), is("field [some] not present as part of path [fizz.some.nonsense]"));
+
+        // but no exception is thrown if ignoreMissing is true
+        document.removeField("fizz.some.nonsense", true);
+    }
+
     public void testRemoveInnerField() {
         document.removeField("fizz.buzz");
         assertThat(document.getSourceAndMetadata().size(), equalTo(11));

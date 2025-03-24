@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -370,9 +372,13 @@ public class EsqlSession {
         for (TableInfo lookupIndex : preAnalysis.lookupIndices) {
             listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(lookupIndex, preAnalysisResult, l); });
         }
+        boolean noRequiredField = parsed.anyMatch(
+            p -> (p instanceof UnresolvedRelation
+                || (p instanceof Limit lim && lim.limit() instanceof Literal lit && Integer.parseInt(lit.value().toString()) > 0)) == false
+        ) == false;
         listener.<PreAnalysisResult>andThen((l, result) -> {
             // resolve the main indices
-            preAnalyzeIndices(preAnalysis.indices, executionInfo, result, requestFilter, l);
+            preAnalyzeIndices(preAnalysis.indices, executionInfo, result, requestFilter, l, noRequiredField);
         }).<PreAnalysisResult>andThen((l, result) -> {
             // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
             // invalid index resolution to updateExecutionInfo
@@ -395,7 +401,7 @@ public class EsqlSession {
             }
 
             // here the requestFilter is set to null, performing the pre-analysis after the first step failed
-            preAnalyzeIndices(preAnalysis.indices, executionInfo, result, null, l);
+            preAnalyzeIndices(preAnalysis.indices, executionInfo, result, null, l, noRequiredField);
         }).<LogicalPlan>andThen((l, result) -> {
             assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
             LOGGER.debug("Analyzing the plan (second attempt, without filter)");
@@ -419,7 +425,8 @@ public class EsqlSession {
             table.indexPattern(),
             fieldNames,
             null,
-            listener.map(indexResolution -> result.addLookupIndexResolution(table.indexPattern(), indexResolution))
+            listener.map(indexResolution -> result.addLookupIndexResolution(table.indexPattern(), indexResolution)),
+            false
         );
         // TODO: Verify that the resolved index actually has indexMode: "lookup"
     }
@@ -429,7 +436,8 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
-        ActionListener<PreAnalysisResult> listener
+        ActionListener<PreAnalysisResult> listener,
+        boolean noRequiredField
     ) {
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (indices.size() > 1) {
@@ -440,7 +448,6 @@ public class EsqlSession {
             Map<String, Exception> unavailableClusters = result.enrichResolution.getUnavailableClusters();
             TableInfo tableInfo = indices.get(0);
             IndexPattern table = tableInfo.id();
-
             Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
                 IndicesOptions.DEFAULT,
                 table.indexPattern()
@@ -482,7 +489,8 @@ public class EsqlSession {
                     indexExpressionToResolve,
                     result.fieldNames,
                     requestFilter,
-                    listener.map(indexResolution -> result.withIndexResolution(indexResolution))
+                    listener.map(indexResolution -> result.withIndexResolution(indexResolution)),
+                    noRequiredField
                 );
             }
         } else {

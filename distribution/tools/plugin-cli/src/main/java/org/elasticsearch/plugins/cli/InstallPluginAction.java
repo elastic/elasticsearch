@@ -923,6 +923,17 @@ public class InstallPluginAction implements Closeable {
      */
     private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginDescriptor info = loadPluginInfo(tmpRoot);
+
+        Path legacyPolicyFile = tmpRoot.resolve(PluginDescriptor.ES_PLUGIN_POLICY);
+        if (Files.exists(legacyPolicyFile)) {
+            terminal.errorPrintln(
+                "WARNING: this plugin contains a legacy Security Policy file. Starting with version 8.18, "
+                    + "Entitlements replace SecurityManager as the security mechanism. Plugins must migrate their policy files to the new "
+                    + "format. For more information, please refer to "
+                    + PluginSecurity.ENTITLEMENTS_DESCRIPTION_URL
+            );
+        }
+
         if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpDir());
             if (pluginPolicy != null) {

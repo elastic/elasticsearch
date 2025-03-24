@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.expression.predicate;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -31,18 +33,23 @@ import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
 public class Range extends ScalarFunction implements TranslationAware.SingleValueTranslationAware {
+    private static final Logger logger = LogManager.getLogger(Range.class);
 
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
@@ -210,10 +217,17 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
         String format = null;
 
         DataType dataType = value.dataType();
-        if (DataType.isDateTime(dataType) && DataType.isDateTime(lower.dataType()) && DataType.isDateTime(upper.dataType())) {
+        logger.trace("Translating Range into lucene query.  dataType is [{}] upper is [{}]  lower is [{}]", dataType, lower, upper);
+        if (dataType == DataType.DATETIME && lower.dataType() == DATETIME && upper.dataType() == DATETIME) {
             l = dateTimeToString((Long) l);
             u = dateTimeToString((Long) u);
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+        }
+
+        if (dataType == DATE_NANOS && lower.dataType() == DATE_NANOS && upper.dataType() == DATE_NANOS) {
+            l = nanoTimeToString((Long) l);
+            u = nanoTimeToString((Long) u);
+            format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
 
         if (dataType == IP) {

@@ -308,8 +308,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
-            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-            assertThat(remote1Cluster.getTook().millis(), equalTo(0L));
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(remote1Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(remote1Cluster.getTotalShards(), equalTo(0));
             assertThat(remote1Cluster.getSuccessfulShards(), equalTo(0));
             assertThat(remote1Cluster.getSkippedShards(), equalTo(0));
@@ -356,8 +356,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1*,mylogs2*,logs*"));
-            assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-            assertThat(remote2Cluster.getTook().millis(), equalTo(0L));
+            assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(remote2Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(remote2Cluster.getTotalShards(), equalTo(0));
             assertThat(remote2Cluster.getSuccessfulShards(), equalTo(0));
             assertThat(remote2Cluster.getSkippedShards(), equalTo(0));

@@ -36,7 +36,7 @@ public abstract class ESVectorizationProvider {
     static ESVectorizationProvider lookup(boolean testMode) {
         final int runtimeVersion = Runtime.version().feature();
         assert runtimeVersion >= 21;
-        if (runtimeVersion <= 23) {
+        if (runtimeVersion <= 24) {
             // only use vector module with Hotspot VM
             if (Constants.IS_HOTSPOT_VM == false) {
                 logger.warn("Java runtime is not using Hotspot VM; Java vector incubator API can't be enabled.");

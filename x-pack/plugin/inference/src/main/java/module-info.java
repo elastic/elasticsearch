@@ -37,7 +37,6 @@ module org.elasticsearch.inference {
     requires org.elasticsearch.sslconfig;
     requires org.apache.commons.text;
     requires json.path;
-    requires unboundid.ldapsdk;
     requires json.smart;
 
     exports org.elasticsearch.xpack.inference.action;

@@ -51,7 +51,6 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
         String method = randomFrom(HttpMethod.PUT.name(), HttpMethod.POST.name(), HttpMethod.GET.name());
         String queryString = inputQueryString != null ? inputQueryString : randomAlphaOfLength(15);
         Map<String, Object> headers = randomBoolean() ? null : Map.of("key", "value");
-        String requestFormat = randomFrom(CustomServiceSettings.REQUEST_FORMAT_JSON, CustomServiceSettings.REQUEST_FORMAT_STRING);
         Map<String, Object> requestContent = randomMap(0, 5, () -> tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         String requestContentString = randomBoolean() ? null : randomAlphaOfLength(10);
 
@@ -114,7 +113,6 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
             method,
             queryString,
             headers,
-            requestFormat,
             requestContent,
             requestContentString,
             responseJsonParser,
@@ -138,7 +136,6 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
         String method = HttpMethod.POST.name();
         String queryString = "?query=test";
         Map<String, Object> headers = Map.of("key", "value");
-        String requestFormat = CustomServiceSettings.REQUEST_FORMAT_STRING;
         String requestContentString = "request body";
 
         Map<String, Object> jsonParserMap = new HashMap<>(
@@ -175,14 +172,7 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
                                             CustomServiceSettings.HEADERS,
                                             headers,
                                             CustomServiceSettings.REQUEST,
-                                            new HashMap<>(
-                                                Map.of(
-                                                    CustomServiceSettings.REQUEST_FORMAT,
-                                                    requestFormat,
-                                                    CustomServiceSettings.REQUEST_CONTENT,
-                                                    requestContentString
-                                                )
-                                            ),
+                                            new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
                                             CustomServiceSettings.RESPONSE,
                                             new HashMap<>(
                                                 Map.of(
@@ -222,7 +212,6 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
                     method,
                     queryString,
                     headers,
-                    requestFormat,
                     null,
                     requestContentString,
                     responseJsonParser,
@@ -251,7 +240,6 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
             HttpMethod.POST.name(),
             "?query=test",
             Map.of("key", "value"),
-            CustomServiceSettings.REQUEST_FORMAT_STRING,
             null,
             "request body",
             responseJsonParser,
@@ -267,7 +255,7 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
             is(
                 "{\"description\":\"test fromMap\",\"version\":\"v1\","
                     + "\"url\":\"http://www.abc.com\",\"path\":{\"/endpoint\":{\"POST\":{\"query_string\":\"?query=test\","
-                    + "\"headers\":{\"key\":\"value\"},\"request\":{\"format\":\"string\",\"content\":\"request body\"},"
+                    + "\"headers\":{\"key\":\"value\"},\"request\":{\"content\":\"request body\"},"
                     + "\"response\":{\"json_parser\":{\"text_embeddings\":\"$.result.embeddings[*].embedding\"}}}}},"
                     + "\"rate_limit\":{\"requests_per_minute\":10000}}"
             )

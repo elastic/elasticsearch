@@ -16,7 +16,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
@@ -55,7 +54,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String QUERY_STRING = "query_string";
     public static final String HEADERS = "headers";
     public static final String REQUEST = "request";
-    public static final String REQUEST_FORMAT = "format";
     public static final String REQUEST_CONTENT = "content";
     public static final String RESPONSE = "response";
     public static final String JSON_PARSER = "json_parser";
@@ -73,9 +71,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String RERANK_PARSER_DOCUMENT_TEXT = "document_text";
 
     public static final String COMPLETION_PARSER_RESULT = "completion_result";
-
-    public static final String REQUEST_FORMAT_JSON = "json";
-    public static final String REQUEST_FORMAT_STRING = "string";
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
@@ -112,7 +107,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         }
 
         String method = pathContent.keySet().iterator().next();
-        switch (method.toUpperCase()) {
+        switch (method.toUpperCase(Locale.ROOT)) {
             case HttpGet.METHOD_NAME:
             case HttpPut.METHOD_NAME:
             case HttpPost.METHOD_NAME:
@@ -159,40 +154,13 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             throw validationException;
         }
 
-        String requestFormat = extractRequiredString(
+        Map<String, Object> requestContent = null;
+        String requestContentString = extractRequiredString(
             requestBodyMap,
-            REQUEST_FORMAT,
+            REQUEST_CONTENT,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        if (requestFormat == null) {
-            throw validationException;
-        }
-
-        Map<String, Object> requestContent = null;
-        String requestContentString = null;
-
-        switch (requestFormat) {
-            // todo support json format
-            case REQUEST_FORMAT_STRING:
-                requestContentString = extractRequiredString(
-                    requestBodyMap,
-                    REQUEST_CONTENT,
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    validationException
-                );
-                break;
-            default:
-                validationException.addValidationError(
-                    Strings.format(
-                        "[%s.%s] does not support value [%s]. It should be [%s]",
-                        REQUEST,
-                        REQUEST_FORMAT,
-                        requestFormat,
-                        REQUEST_FORMAT_STRING
-                    )
-                );
-        }
 
         ResponseJsonParser responseJsonParser = null;
         Map<String, Object> responseParserMap = null;
@@ -242,7 +210,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             method,
             queryString,
             headers,
-            requestFormat,
             requestContent,
             requestContentString,
             responseJsonParser,
@@ -261,7 +228,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final String method;
     private final String queryString;
     private final Map<String, Object> headers;
-    private final String requestFormat;
     private final Map<String, Object> requestContent;
     private final String requestContentString;
     private final ResponseJsonParser responseJsonParser;
@@ -279,7 +245,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         String method,
         String queryString,
         Map<String, Object> headers,
-        String requestFormat,
         Map<String, Object> requestContent,
         String requestContentString,
         ResponseJsonParser responseJsonParser,
@@ -296,7 +261,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         this.method = method;
         this.queryString = queryString;
         this.headers = headers;
-        this.requestFormat = requestFormat;
         this.requestContent = requestContent;
         this.requestContentString = requestContentString;
         this.responseJsonParser = responseJsonParser;
@@ -319,7 +283,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         } else {
             headers = null;
         }
-        requestFormat = in.readString();
         if (in.readBoolean()) {
             requestContent = in.readGenericMap();
         } else {
@@ -387,10 +350,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     public Map<String, Object> getHeaders() {
         return headers;
-    }
-
-    public String getRequestFormat() {
-        return requestFormat;
     }
 
     public Map<String, Object> getRequestContent() {
@@ -464,9 +423,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
                     builder.startObject(REQUEST);
                     {
-                        if (requestFormat != null) {
-                            builder.field(REQUEST_FORMAT, requestFormat);
-                        }
                         if (requestContent != null) {
                             builder.field(REQUEST_CONTENT, requestContent);
                         } else if (requestContentString != null) {
@@ -522,7 +478,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         } else {
             out.writeBoolean(false);
         }
-        out.writeString(requestFormat);
         if (requestContent != null) {
             out.writeBoolean(true);
             out.writeGenericMap(requestContent);
@@ -555,7 +510,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             && Objects.equals(method, that.method)
             && Objects.equals(queryString, that.queryString)
             && Objects.equals(headers, that.headers)
-            && Objects.equals(requestFormat, that.requestFormat)
             && Objects.equals(requestContent, that.requestContent)
             && Objects.equals(requestContentString, that.requestContentString)
             && Objects.equals(responseJsonParser, that.responseJsonParser)
@@ -576,7 +530,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             method,
             queryString,
             headers,
-            requestFormat,
             requestContent,
             requestContentString,
             responseJsonParser,

@@ -84,7 +84,6 @@ public class CustomModelTests extends ESTestCase {
         String method = HttpMethod.POST.name();
         String queryString = "?query=${" + taskSettingsKey + "}";
         Map<String, Object> headers = Map.of(HttpHeaders.AUTHORIZATION, "${" + secretSettingsKey + "}");
-        String requestFormat = CustomServiceSettings.REQUEST_FORMAT_STRING;
         String requestContentString = "\"input\":\"${input}\"";
 
         ResponseJsonParser responseJsonParser = new ResponseJsonParser(taskType, jsonParserMap, new ValidationException());
@@ -101,7 +100,6 @@ public class CustomModelTests extends ESTestCase {
             method,
             queryString,
             headers,
-            requestFormat,
             null,
             requestContentString,
             responseJsonParser,

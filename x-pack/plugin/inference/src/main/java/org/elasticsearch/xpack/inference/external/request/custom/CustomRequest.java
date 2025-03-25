@@ -42,9 +42,6 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST_FORMAT_JSON;
-import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST_FORMAT_STRING;
-
 public class CustomRequest implements Request {
     private final long startTime;
 
@@ -53,21 +50,16 @@ public class CustomRequest implements Request {
         gson = new Gson();
     }
 
-    private final String QUERY = "query";
-    private final String INPUT = "input";
-
-    private final Map<String, String> customParams;
+    private static final String QUERY = "query";
+    private static final String INPUT = "input";
 
     private final CustomServiceSettings serviceSettings;
     private final CustomTaskSettings taskSettings;
-    private final Map<String, Object> secretParameters;
     private final String url;
     private final String path;
     private final String method;
     private final String queryString;
     private final Map<String, Object> headers;
-    private final String requestFormat;
-    private final Map<String, Object> requestContent;
     private final String requestContentString;
     private final URI uri;
     StringSubstitutor substitutor;
@@ -79,13 +71,12 @@ public class CustomRequest implements Request {
 
         serviceSettings = model.getServiceSettings();
         taskSettings = model.getTaskSettings();
-        secretParameters = model.getSecretSettings().getSecretParameters();
+        var secretParameters = model.getSecretSettings().getSecretParameters();
         path = serviceSettings.getPath();
         method = serviceSettings.getMethod().toUpperCase(Locale.ROOT);
         queryString = serviceSettings.getQueryString();
         headers = serviceSettings.getHeaders();
-        requestFormat = serviceSettings.getRequestFormat();
-        requestContent = serviceSettings.getRequestContent();
+        var requestContent = serviceSettings.getRequestContent();
         requestContentString = serviceSettings.getRequestContentString();
         url = model.getServiceSettings().getUrl();
 
@@ -101,7 +92,7 @@ public class CustomRequest implements Request {
             }
         }
 
-        customParams = new HashMap<String, String>();
+        Map<String, String> customParams = new HashMap<String, String>();
         if (taskSettings.getParameters() != null && taskSettings.getParameters().isEmpty() == false) {
             Map<String, String> taskParams = getParameterMap(taskSettings.getParameters());
             for (String key : taskParams.keySet()) {
@@ -160,33 +151,24 @@ public class CustomRequest implements Request {
             for (String key : headers.keySet()) {
                 String headersValue = (String) headers.get(key);
                 String replacedHeadersValue = substitutor.replace(headersValue);
-                placeholderValidation(replacedHeadersValue);
+                placeholderValidation(replacedHeadersValue, taskSettings.getIgnorePlaceholderCheck());
                 httpRequest.setHeader(key, replacedHeadersValue);
             }
         }
     }
 
     private void setRequestContent(HttpRequestBase httpRequest) {
-        switch (requestFormat.toLowerCase()) {
-            case REQUEST_FORMAT_JSON: {
-                // todo: support json format request
-                break;
-            }
-            case REQUEST_FORMAT_STRING: {
-                if (requestContentString != null && (method.equals(HttpPost.METHOD_NAME) || method.equals(HttpPut.METHOD_NAME))) {
-                    String replacedRequestContentString = substitutor.replace(requestContentString);
-                    placeholderValidation(replacedRequestContentString);
-                    StringEntity stringEntity = new StringEntity(replacedRequestContentString, StandardCharsets.UTF_8);
-                    if (httpRequest instanceof HttpPost) {
-                        ((HttpPost) httpRequest).setEntity(stringEntity);
-                    } else if (httpRequest instanceof HttpPut) {
-                        ((HttpPut) httpRequest).setEntity(stringEntity);
-                    }
-                }
-                break;
+
+        if (requestContentString != null && (method.equals(HttpPost.METHOD_NAME) || method.equals(HttpPut.METHOD_NAME))) {
+            String replacedRequestContentString = substitutor.replace(requestContentString);
+            placeholderValidation(replacedRequestContentString, taskSettings.getIgnorePlaceholderCheck());
+            StringEntity stringEntity = new StringEntity(replacedRequestContentString, StandardCharsets.UTF_8);
+            if (httpRequest instanceof HttpPost) {
+                ((HttpPost) httpRequest).setEntity(stringEntity);
+            } else if (httpRequest instanceof HttpPut) {
+                ((HttpPut) httpRequest).setEntity(stringEntity);
             }
         }
-
     }
 
     @Override
@@ -218,7 +200,7 @@ public class CustomRequest implements Request {
             String uri = url + path;
             if (queryString != null) {
                 String replacedQueryString = substitutor.replace(queryString);
-                placeholderValidation(replacedQueryString);
+                placeholderValidation(replacedQueryString, taskSettings.getIgnorePlaceholderCheck());
                 uri = uri + replacedQueryString;
             }
             return new URI(uri);
@@ -253,15 +235,17 @@ public class CustomRequest implements Request {
         return parameters;
     }
 
-    private void placeholderValidation(String s) throws IllegalArgumentException {
-        if (taskSettings.getIgnorePlaceholderCheck() != null && taskSettings.getIgnorePlaceholderCheck()) {
+    static void placeholderValidation(String substitutedString, Boolean ignorePlaceHolderCheck) throws IllegalArgumentException {
+        if (Boolean.TRUE.equals(ignorePlaceHolderCheck)) {
             return;
         }
         String pattern = "\\$\\{.*?\\}";
         Pattern compiledPattern = Pattern.compile(pattern);
-        Matcher matcher = compiledPattern.matcher(s);
+        Matcher matcher = compiledPattern.matcher(substitutedString);
         if (matcher.find()) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "placeholder is not replaced, find placeholder in [%s]", s));
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "variable is not replaced, found placeholder in [%s]", substitutedString)
+            );
         }
     }
 

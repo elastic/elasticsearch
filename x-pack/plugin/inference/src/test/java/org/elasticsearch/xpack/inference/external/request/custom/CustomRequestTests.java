@@ -19,8 +19,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -42,13 +44,25 @@ public class CustomRequestTests extends ESTestCase {
         MatcherAssert.assertThat(requestBody, is("\"input\":\"[\"abc\"]\""));
     }
 
+    public void testPlaceholderValidation() {
+        CustomRequest.placeholderValidation("all substituted", randomBoolean() ? false : null);
+        CustomRequest.placeholderValidation("all substituted", true);
+
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> CustomRequest.placeholderValidation("contains ${a} substitution", randomBoolean() ? false : null)
+        );
+        assertThat(e.getMessage(), containsString("variable is not replaced, found placeholder in [contains ${a} substitution]"));
+        CustomRequest.placeholderValidation("contains ${a unsubstituted value} but not checked", true);
+    }
+
     public static CustomRequest createRequest(String query, List<String> input, CustomModel model) {
         return new CustomRequest(query, input, model);
     }
 
     private static String convertStreamToString(InputStream inputStream) {
         StringBuilder stringBuilder = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 stringBuilder.append(line);

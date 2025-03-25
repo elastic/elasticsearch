@@ -39,8 +39,9 @@ public class CustomErrorResponseEntity extends ErrorResponse {
                 String.format(Locale.ROOT, "Received a server error response: %s, body: %s", response.response(), responseMap.toString())
             );
         } catch (Exception e) {
-            logger.info("Parsing custom response body failed. Response: {}", response.response(), e);
-            return new ErrorResponse(String.format(Locale.ROOT, "Parsing custom response body failed. Response: %s", response.response()));
+            var message = "Parsing custom response body failed. Response: " + response.response();
+            logger.warn(message, e);
+            return new ErrorResponse(message);
         }
     }
 }

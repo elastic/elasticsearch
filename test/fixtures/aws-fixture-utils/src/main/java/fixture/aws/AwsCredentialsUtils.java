@@ -26,24 +26,42 @@ public enum AwsCredentialsUtils {
     /**
      * @return an authorization predicate that ensures the access key matches the given values.
      */
-    public static BiPredicate<String, String> fixedAccessKey(String accessKey) {
-        return mutableAccessKey(() -> accessKey);
+    public static BiPredicate<String, String> fixedAccessKey(String accessKey, String region, String service) {
+        return mutableAccessKey(() -> accessKey, region, service);
     }
 
     /**
-     * @return an authorization predicate that ensures the access key matches one supplied by the given supplier.
+     * @return an authorization predicate that ensures the authorization header matches the access key supplied by the given supplier,
+     *         and the given region and service name.
      */
-    public static BiPredicate<String, String> mutableAccessKey(Supplier<String> accessKeySupplier) {
-        return (authorizationHeader, sessionTokenHeader) -> authorizationHeader != null
-            && authorizationHeader.contains(accessKeySupplier.get());
+    public static BiPredicate<String, String> mutableAccessKey(Supplier<String> accessKeySupplier, String region, String service) {
+        return (authorizationHeader, sessionTokenHeader) -> {
+            if (authorizationHeader == null) {
+                return false;
+            }
+
+            final var accessKey = accessKeySupplier.get();
+            final var expectedPrefix = "AWS4-HMAC-SHA256 Credential=" + accessKey + "/";
+            if (authorizationHeader.startsWith(expectedPrefix) == false) {
+                return false;
+            }
+
+            if (region.equals("*")) {
+                // skip region validation; TODO eliminate this when region is fixed in all tests
+                return authorizationHeader.contains("/" + service + "/aws4_request, ");
+            }
+
+            final var remainder = authorizationHeader.substring(expectedPrefix.length() + 8 /* YYYYMMDD not validated */);
+            return remainder.startsWith("/" + region + "/" + service + "/aws4_request, ");
+        };
     }
 
     /**
      * @return an authorization predicate that ensures the access key and session token both match the given values.
      */
-    public static BiPredicate<String, String> fixedAccessKeyAndToken(String accessKey, String sessionToken) {
+    public static BiPredicate<String, String> fixedAccessKeyAndToken(String accessKey, String sessionToken, String region, String service) {
         Objects.requireNonNull(sessionToken);
-        final var accessKeyPredicate = fixedAccessKey(accessKey);
+        final var accessKeyPredicate = fixedAccessKey(accessKey, region, service);
         return (authorizationHeader, sessionTokenHeader) -> accessKeyPredicate.test(authorizationHeader, sessionTokenHeader)
             && sessionToken.equals(sessionTokenHeader);
     }

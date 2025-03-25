@@ -32,9 +32,11 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -48,12 +50,19 @@ public class HollowIndexEngine extends ReadOnlyEngine {
 
     private final StatelessCommitService statelessCommitService;
     private final HollowShardsService hollowShardsService;
+    private final ShardFieldStats shardFieldStats;
 
+    @SuppressWarnings("this-escape")
     public HollowIndexEngine(EngineConfig config, StatelessCommitService statelessCommitService, HollowShardsService hollowShardsService) {
         // no index writer lock allows opening an HollowIndexEngine on top of an IndexEngine
         super(config, null, new TranslogStats(), false, Function.identity(), true, true);
         this.statelessCommitService = statelessCommitService;
         this.hollowShardsService = hollowShardsService;
+        try (DirectoryReader reader = openDirectory(store.directory())) {
+            shardFieldStats = shardFieldStats(reader.getContext().leaves());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -104,6 +113,11 @@ public class HollowIndexEngine extends ReadOnlyEngine {
 
     public StatelessCommitService getStatelessCommitService() {
         return statelessCommitService;
+    }
+
+    @Override
+    public ShardFieldStats shardFieldStats() {
+        return shardFieldStats;
     }
 
     public void callRefreshListeners() {

@@ -23,6 +23,8 @@ import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -83,11 +85,15 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetric
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -316,6 +322,85 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             MemoryMetricsService.ShardMemoryMetrics indexMetricCheck2 = internalMapCheck2.get(new ShardId(testIndex, 0));
             assertThat(indexMetricCheck2.getMetricShardNodeId(), equalTo(newPublicationNodeId));
         });
+    }
+
+    public void testShardMemoryMetricsForHollowEngine() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodeSettings = Settings.builder()
+            .put(INDEX_NODE_SETTINGS)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .build();
+        String indexNodeA = startIndexNode(indexNodeSettings);
+        ensureStableCluster(2);
+
+        var indexName = INDEX_NAME;
+        int numberOfShards = randomIntBetween(1, 5);
+        createIndex(indexName, indexSettings(numberOfShards, 0).build());
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        indexDocs(indexName, randomIntBetween(16, 64));
+        flush(indexName);
+
+        Map<ShardId, MemoryMetricsService.ShardMemoryMetrics> originalShardMemoryMetrics = new HashMap<>();
+        var metricsService = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class);
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+
+            assertBusy(() -> {
+                var shardMemoryMetric = metricsService.getShardMemoryMetrics().get(indexShard.shardId());
+                assertNotNull(shardMemoryMetric);
+                assertThat(shardMemoryMetric.getMetricShardNodeId(), equalTo(getNodeId(indexNodeA)));
+                originalShardMemoryMetrics.put(indexShard.shardId(), shardMemoryMetric);
+            });
+        }
+
+        String indexNodeB = startIndexNode(indexNodeSettings);
+        ensureStableCluster(3);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        ensureGreen(indexName);
+
+        // Verify that hollow shards we don't lose shard field stats
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+            assertBusy(() -> {
+                var shardMemoryMetric = metricsService.getShardMemoryMetrics().get(indexShard.shardId());
+                assertNotNull(shardMemoryMetric);
+                assertThat(shardMemoryMetric.getMetricShardNodeId(), equalTo(getNodeId(indexNodeB)));
+                var originalShardMemoryMetric = originalShardMemoryMetrics.get(indexShard.shardId());
+                assertThat(shardMemoryMetric.getTotalFields(), equalTo(originalShardMemoryMetric.getTotalFields()));
+                assertThat(shardMemoryMetric.getNumSegments(), equalTo(originalShardMemoryMetric.getNumSegments()));
+            });
+        }
+
+        // Unhollow shards
+        indexDocs(indexName, randomIntBetween(16, 64));
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+        }
+
+        // We don't lose stats after unhollowing, too
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeB), indexName);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeB))));
+        ensureGreen(indexName);
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+            assertBusy(() -> {
+                var shardMemoryMetric = metricsService.getShardMemoryMetrics().get(indexShard.shardId());
+                assertNotNull(shardMemoryMetric);
+                assertThat(shardMemoryMetric.getMetricShardNodeId(), equalTo(getNodeId(indexNodeA)));
+                var originalShardMemoryMetric = originalShardMemoryMetrics.get(indexShard.shardId());
+                assertThat(shardMemoryMetric.getTotalFields(), equalTo(originalShardMemoryMetric.getTotalFields()));
+                assertThat(shardMemoryMetric.getNumSegments(), equalTo(originalShardMemoryMetric.getNumSegments()));
+            });
+        }
     }
 
     public void testScaleUpAndDownOnMultipleIndicesAndNodes() throws Exception {

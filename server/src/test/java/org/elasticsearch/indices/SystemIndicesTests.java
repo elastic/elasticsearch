@@ -320,6 +320,7 @@ public class SystemIndicesTests extends ESTestCase {
             equalTo(true)
         );
         assertThat(systemIndices.isSystemIndexBackingDataStream(".migrated-ds-" + dataStreamName + "-2025.03.07-000001"), equalTo(true));
+        assertThat(systemIndices.isSystemIndexBackingDataStream(".migrated-migrated-ds-" + dataStreamName + "-2025.03.07-000001"), equalTo(true));
         assertThat(systemIndices.isSystemIndexBackingDataStream(".migrated-" + dataStreamName + "-2025.03.07-000001"), equalTo(false));
         assertThat(systemIndices.isSystemIndexBackingDataStream(dataStreamName), equalTo(false));
         assertThat(systemIndices.isSystemIndexBackingDataStream(dataStreamName + "-2025.03.07-000001"), equalTo(false));

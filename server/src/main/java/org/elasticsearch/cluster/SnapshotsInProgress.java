@@ -12,6 +12,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -59,7 +61,6 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.RepositoryOperation.PROJECT_REPO_SERIALIZER;
-import static org.elasticsearch.repositories.RepositoryOperation.defaultProjectRepo;
 
 /**
  * Meta data about snapshots that are currently executing
@@ -132,16 +133,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         assert assertConsistentEntries(this.entries);
     }
 
+    @FixForMultiProject
     @Deprecated(forRemoval = true)
     public SnapshotsInProgress withUpdatedEntriesForRepo(String repository, List<Entry> updatedEntries) {
-        return withUpdatedEntriesForRepo(defaultProjectRepo(repository), updatedEntries);
+        return withUpdatedEntriesForRepo(Metadata.DEFAULT_PROJECT_ID, repository, updatedEntries);
     }
 
-    public SnapshotsInProgress withUpdatedEntriesForRepo(ProjectRepo projectRepo, List<Entry> updatedEntries) {
-        if (updatedEntries.equals(forRepo(projectRepo))) {
+    public SnapshotsInProgress withUpdatedEntriesForRepo(ProjectId projectId, String repository, List<Entry> updatedEntries) {
+        if (updatedEntries.equals(forRepo(projectId, repository))) {
             return this;
         }
         final Map<ProjectRepo, ByRepo> copy = new HashMap<>(this.entries);
+        final var projectRepo = new ProjectRepo(projectId, repository);
         if (updatedEntries.isEmpty()) {
             copy.remove(projectRepo);
             if (copy.isEmpty()) {
@@ -154,24 +157,25 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public SnapshotsInProgress withAddedEntry(Entry entry) {
-        final List<Entry> forRepo = new ArrayList<>(forRepo(entry.projectRepo()));
+        final List<Entry> forRepo = new ArrayList<>(forRepo(entry.projectId(), entry.repository()));
         forRepo.add(entry);
-        return withUpdatedEntriesForRepo(entry.projectRepo(), forRepo);
+        return withUpdatedEntriesForRepo(entry.projectId(), entry.repository(), forRepo);
     }
 
     /**
      * Returns the list of snapshots in the specified repository.
      */
+    @FixForMultiProject
     @Deprecated(forRemoval = true)
     public List<Entry> forRepo(String repository) {
-        return entries.getOrDefault(defaultProjectRepo(repository), ByRepo.EMPTY).entries;
+        return forRepo(Metadata.DEFAULT_PROJECT_ID, repository);
     }
 
     /**
      * Returns the list of snapshots in the specified repository.
      */
-    public List<Entry> forRepo(ProjectRepo projectRepo) {
-        return entries.getOrDefault(projectRepo, ByRepo.EMPTY).entries;
+    public List<Entry> forRepo(ProjectId projectId, String repository) {
+        return entries.getOrDefault(new ProjectRepo(projectId, repository), ByRepo.EMPTY).entries;
     }
 
     public boolean isEmpty() {
@@ -196,7 +200,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     @Nullable
     public Entry snapshot(final Snapshot snapshot) {
-        return findSnapshotInList(snapshot, forRepo(snapshot.getProjectRepo()));
+        return findSnapshotInList(snapshot, forRepo(snapshot.getProjectId(), snapshot.getRepository()));
     }
 
     /**
@@ -224,12 +228,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * in-progress shard snapshots that were not yet finalized when it began. All these other in-progress shard snapshot lists are scheduled
      * for deletion now.
      */
+    @FixForMultiProject
     @Deprecated(forRemoval = true)
     public Map<RepositoryShardId, Set<ShardGeneration>> obsoleteGenerations(
         String repository,
         SnapshotsInProgress oldClusterStateSnapshots
     ) {
-        return obsoleteGenerations(defaultProjectRepo(repository), oldClusterStateSnapshots);
+        return obsoleteGenerations(Metadata.DEFAULT_PROJECT_ID, repository, oldClusterStateSnapshots);
     }
 
     /**
@@ -243,13 +248,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * for deletion now.
      */
     public Map<RepositoryShardId, Set<ShardGeneration>> obsoleteGenerations(
-        ProjectRepo projectRepo,
+        ProjectId projectId,
+        String repository,
         SnapshotsInProgress oldClusterStateSnapshots
     ) {
         final Map<RepositoryShardId, Set<ShardGeneration>> obsoleteGenerations = new HashMap<>();
-        final List<Entry> latestSnapshots = forRepo(projectRepo);
+        final List<Entry> latestSnapshots = forRepo(projectId, repository);
 
-        for (Entry oldEntry : oldClusterStateSnapshots.forRepo(projectRepo)) {
+        for (Entry oldEntry : oldClusterStateSnapshots.forRepo(projectId, repository)) {
             final Entry matchingLatestEntry = findSnapshotInList(oldEntry.snapshot(), latestSnapshots);
             if (matchingLatestEntry == null || matchingLatestEntry == oldEntry) {
                 // The snapshot progress has not changed.
@@ -456,7 +462,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final ProjectRepo repository = repoEntries.getKey();
             assert entriesForRepository.isEmpty() == false : "found empty list of snapshots for " + repository + " in " + entries;
             for (Entry entry : entriesForRepository) {
-                assert entry.projectRepo().equals(repository) : "mismatched repository " + entry + " tracked under " + repository;
+                assert new ProjectRepo(entry.projectId(), entry.repository()).equals(repository)
+                    : "mismatched repository " + entry + " tracked under " + repository;
                 for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
                     final RepositoryShardId sid = shard.getKey();
                     final ShardSnapshotStatus shardSnapshotStatus = shard.getValue();
@@ -1287,10 +1294,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return snapshot.getRepository();
         }
 
-        public ProjectRepo projectRepo() {
-            return new ProjectRepo(projectId(), repository());
-        }
-
         public Snapshot snapshot() {
             return this.snapshot;
         }
@@ -1793,7 +1796,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 );
                 this.mapDiff = DiffableUtils.jdkMapDiffWithUpdatedKeys(
                     oldMapDiff,
-                    RepositoryOperation::defaultProjectRepo,
+                    repository -> new ProjectRepo(ProjectId.DEFAULT, repository),
                     PROJECT_REPO_SERIALIZER
                 );
             } else {
@@ -1835,12 +1838,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 if (out.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
                     DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
                         if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
-                            throw new IllegalArgumentException(
-                                "Cannot write instance with non-default project id "
-                                    + projectRepo.projectId()
-                                    + " to version before "
-                                    + TransportVersions.PROJECT_ID_IN_SNAPSHOT
-                            );
+                            final var message = "Cannot write instance with non-default project id "
+                                + projectRepo.projectId()
+                                + " to version before "
+                                + TransportVersions.PROJECT_ID_IN_SNAPSHOT;
+                            assert false : message;
+                            throw new IllegalArgumentException(message);
                         }
                         return projectRepo.repoName();
                     }, DiffableUtils.getStringKeySerializer()).writeTo(out);

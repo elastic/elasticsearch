@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +28,7 @@ public interface RepositoryOperation {
      */
     @FixForMultiProject(description = "default implementation is temporary")
     default ProjectId projectId() {
-        return ProjectId.DEFAULT;
+        return Metadata.DEFAULT_PROJECT_ID;
     }
 
     /**
@@ -35,15 +36,16 @@ public interface RepositoryOperation {
      */
     String repository();
 
-    default ProjectRepo projectRepo() {
-        return new ProjectRepo(projectId(), repository());
-    }
-
     /**
      * The repository state id at the time the operation began.
      */
     long repositoryStateId();
 
+    /**
+     * A project qualified repository
+     * @param projectId The project that the repository belongs to
+     * @param repoName Name of the repository
+     */
     record ProjectRepo(ProjectId projectId, String repoName) implements Writeable {
 
         public ProjectRepo(StreamInput in) throws IOException {
@@ -68,9 +70,4 @@ public interface RepositoryOperation {
             return new ProjectRepo(in);
         }
     };
-
-    @Deprecated(forRemoval = true)
-    static ProjectRepo defaultProjectRepo(String repoName) {
-        return new ProjectRepo(ProjectId.DEFAULT, repoName);
-    }
 }

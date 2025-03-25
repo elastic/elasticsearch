@@ -35,6 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryOperation.ProjectRepo;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -246,7 +247,8 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 if (randomBoolean()) {
                     entries = shuffledList(entries);
                 }
-                updatedInstance = updatedInstance.withUpdatedEntriesForRepo(perRepoEntries.get(0).projectRepo(), entries);
+                final Entry firstEntry = perRepoEntries.get(0);
+                updatedInstance = updatedInstance.withUpdatedEntriesForRepo(firstEntry.projectId(), firstEntry.repository(), entries);
             }
         }
         return updatedInstance;
@@ -272,9 +274,11 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             } else {
                 // mutate or remove an entry
                 final var repo = randomFrom(
-                    snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::projectRepo).collect(Collectors.toSet())
+                    snapshotsInProgress.asStream()
+                        .map(entry -> new ProjectRepo(entry.projectId(), entry.repository()))
+                        .collect(Collectors.toSet())
                 );
-                final List<Entry> forRepo = snapshotsInProgress.forRepo(repo);
+                final List<Entry> forRepo = snapshotsInProgress.forRepo(repo.projectId(), repo.repoName());
                 int index = randomIntBetween(0, forRepo.size() - 1);
                 Entry entry = forRepo.get(index);
                 final List<Entry> updatedEntries = new ArrayList<>(forRepo);
@@ -283,7 +287,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 } else {
                     updatedEntries.remove(index);
                 }
-                return snapshotsInProgress.withUpdatedEntriesForRepo(repo, updatedEntries);
+                return snapshotsInProgress.withUpdatedEntriesForRepo(repo.projectId(), repo.repoName(), updatedEntries);
             }
         } else {
             return snapshotsInProgress.withUpdatedNodeIdsForRemoval(

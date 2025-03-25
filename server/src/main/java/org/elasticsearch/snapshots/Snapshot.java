@@ -18,8 +18,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.repositories.RepositoryOperation.ProjectRepo;
-
 /**
  * Basic information about a snapshot - a SnapshotId and the repository that the snapshot belongs to.
  */
@@ -73,10 +71,6 @@ public final class Snapshot implements Writeable {
         return repository;
     }
 
-    public ProjectRepo getProjectRepo() {
-        return new ProjectRepo(projectId, repository);
-    }
-
     /**
      * Gets the snapshot id for the snapshot.
      */
@@ -114,12 +108,12 @@ public final class Snapshot implements Writeable {
     public void writeTo(final StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
             if (ProjectId.DEFAULT.equals(projectId) == false) {
-                throw new IllegalArgumentException(
-                    "Cannot write instance with non-default project id "
-                        + projectId
-                        + " to version before "
-                        + TransportVersions.PROJECT_ID_IN_SNAPSHOT
-                );
+                final var message = "Cannot write instance with non-default project id "
+                    + projectId
+                    + " to version before "
+                    + TransportVersions.PROJECT_ID_IN_SNAPSHOT;
+                assert false : message;
+                throw new IllegalArgumentException(message);
             }
         } else {
             projectId.writeTo(out);

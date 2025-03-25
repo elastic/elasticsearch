@@ -21,6 +21,9 @@ import org.elasticsearch.rest.action.EmptyResponseListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+
+import static org.elasticsearch.rest.action.EmptyResponseListener.PLAIN_TEXT_RESPONSE_CAPABILITY_NAME;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestDeleteDesiredBalanceAction extends BaseRestHandler {
@@ -33,6 +36,11 @@ public class RestDeleteDesiredBalanceAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(new Route(RestRequest.Method.DELETE, "_internal/desired_balance"));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(PLAIN_TEXT_RESPONSE_CAPABILITY_NAME);
     }
 
     @Override

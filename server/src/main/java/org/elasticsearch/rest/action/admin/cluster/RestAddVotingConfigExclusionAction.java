@@ -20,9 +20,11 @@ import org.elasticsearch.rest.action.EmptyResponseListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.action.EmptyResponseListener.PLAIN_TEXT_RESPONSE_CAPABILITY_NAME;
 
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
@@ -35,6 +37,11 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(new Route(POST, "/_cluster/voting_config_exclusions"));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(PLAIN_TEXT_RESPONSE_CAPABILITY_NAME);
     }
 
     @Override

@@ -18,9 +18,11 @@ import org.elasticsearch.rest.action.EmptyResponseListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.action.EmptyResponseListener.PLAIN_TEXT_RESPONSE_CAPABILITY_NAME;
 
 public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
 
@@ -37,6 +39,11 @@ public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "clear_voting_config_exclusions_action";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(PLAIN_TEXT_RESPONSE_CAPABILITY_NAME);
     }
 
     @Override

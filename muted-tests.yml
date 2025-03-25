@@ -396,6 +396,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.accesscontrol.IndicesPermissionTests
   method: testAuthorizeDataStreamFailureIndices
   issue: https://github.com/elastic/elasticsearch/issues/125555
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/data_frame_analytics_crud/Test get stats on newly created config}
+  issue: https://github.com/elastic/elasticsearch/issues/121726
 
 # Examples:
 #

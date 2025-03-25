@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -109,47 +108,54 @@ public class InboundPipelineTests extends ESTestCase {
                     final MessageData messageData;
                     Exception expectedExceptionClass = null;
 
-                    OutboundMessage message;
-                    if (isRequest) {
-                        if (rarely()) {
-                            messageData = new MessageData(version, requestId, true, compressionScheme, breakThisAction, null);
-                            message = new OutboundMessage.Request(
-                                threadContext,
-                                new TestRequest(value),
-                                version,
-                                breakThisAction,
-                                requestId,
-                                false,
-                                compressionScheme
-                            );
-                            expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
+                    BytesReference message;
+                    try (RecyclerBytesStreamOutput temporaryOutput = new RecyclerBytesStreamOutput(recycler)) {
+                        if (isRequest) {
+                            if (rarely()) {
+                                messageData = new MessageData(version, requestId, true, compressionScheme, breakThisAction, null);
+                                message = OutboundHandler.serialize(
+                                    OutboundHandler.MessageDirection.REQUEST,
+                                    breakThisAction,
+                                    requestId,
+                                    false,
+                                    version,
+                                    compressionScheme,
+                                    new TestRequest(value),
+                                    threadContext,
+                                    temporaryOutput
+                                );
+                                expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
+                            } else {
+                                messageData = new MessageData(version, requestId, true, compressionScheme, actionName, value);
+                                message = OutboundHandler.serialize(
+                                    OutboundHandler.MessageDirection.REQUEST,
+                                    actionName,
+                                    requestId,
+                                    false,
+                                    version,
+                                    compressionScheme,
+                                    new TestRequest(value),
+                                    threadContext,
+                                    temporaryOutput
+                                );
+                            }
                         } else {
-                            messageData = new MessageData(version, requestId, true, compressionScheme, actionName, value);
-                            message = new OutboundMessage.Request(
-                                threadContext,
-                                new TestRequest(value),
-                                version,
+                            messageData = new MessageData(version, requestId, false, compressionScheme, null, value);
+                            message = OutboundHandler.serialize(
+                                OutboundHandler.MessageDirection.RESPONSE,
                                 actionName,
                                 requestId,
                                 false,
-                                compressionScheme
+                                version,
+                                compressionScheme,
+                                new TestResponse(value),
+                                threadContext,
+                                temporaryOutput
                             );
                         }
-                    } else {
-                        messageData = new MessageData(version, requestId, false, compressionScheme, null, value);
-                        message = new OutboundMessage.Response(
-                            threadContext,
-                            new TestResponse(value),
-                            version,
-                            requestId,
-                            false,
-                            compressionScheme
-                        );
-                    }
 
-                    expected.add(new Tuple<>(messageData, expectedExceptionClass));
-                    try (RecyclerBytesStreamOutput temporaryOutput = new RecyclerBytesStreamOutput(recycler)) {
-                        Streams.copy(message.serialize(temporaryOutput).streamInput(), streamOutput, false);
+                        expected.add(new Tuple<>(messageData, expectedExceptionClass));
+                        message.writeTo(streamOutput);
                     }
                 }
 
@@ -213,23 +219,19 @@ public class InboundPipelineTests extends ESTestCase {
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
 
-            OutboundMessage message;
-            if (isRequest) {
-                message = new OutboundMessage.Request(
-                    threadContext,
-                    new TestRequest(value),
-                    invalidVersion,
-                    actionName,
-                    requestId,
-                    false,
-                    null
-                );
-            } else {
-                message = new OutboundMessage.Response(threadContext, new TestResponse(value), invalidVersion, requestId, false, null);
-            }
+            final BytesReference message = OutboundHandler.serialize(
+                isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
+                actionName,
+                requestId,
+                false,
+                invalidVersion,
+                null,
+                isRequest ? new TestRequest(value) : new TestResponse(value),
+                threadContext,
+                streamOutput
+            );
 
-            final BytesReference reference = message.serialize(streamOutput);
-            try (ReleasableBytesReference releasable = ReleasableBytesReference.wrap(reference)) {
+            try (ReleasableBytesReference releasable = ReleasableBytesReference.wrap(message)) {
                 expectThrows(IllegalStateException.class, () -> pipeline.handleBytes(new FakeTcpChannel(), releasable));
             }
 
@@ -258,14 +260,18 @@ public class InboundPipelineTests extends ESTestCase {
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
 
-            OutboundMessage message;
-            if (isRequest) {
-                message = new OutboundMessage.Request(threadContext, new TestRequest(value), version, actionName, requestId, false, null);
-            } else {
-                message = new OutboundMessage.Response(threadContext, new TestResponse(value), version, requestId, false, null);
-            }
+            final BytesReference reference = OutboundHandler.serialize(
+                isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
+                actionName,
+                requestId,
+                false,
+                version,
+                null,
+                isRequest ? new TestRequest(value) : new TestResponse(value),
+                threadContext,
+                streamOutput
+            );
 
-            final BytesReference reference = message.serialize(streamOutput);
             final int variableHeaderSize = reference.getInt(TcpHeader.HEADER_SIZE - 4);
             final int totalHeaderSize = TcpHeader.HEADER_SIZE + variableHeaderSize;
             final AtomicBoolean bodyReleased = new AtomicBoolean(false);

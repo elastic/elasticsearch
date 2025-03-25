@@ -3,9 +3,9 @@
 **Example**
 
 ```esql
-  FROM employees
+FROM employees
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
-| STATS first_name=MV_SORT(VALUES(first_name)) BY first_letter
+| STATS first_name = MV_SORT(VALUES(first_name)) BY first_letter
 | SORT first_letter
 ```
 

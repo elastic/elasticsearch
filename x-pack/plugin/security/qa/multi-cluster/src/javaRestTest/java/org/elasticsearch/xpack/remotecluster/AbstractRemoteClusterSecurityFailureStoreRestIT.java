@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractRemoteClusterSecurityTestCase {
@@ -101,6 +103,39 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
                 "email" : "jack@example.com"
             }""");
         assertOK(performRequestAgainstFulfillingCluster(createDoc2));
+        {
+            final Request otherTemplate = new Request("PUT", "/_index_template/other_template");
+            otherTemplate.setJsonEntity("""
+                {
+                    "index_patterns": ["other*"],
+                    "data_stream": {},
+                    "priority": 500,
+                    "composed_of": ["component1"]
+                }""");
+            assertOK(performRequestAgainstFulfillingCluster(otherTemplate));
+        }
+        {
+            final Request createOtherDoc3 = new Request("PUT", "/other1/_doc/3?refresh=true&op_type=create");
+            createOtherDoc3.setJsonEntity("""
+                {
+                    "@timestamp": 3,
+                    "age" : 3,
+                    "name" : "jane",
+                    "email" : "jane@example.com"
+                }""");
+            assertOK(performRequestAgainstFulfillingCluster(createOtherDoc3));
+        }
+        {
+            final Request createOtherDoc4 = new Request("PUT", "/other1/_doc/4?refresh=true&op_type=create");
+            createOtherDoc4.setJsonEntity("""
+                {
+                    "@timestamp": 4,
+                    "age" : "this should be an int",
+                    "name" : "jane",
+                    "email" : "jane@example.com"
+                }""");
+            assertOK(performRequestAgainstFulfillingCluster(createOtherDoc4));
+        }
     }
 
     protected Response performRequestWithRemoteSearchUser(final Request request) throws IOException {
@@ -134,6 +169,11 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
         assertThat(indices.v1().size(), equalTo(1));
         assertThat(indices.v2().size(), equalTo(1));
         return new Tuple<>(indices.v1().get(0), indices.v2().get(0));
+    }
+
+    protected static void assertFailuresSelectorNotSupported(ResponseException exception) {
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(exception.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
     }
 
 }

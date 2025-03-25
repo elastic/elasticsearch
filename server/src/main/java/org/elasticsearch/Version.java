@@ -205,6 +205,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_17_2 = new Version(8_17_02_99);
     public static final Version V_8_17_3 = new Version(8_17_03_99);
     public static final Version V_8_17_4 = new Version(8_17_04_99);
+    public static final Version V_8_17_5 = new Version(8_17_05_99);
     public static final Version V_8_18_0 = new Version(8_18_00_99);
     public static final Version CURRENT = V_8_18_0;
 

@@ -20,7 +20,6 @@ import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
-import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
@@ -240,8 +239,7 @@ class S3Service implements Closeable {
             return true;
         }
         if (retryPolicyContext.exception() instanceof AwsServiceException ase) {
-            return ase.statusCode() == RestStatus.FORBIDDEN.getStatus()
-                && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
+            return ase.statusCode() == RestStatus.FORBIDDEN.getStatus() && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
         }
         return false;
     };

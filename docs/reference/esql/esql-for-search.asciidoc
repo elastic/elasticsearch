@@ -129,7 +129,7 @@ FROM articles METADATA _score
 For complete details, refer to the <<query-dsl-query-string-query, Query DSL `query_string` docs>>.
 
 [[esql-for-search-kql]]
-===== Kibana Query Language (KQL) function
+===== Kibana Query Language function (`KQL`)
 
 Use the <<esql-kql,KQL function>> to use the {kibana-ref}/kuery-query.html[Kibana Query Language] in your ES|QL queries:
 

@@ -297,8 +297,7 @@ public class NumberFieldMapper extends FieldMapper {
                 stored.getValue(),
                 this,
                 indexCreatedVersion,
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER,
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER_BACKPORT_8_X
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER
             );
             return new NumberFieldMapper(leafName(), ft, builderParams(this, context), context.isSourceSynthetic(), this, offsetsFieldName);
         }

@@ -90,8 +90,7 @@ public class FieldArrayContext {
         boolean isStored,
         FieldMapper.Builder fieldMapperBuilder,
         IndexVersion indexCreatedVersion,
-        IndexVersion minSupportedVersionMain,
-        IndexVersion minSupportedVersion8x
+        IndexVersion minSupportedVersionMain
     ) {
         var sourceKeepMode = fieldMapperBuilder.sourceKeepMode.orElse(indexSourceKeepMode);
         if (context.isSourceSynthetic()
@@ -101,7 +100,7 @@ public class FieldArrayContext {
             && context.isInNestedContext() == false
             && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
             && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false
-            && indexVersionSupportStoringArraysNatively(indexCreatedVersion, minSupportedVersionMain, minSupportedVersion8x)) {
+            && indexVersionSupportStoringArraysNatively(indexCreatedVersion, minSupportedVersionMain)) {
             // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
             // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
             // logging use cases
@@ -116,11 +115,13 @@ public class FieldArrayContext {
 
     private static boolean indexVersionSupportStoringArraysNatively(
         IndexVersion indexCreatedVersion,
-        IndexVersion minSupportedVersionMain,
-        IndexVersion minSupportedVersion8x
+        IndexVersion minSupportedVersionMain
     ) {
         return indexCreatedVersion.onOrAfter(minSupportedVersionMain)
-            || indexCreatedVersion.between(minSupportedVersion8x, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+            || indexCreatedVersion.between(
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BACKPORT_8_X,
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+            );
     }
 
     private static class Offsets {

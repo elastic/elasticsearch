@@ -57,7 +57,9 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                // The underlying root cause is meaningless to the user, but that is what will be shown, so we remove it.
+                var withoutCause = new Exception(e.getMessage());
+                listener.onFailure(withoutCause);
             }
         });
     }

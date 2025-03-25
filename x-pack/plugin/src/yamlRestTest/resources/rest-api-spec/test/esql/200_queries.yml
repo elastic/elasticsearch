@@ -1,0 +1,34 @@
+setup:
+  # FIXME (gal, NOCOMMIT) Wrong check
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "ESQL is available in 8.11+"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              message1:
+                type: keyword
+
+---
+List with no running queries:
+  - do:
+      esql.list_queries: { }
+  - match: { queries: { } }
+
+---
+Get with invalid task ID:
+  - do:
+      catch: /malformed task id foobar/
+      esql.get_query:
+        id: "foobar"
+
+---
+Get with non-existent task ID:
+  - do:
+      catch: /task \[foobar:1234\] belongs to the node \[foobar\] which isn't part of the cluster and there is no record of the task/
+      esql.get_query:
+        id: "foobar:1234"

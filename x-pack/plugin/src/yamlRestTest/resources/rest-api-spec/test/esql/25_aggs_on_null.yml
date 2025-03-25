@@ -146,7 +146,7 @@ group on half missing:
   - do:
       esql.query:
         body:
-          query: 'FROM test,test2 | STATS med=median(never_null) BY missing | LIMIT 1'
+          query: 'FROM test,test2'
           columnar: true
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}

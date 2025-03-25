@@ -67,7 +67,7 @@ public class EsqlListQuerriesActionIT extends AbstractPausableIntegTestCase {
                 .entry("running_time_nanos", IntegerMatcher.isIntOrLong());
             MapMatcher.assertMap(EsqlTestUtils.singleValue(listResult.values()), basicMatcher);
 
-            request = new Request("GET", "/_query/queries/" + taskId);
+            request = new Request("GET", "/_query/queries/" + taskId + "1234");
             response = getRestClient().performRequest(request);
             MapMatcher.assertMap(
                 entityToMap(response.getEntity()),

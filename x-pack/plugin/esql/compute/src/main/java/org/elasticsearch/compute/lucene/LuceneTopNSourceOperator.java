@@ -43,8 +43,8 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.apache.lucene.search.ScoreMode.TOP_DOCS_WITH_SCORES;
 import static org.apache.lucene.search.ScoreMode.TOP_DOCS;
+import static org.apache.lucene.search.ScoreMode.TOP_DOCS_WITH_SCORES;
 
 /**
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)

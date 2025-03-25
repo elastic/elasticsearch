@@ -19,7 +19,6 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,11 +38,10 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -640,31 +638,20 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 } else {
                     ActionListener.respondAndRelease(
                         listener,
-                        (Response) new SearchResponse(
+                        (Response) SearchResponseUtils.response(
                             SearchHits.unpooled(
                                 new SearchHit[] { SearchHit.unpooled(1) },
                                 new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
                                 1.0f
-                            ),
-                            // Simulate completely null aggs
-                            null,
-                            new Suggest(Collections.emptyList()),
-                            false,
-                            false,
-                            new SearchProfileResults(Collections.emptyMap()),
-                            1,
-                            null,
-                            1,
-                            1,
-                            0,
-                            0,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY,
-                            // copy the pit from the request
-                            searchRequest.pointInTimeBuilder() != null
-                                ? CompositeBytesReference.of(searchRequest.pointInTimeBuilder().getEncodedId(), new BytesArray("+"))
-                                : null
+                            )
                         )
+                            // copy the pit from the request
+                            .pointInTimeId(
+                                searchRequest.pointInTimeBuilder() != null
+                                    ? CompositeBytesReference.of(searchRequest.pointInTimeBuilder().getEncodedId(), new BytesArray("+"))
+                                    : null
+                            )
+                            .build()
                     );
 
                 }

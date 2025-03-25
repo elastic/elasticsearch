@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.PhaseFailure;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -318,6 +319,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 0,
                 1L,
                 ShardSearchFailure.EMPTY_ARRAY,
+                PhaseFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
         } finally {

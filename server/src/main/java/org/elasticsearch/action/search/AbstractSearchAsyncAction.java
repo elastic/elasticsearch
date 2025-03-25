@@ -40,6 +40,7 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -88,6 +89,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final AtomicInteger successfulOps;
     private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
+    private final List<PhaseFailure> phaseFailures = Collections.synchronizedList(new ArrayList<>());
 
     protected final List<SearchShardIterator> shardsIts;
     private final SearchShardIterator[] shardIterators;
@@ -572,6 +574,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private SearchResponse buildSearchResponse(
         SearchResponseSections internalSearchResponse,
         ShardSearchFailure[] failures,
+        PhaseFailure[] phaseFailures,
         String scrollId,
         BytesReference searchContextId
     ) {
@@ -587,6 +590,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             skippedCount,
             buildTookInMillis(),
             failures,
+            phaseFailures,
             clusters,
             searchContextId
         );
@@ -622,7 +626,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     searchContextId = null;
                 }
             }
-            ActionListener.respondAndRelease(listener, buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
+
+            PhaseFailure[] subFailures = phaseFailures.toArray(PhaseFailure.EMPTY_ARRAY);
+
+            ActionListener.respondAndRelease(
+                listener,
+                buildSearchResponse(internalSearchResponse, failures, subFailures, scrollId, searchContextId)
+            );
         }
     }
 
@@ -658,6 +668,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
         });
         listener.onFailure(exception);
+    }
+
+    /**
+     * Records a failure of a specific search phase, that does not cause the search operation itself to fail.
+     */
+    public void addPhaseFailure(String phase, Exception exception) {
+        phaseFailures.add(new PhaseFailure(phase, exception));
     }
 
     /**

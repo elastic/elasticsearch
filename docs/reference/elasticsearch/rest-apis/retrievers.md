@@ -634,6 +634,11 @@ score = ln(score), if score < 0
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
+`allow_rerank_failures`
+:   (Optional, `boolean`)
+
+    If `true`, a failure during reranking will not fail the whole query. Instead, the documents from the preceding steps are passed-through unmodified to subsequent retriever steps. The failure exception will be available in the `phase_failures` field of the search response.
+    Defaults to `false`.
 
 
 ### Example: Elastic Rerank [text-similarity-reranker-retriever-example-elastic-rerank]

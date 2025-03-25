@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.search;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.PhaseFailure;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -44,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeoutException;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
@@ -235,6 +237,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             1,
             took,
             ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
 
@@ -333,6 +336,147 @@ public class AsyncSearchResponseTests extends ESTestCase {
         }
     }
 
+    // completion_time should be present since search has completed
+    public void testToXContentWithSearchResponsePhaseFailures() throws IOException {
+        boolean isRunning = false;
+        long startTimeMillis = 1689352924517L;
+        long expirationTimeMillis = 1689784924517L;
+        long took = 22968L;
+        long expectedCompletionTime = startTimeMillis + took;
+
+        SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
+        PhaseFailure phaseFailure = new PhaseFailure("reranking", new TimeoutException());
+        SearchResponse searchResponse = new SearchResponse(
+            hits,
+            null,
+            null,
+            false,
+            null,
+            null,
+            2,
+            null,
+            10,
+            9,
+            1,
+            took,
+            ShardSearchFailure.EMPTY_ARRAY,
+            new PhaseFailure[] { phaseFailure },
+            SearchResponse.Clusters.EMPTY
+        );
+
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(
+                "id",
+                searchResponse,
+                null,
+                false,
+                isRunning,
+                startTimeMillis,
+                expirationTimeMillis
+            );
+        } finally {
+            searchResponse.decRef();
+        }
+
+        try {
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.prettyPrint();
+                ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
+                assertEquals(Strings.format("""
+                    {
+                      "id" : "id",
+                      "is_partial" : false,
+                      "is_running" : false,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s,
+                      "completion_time_in_millis" : %s,
+                      "response" : {
+                        "took" : %s,
+                        "timed_out" : false,
+                        "num_reduce_phases" : 2,
+                        "_shards" : {
+                          "total" : 10,
+                          "successful" : 9,
+                          "skipped" : 1,
+                          "failed" : 0
+                        },
+                        "phase_failures" : [
+                          {
+                            "phase" : "reranking",
+                            "failure" : {
+                              "type" : "timeout_exception",
+                              "reason" : null
+                            }
+                          }
+                        ],
+                        "hits" : {
+                          "max_score" : 0.0,
+                          "hits" : [ ]
+                        }
+                      }
+                    }""", startTimeMillis, expirationTimeMillis, expectedCompletionTime, took), Strings.toString(builder));
+            }
+
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.prettyPrint();
+                builder.humanReadable(true);
+                ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
+                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+                assertEquals(
+                    Strings.format(
+                        """
+                            {
+                              "id" : "id",
+                              "is_partial" : false,
+                              "is_running" : false,
+                              "start_time" : "%s",
+                              "start_time_in_millis" : %s,
+                              "expiration_time" : "%s",
+                              "expiration_time_in_millis" : %s,
+                              "completion_time" : "%s",
+                              "completion_time_in_millis" : %s,
+                              "response" : {
+                                "took" : %s,
+                                "timed_out" : false,
+                                "num_reduce_phases" : 2,
+                                "_shards" : {
+                                  "total" : 10,
+                                  "successful" : 9,
+                                  "skipped" : 1,
+                                  "failed" : 0
+                                },
+                                "phase_failures" : [
+                                  {
+                                    "phase" : "reranking",
+                                    "failure" : {
+                                      "type" : "timeout_exception",
+                                      "reason" : null
+                                    }
+                                  }
+                                ],
+                                "hits" : {
+                                  "max_score" : 0.0,
+                                  "hits" : [ ]
+                                }
+                              }
+                            }""",
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTimeMillis)),
+                        startTimeMillis,
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expirationTimeMillis)),
+                        expirationTimeMillis,
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expectedCompletionTime)),
+                        expectedCompletionTime,
+                        took
+                    ),
+                    Strings.toString(builder)
+                );
+            }
+        } finally {
+            asyncSearchResponse.decRef();
+        }
+    }
+
     public void testToXContentWithCCSSearchResponseWhileRunning() throws IOException {
         boolean isRunning = true;
         long startTimeMillis = 1689352924517L;
@@ -357,6 +501,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             1,
             took,
             ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             clusters
         );
         AsyncSearchResponse asyncSearchResponse;
@@ -590,7 +735,8 @@ public class AsyncSearchResponseTests extends ESTestCase {
             9,
             1,
             took,
-            new ShardSearchFailure[0],
+            ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             clusters
         );
 
@@ -740,6 +886,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             1,
             took,
             ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
         AsyncSearchResponse asyncSearchResponse;

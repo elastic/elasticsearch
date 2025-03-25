@@ -199,9 +199,10 @@ public class RankFeaturePhase extends SearchPhase {
                 @Override
                 public void onFailure(Exception e) {
                     if (rankFeaturePhaseRankCoordinatorContext.failuresAllowed()) {
-                        // TODO: handle the exception somewhere
                         // don't want to log the entire stack trace, it's not helpful here
                         logger.warn("Exception computing updated ranks, continuing with existing ranks: {}", e.toString());
+                        context.addPhaseFailure("reranking", e);
+
                         // use the existing score docs as-is
                         // downstream things expect every doc to have a score, so we need to infer a score here
                         // if the doc doesn't otherwise have one. We can use the rank to infer a possible score instead (1/rank).

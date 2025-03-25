@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitTests;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.test.ESTestCase;
@@ -106,26 +107,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                         } else {
                             searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
                         }
-                        responses[i] = new MultiSearchResponse.Item(
-                            new SearchResponse(
-                                searchHits,
-                                null,
-                                null,
-                                false,
-                                null,
-                                null,
-                                1,
-                                null,
-                                1,
-                                1,
-                                0,
-                                randomNonNegativeLong(),
-                                ShardSearchFailure.EMPTY_ARRAY,
-                                SearchResponseTests.randomClusters(),
-                                null
-                            ),
-                            null
-                        );
+                        responses[i] = new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(searchHits), null);
                         searchHits.decRef();
                     }
                     ActionListener.respondAndRelease(listener, new MultiSearchResponse(responses, randomNonNegativeLong()));

@@ -239,6 +239,9 @@ setup:
   - match: { hits.hits.0._id: "doc_2" }
   - match: { hits.hits.1._id: "doc_1" }
 
+  - match: { phase_failures.0.phase: "reranking" }
+  - exists: "phase_failures.0.failure"
+
 ---
 "text similarity reranking with explain":
 

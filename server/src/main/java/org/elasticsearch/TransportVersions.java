@@ -201,6 +201,7 @@ public class TransportVersions {
     public static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = def(9_034_0_00);
     public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL = def(9_035_0_00);
     public static final TransportVersion INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD = def(9_036_0_00);
+    public static final TransportVersion SEARCH_PHASE_FAILURES = def(9_037_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

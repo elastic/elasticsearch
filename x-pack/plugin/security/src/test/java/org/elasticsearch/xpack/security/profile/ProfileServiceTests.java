@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -54,6 +53,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -1034,7 +1034,7 @@ public class ProfileServiceTests extends ESTestCase {
             return new Authentication.RealmRef(realmName, realmType, "nodeName_" + randomAlphaOfLength(8));
         };
         MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[1];
-        responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+        responseItems[0] = new MultiSearchResponse.Item(emptySearchResponse(), null);
         MultiSearchResponse emptyMultiSearchResponse = new MultiSearchResponse(responseItems, randomNonNegativeLong());
         try {
             doAnswer(invocation -> {
@@ -1086,7 +1086,7 @@ public class ProfileServiceTests extends ESTestCase {
             return new Authentication.RealmRef(realmName, realmType, "nodeName_" + randomAlphaOfLength(8), realmDomain);
         };
         MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[1];
-        responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+        responseItems[0] = new MultiSearchResponse.Item(emptySearchResponse(), null);
         MultiSearchResponse emptyMultiSearchResponse = new MultiSearchResponse(responseItems, randomNonNegativeLong());
         try {
             doAnswer(invocation -> {
@@ -1148,7 +1148,7 @@ public class ProfileServiceTests extends ESTestCase {
             return new Authentication.RealmRef(realmName, realmType, "nodeName");
         };
         MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[1];
-        responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+        responseItems[0] = new MultiSearchResponse.Item(emptySearchResponse(), null);
         MultiSearchResponse emptyMultiSearchResponse = new MultiSearchResponse(responseItems, randomNonNegativeLong());
         try {
             doAnswer(invocation -> {
@@ -1199,11 +1199,11 @@ public class ProfileServiceTests extends ESTestCase {
         MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[2];
         // one search request (for one of the key owner) fails
         if (randomBoolean()) {
-            responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+            responseItems[0] = new MultiSearchResponse.Item(emptySearchResponse(), null);
             responseItems[1] = new MultiSearchResponse.Item(null, new Exception("test search failure"));
         } else {
             responseItems[0] = new MultiSearchResponse.Item(null, new Exception("test search failure"));
-            responseItems[1] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+            responseItems[1] = new MultiSearchResponse.Item(emptySearchResponse(), null);
         }
         MultiSearchResponse multiSearchResponseWithError = new MultiSearchResponse(responseItems, randomNonNegativeLong());
         try {
@@ -1418,26 +1418,7 @@ public class ProfileServiceTests extends ESTestCase {
         );
     }
 
-    private static class TestEmptySearchResponse extends SearchResponse {
-
-        TestEmptySearchResponse() {
-            super(
-                SearchHits.EMPTY_WITH_TOTAL_HITS,
-                null,
-                null,
-                false,
-                null,
-                null,
-                1,
-                null,
-                0,
-                0,
-                0,
-                0L,
-                ShardSearchFailure.EMPTY_ARRAY,
-                Clusters.EMPTY,
-                null
-            );
-        }
+    private static SearchResponse emptySearchResponse() {
+        return SearchResponseUtils.response().searchHits(SearchHits.EMPTY_WITH_TOTAL_HITS).numReducePhases(1).build();
     }
 }

@@ -47,8 +47,6 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -454,23 +452,10 @@ public class CircuitBreakerTests extends ESTestCase {
             );
 
             SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            SearchResponse response = new SearchResponse(
-                searchHits,
-                null,
-                null,
-                false,
-                false,
-                null,
-                0,
-                null,
-                2,
-                0,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY,
-                searchRequest.pointInTimeBuilder().getEncodedId()
-            );
+            SearchResponse response = SearchResponseUtils.response(searchHits)
+                .shards(2, 0, 0)
+                .pointInTimeId(searchRequest.pointInTimeBuilder().getEncodedId())
+                .build();
 
             if (searchRequestsRemainingCount() == 1) {
                 assertEquals(0, circuitBreaker.getUsed()); // this is the first response, so no memory usage so far
@@ -507,23 +492,10 @@ public class CircuitBreakerTests extends ESTestCase {
                 SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
                 ActionListener.respondAndRelease(
                     listener,
-                    (Response) new SearchResponse(
-                        searchHits,
-                        null,
-                        null,
-                        false,
-                        false,
-                        null,
-                        0,
-                        null,
-                        2,
-                        0,
-                        0,
-                        0,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY,
-                        searchRequest.pointInTimeBuilder().getEncodedId()
-                    )
+                    (Response) SearchResponseUtils.response(searchHits)
+                        .shards(2, 0, 0)
+                        .pointInTimeId(searchRequest.pointInTimeBuilder().getEncodedId())
+                        .build()
                 );
             } else {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
@@ -541,27 +513,18 @@ public class CircuitBreakerTests extends ESTestCase {
                     // this should still be caught and the exception handled properly and circuit breaker cleared
                     ActionListener.respondAndRelease(
                         listener,
-                        (Response) new SearchResponse(
+                        (Response) SearchResponseUtils.response(
                             SearchHits.unpooled(
                                 new SearchHit[] { SearchHit.unpooled(1) },
                                 new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
                                 1.0f
-                            ),
-                            null,
-                            new Suggest(Collections.emptyList()),
-                            false,
-                            false,
-                            new SearchProfileResults(Collections.emptyMap()),
-                            1,
-                            null,
-                            2,
-                            1,
-                            0,
-                            0,
-                            failures,
-                            SearchResponse.Clusters.EMPTY,
-                            searchRequest.pointInTimeBuilder().getEncodedId()
+                            )
                         )
+                            .numReducePhases(1)
+                            .shards(2, 1, 0)
+                            .shardFailures(failures)
+                            .pointInTimeId(searchRequest.pointInTimeBuilder().getEncodedId())
+                            .build()
                     );
                 }
             }

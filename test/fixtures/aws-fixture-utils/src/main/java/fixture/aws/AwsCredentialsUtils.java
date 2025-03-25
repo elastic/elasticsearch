@@ -25,6 +25,7 @@ public enum AwsCredentialsUtils {
 
     /**
      * @return an authorization predicate that ensures the authorization header matches the given access key, region and service name.
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html">AWS v4 Signatures</a>
      */
     public static BiPredicate<String, String> fixedAccessKey(String accessKey, String region, String service) {
         return mutableAccessKey(() -> accessKey, region, service);
@@ -33,6 +34,7 @@ public enum AwsCredentialsUtils {
     /**
      * @return an authorization predicate that ensures the authorization header matches the access key supplied by the given supplier,
      *         and also matches the given region and service name.
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html">AWS v4 Signatures</a>
      */
     public static BiPredicate<String, String> mutableAccessKey(Supplier<String> accessKeySupplier, String region, String service) {
         return (authorizationHeader, sessionTokenHeader) -> {
@@ -58,6 +60,7 @@ public enum AwsCredentialsUtils {
 
     /**
      * @return an authorization predicate that ensures the access key, session token, region and service name all match the given values.
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html">AWS v4 Signatures</a>
      */
     public static BiPredicate<String, String> fixedAccessKeyAndToken(String accessKey, String sessionToken, String region, String service) {
         Objects.requireNonNull(sessionToken);

@@ -80,6 +80,8 @@ public class SplitIndexIT extends ESIntegTestCase {
         int[][] possibleShardSplits = new int[][] { { 2, 4, 8 }, { 3, 6, 12 }, { 1, 2, 4 } };
         int[] shardSplits = randomFrom(possibleShardSplits);
         splitToN(shardSplits[0], shardSplits[1], shardSplits[2]);
+        //splitToN(1, 3, 9);
+        //splitToN(1, 2, 6);
     }
 
     public void testSplitFromOneToN() {

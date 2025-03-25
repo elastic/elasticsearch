@@ -72,18 +72,26 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
             clusterService.state(),
             getPersistentTaskId()
         );
+        boolean isComplete;
         if (persistentTask != null) {
             ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTask.getState();
-            if (state != null && state.totalIndices() != null && state.totalIndicesToBeUpgraded() != null) {
-                totalIndices = Math.toIntExact(state.totalIndices());
-                totalIndicesToBeUpgraded = Math.toIntExact(state.totalIndicesToBeUpgraded());
+            if (state != null) {
+                isComplete = state.isComplete();
+                if (state.totalIndices() != null && state.totalIndicesToBeUpgraded() != null) {
+                    totalIndices = Math.toIntExact(state.totalIndices());
+                    totalIndicesToBeUpgraded = Math.toIntExact(state.totalIndicesToBeUpgraded());
+                }
+            } else {
+                isComplete = false;
             }
+        } else {
+            isComplete = false;
         }
         return new ReindexDataStreamStatus(
             persistentTaskStartTime,
             totalIndices,
             totalIndicesToBeUpgraded,
-            isComplete(),
+            isComplete,
             exception,
             inProgress,
             pending.get(),
@@ -127,14 +135,13 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         if (persistentTask != null) {
             ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTask.getState();
             if (state != null) {
-                return ((ReindexDataStreamPersistentTaskState) persistentTask.getState()).isComplete();
+                return state.isComplete();
             } else {
                 return false;
             }
         } else {
             return false;
         }
-
     }
 
     public void setPendingIndicesCount(int size) {

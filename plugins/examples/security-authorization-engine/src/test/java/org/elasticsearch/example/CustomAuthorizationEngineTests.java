@@ -11,10 +11,8 @@ package org.elasticsearch.example;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -31,9 +29,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
 
@@ -52,13 +47,15 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     public void testAuthorizeRunAs() {
         final String action = "cluster:monitor/foo";
-        final TransportRequest request = new TransportRequest() {};
+        final TransportRequest request = new TransportRequest() {
+        };
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
         // unauthorized
         {
-            Authentication authentication = Authentication
-                .newRealmAuthentication(new User("bar", "not_superuser"), new RealmRef("test", "test", "node"))
-                .runAs(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node"));
+            Authentication authentication = Authentication.newRealmAuthentication(
+                new User("bar", "not_superuser"),
+                new RealmRef("test", "test", "node")
+            ).runAs(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node"));
             RequestInfo info = new RequestInfo(authentication, request, action, null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(info, future);
@@ -72,9 +69,10 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
         // authorized
         {
-            Authentication authentication = Authentication
-                .newRealmAuthentication(new User("bar", "custom_superuser"), new RealmRef("test", "test", "node"))
-                .runAs(new User("joe", "not_superuser"), new RealmRef("test", "test", "node"));
+            Authentication authentication = Authentication.newRealmAuthentication(
+                new User("bar", "custom_superuser"),
+                new RealmRef("test", "test", "node")
+            ).runAs(new User("joe", "not_superuser"), new RealmRef("test", "test", "node"));
             RequestInfo info = new RequestInfo(authentication, request, action, null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(info, future);
@@ -103,10 +101,12 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
         // unauthorized
         {
-            RequestInfo unauthReqInfo =
-                new RequestInfo(
-                    Authentication.newRealmAuthentication(new User("joe", "not_superuser"), new RealmRef("test", "test", "node")),
-                    requestInfo.getRequest(), requestInfo.getAction(), null);
+            RequestInfo unauthReqInfo = new RequestInfo(
+                Authentication.newRealmAuthentication(new User("joe", "not_superuser"), new RealmRef("test", "test", "node")),
+                requestInfo.getRequest(),
+                requestInfo.getAction(),
+                null
+            );
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(unauthReqInfo, future);
             AuthorizationInfo authzInfo = future.actionGet();
@@ -120,28 +120,35 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     public void testAuthorizeIndexAction() {
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(IndexMetadata.builder("index")
-                .settings(Settings.builder().put("index.version.created", IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .build(),
-                    false
-                ).build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                IndexMetadata.builder("index")
+                    .settings(Settings.builder().put("index.version.created", IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),
+                false
+            )
+            .build();
         // authorized
         {
-            RequestInfo requestInfo =
-                new RequestInfo(
-                    Authentication.newRealmAuthentication(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node")),
-                    new SearchRequest(), "indices:data/read/search", null);
+            RequestInfo requestInfo = new RequestInfo(
+                Authentication.newRealmAuthentication(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node")),
+                new SearchRequest(),
+                "indices:data/read/search",
+                null
+            );
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(requestInfo, future);
             AuthorizationInfo authzInfo = future.actionGet();
 
-            PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
-            engine.authorizeIndexAction(requestInfo, authzInfo,
-                listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                project, resultFuture);
-            IndexAuthorizationResult result = resultFuture.actionGet();
+            final SubscribableListener<IndexAuthorizationResult> resultListener = engine.authorizeIndexAction(
+                requestInfo,
+                authzInfo,
+                () -> SubscribableListener.newSucceeded(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
+                project
+            );
+            IndexAuthorizationResult result = safeAwait(resultListener);
             assertThat(result.isGranted(), is(true));
             IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
             assertNotNull(indicesAccessControl.getIndexPermissions("index"));
@@ -149,19 +156,23 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
         // unauthorized
         {
-            RequestInfo requestInfo =
-                new RequestInfo(
-                    Authentication.newRealmAuthentication(new User("joe", "not_superuser"), new RealmRef("test", "test", "node")),
-                    new SearchRequest(), "indices:data/read/search", null);
+            RequestInfo requestInfo = new RequestInfo(
+                Authentication.newRealmAuthentication(new User("joe", "not_superuser"), new RealmRef("test", "test", "node")),
+                new SearchRequest(),
+                "indices:data/read/search",
+                null
+            );
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(requestInfo, future);
             AuthorizationInfo authzInfo = future.actionGet();
 
-            PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
-            engine.authorizeIndexAction(requestInfo, authzInfo,
-                listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                project, resultFuture);
-            IndexAuthorizationResult result = resultFuture.actionGet();
+            final SubscribableListener<IndexAuthorizationResult> resultListener = engine.authorizeIndexAction(
+                requestInfo,
+                authzInfo,
+                () -> SubscribableListener.newSucceeded(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
+                project
+            );
+            IndexAuthorizationResult result = safeAwait(resultListener);
             assertThat(result.isGranted(), is(false));
             IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
             assertNull(indicesAccessControl.getIndexPermissions("index"));
@@ -170,9 +181,12 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     private RequestInfo getRequestInfo() {
         final String action = "cluster:monitor/foo";
-        final TransportRequest request = new TransportRequest() {};
-        final Authentication authentication =
-            Authentication.newRealmAuthentication(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node"));
+        final TransportRequest request = new TransportRequest() {
+        };
+        final Authentication authentication = Authentication.newRealmAuthentication(
+            new User("joe", "custom_superuser"),
+            new RealmRef("test", "test", "node")
+        );
         return new RequestInfo(authentication, request, action, null);
     }
 }

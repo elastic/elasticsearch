@@ -7,7 +7,7 @@ Converts a multivalued expression into a single valued column containing the
 first value. This is most useful when reading from a function that emits
 multivalued columns in a known order like [`SPLIT`](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/esql-functions-operators#esql-split).
 
-```
+```esql
 ROW a="foo;bar;baz"
 | EVAL first_a = MV_FIRST(SPLIT(a, ";"))
 ```

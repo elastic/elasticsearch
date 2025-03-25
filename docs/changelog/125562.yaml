@@ -2,4 +2,5 @@ pr: 125562
 summary: Improve handling of empty response
 area: Infra/REST API
 type: bug
-issues: []
+issues:
+ - 57639

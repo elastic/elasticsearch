@@ -141,9 +141,9 @@ public class PolicyManager {
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
-    private static final Set<Module> systemModules = findSystemModules();
+    private static final Set<Module> SYSTEM_LAYER_MODULES = findSystemLayerModules();
 
-    private static Set<Module> findSystemModules() {
+    private static Set<Module> findSystemLayerModules() {
         var systemModulesDescriptors = ModuleFinder.ofSystem()
             .findAll()
             .stream()
@@ -162,6 +162,13 @@ public class PolicyManager {
                 )
         ).collect(Collectors.toUnmodifiableSet());
     }
+
+    // Anything in the boot layer that is not in the system layer, is in the server layer
+    public static final Set<Module> SERVER_LAYER_MODULES = ModuleLayer.boot()
+        .modules()
+        .stream()
+        .filter(m -> SYSTEM_LAYER_MODULES.contains(m) == false)
+        .collect(Collectors.toUnmodifiableSet());
 
     private final Map<String, Path> sourcePaths;
     /**
@@ -270,7 +277,7 @@ public class PolicyManager {
             Strings.format(
                 "component [%s], module [%s], class [%s], operation [%s]",
                 entitlements.componentName(),
-                requestingClass.getModule().getName(),
+                getModuleName(requestingClass),
                 requestingClass,
                 operationDescription.get()
             ),
@@ -388,7 +395,7 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
@@ -418,7 +425,7 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     path
                 ),
@@ -507,7 +514,7 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     PolicyParser.getEntitlementTypeName(entitlementClass)
                 ),
@@ -520,7 +527,7 @@ public class PolicyManager {
                 () -> Strings.format(
                     "Entitled: component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     PolicyParser.getEntitlementTypeName(entitlementClass)
                 )
@@ -540,7 +547,7 @@ public class PolicyManager {
                     () -> Strings.format(
                         "Entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                         entitlements.componentName(),
-                        requestingClass.getModule().getName(),
+                        getModuleName(requestingClass),
                         requestingClass,
                         property
                     )
@@ -551,7 +558,7 @@ public class PolicyManager {
             Strings.format(
                 "component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
-                requestingClass.getModule().getName(),
+                getModuleName(requestingClass),
                 requestingClass,
                 property
             ),
@@ -725,12 +732,20 @@ public class PolicyManager {
             generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
         }
-        if (systemModules.contains(requestingClass.getModule())) {
+        if (SYSTEM_LAYER_MODULES.contains(requestingClass.getModule())) {
             generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }
         generalLogger.trace("Entitlement not trivially allowed");
         return false;
+    }
+
+    /**
+     * @return the {@code requestingClass}'s module name as it would appear in an entitlement policy file
+     */
+    private static String getModuleName(Class<?> requestingClass) {
+        String name = requestingClass.getModule().getName();
+        return (name == null) ? ALL_UNNAMED : name;
     }
 
     @Override

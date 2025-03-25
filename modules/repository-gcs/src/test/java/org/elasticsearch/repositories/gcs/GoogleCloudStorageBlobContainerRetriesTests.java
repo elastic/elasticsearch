@@ -156,7 +156,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     @Override
                     public HttpRequestInitializer getHttpRequestInitializer(ServiceOptions<?, ?> serviceOptions) {
                         // Add initializer/interceptor without interfering with any pre-existing ones
-                        HttpRequestInitializer httpRequestInitializer = super.getHttpRequestInitializer(serviceOptions);
+                        HttpRequestInitializer httpRequestInitializer = httpTransportOptions.getHttpRequestInitializer(serviceOptions);
                         return request -> {
                             if (httpRequestInitializer != null) {
                                 httpRequestInitializer.initialize(request);

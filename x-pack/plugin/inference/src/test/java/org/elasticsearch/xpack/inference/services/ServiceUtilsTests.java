@@ -993,6 +993,42 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(size, is(textEmbedding.embeddings().get(0).values().length));
     }
 
+    public void testValidateInputType_NoValidationErrorsWhenInternalType() {
+        ValidationException validationException = new ValidationException();
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INTERNAL_SEARCH, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INTERNAL_INGEST, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testValidateInputType_NoValidationErrorsWhenInputTypeIsNullOrUnspecified() {
+        ValidationException validationException = new ValidationException();
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.UNSPECIFIED, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(null, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testValidateInputType_ValidationErrorsWhenInputTypeIsSpecified() {
+        ValidationException validationException = new ValidationException();
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.SEARCH, validationException);
+        assertThat(validationException.validationErrors().size(), is(1));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INGEST, validationException);
+        assertThat(validationException.validationErrors().size(), is(2));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.CLASSIFICATION, validationException);
+        assertThat(validationException.validationErrors().size(), is(3));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.CLUSTERING, validationException);
+        assertThat(validationException.validationErrors().size(), is(4));
+    }
+
     private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
         return new HashMap<>(aMap);
     }

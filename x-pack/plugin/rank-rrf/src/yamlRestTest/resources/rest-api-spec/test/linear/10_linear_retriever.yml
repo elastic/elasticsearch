@@ -1173,4 +1173,85 @@ setup:
           size: 10
 
   - match: { hits.total.value: 4 }
-  - length: { hits.hits: 1 }
+  - length: { hits.hits: 0 }
+
+---
+"linear retriever with negative min_score should throw error":
+  - do:
+      catch: /Input \[-1.0\] is not valid for min_score/
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+              min_score: -1.0
+          size: 10
+
+---
+"linear retriever with zero min_score should return all documents":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+              min_score: 0.0
+          size: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+
+---
+"linear retriever with missing min_score should use default value":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+          size: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }

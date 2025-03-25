@@ -109,6 +109,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         PersistentTaskState persistentTaskState
     ) {
         if (isComplete(persistentTaskState)) {
+            task.markAsCompleted();
             return;
         }
         ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTaskState;

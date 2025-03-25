@@ -144,7 +144,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support.broadcast.node;
     exports org.elasticsearch.action.support.broadcast.unpromotable;
     exports org.elasticsearch.action.support.master;
-    exports org.elasticsearch.action.support.master.info;
     exports org.elasticsearch.action.support.nodes;
     exports org.elasticsearch.action.support.local;
     exports org.elasticsearch.action.support.replication;

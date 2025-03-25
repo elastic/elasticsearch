@@ -51,7 +51,7 @@ public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom
     }
 
     public SecureSettings getSettings() {
-        return settings;
+        return new SecureClusterStateSettings(settings);
     }
 
     @Override

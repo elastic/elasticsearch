@@ -61,7 +61,7 @@ public class ClusterSecrets extends AbstractNamedDiffable<ClusterState.Custom> i
     }
 
     public SecureSettings getSettings() {
-        return settings;
+        return new SecureClusterStateSettings(settings);
     }
 
     public long getVersion() {

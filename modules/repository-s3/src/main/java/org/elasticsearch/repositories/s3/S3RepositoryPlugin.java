@@ -29,6 +29,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
@@ -48,8 +49,15 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             // Pre-load region metadata to avoid looking them up dynamically without privileges enabled
             // noinspection ResultOfMethodCallIgnored
             Region.regions();
+            try {
+                // Eagerly load the RegionFromEndpointGuesser map from the resource file
+                MethodHandles.lookup().ensureInitialized(RegionFromEndpointGuesser.class);
+            } catch (IllegalAccessException unexpected) {
+                throw new AssertionError(unexpected);
+            }
             return null;
         });
+
     }
 
     private final SetOnce<S3Service> service = new SetOnce<>();

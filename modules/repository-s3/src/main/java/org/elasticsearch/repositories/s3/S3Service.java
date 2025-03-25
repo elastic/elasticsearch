@@ -9,6 +9,10 @@
 
 package org.elasticsearch.repositories.s3;
 
+import org.elasticsearch.common.ReferenceDocs;
+
+import org.elasticsearch.core.SuppressForbidden;
+
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -51,9 +55,12 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivilegedAction;
@@ -624,5 +631,5 @@ class S3Service implements Closeable {
     interface JvmEnvironment {
         String getProperty(String key, String defaultValue);
     }
-
 }
+

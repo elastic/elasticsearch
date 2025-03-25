@@ -77,6 +77,7 @@ public class IndexVersions {
     public static final IndexVersion V_8_3_0 = def(8_03_00_99, Version.LUCENE_9_2_0);
     public static final IndexVersion V_8_4_0 = def(8_04_00_99, Version.LUCENE_9_3_0);
     public static final IndexVersion V_8_5_0 = def(8_05_00_99, Version.LUCENE_9_4_1);
+    public static final IndexVersion V_8_5_3 = def(8_05_03_99, Version.LUCENE_9_4_2);
     public static final IndexVersion V_8_6_0 = def(8_06_00_99, Version.LUCENE_9_4_2);
     public static final IndexVersion V_8_7_0 = def(8_07_00_99, Version.LUCENE_9_5_0);
     public static final IndexVersion V_8_8_0 = def(8_08_00_99, Version.LUCENE_9_6_0);

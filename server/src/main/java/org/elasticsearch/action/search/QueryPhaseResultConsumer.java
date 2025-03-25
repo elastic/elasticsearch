@@ -164,6 +164,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final List<Tuple<TopDocsStats, MergeResult>> batchedResults = new ArrayList<>();
 
+    /**
+     * Unlinks partial merge results from this instance and returns them as a partial merge result to be sent to the coordinating node.
+     *
+     * @return the partial MergeResult for all shards queried on this data node.
+     */
     MergeResult consumePartialResult() {
         var mergeResult = this.mergeResult;
         this.mergeResult = null;
@@ -181,7 +186,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return mergeResult;
     }
 
-    public void addPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
+    void addBatchedPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
         synchronized (batchedResults) {
             batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
         }
@@ -224,7 +229,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             topDocsStats.add(batchedResult.v1());
             consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
         }
-
         for (QuerySearchResult result : buffer) {
             topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
             if (topDocsList != null) {

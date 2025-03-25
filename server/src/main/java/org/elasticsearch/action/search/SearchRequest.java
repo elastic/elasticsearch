@@ -275,7 +275,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         super.writeTo(out);
         out.writeByte(searchType.id());
         // write list of expressions that always resolves to no indices the same way we do it in security code to safely skip sending the
-        // indices list
+        // indices list, this path is only used by the batched execution logic in SearchQueryThenFetchAsyncAction which uses this class to
+        // transport the search request to concrete shards without making use of the indices field.
         out.writeStringArray(skipIndices ? new String[] { "*", "-*" } : indices);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

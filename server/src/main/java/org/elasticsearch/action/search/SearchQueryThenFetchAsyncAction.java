@@ -481,7 +481,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     @Override
                     public void handleResponse(NodeQueryResponse response) {
                         if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                            queryPhaseResultConsumer.addPartialResult(response.topDocsStats, response.mergeResult);
+                            queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.mergeResult);
                         }
                         for (int i = 0; i < response.results.length; i++) {
                             var s = request.shards.get(i);

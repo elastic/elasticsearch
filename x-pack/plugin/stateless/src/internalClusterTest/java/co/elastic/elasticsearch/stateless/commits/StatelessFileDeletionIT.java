@@ -1163,7 +1163,9 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         // While search shard is recovering, create a new merged commit
         logger.debug("--> force merging");
-        forceMerge();
+        // Do not assert that we got one segment since the underlying method calls TransportIndicesSegmentsAction that would be blocked
+        // on the searchNode2 due to the blocked recovery
+        forceMerge(false);
 
         logger.debug("--> wait for the new commit notification to be processed on the search node");
         safeAwait(newCommitNotificationReceived);

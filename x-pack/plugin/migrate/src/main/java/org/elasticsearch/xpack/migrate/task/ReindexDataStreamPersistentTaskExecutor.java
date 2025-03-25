@@ -367,7 +367,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
 
     private TimeValue getTimeToLive(long completionTimeInMillis) {
         return TimeValue.timeValueMillis(
-            TASK_KEEP_ALIVE_TIME.millis() - Math.max(
+            TASK_KEEP_ALIVE_TIME.millis() - Math.min(
                 TASK_KEEP_ALIVE_TIME.millis(),
                 threadPool.absoluteTimeInMillis() - completionTimeInMillis
             )

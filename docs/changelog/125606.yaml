@@ -1,12 +1,12 @@
 pr: 125606
 summary: Rename deprecation index template
-area: Infra/Core
+area: Logging
 type: breaking
 issues:
  - 125445
 breaking:
   title: Rename deprecation index template
-  area: Infra/Core
+  area: Logging
   details: The deprecation datastream contains log entries for deprecations that
     occured while Elasticsearch is running. The deprecation log entries had a
     mismatch in their dataset name. In order to avoid changing the dataset

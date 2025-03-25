@@ -14,12 +14,12 @@ import java.util.concurrent.atomic.LongAdder;
 
 /**
  * A histogram with a fixed number of buckets of exponentially increasing width.
- *
- * The upper bounds of the buckets are defined by increasing powers of two, e.g.
+ * <p>
+ * The bucket boundaries are defined by increasing powers of two, e.g.
  * <code>
- *     1, 2, 4, 8, 16...
+ *     (-&infin;, 1), [1, 2), [2, 4), [4, 8), ..., [2^({@link #BUCKET_COUNT}-2), -&infin;)
  * </code>
- * There are {@link #BUCKET_COUNT} buckets
+ * There are {@link #BUCKET_COUNT} buckets.
  */
 public class ExponentialBucketHistogram {
 
@@ -31,13 +31,13 @@ public class ExponentialBucketHistogram {
         return bounds;
     }
 
-    private static int getBucket(long handlingTimeMillis) {
-        if (handlingTimeMillis <= 0) {
+    private static int getBucket(long observedValue) {
+        if (observedValue <= 0) {
             return 0;
-        } else if (LAST_BUCKET_LOWER_BOUND <= handlingTimeMillis) {
+        } else if (LAST_BUCKET_LOWER_BOUND <= observedValue) {
             return BUCKET_COUNT - 1;
         } else {
-            return Long.SIZE - Long.numberOfLeadingZeros(handlingTimeMillis);
+            return Long.SIZE - Long.numberOfLeadingZeros(observedValue);
         }
     }
 
@@ -74,7 +74,7 @@ public class ExponentialBucketHistogram {
      * Calculate the Nth percentile value
      *
      * @param percentile The percentile as a fraction (in [0, 1.0])
-     * @return A value greater than or equal to the specified fraction of values in the histogram
+     * @return A value greater than the specified fraction of values in the histogram
      */
     public long getPercentile(float percentile) {
         assert percentile >= 0 && percentile <= 1;

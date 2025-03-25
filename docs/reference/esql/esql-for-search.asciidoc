@@ -43,10 +43,40 @@ The following table summarizes the key search features available in {esql} and w
 |Combine lexical and semantic search approaches with custom weights
 |===
 
+[[esql-filtering-vs-searching]]
+==== Filtering vs. searching
+
+{esql} can be used for both simple filtering and relevance-based searching:
+
+* **Filtering** removes non-matching documents without calculating relevance scores
+* **Searching** both filters documents and ranks them by how well they match the query
+
+[[esql-for-search-scoring]]
+===== Relevance scoring
+
+To get the most relevant results first, you need to use `METADATA _score` and sort by score. For example:
+
+[source,esql]
+----
+FROM books METADATA _score
+| WHERE match(title, "Shakespeare") OR match(plot, "Shakespeare")
+| SORT _score DESC
+----
+
+[[esql-for-search-how-scoring-works]]
+===== How `_score` works
+
+When working with relevance scoring in ES|QL:
+
+* If you don't include `METADATA _score` in your query, this only performs filtering operations with no relevance calculation.
+* When you include `METADATA _score`, any search function included in `WHERE` conditions contribute to the relevance score. This means that every occurrence of `MATCH`, `QSTR` and `KQL` will affect the score.
+* Filtering operations that are not search functions, like range conditions and exact matches, don't affect the score.
+* Including `METADATA _score` doesn't automatically sort your results by relevance. You must explicitly use `SORT _score DESC` or `SORT _score ASC` to order your results by relevance.
+
 [[esql-for-search-full-text]]
 ==== Full text search
 
-[[esql-for-searc-match-functio-operator]]
+[[esql-for-search-match-function-operator]]
 ===== Match function and operator
 
 ES|QL offers two syntax options for `match`, which replicate the functionality of <<query-dsl-match-query, `match`>> queries in Query DSL.
@@ -64,6 +94,14 @@ Use the `match()` function syntax when you need to pass additional parameters:
 ----
 FROM products | WHERE match(name, "laptop", { "boost": 2.0 })
 ----
+
+These full-text functions address several key limitations that existed for text filtering in {esql}:
+
+* They work directly on multivalued fields, returning results when any value in a multivalued field matches the query
+* They leverage analyzers, ensuring the query is analyzed with the same process as the indexed data (enabling case-insensitive matching, ASCII folding, stopword removal, and synonym support)
+* They are highly performant, using Lucene index structures rather than pattern matching or regular expressions to locate terms in your data
+
+Refer to this blog for more context: https://www.elastic.co/search-labs/blog/filtering-in-esql-full-text-search-match-qstr[Introducing full text filtering in ES|QL] for more information..
 
 [TIP]
 ====
@@ -90,31 +128,25 @@ FROM articles METADATA _score
 
 For complete details, refer to the <<query-dsl-query-string-query, Query DSL `query_string` docs>>.
 
-[[esql-for-search-scoring]]
-==== Relevance scoring
+[[esql-for-search-kql]]
+===== Kibana Query Language (KQL) function
 
-To get the most relevant results first, you need to retrieve and sort by relevance score:
+Use the <<esql-kql,KQL function>> to use the {kibana-ref}/kuery-query.html[Kibana Query Language] in your ES|QL queries:
 
 [source,esql]
 ----
-FROM books METADATA _score
-| WHERE match(title, "Shakespeare") OR match(plot, "Shakespeare")
-| SORT _score DESC
+FROM logs*
+| WHERE KQL("http.request.method:GET AND agent.type:filebeat")
 ----
 
-When working with relevance scoring in ES|QL, it's important to understand how `_score` works:
-
-* If you don't include `METADATA _score` in your query, this only performs filtering operations with no relevance calculation.
-* When you include `METADATA _score`, search functions included in `WHERE` conditions contribute to the relevance score.
-* Filtering operations (like range conditions and exact matches) don't affect the score.
-* Including `METADATA _score` doesn't automatically sort your results by relevance. You must explicitly use `SORT _score DESC` or `SORT _score ASC` to order your results by relevance.
+The `kql` function is useful when transitioning queries from Kibana's Discover, Dashboard, or other interfaces that use KQL. This will allow you to gradually migrate queries to ES|QL without needing to rewrite them all at once.
 
 [[esql-for-search-semantic]]
 ==== Semantic search
 
 You can perform semantic searches over <<semantic-text, `semantic_text`>> field types using the same match syntax as full-text search.
 
-This example uses the match operator `:``:
+This example uses the match operator `:`:
 
 [source,esql]
 ----
@@ -145,19 +177,6 @@ FROM books METADATA _score
 | SORT _score DESC
 ----
 
-[[esql-for-search-kql]]
-==== Kibana Query Language (KQL)
-
-Use the <<esql-kql,KQL function>> to use the {kibana-ref}/kuery-query.html[Kibana Query Language] in your ES|QL queries:
-
-[source,esql]
-----
-FROM logs*
-| WHERE KQL("http.request.method:GET AND agent.type:filebeat")
-----
-
-The `kql` function is useful when transitioning queries from Kibana's Discover, Dashboard, or other interfaces that use KQL. This will allow you to gradually migrate queries to ES|QL without needing to rewrite them all at once.
-
 [[esql-for-search-limitations]]
 ==== Limitations
 
@@ -181,11 +200,12 @@ Refer to <<esql-limitations-full-text-search, {esql} limitations>> for a list of
 [[esql-for-search-concepts]]
 ===== Background concepts
 
-* <<analysis>>: How text is processed for full-text search
-* <<semantic-search>>: Overview of semantic search in Elasticsearch
+* <<analysis>>: Learn how text is processed for full-text search
+* <<semantic-search>>: Get an overview of semantic search in {es}
+* <<query-filter-context>>: Understand the difference between query and filter contexts in {es}
 
 [[esql-for-search-blogs]]
 ===== Related blog posts
 
-// TODO* https://www.elastic.co/blog/esql-you-know-for-search-scoring-semantic-search[ES|QL, you know for Search] - Introducing scoring and semantic search
-* https://www.elastic.co/blog/introducing-full-text-filtering-with-esql[Introducing full text filtering in ES|QL] - Overview of text filtering capabilities
+// TODO* https://www.elastic.co/blog/esql-you-know-for-search-scoring-semantic-search[ES|QL, you know for Search]: Introducing scoring and semantic search
+* https://www.elastic.co/search-labs/blog/filtering-in-esql-full-text-search-match-qstr[Introducing full text filtering in ES|QL]: Overview of text filtering capabilities

@@ -1,5 +1,0 @@
-pr: 125103
-summary: Fix LTR query feature with phrases (and two-phase) queries
-area: Ranking
-type: bug
-issues: []

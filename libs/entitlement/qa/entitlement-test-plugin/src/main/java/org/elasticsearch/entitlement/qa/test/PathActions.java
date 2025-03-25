@@ -9,13 +9,21 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.nio.file.WatchEvent;
+import java.util.Arrays;
 
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
+@SuppressWarnings({ "unused" /* called via reflection */, "rawtypes" })
 class PathActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -23,12 +31,28 @@ class PathActions {
         FileCheckActions.readFile().toRealPath();
     }
 
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = NoSuchFileException.class)
+    static void checkToRealPathForInvalidTarget() throws IOException {
+        Path invalidLink = EntitledActions.createTempSymbolicLink(FileCheckActions.readDir().resolve("invalid"));
+        try {
+            EntitledActions.pathToRealPath(invalidLink); // throws NoSuchFileException when checking entitlements due to invalid target
+        } catch (NoSuchFileException e) {
+            assert Arrays.stream(e.getStackTrace()).anyMatch(t -> t.getClassName().equals(PolicyManager.class.getName()))
+                : "Expected NoSuchFileException to be thrown by entitlements check";
+            throw e;
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void checkToRealPathWithK8sLikeMount() throws IOException, Exception {
+        EntitledActions.createK8sLikeMount().toRealPath();
+    }
+
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkToRealPathNoFollow() throws IOException {
         FileCheckActions.readFile().toRealPath(LinkOption.NOFOLLOW_LINKS);
     }
 
-    @SuppressWarnings("rawtypes")
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkRegister() throws IOException {
         try (var watchService = FileSystems.getDefault().newWatchService()) {
@@ -38,7 +62,6 @@ class PathActions {
         }
     }
 
-    @SuppressWarnings("rawtypes")
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkRegisterWithModifiers() throws IOException {
         try (var watchService = FileSystems.getDefault().newWatchService()) {

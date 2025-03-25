@@ -44,6 +44,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -561,43 +562,16 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
         }, filterBuilder, new MappedFieldType[] { fieldType }, new MappedFieldType[] { fieldType });
 
-        // TODO SearchResponse.Clusters is not public, using null for now. Should fix upstream.
         MultiSearchResponse.Item unrolledItem = new MultiSearchResponse.Item(
-            new SearchResponse(
-                SearchHits.EMPTY_WITH_TOTAL_HITS,
-                InternalAggregations.from(Collections.singletonList(responses.get(0))),
-                null,
-                false,
-                false,
-                null,
-                1,
-                null,
-                1,
-                1,
-                0,
-                10,
-                null,
-                null
-            ),
+            SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(responses.get(0)))
+                .build(),
             null
         );
         MultiSearchResponse.Item rolledItem = new MultiSearchResponse.Item(
-            new SearchResponse(
-                SearchHits.EMPTY_WITH_TOTAL_HITS,
-                InternalAggregations.from(Collections.singletonList(responses.get(1))),
-                null,
-                false,
-                false,
-                null,
-                1,
-                null,
-                1,
-                1,
-                0,
-                10,
-                null,
-                null
-            ),
+            SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(responses.get(1)))
+                .build(),
             null
         );
 

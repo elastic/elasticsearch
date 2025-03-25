@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.UpdateForV10;
@@ -67,7 +66,6 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         ThreadPool threadPool,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
         super(
@@ -149,7 +147,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     // visible for testing
     static List<GetFeatureUpgradeStatusResponse.IndexInfo> getIndexInfos(ClusterState state, SystemIndices.Feature feature) {
         final SingleFeatureMigrationResult featureStatus = Optional.ofNullable(
-            (FeatureMigrationResults) state.metadata().custom(FeatureMigrationResults.TYPE)
+            (FeatureMigrationResults) state.metadata().getProject().custom(FeatureMigrationResults.TYPE)
         ).map(FeatureMigrationResults::getFeatureStatuses).map(results -> results.get(feature.getName())).orElse(null);
 
         final String failedFeatureName = featureStatus == null ? null : featureStatus.getFailedIndexName();
@@ -158,9 +156,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
 
         return feature.getIndexDescriptors()
             .stream()
-            .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata()).stream())
+            .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata().getProject()).stream())
             .sorted(String::compareTo)
-            .map(index -> state.metadata().index(index))
+            .map(index -> state.metadata().getProject().index(index))
             .map(
                 indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexInfo(
                     indexMetadata.getIndex().getName(),

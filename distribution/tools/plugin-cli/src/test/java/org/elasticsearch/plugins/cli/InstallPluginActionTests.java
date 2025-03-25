@@ -48,6 +48,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
@@ -316,7 +317,7 @@ public class InstallPluginActionTests extends ESTestCase {
             securityPolicyContent.append("\";");
         }
         securityPolicyContent.append("\n};\n");
-        Files.write(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString().getBytes(StandardCharsets.UTF_8));
+        Files.writeString(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString());
     }
 
     static InstallablePlugin createStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps)
@@ -786,10 +787,10 @@ public class InstallPluginActionTests extends ESTestCase {
     public void testExistingConfig() throws Exception {
         Path envConfigDir = env.v2().configDir().resolve("fake");
         Files.createDirectories(envConfigDir);
-        Files.write(envConfigDir.resolve("custom.yml"), "existing config".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(envConfigDir.resolve("custom.yml"), "existing config");
         Path configDir = pluginDir.resolve("config");
         Files.createDirectory(configDir);
-        Files.write(configDir.resolve("custom.yml"), "new config".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(configDir.resolve("custom.yml"), "new config");
         Files.createFile(configDir.resolve("other.yml"));
         InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         installPlugin(pluginZip);
@@ -891,6 +892,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testBatchFlag() throws Exception {
+        assumeTrue("security policy validation only available with SecurityManager", RuntimeVersionFeature.isSecurityManagerAvailable());
         installPlugin(true);
         assertThat(terminal.getErrorOutput(), containsString("WARNING: plugin requires additional permissions"));
         assertThat(terminal.getOutput(), containsString("-> Downloading"));
@@ -1031,13 +1033,13 @@ public class InstallPluginActionTests extends ESTestCase {
                     Path shaFile = temp.apply("shas").resolve("downloaded.zip" + shaExtension);
                     byte[] zipbytes = Files.readAllBytes(pluginZipPath);
                     String checksum = shaCalculator.apply(zipbytes);
-                    Files.write(shaFile, checksum.getBytes(StandardCharsets.UTF_8));
+                    Files.writeString(shaFile, checksum);
                     return shaFile.toUri().toURL();
                 } else if ((url + ".asc").equals(urlString)) {
                     final Path ascFile = temp.apply("asc").resolve("downloaded.zip" + ".asc");
                     final byte[] zipBytes = Files.readAllBytes(pluginZipPath);
                     final String asc = signature.apply(zipBytes, secretKey);
-                    Files.write(ascFile, asc.getBytes(StandardCharsets.UTF_8));
+                    Files.writeString(ascFile, asc);
                     return ascFile.toUri().toURL();
                 }
                 return null;
@@ -1529,6 +1531,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testPolicyConfirmation() throws Exception {
+        assumeTrue("security policy parsing only available with SecurityManager", RuntimeVersionFeature.isSecurityManagerAvailable());
         writePluginSecurityPolicy(pluginDir, "getClassLoader", "setFactory");
         InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
 

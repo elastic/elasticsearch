@@ -38,7 +38,9 @@ public class DesiredBalanceMetrics {
      */
     public record AllocationStats(long unassignedShards, long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {}
 
-    public record NodeWeightStats(long shardCount, double diskUsageInBytes, double writeLoad, double nodeWeight) {}
+    public record NodeWeightStats(long shardCount, double diskUsageInBytes, double writeLoad, double nodeWeight) {
+        public static final NodeWeightStats ZERO = new NodeWeightStats(0, 0, 0, 0);
+    }
 
     // Reconciliation metrics.
     /** See {@link #unassignedShards} */

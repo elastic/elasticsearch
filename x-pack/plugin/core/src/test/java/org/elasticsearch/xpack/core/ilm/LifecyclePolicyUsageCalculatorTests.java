@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ItemUsage;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
@@ -35,113 +34,43 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
 
     @Before
     public void init() {
-        iner = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+        iner = new IndexNameExpressionResolver(
+            new ThreadContext(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.alwaysThrow()
+        );
     }
 
     public void testGetUsageNonExistentPolicy() {
         // Test where policy does not exist
-        ClusterState state = ClusterState.builder(new ClusterName("mycluster")).build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
+            new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
             equalTo(new ItemUsage(List.of(), List.of(), List.of()))
         );
     }
 
     public void testGetUsageUnusedPolicy() {
         // Test where policy is not used by anything
-        ClusterState state = ClusterState.builder(new ClusterName("mycluster"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(
-                            Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
-                            OperationMode.RUNNING
-                        )
-                    )
-                    .build()
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(
+                IndexLifecycleMetadata.TYPE,
+                new IndexLifecycleMetadata(
+                    Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                    OperationMode.RUNNING
+                )
             )
             .build();
+
         assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
+            new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
             equalTo(new ItemUsage(List.of(), List.of(), List.of()))
         );
     }
 
     public void testGetUsagePolicyUsedByIndex() {
-
         // Test where policy exists and is used by an index
-        ClusterState state = ClusterState.builder(new ClusterName("mycluster"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(
-                            Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
-                            OperationMode.RUNNING
-                        )
-                    )
-                    .put(
-                        IndexMetadata.builder("myindex")
-                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
-                    )
-                    .build()
-            )
-            .build();
-        assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
-            equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of()))
-        );
-    }
-
-    public void testGetUsagePolicyUsedByIndexAndTemplate() {
-
-        // Test where policy exists and is used by an index, and template
-        ClusterState state = ClusterState.builder(new ClusterName("mycluster"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(
-                            Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
-                            OperationMode.RUNNING
-                        )
-                    )
-                    .put(
-                        IndexMetadata.builder("myindex")
-                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
-                    )
-                    .putCustom(
-                        ComposableIndexTemplateMetadata.TYPE,
-                        new ComposableIndexTemplateMetadata(
-                            Map.of(
-                                "mytemplate",
-                                ComposableIndexTemplate.builder()
-                                    .indexPatterns(List.of("myds"))
-                                    .template(
-                                        new Template(
-                                            Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(),
-                                            null,
-                                            null
-                                        )
-                                    )
-                                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
-                                    .build()
-                            )
-                        )
-                    )
-                    .build()
-            )
-            .build();
-        assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
-            equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of("mytemplate")))
-        );
-    }
-
-    public void testGetUsagePolicyUsedByIndexAndTemplateAndDataStream() {
-        // Test where policy exists and is used by an index, data stream, and template
-        Metadata.Builder mBuilder = Metadata.builder()
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(
                 IndexLifecycleMetadata.TYPE,
                 new IndexLifecycleMetadata(
@@ -153,6 +82,66 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                 IndexMetadata.builder("myindex")
                     .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
             )
+            .build();
+
+        assertThat(
+            new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
+            equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of()))
+        );
+    }
+
+    public void testGetUsagePolicyUsedByIndexAndTemplate() {
+        // Test where policy exists and is used by an index, and template
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(
+                IndexLifecycleMetadata.TYPE,
+                new IndexLifecycleMetadata(
+                    Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                    OperationMode.RUNNING
+                )
+            )
+            .put(
+                IndexMetadata.builder("myindex")
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+            )
+            .putCustom(
+                ComposableIndexTemplateMetadata.TYPE,
+                new ComposableIndexTemplateMetadata(
+                    Map.of(
+                        "mytemplate",
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of("myds"))
+                            .template(
+                                new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null)
+                            )
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                            .build()
+                    )
+                )
+            )
+            .build();
+
+        assertThat(
+            new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
+            equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of("mytemplate")))
+        );
+    }
+
+    public void testGetUsagePolicyUsedByIndexAndTemplateAndDataStream() {
+        // Test where policy exists and is used by an index, data stream, and template
+        IndexMetadata index = IndexMetadata.builder("myindex")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(
+                IndexLifecycleMetadata.TYPE,
+                new IndexLifecycleMetadata(
+                    Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                    OperationMode.RUNNING
+                )
+            )
+            .put(index, false)
+            .put(DataStreamTestHelper.newInstance("myds", List.of(index.getIndex())))
             .put(
                 IndexMetadata.builder("another")
                     .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
@@ -176,24 +165,23 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                             .build()
                     )
                 )
-            );
-        // Need to get the real Index instance of myindex:
-        mBuilder.put(DataStreamTestHelper.newInstance("myds", List.of(mBuilder.get("myindex").getIndex())));
+            )
+            .build();
 
-        ClusterState state = ClusterState.builder(new ClusterName("mycluster")).metadata(mBuilder.build()).build();
         assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
+            new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
             equalTo(new ItemUsage(List.of("myindex", "another"), List.of("myds"), List.of("mytemplate")))
         );
     }
 
     public void testGetUsagePolicyNotUsedByDataStreamDueToOverride() {
         // Test when a data stream does not use the policy anymore because of a higher template
-        Metadata.Builder mBuilder = Metadata.builder()
-            .put(
-                IndexMetadata.builder("myindex")
-                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
-            )
+        IndexMetadata index = IndexMetadata.builder("myindex")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(index, false)
+            .put(DataStreamTestHelper.newInstance("myds", List.of(index.getIndex())))
             .putCustom(
                 IndexLifecycleMetadata.TYPE,
                 new IndexLifecycleMetadata(
@@ -221,14 +209,12 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                             .build()
                     )
                 )
-            );
-
-        mBuilder.put(DataStreamTestHelper.newInstance("myds", List.of(mBuilder.get("myindex").getIndex())));
+            )
+            .build();
 
         // Test where policy exists and is used by an index, datastream, and template
-        ClusterState state = ClusterState.builder(new ClusterName("mycluster")).metadata(mBuilder.build()).build();
         assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
+            new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
             equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of("mytemplate")))
         );
     }

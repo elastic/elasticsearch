@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -39,18 +39,18 @@ public class LifecyclePolicyUsageCalculator {
 
     public LifecyclePolicyUsageCalculator(
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final ClusterState state,
+        ProjectMetadata project,
         List<String> requestedPolicyNames
     ) {
         final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
-            state,
+            project,
             IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR
         );
         // Sort all templates by descending priority. That way, findV2Template can exit on the first found template.
-        final var indexTemplates = new ArrayList<>(state.metadata().templatesV2().entrySet());
+        final var indexTemplates = new ArrayList<>(project.templatesV2().entrySet());
         CollectionUtil.timSort(indexTemplates, Comparator.comparing(entry -> entry.getValue().priorityOrZero(), Comparator.reverseOrder()));
 
-        final IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+        final IndexLifecycleMetadata metadata = project.custom(IndexLifecycleMetadata.TYPE);
         // We're making a bet here that if the `name` contains a wildcard, there's a large chance it'll simply match all policies.
         final var expectedSize = Regex.isSimpleMatchPattern(requestedPolicyNames.get(0))
             ? metadata.getPolicyMetadatas().size()
@@ -62,8 +62,8 @@ public class LifecyclePolicyUsageCalculator {
 
         // Build the maps that will be used for the usage calculation later on.
         policyToTemplates = Maps.newHashMapWithExpectedSize(expectedSize);
-        for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
-            Settings settings = MetadataIndexTemplateService.resolveSettings(entry.getValue(), state.metadata().componentTemplates());
+        for (Map.Entry<String, ComposableIndexTemplate> entry : project.templatesV2().entrySet()) {
+            Settings settings = MetadataIndexTemplateService.resolveSettings(entry.getValue(), project.componentTemplates());
             final var policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings);
             // We only store the template if its policy matched any of the requested names.
             if (doesPolicyMatchAnyName(policyName, requestedPolicyNames) == false) {
@@ -75,12 +75,7 @@ public class LifecyclePolicyUsageCalculator {
 
         policyToDataStreams = Maps.newHashMapWithExpectedSize(expectedSize);
         for (String dataStream : allDataStreams) {
-            String indexTemplate = MetadataIndexTemplateService.findV2TemplateFromSortedList(
-                state.metadata(),
-                indexTemplates,
-                dataStream,
-                false
-            );
+            String indexTemplate = MetadataIndexTemplateService.findV2TemplateFromSortedList(project, indexTemplates, dataStream, false);
             if (indexTemplate == null) {
                 // Every data stream should ordinarily have an index template, so this branch should not fire under normal circumstances.
                 continue;
@@ -94,7 +89,7 @@ public class LifecyclePolicyUsageCalculator {
         }
 
         policyToIndices = Maps.newHashMapWithExpectedSize(expectedSize);
-        for (IndexMetadata indexMetadata : state.metadata().indices().values()) {
+        for (IndexMetadata indexMetadata : project.indices().values()) {
             final var policyName = indexMetadata.getLifecyclePolicyName();
             // We only store the index if its policy matched any of the specified names.
             if (doesPolicyMatchAnyName(policyName, requestedPolicyNames) == false) {

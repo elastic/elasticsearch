@@ -1,0 +1,5 @@
+pr: 125259
+summary: Leverage scorer supplier in `QueryFeatureExtractor`
+area: Ranking
+type: enhancement
+issues: []

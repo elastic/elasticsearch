@@ -1,0 +1,5 @@
+pr: 122458
+summary: '`DesiredBalanceReconciler` always returns `AllocationStats`'
+area: Allocation
+type: bug
+issues: []

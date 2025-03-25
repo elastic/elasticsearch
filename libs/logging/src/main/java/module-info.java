@@ -9,5 +9,5 @@
 
 module org.elasticsearch.logging {
     exports org.elasticsearch.logging;
-    exports org.elasticsearch.logging.internal.spi to org.elasticsearch.server;
+    exports org.elasticsearch.logging.internal.spi to org.elasticsearch.server, org.elasticsearch.cli;
 }

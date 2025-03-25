@@ -16,7 +16,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -36,32 +37,34 @@ import static org.hamcrest.Matchers.sameInstance;
 public class RetryFailedAllocationTests extends ESAllocationTestCase {
 
     private MockAllocationService strategy;
+    private ProjectId projectId;
     private ClusterState clusterState;
     private final String INDEX_NAME = "index";
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        Metadata metadata = Metadata.builder()
+        projectId = randomProjectIdOrDefault();
+        ProjectMetadata project = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder(INDEX_NAME).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index(INDEX_NAME))
+            .addAsNew(project.index(INDEX_NAME))
             .build();
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .routingTable(routingTable)
+            .putProjectMetadata(project)
+            .putRoutingTable(projectId, routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         strategy = createAllocationService(Settings.EMPTY);
     }
 
     private ShardRouting getPrimary() {
-        return clusterState.getRoutingTable().index(INDEX_NAME).shard(0).primaryShard();
+        return clusterState.routingTable(projectId).index(INDEX_NAME).shard(0).primaryShard();
     }
 
     private ShardRouting getReplica() {
-        return clusterState.getRoutingTable().index(INDEX_NAME).shard(0).replicaShards().get(0);
+        return clusterState.routingTable(projectId).index(INDEX_NAME).shard(0).replicaShards().get(0);
     }
 
     public void testRetryFailedResetForAllocationCommands() {
@@ -84,7 +87,12 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         AllocationService.CommandsResult result = strategy.reroute(
             clusterState,
             new AllocationCommands(
-                new AllocateReplicaAllocationCommand(INDEX_NAME, 0, getPrimary().currentNodeId().equals("node1") ? "node2" : "node1")
+                new AllocateReplicaAllocationCommand(
+                    INDEX_NAME,
+                    0,
+                    getPrimary().currentNodeId().equals("node1") ? "node2" : "node1",
+                    projectId
+                )
             ),
             false,
             true,

@@ -70,6 +70,10 @@ public class NodeAllocationStatsAndWeightsCalculator {
         ClusterInfo clusterInfo,
         @Nullable DesiredBalance desiredBalance
     ) {
+        if (metadata.hasAnyIndices()) {
+            // must not use licensed features when just starting up
+            writeLoadForecaster.refreshLicense();
+        }
         var weightFunction = new WeightFunction(shardBalanceFactor, indexBalanceFactor, writeLoadBalanceFactor, diskUsageBalanceFactor);
         var avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
@@ -88,7 +92,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
                     continue;
                 }
                 ++shards;
-                IndexMetadata indexMetadata = metadata.getIndexSafe(shardRouting.index());
+                IndexMetadata indexMetadata = metadata.indexMetadata(shardRouting.index());
                 if (isDesiredAllocation(desiredBalance, shardRouting) == false) {
                     undesiredShards++;
                 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
@@ -22,6 +23,7 @@ import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
@@ -33,6 +35,8 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibra
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
@@ -52,7 +56,7 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +67,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
@@ -95,6 +102,11 @@ public class EntitlementInitialization {
         manager = initChecker();
 
         var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
+        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
+
+        if (verifyBytecode) {
+            ensureClassesSensitiveToVerificationAreInitialized();
+        }
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
         Stream.of(
@@ -117,8 +129,23 @@ public class EntitlementInitialization {
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
         Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
-        inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
-        inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
+        var transformer = new Transformer(instrumenter, classesToTransform, verifyBytecode);
+        inst.addTransformer(transformer, true);
+
+        var classesToRetransform = findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform);
+        try {
+            inst.retransformClasses(classesToRetransform);
+        } catch (VerifyError e) {
+            // Turn on verification and try to retransform one class at the time to get detailed diagnostic
+            transformer.enableClassVerification();
+
+            for (var classToRetransform : classesToRetransform) {
+                inst.retransformClasses(classToRetransform);
+            }
+
+            // We should have failed already in the loop above, but just in case we did not, rethrow.
+            throw e;
+        }
     }
 
     private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {
@@ -134,91 +161,170 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
-        var pathLookup = new PathLookup(getUserHome(), bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.tempDir());
-        Path logsDir = EntitlementBootstrap.bootstrapArgs().logsDir();
+        var pathLookup = new PathLookup(
+            getUserHome(),
+            bootstrapArgs.configDir(),
+            bootstrapArgs.dataDirs(),
+            bootstrapArgs.sharedRepoDirs(),
+            bootstrapArgs.tempDir(),
+            bootstrapArgs.settingResolver()
+        );
 
-        // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
-        var serverPolicy = new Policy(
-            "server",
-            List.of(
-                new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
-                new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
-                new Scope(
-                    "org.elasticsearch.server",
-                    List.of(
-                        new ExitVMEntitlement(),
-                        new ReadStoreAttributesEntitlement(),
-                        new CreateClassLoaderEntitlement(),
-                        new InboundNetworkEntitlement(),
-                        new OutboundNetworkEntitlement(),
-                        new LoadNativeLibrariesEntitlement(),
-                        new ManageThreadsEntitlement(),
-                        new FilesEntitlement(
-                            Stream.concat(
-                                Stream.of(
-                                    FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
-                                    FileData.ofPath(bootstrapArgs.configDir(), READ),
-                                    FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-                                    // OS release on Linux
-                                    FileData.ofPath(Path.of("/etc/os-release"), READ),
-                                    FileData.ofPath(Path.of("/etc/system-release"), READ),
-                                    FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
-                                    // read max virtual memory areas
-                                    FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
-                                    FileData.ofPath(Path.of("/proc/meminfo"), READ),
-                                    // load averages on Linux
-                                    FileData.ofPath(Path.of("/proc/loadavg"), READ),
-                                    // control group stats on Linux. cgroup v2 stats are in an unpredicable
-                                    // location under `/sys/fs/cgroup`, so unfortunately we have to allow
-                                    // read access to the entire directory hierarchy.
-                                    FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
-                                    FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
-                                    // // io stats on Linux
-                                    FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
-                                    FileData.ofPath(Path.of("/proc/diskstats"), READ)
-                                ),
-                                Arrays.stream(bootstrapArgs.dataDirs()).map(d -> FileData.ofPath(d, READ))
-                            ).toList()
+        List<Scope> serverScopes = new ArrayList<>();
+        List<FileData> serverModuleFileDatas = new ArrayList<>();
+        Collections.addAll(
+            serverModuleFileDatas,
+            // Base ES directories
+            FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
+            FileData.ofPath(bootstrapArgs.modulesDir(), READ),
+            FileData.ofPath(bootstrapArgs.configDir(), READ),
+            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+            FileData.ofPath(bootstrapArgs.libDir(), READ),
+            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
+            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
+
+            // OS release on Linux
+            FileData.ofPath(Path.of("/etc/os-release"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/etc/system-release"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/usr/lib/os-release"), READ).withPlatform(LINUX),
+            // read max virtual memory areas
+            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/proc/meminfo"), READ).withPlatform(LINUX),
+            // load averages on Linux
+            FileData.ofPath(Path.of("/proc/loadavg"), READ).withPlatform(LINUX),
+            // control group stats on Linux. cgroup v2 stats are in an unpredicable
+            // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+            // read access to the entire directory hierarchy.
+            FileData.ofPath(Path.of("/proc/self/cgroup"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ).withPlatform(LINUX),
+            // // io stats on Linux
+            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX)
+        );
+        if (bootstrapArgs.pidFile() != null) {
+            serverModuleFileDatas.add(FileData.ofPath(bootstrapArgs.pidFile(), READ_WRITE));
+        }
+
+        Collections.addAll(
+            serverScopes,
+            new Scope(
+                "org.elasticsearch.base",
+                List.of(
+                    new CreateClassLoaderEntitlement(),
+                    new FilesEntitlement(
+                        List.of(
+                            // TODO: what in es.base is accessing shared repo?
+                            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
                         )
                     )
-                ),
-                new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
-                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
-                new Scope(
-                    "org.apache.lucene.core",
-                    List.of(
-                        new LoadNativeLibrariesEntitlement(),
-                        new ManageThreadsEntitlement(),
-                        new FilesEntitlement(
-                            Stream.concat(
-                                Stream.of(FileData.ofPath(bootstrapArgs.configDir(), READ)),
-                                Arrays.stream(bootstrapArgs.dataDirs()).map(d -> FileData.ofPath(d, READ_WRITE))
-                            ).toList()
-                        )
+                )
+            ),
+            new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
+            new Scope(
+                "org.elasticsearch.server",
+                List.of(
+                    new ExitVMEntitlement(),
+                    new ReadStoreAttributesEntitlement(),
+                    new CreateClassLoaderEntitlement(),
+                    new InboundNetworkEntitlement(),
+                    new OutboundNetworkEntitlement(),
+                    new LoadNativeLibrariesEntitlement(),
+                    new ManageThreadsEntitlement(),
+                    new FilesEntitlement(serverModuleFileDatas)
+                )
+            ),
+            new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
+            new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
+            new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
+            new Scope(
+                "org.apache.lucene.core",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new ManageThreadsEntitlement(),
+                    new FilesEntitlement(
+                        List.of(FileData.ofPath(bootstrapArgs.configDir(), READ), FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))
                     )
-                ),
-                new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
-                new Scope(
-                    "org.elasticsearch.nativeaccess",
-                    List.of(
-                        new LoadNativeLibrariesEntitlement(),
-                        new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)))
-                    )
+                )
+            ),
+            new Scope(
+                "org.apache.lucene.misc",
+                List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))))
+            ),
+            new Scope(
+                "org.apache.logging.log4j.core",
+                List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE))))
+            ),
+            new Scope(
+                "org.elasticsearch.nativeaccess",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)))
                 )
             )
         );
+
+        // conditionally add FIPS entitlements if FIPS only functionality is enforced
+        if (Booleans.parseBoolean(System.getProperty("org.bouncycastle.fips.approved_only"), false)) {
+            // if custom trust store is set, grant read access to its location, otherwise use the default JDK trust store
+            String trustStore = System.getProperty("javax.net.ssl.trustStore");
+            Path trustStorePath = trustStore != null
+                ? Path.of(trustStore)
+                : Path.of(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
+
+            Collections.addAll(
+                serverScopes,
+                new Scope(
+                    "org.bouncycastle.fips.tls",
+                    List.of(
+                        new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))),
+                        new ManageThreadsEntitlement(),
+                        new OutboundNetworkEntitlement()
+                    )
+                ),
+                new Scope(
+                    "org.bouncycastle.fips.core",
+                    // read to lib dir is required for checksum validation
+                    List.of(new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.libDir(), READ))), new ManageThreadsEntitlement())
+                )
+            );
+        }
+
+        var serverPolicy = new Policy(
+            "server",
+            bootstrapArgs.serverPolicyPatch() == null
+                ? serverScopes
+                : PolicyUtils.mergeScopes(serverScopes, bootstrapArgs.serverPolicyPatch().scopes())
+        );
+
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
-        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement(), new ManageThreadsEntitlement());
-        var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
+        // See also modules/apm/src/main/plugin-metadata/entitlement-policy.yaml
+        List<Entitlement> agentEntitlements = List.of(
+            new CreateClassLoaderEntitlement(),
+            new ManageThreadsEntitlement(),
+            new SetHttpsConnectionPropertiesEntitlement(),
+            new OutboundNetworkEntitlement(),
+            new WriteSystemPropertiesEntitlement(Set.of("AsyncProfiler.safemode")),
+            new LoadNativeLibrariesEntitlement(),
+            new FilesEntitlement(
+                List.of(
+                    FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                    FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                    FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ)
+                )
+            )
+        );
         return new PolicyManager(
             serverPolicy,
             agentEntitlements,
             pluginPolicies,
-            resolver,
+            EntitlementBootstrap.bootstrapArgs().pluginResolver(),
+            EntitlementBootstrap.bootstrapArgs().sourcePaths(),
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
-            pathLookup
+            pathLookup,
+            bootstrapArgs.suppressFailureLogClasses()
         );
     }
 
@@ -343,6 +449,24 @@ public class EntitlementInitialization {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    /**
+     * If bytecode verification is enabled, ensure these classes get loaded before transforming/retransforming them.
+     * For these classes, the order in which we transform and verify them matters. Verification during class transformation is at least an
+     * unforeseen (if not unsupported) scenario: we are loading a class, and while we are still loading it (during transformation) we try
+     * to verify it. This in turn leads to more classes loading (for verification purposes), which could turn into those classes to be
+     * transformed and undergo verification. In order to avoid circularity errors as much as possible, we force a partial order.
+     */
+    private static void ensureClassesSensitiveToVerificationAreInitialized() {
+        var classesToInitialize = Set.of("sun.net.www.protocol.http.HttpURLConnection");
+        for (String className : classesToInitialize) {
+            try {
+                Class.forName(className);
+            } catch (ClassNotFoundException unexpected) {
+                throw new AssertionError(unexpected);
+            }
+        }
     }
 
     /**

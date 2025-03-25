@@ -7,8 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
+
+import java.io.IOException;
 
 public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder implements BlockLoader.AggregateMetricDoubleBuilder {
 
@@ -139,27 +147,62 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     public enum Metric {
-        MIN(0),
-        MAX(1),
-        SUM(2),
-        COUNT(3);
+        MIN(0, "min"),
+        MAX(1, "max"),
+        SUM(2, "sum"),
+        COUNT(3, "value_count");
 
         private final int index;
+        private final String label;
 
-        Metric(int index) {
+        Metric(int index, String label) {
             this.index = index;
+            this.label = label;
         }
 
         public int getIndex() {
             return index;
         }
+
+        public String getLabel() {
+            return label;
+        }
     }
 
-    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) {
+    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) implements GenericNamedWriteable {
         public AggregateMetricDoubleLiteral {
             min = min.isNaN() ? null : min;
             max = max.isNaN() ? null : max;
             sum = sum.isNaN() ? null : sum;
         }
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            GenericNamedWriteable.class,
+            "AggregateMetricDoubleLiteral",
+            AggregateMetricDoubleLiteral::new
+        );
+
+        @Override
+        public String getWriteableName() {
+            return "AggregateMetricDoubleLiteral";
+        }
+
+        public AggregateMetricDoubleLiteral(StreamInput input) throws IOException {
+            this(input.readOptionalDouble(), input.readOptionalDouble(), input.readOptionalDouble(), input.readOptionalInt());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalDouble(min);
+            out.writeOptionalDouble(max);
+            out.writeOptionalDouble(sum);
+            out.writeOptionalInt(count);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL;
+        }
+
     }
 }

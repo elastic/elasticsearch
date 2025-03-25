@@ -1,5 +1,0 @@
-pr: 120548
-summary: Add `remove_index_block` arg to `_create_from` api
-area: Indices APIs
-type: enhancement
-issues: []

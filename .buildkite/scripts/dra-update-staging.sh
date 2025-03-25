@@ -37,7 +37,7 @@ for BRANCH in "${BRANCHES[@]}"; do
 
   if [[ "$SHOULD_TRIGGER" == "true" ]]; then
     if [[ "$BRANCH" == "9.0" ]]; then
-      export VERSION_QUALIFIER="beta1"
+      export VERSION_QUALIFIER="rc1"
     fi
     echo "Triggering DRA staging workflow for $BRANCH"
     cat << EOF | buildkite-agent pipeline upload

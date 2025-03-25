@@ -9,15 +9,18 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
+import jdk.nio.Channels;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
-import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.lang.foreign.AddressLayout;
@@ -32,8 +35,11 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.DatagramSocketImplFactory;
 import java.net.FileNameMap;
+import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.JarURLConnection;
+import java.net.MalformedURLException;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.Proxy;
@@ -44,7 +50,9 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketImplFactory;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
 import java.net.http.HttpClient;
@@ -63,17 +71,27 @@ import java.nio.file.AccessMode;
 import java.nio.file.CopyOption;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
-import java.nio.file.Files;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchService;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
+import java.security.KeyStore;
+import java.security.Provider;
 import java.security.cert.CertStoreParameters;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -82,7 +100,9 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.logging.FileHandler;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -624,11 +644,532 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkOutboundNetworkAccess(callerClass);
     }
 
+    @SuppressWarnings("deprecation")
+    private URL extractJarFileUrl(URL jarUrl) {
+        String spec = jarUrl.getFile();
+        int separator = spec.indexOf("!/");
+
+        // URL does not handle nested JAR URLs (it would be a MalformedURLException upon connection)
+        if (separator == -1) {
+            return null;
+        }
+
+        try {
+            return new URL(spec.substring(0, separator));
+        } catch (MalformedURLException e) {
+            return null;
+        }
+    }
+
+    private boolean handleNetworkOrFileUrlCheck(Class<?> callerClass, URL url) {
+        if (isNetworkUrl(url)) {
+            policyManager.checkOutboundNetworkAccess(callerClass);
+            return true;
+        }
+        if (isFileUrl(url)) {
+            checkURLFileRead(callerClass, url);
+            return true;
+        }
+        return false;
+    }
+
+    private void checkJarURLAccess(Class<?> callerClass, JarURLConnection that) {
+        var jarFileUrl = that.getJarFileURL();
+        if (handleNetworkOrFileUrlCheck(callerClass, jarFileUrl)) {
+            return;
+        }
+        policyManager.checkUnsupportedURLProtocolConnection(callerClass, jarFileUrl.getProtocol());
+    }
+
+    private void checkEntitlementForUrl(Class<?> callerClass, URL that) {
+        if (handleNetworkOrFileUrlCheck(callerClass, that)) {
+            return;
+        }
+        if (isJarUrl(that)) {
+            var jarFileUrl = extractJarFileUrl(that);
+            if (jarFileUrl == null || handleNetworkOrFileUrlCheck(callerClass, jarFileUrl) == false) {
+                policyManager.checkUnsupportedURLProtocolConnection(callerClass, "jar with unsupported inner protocol");
+            }
+        } else {
+            policyManager.checkUnsupportedURLProtocolConnection(callerClass, that.getProtocol());
+        }
+    }
+
+    @Override
+    public void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that) {
+        checkEntitlementForUrl(callerClass, that);
+    }
+
     @Override
     public void check$java_net_URL$openConnection(Class<?> callerClass, URL that, Proxy proxy) {
         if (proxy.type() != Proxy.Type.DIRECT) {
             policyManager.checkOutboundNetworkAccess(callerClass);
         }
+        checkEntitlementForUrl(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URL$openStream(Class<?> callerClass, java.net.URL that) {
+        checkEntitlementForUrl(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that) {
+        checkEntitlementForUrl(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that, Class<?>[] classes) {
+        checkEntitlementForUrl(callerClass, that);
+    }
+
+    private static final Set<String> NETWORK_PROTOCOLS = Set.of("http", "https", "ftp", "mailto");
+
+    private static boolean isNetworkUrl(java.net.URL url) {
+        return NETWORK_PROTOCOLS.contains(url.getProtocol());
+    }
+
+    private static boolean isFileUrl(java.net.URL url) {
+        return "file".equals(url.getProtocol());
+    }
+
+    private static boolean isJarUrl(java.net.URL url) {
+        return "jar".equals(url.getProtocol());
+    }
+
+    // We have to use class names for sun.net.www classes as java.base does not export them
+    private static final List<String> ADDITIONAL_NETWORK_URL_CONNECT_CLASS_NAMES = List.of(
+        "sun.net.www.protocol.ftp.FtpURLConnection",
+        "sun.net.www.protocol.mailto.MailToURLConnection"
+    );
+
+    private static boolean isNetworkUrlConnection(java.net.URLConnection urlConnection) {
+        var connectionClass = urlConnection.getClass();
+        return HttpURLConnection.class.isAssignableFrom(connectionClass)
+            || ADDITIONAL_NETWORK_URL_CONNECT_CLASS_NAMES.contains(connectionClass.getName());
+    }
+
+    // We have to use class names for sun.net.www classes as java.base does not export them
+    private static boolean isFileUrlConnection(java.net.URLConnection urlConnection) {
+        var connectionClass = urlConnection.getClass();
+        return "sun.net.www.protocol.file.FileURLConnection".equals(connectionClass.getName());
+    }
+
+    private void checkEntitlementForURLConnection(Class<?> callerClass, URLConnection that) {
+        if (isNetworkUrlConnection(that)) {
+            policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
+        } else if (that instanceof JarURLConnection jarURLConnection) {
+            checkJarURLAccess(callerClass, jarURLConnection);
+        } else {
+            policyManager.checkUnsupportedURLProtocolConnection(callerClass, that.getURL().getProtocol());
+        }
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getContentLengthLong(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getContentEncoding(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getExpiration(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getDate(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getHeaderFieldInt(
+        Class<?> callerClass,
+        java.net.URLConnection that,
+        String name,
+        int defaultValue
+    ) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getHeaderFieldLong(
+        Class<?> callerClass,
+        java.net.URLConnection that,
+        String name,
+        long defaultValue
+    ) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getHeaderFieldDate(
+        Class<?> callerClass,
+        java.net.URLConnection that,
+        String name,
+        long defaultValue
+    ) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that, Class<?>[] classes) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_HttpURLConnection$getResponseCode(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$java_net_HttpURLConnection$getResponseMessage(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$java_net_HttpURLConnection$getHeaderFieldDate(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        String name,
+        long defaultValue
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    // Using java.net.URLConnection for "that" as sun.net.www.URLConnection is not exported
+    @Override
+    public void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, String name) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_URLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_URLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.URLConnection that, int n) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, int n) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that) {
+        checkEntitlementForURLConnection(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_ftp_FtpURLConnection$connect(Class<?> callerClass, java.net.URLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_ftp_FtpURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_ftp_FtpURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$$openConnectionCheckRedirects(
+        Class<?> callerClass,
+        java.net.URLConnection c
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getOutputStream(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getInputStream(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getErrorStream(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderField(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        String name
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderFields(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderField(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        int n
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderFieldKey(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        int n
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$connect(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getOutputStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getInputStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getErrorStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderField(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFields(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderField(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        int n
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldKey(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        int n
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getResponseCode(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getResponseMessage(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentLength(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentLengthLong(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentType(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentEncoding(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getExpiration(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getDate(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getLastModified(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldInt(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        int defaultValue
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldLong(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        long defaultValue
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldDate(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        long defaultValue
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContent(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContent(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        Class<?>[] classes
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_mailto_MailToURLConnection$connect(Class<?> callerClass, java.net.URLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_mailto_MailToURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
     }
 
     @Override
@@ -1104,6 +1645,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_io_FileInputStream$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileInputStream$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorRead(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileInputStream$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
     public void check$java_io_FileOutputStream$(Class<?> callerClass, String name) {
         policyManager.checkFileWrite(callerClass, new File(name));
     }
@@ -1124,6 +1680,129 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorWrite(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, File file, Charset charset) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorRead(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, String name, Charset charset) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file, boolean append) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset, boolean append) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorWrite(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name, boolean append) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset, boolean append) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_RandomAccessFile$(Class<?> callerClass, String name, String mode) {
+        if (mode.equals("r")) {
+            policyManager.checkFileRead(callerClass, new File(name));
+        } else {
+            policyManager.checkFileWrite(callerClass, new File(name));
+        }
+    }
+
+    @Override
+    public void check$java_io_RandomAccessFile$(Class<?> callerClass, File file, String mode) {
+        if (mode.equals("r")) {
+            policyManager.checkFileRead(callerClass, file);
+        } else {
+            policyManager.checkFileWrite(callerClass, file);
+        }
+    }
+
+    @Override
+    public void check$java_security_KeyStore$$getInstance(Class<?> callerClass, File file, char[] password) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_security_KeyStore$$getInstance(Class<?> callerClass, File file, KeyStore.LoadStoreParameter param) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_security_KeyStore$Builder$$newInstance(
+        Class<?> callerClass,
+        File file,
+        KeyStore.ProtectionParameter protection
+    ) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_security_KeyStore$Builder$$newInstance(
+        Class<?> callerClass,
+        String type,
+        Provider provider,
+        File file,
+        KeyStore.ProtectionParameter protection
+    ) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
     public void check$java_util_Scanner$(Class<?> callerClass, File source) {
         policyManager.checkFileRead(callerClass, source);
     }
@@ -1138,7 +1817,133 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkFileRead(callerClass, source);
     }
 
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, String name, boolean verify) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify, int mode) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify, int mode, Runtime.Version version) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, String name, Charset charset) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, Charset charset) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode, Charset charset) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
     // nio
+
+    @Override
+    public void check$java_nio_channels_FileChannel$(Class<?> callerClass) {
+        policyManager.checkChangeFilesHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_FileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_FileChannel$$open(Class<?> callerClass, Path path, OpenOption... options) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$(Class<?> callerClass) {
+        policyManager.checkChangeFilesHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        ExecutorService executor,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$$open(Class<?> callerClass, Path path, OpenOption... options) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$jdk_nio_Channels$$readWriteSelectableChannel(
+        Class<?> callerClass,
+        FileDescriptor fd,
+        Channels.SelectableChannelCloser closer
+    ) {
+        policyManager.checkFileDescriptorWrite(callerClass);
+    }
 
     @Override
     public void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options) {
@@ -1155,11 +1960,493 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkFileWrite(callerClass, path);
     }
 
+    @Override
+    public void check$java_nio_file_Files$$newInputStream(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newOutputStream(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newByteChannel(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newByteChannel(Class<?> callerClass, Path path, OpenOption... options) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir) {
+        policyManager.checkFileRead(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir, String glob) {
+        policyManager.checkFileRead(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir, DirectoryStream.Filter<? super Path> filter) {
+        policyManager.checkFileRead(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createFile(Class<?> callerClass, Path path, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createDirectory(Class<?> callerClass, Path dir, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createDirectories(Class<?> callerClass, Path dir, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createTempFile(
+        Class<?> callerClass,
+        Path dir,
+        String prefix,
+        String suffix,
+        FileAttribute<?>... attrs
+    ) {
+        policyManager.checkFileWrite(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createTempFile(Class<?> callerClass, String prefix, String suffix, FileAttribute<?>... attrs) {
+        policyManager.checkCreateTempFile(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createTempDirectory(Class<?> callerClass, Path dir, String prefix, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createTempDirectory(Class<?> callerClass, String prefix, FileAttribute<?>... attrs) {
+        policyManager.checkCreateTempFile(callerClass);
+    }
+
+    private static Path resolveLinkTarget(Path path, Path target) {
+        var parent = path.getParent();
+        return parent == null ? target : parent.resolve(target);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createSymbolicLink(Class<?> callerClass, Path link, Path target, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, link);
+        policyManager.checkFileRead(callerClass, resolveLinkTarget(link, target));
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createLink(Class<?> callerClass, Path link, Path existing) {
+        policyManager.checkFileWrite(callerClass, link);
+        policyManager.checkFileRead(callerClass, resolveLinkTarget(link, existing));
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$delete(Class<?> callerClass, Path path) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$deleteIfExists(Class<?> callerClass, Path path) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$copy(Class<?> callerClass, Path source, Path target, CopyOption... options) {
+        policyManager.checkFileRead(callerClass, source);
+        policyManager.checkFileWrite(callerClass, target);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$move(Class<?> callerClass, Path source, Path target, CopyOption... options) {
+        policyManager.checkFileWrite(callerClass, source);
+        policyManager.checkFileWrite(callerClass, target);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readSymbolicLink(Class<?> callerClass, Path link) {
+        policyManager.checkFileRead(callerClass, link);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getFileStore(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isSameFile(Class<?> callerClass, Path path, Path path2) {
+        policyManager.checkFileRead(callerClass, path);
+        policyManager.checkFileRead(callerClass, path2);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$mismatch(Class<?> callerClass, Path path, Path path2) {
+        policyManager.checkFileRead(callerClass, path);
+        policyManager.checkFileRead(callerClass, path2);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isHidden(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getFileAttributeView(
+        Class<?> callerClass,
+        Path path,
+        Class<? extends FileAttributeView> type,
+        LinkOption... options
+    ) {
+        policyManager.checkGetFileAttributeView(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readAttributes(
+        Class<?> callerClass,
+        Path path,
+        Class<? extends BasicFileAttributes> type,
+        LinkOption... options
+    ) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$setAttribute(
+        Class<?> callerClass,
+        Path path,
+        String attribute,
+        Object value,
+        LinkOption... options
+    ) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getAttribute(Class<?> callerClass, Path path, String attribute, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readAttributes(Class<?> callerClass, Path path, String attributes, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getPosixFilePermissions(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$setPosixFilePermissions(Class<?> callerClass, Path path, Set<PosixFilePermission> perms) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isSymbolicLink(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isDirectory(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isRegularFile(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getLastModifiedTime(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$setLastModifiedTime(Class<?> callerClass, Path path, FileTime time) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$size(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$exists(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$notExists(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isReadable(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isWritable(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isExecutable(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$walkFileTree(
+        Class<?> callerClass,
+        Path start,
+        Set<FileVisitOption> options,
+        int maxDepth,
+        FileVisitor<? super Path> visitor
+    ) {
+        policyManager.checkFileRead(callerClass, start);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$walkFileTree(Class<?> callerClass, Path start, FileVisitor<? super Path> visitor) {
+        policyManager.checkFileRead(callerClass, start);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newBufferedReader(Class<?> callerClass, Path path, Charset cs) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newBufferedReader(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newBufferedWriter(Class<?> callerClass, Path path, Charset cs, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newBufferedWriter(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$copy(Class<?> callerClass, InputStream in, Path target, CopyOption... options) {
+        policyManager.checkFileWrite(callerClass, target);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$copy(Class<?> callerClass, Path source, OutputStream out) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readAllBytes(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readString(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readString(Class<?> callerClass, Path path, Charset cs) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readAllLines(Class<?> callerClass, Path path, Charset cs) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readAllLines(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$write(Class<?> callerClass, Path path, byte[] bytes, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$write(
+        Class<?> callerClass,
+        Path path,
+        Iterable<? extends CharSequence> lines,
+        Charset cs,
+        OpenOption... options
+    ) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$write(
+        Class<?> callerClass,
+        Path path,
+        Iterable<? extends CharSequence> lines,
+        OpenOption... options
+    ) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$writeString(Class<?> callerClass, Path path, CharSequence csq, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$writeString(
+        Class<?> callerClass,
+        Path path,
+        CharSequence csq,
+        Charset cs,
+        OpenOption... options
+    ) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$list(Class<?> callerClass, Path dir) {
+        policyManager.checkFileRead(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$walk(Class<?> callerClass, Path start, int maxDepth, FileVisitOption... options) {
+        policyManager.checkFileRead(callerClass, start);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$walk(Class<?> callerClass, Path start, FileVisitOption... options) {
+        policyManager.checkFileRead(callerClass, start);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$find(
+        Class<?> callerClass,
+        Path start,
+        int maxDepth,
+        BiPredicate<Path, BasicFileAttributes> matcher,
+        FileVisitOption... options
+    ) {
+        policyManager.checkFileRead(callerClass, start);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$lines(Class<?> callerClass, Path path, Charset cs) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$lines(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
     // file system providers
 
     @Override
     public void check$java_nio_file_spi_FileSystemProvider$(Class<?> callerClass) {
         policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, boolean append) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, int limit, int count) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, int limit, int count, boolean append) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, long limit, int count, boolean append) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$close(Class<?> callerClass, FileHandler that) {
+        // Note that there's no IT test for this one, because there's no way to create
+        // a FileHandler. However, we have this check just in case someone does manage
+        // to get their hands on a FileHandler and uses close() to cause its lock file to be deleted.
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_net_http_HttpRequest$BodyPublishers$$ofFile(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodyHandlers$$ofFile(Class<?> callerClass, Path path) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodyHandlers$$ofFile(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodyHandlers$$ofFileDownload(
+        Class<?> callerClass,
+        Path directory,
+        OpenOption... openOptions
+    ) {
+        policyManager.checkFileWrite(callerClass, directory);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodySubscribers$$ofFile(Class<?> callerClass, Path directory) {
+        policyManager.checkFileWrite(callerClass, directory);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodySubscribers$$ofFile(Class<?> callerClass, Path directory, OpenOption... openOptions) {
+        policyManager.checkFileWrite(callerClass, directory);
     }
 
     @Override
@@ -1188,6 +2475,17 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
             || options.contains(StandardOpenOption.CREATE)
             || options.contains(StandardOpenOption.CREATE_NEW)
             || options.contains(StandardOpenOption.DELETE_ON_CLOSE);
+    }
+
+    private static boolean isOpenForWrite(OpenOption... options) {
+        return Arrays.stream(options)
+            .anyMatch(
+                o -> o.equals(StandardOpenOption.WRITE)
+                    || o.equals(StandardOpenOption.APPEND)
+                    || o.equals(StandardOpenOption.CREATE)
+                    || o.equals(StandardOpenOption.CREATE_NEW)
+                    || o.equals(StandardOpenOption.DELETE_ON_CLOSE)
+            );
     }
 
     @Override
@@ -1254,13 +2552,13 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void checkCreateSymbolicLink(Class<?> callerClass, FileSystemProvider that, Path link, Path target, FileAttribute<?>... attrs) {
         policyManager.checkFileWrite(callerClass, link);
-        policyManager.checkFileRead(callerClass, target);
+        policyManager.checkFileRead(callerClass, resolveLinkTarget(link, target));
     }
 
     @Override
     public void checkCreateLink(Class<?> callerClass, FileSystemProvider that, Path link, Path existing) {
         policyManager.checkFileWrite(callerClass, link);
-        policyManager.checkFileRead(callerClass, existing);
+        policyManager.checkFileRead(callerClass, resolveLinkTarget(link, existing));
     }
 
     @Override
@@ -1447,21 +2745,14 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) {
+    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws NoSuchFileException {
         boolean followLinks = true;
         for (LinkOption option : options) {
             if (option == LinkOption.NOFOLLOW_LINKS) {
                 followLinks = false;
             }
         }
-        if (followLinks) {
-            try {
-                policyManager.checkFileRead(callerClass, Files.readSymbolicLink(that));
-            } catch (IOException | UnsupportedOperationException e) {
-                // that is not a link, or unrelated IOException or unsupported
-            }
-        }
-        policyManager.checkFileRead(callerClass, that);
+        policyManager.checkFileRead(callerClass, that, followLinks);
     }
 
     @Override
@@ -1478,5 +2769,141 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         WatchEvent.Modifier... modifiers
     ) {
         policyManager.checkFileRead(callerClass, that);
+    }
+
+    private void checkURLFileRead(Class<?> callerClass, URL url) {
+        try {
+            policyManager.checkFileRead(callerClass, Paths.get(url.toURI()));
+        } catch (URISyntaxException e) {
+            // We expect this method to be called only on File URLs; otherwise the underlying method would fail anyway
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$connect(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getHeaderField(
+        Class<?> callerClass,
+        java.net.URLConnection that,
+        String name
+    ) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, int n) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getContentLengthLong(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getHeaderFieldKey(
+        Class<?> callerClass,
+        java.net.URLConnection that,
+        int n
+    ) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$java_net_JarURLConnection$getManifest(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_JarURLConnection$getAttributes(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_JarURLConnection$getMainAttributes(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$java_net_JarURLConnection$getCertificates(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_jar_JarURLConnection$getJarFile(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_jar_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_jar_JarURLConnection$connect(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_jar_JarURLConnection$getInputStream(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_jar_JarURLConnection$getContentLength(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_jar_JarURLConnection$getContentLengthLong(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_jar_JarURLConnection$getContent(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_jar_JarURLConnection$getContentType(Class<?> callerClass, java.net.JarURLConnection that) {
+        checkJarURLAccess(callerClass, that);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_jar_JarURLConnection$getHeaderField(
+        Class<?> callerClass,
+        java.net.JarURLConnection that,
+        String name
+    ) {
+        checkJarURLAccess(callerClass, that);
     }
 }

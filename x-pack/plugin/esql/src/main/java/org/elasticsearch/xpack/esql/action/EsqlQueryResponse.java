@@ -228,11 +228,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         Iterator<ToXContent> profileRender = profile != null
             ? ChunkedToXContentHelper.field("profile", profile, params)
             : Collections.emptyIterator();
-        Iterator<ToXContent> executionInfoRender = executionInfo != null
-            && executionInfo.isCrossClusterSearch()
-            && executionInfo.includeCCSMetadata()
-                ? ChunkedToXContentHelper.field("_clusters", executionInfo, params)
-                : Collections.emptyIterator();
+        Iterator<ToXContent> executionInfoRender = executionInfo != null && executionInfo.hasMetadataToReport()
+            ? ChunkedToXContentHelper.field("_clusters", executionInfo, params)
+            : Collections.emptyIterator();
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             asyncPropertiesOrEmpty(),
@@ -354,7 +352,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
 
         public Profile(StreamInput in) throws IOException {
-            this.drivers = in.readCollectionAsImmutableList(DriverProfile::new);
+            this.drivers = in.readCollectionAsImmutableList(DriverProfile::readFrom);
         }
 
         @Override

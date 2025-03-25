@@ -9,6 +9,9 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
@@ -20,16 +23,19 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -55,6 +61,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
@@ -72,10 +79,12 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSearchPhaseTests extends ESTestCase {
@@ -134,13 +143,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 numHits = 0;
             }
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                searchPhaseFactory(mockSearchPhaseContext)
-            );
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
             assertEquals("fetch", phase.getName());
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
@@ -263,13 +266,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
             };
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                searchPhaseFactory(mockSearchPhaseContext)
-            );
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
             assertEquals("fetch", phase.getName());
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
@@ -373,13 +370,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
             };
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                searchPhaseFactory(mockSearchPhaseContext)
-            );
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
             assertEquals("fetch", phase.getName());
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
@@ -481,19 +472,21 @@ public class FetchSearchPhaseTests extends ESTestCase {
             };
             CountDownLatch latch = new CountDownLatch(1);
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                (searchResponse, scrollId) -> new SearchPhase("test") {
-                    @Override
-                    protected void run() {
-                        mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                        latch.countDown();
-                    }
+            FetchSearchPhase phase = new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
+                @Override
+                protected SearchPhase nextPhase(
+                    SearchResponseSections searchResponseSections,
+                    AtomicArray<SearchPhaseResult> queryPhaseResults
+                ) {
+                    return new SearchPhase("test") {
+                        @Override
+                        public void run() {
+                            mockSearchPhaseContext.sendSearchResponse(searchResponseSections, null);
+                            latch.countDown();
+                        }
+                    };
                 }
-            );
+            };
             assertEquals("fetch", phase.getName());
             phase.run();
             latch.await();
@@ -621,13 +614,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
             };
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                searchPhaseFactory(mockSearchPhaseContext)
-            );
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
             assertEquals("fetch", phase.getName());
             phase.run();
             assertNotNull(mockSearchPhaseContext.searchResponse.get());
@@ -639,6 +626,22 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 resp.decRef();
             }
         }
+    }
+
+    private static FetchSearchPhase getFetchSearchPhase(
+        SearchPhaseResults<SearchPhaseResult> results,
+        MockSearchPhaseContext mockSearchPhaseContext,
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+    ) {
+        return new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
+            @Override
+            protected SearchPhase nextPhase(
+                SearchResponseSections searchResponseSections,
+                AtomicArray<SearchPhaseResult> queryPhaseResults
+            ) {
+                return searchPhaseFactory(mockSearchPhaseContext).apply(searchResponseSections, queryPhaseResults);
+            }
+        };
     }
 
     public void testCleanupIrrelevantContexts() throws Exception { // contexts that are not fetched should be cleaned up
@@ -723,13 +726,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
             };
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(
-                results,
-                null,
-                mockSearchPhaseContext,
-                reducedQueryPhase,
-                searchPhaseFactory(mockSearchPhaseContext)
-            );
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
             assertEquals("fetch", phase.getName());
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
@@ -820,6 +817,62 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
+    public void testFetchPhaseChecksMemoryBreaker() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+
+        // we're indexing 100 documents with a field that is 48KB long so the fetch phase should check the memory breaker 4 times
+        // (every 22 documents that accumulate 1MiB in source sizes, so we'll have 4 checks at roughly 4.1MiB and the last 12 documents will
+        // not
+        // accumulate 1MiB anymore so won't check the breaker anymore)
+
+        String body = "{ \"thefield\": \" " + randomAlphaOfLength(48_000) + "\" }";
+        for (int i = 0; i < 100; i++) {
+            Document document = new Document();
+            document.add(new StringField("id", Integer.toString(i), Field.Store.YES));
+            document.add(new StoredField("_source", new BytesRef(body)));
+            w.addDocument(document);
+        }
+        // we account per fetch phase so it doesn't matter if it's one or multiple segments, so let's test both
+        if (randomBoolean()) {
+            w.forceMerge(1);
+        }
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+        AtomicInteger breakerCalledCount = new AtomicInteger(0);
+        NoopCircuitBreaker breakingCircuitBreaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                breakerCalledCount.incrementAndGet();
+            }
+        };
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, true, breakingCircuitBreaker)) {
+            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext readerContext) throws IOException {
+
+                }
+
+                @Override
+                public void process(FetchSubPhase.HitContext hitContext) throws IOException {
+                    Source source = hitContext.source();
+                    hitContext.hit().sourceRef(source.internalSourceRef());
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NEEDS_SOURCE;
+                }
+            }));
+            fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null);
+            assertThat(breakerCalledCount.get(), is(4));
+        } finally {
+            r.close();
+            dir.close();
+        }
+    }
+
     private static ContextIndexSearcher createSearcher(IndexReader reader) throws IOException {
         return new ContextIndexSearcher(reader, null, null, new QueryCachingPolicy() {
             @Override
@@ -857,6 +910,14 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     private static SearchContext createSearchContext(ContextIndexSearcher contextIndexSearcher, boolean allowPartialResults) {
+        return createSearchContext(contextIndexSearcher, allowPartialResults, null);
+    }
+
+    private static SearchContext createSearchContext(
+        ContextIndexSearcher contextIndexSearcher,
+        boolean allowPartialResults,
+        @Nullable CircuitBreaker circuitBreaker
+    ) {
         IndexSettings indexSettings = new IndexSettings(
             IndexMetadata.builder("index")
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -928,6 +989,15 @@ public class FetchSearchPhaseTests extends ESTestCase {
             @Override
             public ShardSearchRequest request() {
                 return request;
+            }
+
+            @Override
+            public CircuitBreaker circuitBreaker() {
+                if (circuitBreaker != null) {
+                    return circuitBreaker;
+                } else {
+                    return super.circuitBreaker();
+                }
             }
         };
         searchContext.addReleasable(searchContext.fetchResult()::decRef);

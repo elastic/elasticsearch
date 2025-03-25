@@ -38,7 +38,7 @@ dependencies {
  *  Enable QA/rest integration tests for snapshot builds only   *
  *  TODO: Enable for all builds upon this feature release       *
  ****************************************************************/
-if (buildParams.isSnapshotBuild()) {
+if (buildParams.snapshotBuild) {
   addQaCheckDependencies(project)
 }
 

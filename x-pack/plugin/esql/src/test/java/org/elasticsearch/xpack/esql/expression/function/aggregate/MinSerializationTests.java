@@ -21,9 +21,4 @@ public class MinSerializationTests extends AbstractExpressionSerializationTests<
     protected Min mutateInstance(Min instance) throws IOException {
         return new Min(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

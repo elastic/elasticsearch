@@ -98,8 +98,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
-        final boolean allowPartialResults = configuration.allowPartialResults();
-        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask, allowPartialResults) {
+        new DataNodeRequestSender(
+            transportService,
+            esqlExecutor,
+            clusterAlias,
+            parentTask,
+            configuration.allowPartialResults(),
+            configuration.pragmas().maxConcurrentNodesPerCluster()
+        ) {
             @Override
             protected void sendRequest(
                 DiscoveryNode node,
@@ -107,6 +113,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener nodeListener
             ) {
+                if (exchangeSource.isFinished()) {
+                    nodeListener.onSkip();
+                    return;
+                }
+
                 final AtomicLong pagesFetched = new AtomicLong();
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
@@ -129,12 +140,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     listener.delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
-                        if (allowPartialResults) {
-                            groupTask = RemoteListenerGroup.createGroupTask(
-                                transportService,
-                                parentTask,
-                                () -> "compute group: data-node [" + node.getName() + "], " + shardIds + " [" + shardIds + "]"
-                            );
+                        if (configuration.allowPartialResults()) {
+                            try {
+                                groupTask = computeService.createGroupTask(
+                                    parentTask,
+                                    () -> "compute group: data-node [" + node.getName() + "], " + shardIds + " [" + shardIds + "]"
+                                );
+                            } catch (TaskCancelledException e) {
+                                l.onFailure(e);
+                                return;
+                            }
                             onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
                             l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                         } else {
@@ -148,7 +163,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
                                 remoteSink,
-                                allowPartialResults == false,
+                                configuration.allowPartialResults() == false,
                                 pagesFetched::incrementAndGet,
                                 queryPragmas.concurrentExchangeClients(),
                                 computeListener.acquireAvoid()
@@ -180,12 +195,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     })
                 );
             }
-        };
-        sender.startComputeOnDataNodes(
+        }.startComputeOnDataNodes(
             clusterAlias,
             concreteIndices,
             originalIndices,
-            PlannerUtils.requestTimestampFilter(dataNodePlan),
+            PlannerUtils.canMatchFilter(dataNodePlan),
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );

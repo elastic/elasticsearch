@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -44,6 +45,64 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
+
+        // Warnings cases
+        suppliers.stream().toList().forEach(supplier -> {
+            DataType firstArgumentType = supplier.types().get(0);
+            String evaluatorTypePart = switch (firstArgumentType) {
+                case BOOLEAN -> "Boolean";
+                case INTEGER -> "Int";
+                case LONG, DATE_NANOS, DATETIME, UNSIGNED_LONG -> "Long";
+                case DOUBLE -> "Double";
+                case KEYWORD, TEXT, SEMANTIC_TEXT, IP, VERSION, GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> "BytesRef";
+                default -> throw new IllegalArgumentException("Unsupported type: " + firstArgumentType);
+            };
+
+            // Start offset greater than end offset
+            suppliers.add(new TestCaseSupplier(List.of(firstArgumentType, DataType.INTEGER, DataType.INTEGER), () -> {
+                int end = randomIntBetween(0, 10);
+                int start = randomIntBetween(end + 1, end + 10);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(List.of(randomLiteral(firstArgumentType).value()), firstArgumentType, "field"),
+                        new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                        new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
+                    ),
+                    "MvSlice"
+                        + evaluatorTypePart
+                        + "Evaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
+                    firstArgumentType,
+                    nullValue()
+                ).withFoldingException(InvalidArgumentException.class, "Start offset is greater than end offset")
+                    .withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning(
+                        "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Start offset is greater than end offset"
+                    );
+            }));
+
+            // Negative start with positive end
+            suppliers.add(new TestCaseSupplier(List.of(firstArgumentType, DataType.INTEGER, DataType.INTEGER), () -> {
+                int start = randomIntBetween(-10, -1);
+                int end = randomIntBetween(0, 10);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(List.of(randomLiteral(firstArgumentType).value()), firstArgumentType, "field"),
+                        new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                        new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
+                    ),
+                    "MvSlice"
+                        + evaluatorTypePart
+                        + "Evaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
+                    firstArgumentType,
+                    nullValue()
+                ).withFoldingException(InvalidArgumentException.class, "Start and end offset have different signs")
+                    .withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning(
+                        "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Start and end offset have different signs"
+                    );
+            }));
+        });
+
         return parameterSuppliersFromTypedData(
             anyNullIsNull(
                 suppliers,

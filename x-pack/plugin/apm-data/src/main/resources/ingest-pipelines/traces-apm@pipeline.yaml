@@ -31,12 +31,15 @@ processors:
     ignore_failure: true
     ignore_missing: true
 - set:
-    if: ctx.event?.outcome == 'success'
-    field: event.success_count
-    value: 1
-- set:
     if: ctx.event?.outcome == 'failure'
     field: event.success_count
     value: 0
+- set:
+    if: ctx.event?.outcome == 'success'
+    field: event.success_count
+    value: 1
+- script:
+    if: ctx.event?.outcome == 'success' && ctx[ctx.processor?.event]?.representative_count != null
+    source: ctx.event.success_count = ctx[ctx.processor?.event]?.representative_count;
 - pipeline:
     name: apm@pipeline

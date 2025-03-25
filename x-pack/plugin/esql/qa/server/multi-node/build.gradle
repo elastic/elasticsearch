@@ -17,7 +17,7 @@ dependencies {
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 restResources {
@@ -30,6 +30,6 @@ restResources {
 }
 
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
 }

@@ -9,10 +9,14 @@
 
 package org.elasticsearch.entitlement.bridge;
 
+import jdk.nio.Channels;
+
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.lang.foreign.AddressLayout;
@@ -57,14 +61,23 @@ import java.nio.file.AccessMode;
 import java.nio.file.CopyOption;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchService;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
+import java.security.KeyStore;
+import java.security.Provider;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Locale;
@@ -74,7 +87,9 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.logging.FileHandler;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -308,8 +323,209 @@ public interface EntitlementChecker {
 
     void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint, int backlog);
 
-    // Network miscellanea
+    // URLConnection (java.net + sun.net.www)
+
+    void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that);
+
     void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that, Proxy proxy);
+
+    void check$java_net_URL$openStream(Class<?> callerClass, java.net.URL that);
+
+    void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that);
+
+    void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that, Class<?>[] classes);
+
+    void check$java_net_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContentLengthLong(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContentEncoding(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getExpiration(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getDate(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getHeaderFieldInt(Class<?> callerClass, java.net.URLConnection that, String name, int defaultValue);
+
+    void check$java_net_URLConnection$getHeaderFieldLong(Class<?> callerClass, java.net.URLConnection that, String name, long defaultValue);
+
+    void check$java_net_URLConnection$getHeaderFieldDate(Class<?> callerClass, java.net.URLConnection that, String name, long defaultValue);
+
+    void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that, Class<?>[] classes);
+
+    void check$java_net_HttpURLConnection$getResponseCode(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$java_net_HttpURLConnection$getResponseMessage(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$java_net_HttpURLConnection$getHeaderFieldDate(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        String name,
+        long defaultValue
+    );
+
+    // Using java.net.URLConnection for "that" as sun.net.www.* is not exported
+    void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, String name);
+
+    void check$sun_net_www_URLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_URLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_ftp_FtpURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_ftp_FtpURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_ftp_FtpURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$$openConnectionCheckRedirects(Class<?> callerClass, java.net.URLConnection c);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getOutputStream(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getInputStream(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getErrorStream(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderField(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        String name
+    );
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderFields(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderField(Class<?> callerClass, java.net.HttpURLConnection that, int n);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.HttpURLConnection that, int n);
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$connect(Class<?> callerClass, javax.net.ssl.HttpsURLConnection that);
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getOutputStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getInputStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getErrorStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderField(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFields(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderField(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        int n
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldKey(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        int n
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getResponseCode(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getResponseMessage(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentLength(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentLengthLong(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentType(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentEncoding(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getExpiration(Class<?> callerClass, javax.net.ssl.HttpsURLConnection that);
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getDate(Class<?> callerClass, javax.net.ssl.HttpsURLConnection that);
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getLastModified(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldInt(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        int defaultValue
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldLong(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        long defaultValue
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldDate(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        long defaultValue
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContent(Class<?> callerClass, javax.net.ssl.HttpsURLConnection that);
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContent(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        Class<?>[] classes
+    );
+
+    void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_mailto_MailToURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_mailto_MailToURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    // Network miscellanea
 
     // HttpClient#send and sendAsync are abstract, so we instrument their internal implementations
     void check$jdk_internal_net_http_HttpClientImpl$send(
@@ -572,13 +788,67 @@ public interface EntitlementChecker {
 
     void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable, boolean ownerOnly);
 
+    void check$java_io_FileInputStream$(Class<?> callerClass, File file);
+
+    void check$java_io_FileInputStream$(Class<?> callerClass, FileDescriptor fd);
+
+    void check$java_io_FileInputStream$(Class<?> callerClass, String name);
+
     void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
 
     void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);
 
+    void check$java_io_FileOutputStream$(Class<?> callerClass, FileDescriptor fd);
+
     void check$java_io_FileOutputStream$(Class<?> callerClass, String name);
 
     void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append);
+
+    void check$java_io_FileReader$(Class<?> callerClass, File file);
+
+    void check$java_io_FileReader$(Class<?> callerClass, File file, Charset charset);
+
+    void check$java_io_FileReader$(Class<?> callerClass, FileDescriptor fd);
+
+    void check$java_io_FileReader$(Class<?> callerClass, String name);
+
+    void check$java_io_FileReader$(Class<?> callerClass, String name, Charset charset);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file, boolean append);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset, boolean append);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, FileDescriptor fd);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name, boolean append);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset, boolean append);
+
+    void check$java_io_RandomAccessFile$(Class<?> callerClass, String name, String mode);
+
+    void check$java_io_RandomAccessFile$(Class<?> callerClass, File file, String mode);
+
+    void check$java_security_KeyStore$$getInstance(Class<?> callerClass, File file, char[] password);
+
+    void check$java_security_KeyStore$$getInstance(Class<?> callerClass, File file, KeyStore.LoadStoreParameter param);
+
+    void check$java_security_KeyStore$Builder$$newInstance(Class<?> callerClass, File file, KeyStore.ProtectionParameter protection);
+
+    void check$java_security_KeyStore$Builder$$newInstance(
+        Class<?> callerClass,
+        String type,
+        Provider provider,
+        File file,
+        KeyStore.ProtectionParameter protection
+    );
 
     void check$java_util_Scanner$(Class<?> callerClass, File source);
 
@@ -586,15 +856,262 @@ public interface EntitlementChecker {
 
     void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
 
+    void check$java_util_jar_JarFile$(Class<?> callerClass, String name);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, String name, boolean verify);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, File file);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify, int mode);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify, int mode, Runtime.Version version);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, String name);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, String name, Charset charset);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, File file);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, Charset charset);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode, Charset charset);
+
     // nio
+    // channels
+    void check$java_nio_channels_FileChannel$(Class<?> callerClass);
+
+    void check$java_nio_channels_FileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    );
+
+    void check$java_nio_channels_FileChannel$$open(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_channels_AsynchronousFileChannel$(Class<?> callerClass);
+
+    void check$java_nio_channels_AsynchronousFileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        ExecutorService executor,
+        FileAttribute<?>... attrs
+    );
+
+    void check$java_nio_channels_AsynchronousFileChannel$$open(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$jdk_nio_Channels$$readWriteSelectableChannel(
+        Class<?> callerClass,
+        FileDescriptor fd,
+        Channels.SelectableChannelCloser closer
+    );
+
+    // files
     void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options);
 
     void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);
 
     void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);
 
-    // file system providers
+    void check$java_nio_file_Files$$newInputStream(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_file_Files$$newOutputStream(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_file_Files$$newByteChannel(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    );
+
+    void check$java_nio_file_Files$$newByteChannel(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir);
+
+    void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir, String glob);
+
+    void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir, DirectoryStream.Filter<? super Path> filter);
+
+    void check$java_nio_file_Files$$createFile(Class<?> callerClass, Path path, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createDirectory(Class<?> callerClass, Path dir, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createDirectories(Class<?> callerClass, Path dir, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createTempFile(Class<?> callerClass, Path dir, String prefix, String suffix, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createTempFile(Class<?> callerClass, String prefix, String suffix, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createTempDirectory(Class<?> callerClass, Path dir, String prefix, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createTempDirectory(Class<?> callerClass, String prefix, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createSymbolicLink(Class<?> callerClass, Path link, Path target, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createLink(Class<?> callerClass, Path link, Path existing);
+
+    void check$java_nio_file_Files$$delete(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$deleteIfExists(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$copy(Class<?> callerClass, Path source, Path target, CopyOption... options);
+
+    void check$java_nio_file_Files$$move(Class<?> callerClass, Path source, Path target, CopyOption... options);
+
+    void check$java_nio_file_Files$$readSymbolicLink(Class<?> callerClass, Path link);
+
+    void check$java_nio_file_Files$$getFileStore(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$isSameFile(Class<?> callerClass, Path path, Path path2);
+
+    void check$java_nio_file_Files$$mismatch(Class<?> callerClass, Path path, Path path2);
+
+    void check$java_nio_file_Files$$isHidden(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$getFileAttributeView(
+        Class<?> callerClass,
+        Path path,
+        Class<? extends FileAttributeView> type,
+        LinkOption... options
+    );
+
+    void check$java_nio_file_Files$$readAttributes(
+        Class<?> callerClass,
+        Path path,
+        Class<? extends BasicFileAttributes> type,
+        LinkOption... options
+    );
+
+    void check$java_nio_file_Files$$setAttribute(Class<?> callerClass, Path path, String attribute, Object value, LinkOption... options);
+
+    void check$java_nio_file_Files$$getAttribute(Class<?> callerClass, Path path, String attribute, LinkOption... options);
+
+    void check$java_nio_file_Files$$readAttributes(Class<?> callerClass, Path path, String attributes, LinkOption... options);
+
+    void check$java_nio_file_Files$$getPosixFilePermissions(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$setPosixFilePermissions(Class<?> callerClass, Path path, Set<PosixFilePermission> perms);
+
+    void check$java_nio_file_Files$$isSymbolicLink(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$isDirectory(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$isRegularFile(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$getLastModifiedTime(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$setLastModifiedTime(Class<?> callerClass, Path path, FileTime time);
+
+    void check$java_nio_file_Files$$size(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$exists(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$notExists(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$isReadable(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$isWritable(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$isExecutable(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$walkFileTree(
+        Class<?> callerClass,
+        Path start,
+        Set<FileVisitOption> options,
+        int maxDepth,
+        FileVisitor<? super Path> visitor
+    );
+
+    void check$java_nio_file_Files$$walkFileTree(Class<?> callerClass, Path start, FileVisitor<? super Path> visitor);
+
+    void check$java_nio_file_Files$$newBufferedReader(Class<?> callerClass, Path path, Charset cs);
+
+    void check$java_nio_file_Files$$newBufferedReader(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$newBufferedWriter(Class<?> callerClass, Path path, Charset cs, OpenOption... options);
+
+    void check$java_nio_file_Files$$newBufferedWriter(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_file_Files$$copy(Class<?> callerClass, InputStream in, Path target, CopyOption... options);
+
+    void check$java_nio_file_Files$$copy(Class<?> callerClass, Path source, OutputStream out);
+
+    void check$java_nio_file_Files$$readAllBytes(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$readString(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$readString(Class<?> callerClass, Path path, Charset cs);
+
+    void check$java_nio_file_Files$$readAllLines(Class<?> callerClass, Path path, Charset cs);
+
+    void check$java_nio_file_Files$$readAllLines(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$write(Class<?> callerClass, Path path, byte[] bytes, OpenOption... options);
+
+    void check$java_nio_file_Files$$write(
+        Class<?> callerClass,
+        Path path,
+        Iterable<? extends CharSequence> lines,
+        Charset cs,
+        OpenOption... options
+    );
+
+    void check$java_nio_file_Files$$write(Class<?> callerClass, Path path, Iterable<? extends CharSequence> lines, OpenOption... options);
+
+    void check$java_nio_file_Files$$writeString(Class<?> callerClass, Path path, CharSequence csq, OpenOption... options);
+
+    void check$java_nio_file_Files$$writeString(Class<?> callerClass, Path path, CharSequence csq, Charset cs, OpenOption... options);
+
+    void check$java_nio_file_Files$$list(Class<?> callerClass, Path dir);
+
+    void check$java_nio_file_Files$$walk(Class<?> callerClass, Path start, int maxDepth, FileVisitOption... options);
+
+    void check$java_nio_file_Files$$walk(Class<?> callerClass, Path start, FileVisitOption... options);
+
+    void check$java_nio_file_Files$$find(
+        Class<?> callerClass,
+        Path start,
+        int maxDepth,
+        BiPredicate<Path, BasicFileAttributes> matcher,
+        FileVisitOption... options
+    );
+
+    void check$java_nio_file_Files$$lines(Class<?> callerClass, Path path, Charset cs);
+
+    void check$java_nio_file_Files$$lines(Class<?> callerClass, Path path);
+
     void check$java_nio_file_spi_FileSystemProvider$(Class<?> callerClass);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, boolean append);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, int limit, int count);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, int limit, int count, boolean append);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, long limit, int count, boolean append);
+
+    void check$java_util_logging_FileHandler$close(Class<?> callerClass, FileHandler that);
+
+    void check$java_net_http_HttpRequest$BodyPublishers$$ofFile(Class<?> callerClass, Path path);
+
+    void check$java_net_http_HttpResponse$BodyHandlers$$ofFile(Class<?> callerClass, Path path);
+
+    void check$java_net_http_HttpResponse$BodyHandlers$$ofFile(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_net_http_HttpResponse$BodyHandlers$$ofFileDownload(Class<?> callerClass, Path directory, OpenOption... openOptions);
+
+    void check$java_net_http_HttpResponse$BodySubscribers$$ofFile(Class<?> callerClass, Path directory);
+
+    void check$java_net_http_HttpResponse$BodySubscribers$$ofFile(Class<?> callerClass, Path directory, OpenOption... openOptions);
 
     void checkNewFileSystem(Class<?> callerClass, FileSystemProvider that, URI uri, Map<String, ?> env);
 
@@ -687,7 +1204,7 @@ public interface EntitlementChecker {
     void checkType(Class<?> callerClass, FileStore that);
 
     // path
-    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options);
+    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws NoSuchFileException;
 
     void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events);
 
@@ -698,6 +1215,54 @@ public interface EntitlementChecker {
         WatchEvent.Kind<?>[] events,
         WatchEvent.Modifier... modifiers
     );
+
+    // URLConnection
+
+    void check$sun_net_www_protocol_file_FileURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, String name);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getContentLengthLong(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_JarURLConnection$getManifest(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getAttributes(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getMainAttributes(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getCertificates(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getJarFile(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$connect(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getInputStream(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentLength(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentLengthLong(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContent(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentType(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getHeaderField(Class<?> callerClass, java.net.JarURLConnection that, String name);
 
     ////////////////////
     //

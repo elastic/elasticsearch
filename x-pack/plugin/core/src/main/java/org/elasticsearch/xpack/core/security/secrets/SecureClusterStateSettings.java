@@ -37,7 +37,7 @@ public class SecureClusterStateSettings implements SecureSettings {
 
     private final Map<String, Entry> secrets;
 
-    SecureClusterStateSettings(SecureSettings secureSettings) {
+    public SecureClusterStateSettings(SecureSettings secureSettings) {
         secrets = new HashMap<>();
         for (String key : secureSettings.getSettingNames()) {
             try {
@@ -51,16 +51,16 @@ public class SecureClusterStateSettings implements SecureSettings {
         }
     }
 
-    SecureClusterStateSettings(StreamInput in) throws IOException {
-        secrets = in.readMap(StreamInput::readString, v -> new Entry(in.readByteArray(), in.readByteArray()));
-    }
-
-    SecureClusterStateSettings(Map<String, byte[]> settings) {
+    public SecureClusterStateSettings(Map<String, byte[]> settings) {
         secrets = settings.entrySet()
             .stream()
             .collect(
                 Collectors.toMap(Map.Entry::getKey, entry -> new Entry(entry.getValue(), MessageDigests.sha256().digest(entry.getValue())))
             );
+    }
+
+    SecureClusterStateSettings(StreamInput in) throws IOException {
+        secrets = in.readMap(StreamInput::readString, v -> new Entry(in.readByteArray(), in.readByteArray()));
     }
 
     @Override

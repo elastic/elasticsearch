@@ -15,22 +15,13 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Secrets that are stored in project state as a {@link Metadata.ProjectCustom}
@@ -49,49 +40,9 @@ public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom
 
     public static final String TYPE = "project_state_secrets";
 
-    private final SecureSettings settings;
+    private final SecureClusterStateSettings settings;
 
-    public static final ParseField STRING_SECRETS_FIELD = new ParseField("string_secrets");
-    public static final ParseField FILE_SECRETS_FIELD = new ParseField("file_secrets");
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Map<String, byte[]>, Void> PARSER = new ConstructingObjectParser<>(
-        "project_secrets_parser",
-        a -> {
-            final var decoder = Base64.getDecoder();
-
-            Map<String, byte[]> stringSecretsMap = a[0] == null
-                ? Map.of()
-                : ((Map<String, String>) a[0]).entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getBytes(StandardCharsets.UTF_8)));
-
-            Map<String, byte[]> fileSecretsByteMap = a[1] == null
-                ? Map.of()
-                : ((Map<String, String>) a[1]).entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> decoder.decode(e.getValue())));
-
-            Set<String> duplicateKeys = fileSecretsByteMap.keySet()
-                .stream()
-                .filter(stringSecretsMap::containsKey)
-                .collect(Collectors.toSet());
-
-            if (duplicateKeys.isEmpty() == false) {
-                throw new IllegalStateException("Some settings were defined as both string and file settings: " + duplicateKeys);
-            }
-
-            return Stream.concat(stringSecretsMap.entrySet().stream(), fileSecretsByteMap.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        }
-    );
-
-    static {
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), STRING_SECRETS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), FILE_SECRETS_FIELD);
-    }
-
-    public ProjectSecrets(SecureSettings settings) {
+    public ProjectSecrets(SecureClusterStateSettings settings) {
         this.settings = settings;
     }
 
@@ -101,10 +52,6 @@ public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom
 
     public SecureSettings getSettings() {
         return settings;
-    }
-
-    public static ProjectSecrets fromXContent(XContentParser parser) {
-        return new ProjectSecrets(new SecureClusterStateSettings(PARSER.apply(parser, null)));
     }
 
     @Override

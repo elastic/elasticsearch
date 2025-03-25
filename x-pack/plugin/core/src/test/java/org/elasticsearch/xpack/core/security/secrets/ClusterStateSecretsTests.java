@@ -64,7 +64,7 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
     }
 
     public void testGetSettings() throws Exception {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, locallyMountedSecrets);
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
 
         assertThat(clusterStateSecrets.getSettings().getSettingNames(), containsInAnyOrder("foo", "goo"));
         assertThat(clusterStateSecrets.getSettings().getString("foo").toString(), equalTo("bar"));
@@ -78,13 +78,13 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
     }
 
     public void testFileSettings() throws Exception {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, locallyMountedSecrets);
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
 
         assertThat(clusterStateSecrets.getSettings().getFile("foo").readAllBytes(), equalTo("bar".getBytes(StandardCharsets.UTF_8)));
     }
 
     public void testSerialize() throws Exception {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, locallyMountedSecrets);
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
 
         final BytesStreamOutput out = new BytesStreamOutput();
         clusterStateSecrets.writeTo(out);
@@ -100,20 +100,20 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
     }
 
     public void testToXContentChunked() {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, locallyMountedSecrets);
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
 
         // we never serialize anything to x-content
         assertFalse(clusterStateSecrets.toXContentChunked(EMPTY_PARAMS).hasNext());
     }
 
     public void testToString() {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, locallyMountedSecrets);
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
 
         assertThat(clusterStateSecrets.toString(), equalTo("ClusterStateSecrets{[all secret]}"));
     }
 
     public void testClose() throws Exception {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, locallyMountedSecrets);
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
 
         SecureSettings settings = clusterStateSecrets.getSettings();
         assertThat(settings.getSettingNames(), containsInAnyOrder("foo", "goo"));
@@ -146,7 +146,7 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
 
     @Override
     protected ClusterSecrets mutateInstance(ClusterSecrets instance) throws IOException {
-        return new ClusterSecrets(instance.getVersion() + 1L, instance.getSettings());
+        return new ClusterSecrets(instance.getVersion() + 1L, new SecureClusterStateSettings(instance.getSettings()));
     }
 
     @Override

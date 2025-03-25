@@ -50,9 +50,9 @@ public class ClusterSecrets extends AbstractNamedDiffable<ClusterState.Custom> i
     private final SecureClusterStateSettings settings;
     private final long version;
 
-    public ClusterSecrets(long version, SecureSettings settings) {
+    public ClusterSecrets(long version, SecureClusterStateSettings settings) {
         this.version = version;
-        this.settings = new SecureClusterStateSettings(settings);
+        this.settings = settings;
     }
 
     public ClusterSecrets(StreamInput in) throws IOException {
@@ -61,7 +61,7 @@ public class ClusterSecrets extends AbstractNamedDiffable<ClusterState.Custom> i
     }
 
     public SecureSettings getSettings() {
-        return new SecureClusterStateSettings(settings);
+        return settings;
     }
 
     public long getVersion() {

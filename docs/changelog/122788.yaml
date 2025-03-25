@@ -1,6 +1,0 @@
-pr: 122788
-summary: Add phase failures to search responses
-area: Ranking
-type: enhancement
-issues:
- - 116796

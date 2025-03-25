@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -43,7 +44,7 @@ public class PerFieldFormatSupplier {
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
         this.mapperService = mapperService;
-        var nodeSettings = mapperService.getIndexSettings().getNodeSettings();
+        var nodeSettings = mapperService != null ? mapperService.getIndexSettings().getNodeSettings() : Settings.EMPTY;
         this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat(CodecService.TSDB_DOC_VALUES_OPTIMIZED_MERGE_SETTING.get(nodeSettings));
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
     }

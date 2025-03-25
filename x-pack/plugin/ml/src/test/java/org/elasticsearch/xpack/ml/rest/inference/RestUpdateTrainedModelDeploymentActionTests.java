@@ -12,15 +12,19 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 
+import java.io.IOException;
 import java.util.HashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RestUpdateTrainedModelDeploymentActionTests extends RestActionTestCase {
     public void testNumberOfAllocationInParam() {
@@ -33,7 +37,15 @@ public class RestUpdateTrainedModelDeploymentActionTests extends RestActionTestC
             assertEquals(request.getNumberOfAllocations().intValue(), 5);
 
             executeCalled.set(true);
-            return mock(CreateTrainedModelAssignmentAction.Response.class);
+            final var response = mock(CreateTrainedModelAssignmentAction.Response.class);
+            try {
+                when(response.toXContent(any(), any())).thenAnswer(
+                    invocation -> asInstanceOf(XContentBuilder.class, invocation.getArgument(0)).startObject().endObject()
+                );
+            } catch (IOException e) {
+                fail(e);
+            }
+            return response;
         }));
         var params = new HashMap<String, String>();
         params.put("number_of_allocations", "5");

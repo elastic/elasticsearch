@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -19,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -203,6 +205,18 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
      */
     public static IndexReshardingMetadata newSplitByMultiple(int shardCount, int multiple) {
         return new IndexReshardingMetadata(IndexReshardingState.Split.newSplitByMultiple(shardCount, multiple));
+    }
+
+    public IndexReshardingMetadata transitionSplitTargetToHandoff(ShardId shardId) {
+        assert state instanceof IndexReshardingState.Split;
+        IndexReshardingState.Split splitState = (IndexReshardingState.Split) state;
+        IndexReshardingState.Split.TargetShardState[] newTargets = Arrays.copyOf(
+            splitState.targetShards(),
+            splitState.targetShards().length
+        );
+        int i = shardId.getId() - state.shardCountBefore();
+        newTargets[i] = IndexReshardingState.Split.TargetShardState.HANDOFF;
+        return new IndexReshardingMetadata(new IndexReshardingState.Split(splitState.sourceShards(), newTargets));
     }
 
     /**

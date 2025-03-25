@@ -12,9 +12,11 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -127,15 +129,19 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                 for (Map.Entry<ShardId, Updates> shardEntry : indexChanges) {
                     ShardId shardId = shardEntry.getKey();
                     Updates updates = shardEntry.getValue();
-                    updatedIndexMetadata = updateInSyncAllocations(
-                        newRoutingTable.routingTable(projectMetadata.id()),
-                        oldIndexMetadata,
-                        updatedIndexMetadata,
-                        shardId,
-                        updates
-                    );
+                    RoutingTable routingTable = newRoutingTable.routingTable(projectMetadata.id());
+                    updatedIndexMetadata = updateInSyncAllocations(routingTable, oldIndexMetadata, updatedIndexMetadata, shardId, updates);
+                    IndexRoutingTable indexRoutingTable = routingTable.index(shardEntry.getKey().getIndex());
+                    RecoverySource recoverySource = indexRoutingTable.shard(shardEntry.getKey().id()).primaryShard().recoverySource();
+                    IndexReshardingMetadata reshardingMetadata = updatedIndexMetadata.getReshardingMetadata();
+                    boolean split = recoverySource != null && reshardingMetadata != null;
                     updatedIndexMetadata = updates.increaseTerm
-                        ? updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
+                        ? split
+                            ? updatedIndexMetadata.withSetPrimaryTerm(
+                                shardId.id(),
+                                splitPrimaryTerm(updatedIndexMetadata, reshardingMetadata, shardId)
+                            )
+                            : updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
                         : updatedIndexMetadata;
                 }
                 if (updatedIndexMetadata != oldIndexMetadata) {
@@ -145,6 +151,15 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
             updatedMetadata.put(projectMetadata.withAllocationAndTermUpdatesOnly(updatedIndices));
         });
         return updatedMetadata.build();
+    }
+
+    private static long splitPrimaryTerm(IndexMetadata updatedIndexMetadata, IndexReshardingMetadata reshardingMetadata, ShardId shardId) {
+        // We take the max of the source and target primary terms. This guarantees that the target primary term stays
+        // greater than or equal to the source.
+        return Math.max(
+            updatedIndexMetadata.primaryTerm(shardId.getId() % reshardingMetadata.shardCountBefore()),
+            updatedIndexMetadata.primaryTerm(shardId.id()) + 1
+        );
     }
 
     /**

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.elasticsearch.core.AbstractRefCounted;
@@ -20,9 +21,12 @@ import org.elasticsearch.core.Releasable;
 public class AmazonS3Reference extends AbstractRefCounted implements Releasable {
 
     private final S3Client client;
+    /** The S3Client shutdown logic does not handle shutdown of the HttpClient passed into it. So we must manually handle that. */
+    private final SdkHttpClient httpClient;
 
-    AmazonS3Reference(S3Client client) {
+    AmazonS3Reference(S3Client client, SdkHttpClient httpClient) {
         this.client = client;
+        this.httpClient = httpClient;
     }
 
     /**
@@ -44,6 +48,7 @@ public class AmazonS3Reference extends AbstractRefCounted implements Releasable 
     @Override
     protected void closeInternal() {
         client.close();
+        httpClient.close();
     }
 
 }

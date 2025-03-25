@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -26,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
-import org.mockito.Mockito;
 
 import java.util.Map;
 
@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class S3RepositoryTests extends ESTestCase {
 
@@ -59,7 +60,7 @@ public class S3RepositoryTests extends ESTestCase {
 
         @Override
         public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
-            return new AmazonS3Reference(new DummyS3Client());
+            return new AmazonS3Reference(new DummyS3Client(), mock(SdkHttpClient.class));
         }
 
         @Override
@@ -152,7 +153,7 @@ public class S3RepositoryTests extends ESTestCase {
         return new S3Repository(
             metadata,
             NamedXContentRegistry.EMPTY,
-            new DummyS3Service(Mockito.mock(Environment.class), Mockito.mock(ResourceWatcherService.class)),
+            new DummyS3Service(mock(Environment.class), mock(ResourceWatcherService.class)),
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),

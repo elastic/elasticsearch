@@ -8,18 +8,20 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.retry.RetryPolicyContext;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
-
-import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
-import software.amazon.awssdk.awscore.exception.AwsServiceException;
-import software.amazon.awssdk.core.retry.RetryPolicyContext;
-import software.amazon.awssdk.core.retry.conditions.RetryCondition;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.IOException;
 
@@ -29,7 +31,6 @@ import static org.mockito.Mockito.mock;
 public class S3ServiceTests extends ESTestCase {
 
     public void testCachedClientsAreReleased() throws IOException {
-        // TODO NOMERGE: this doesn't pass, region handling needs fixing.
         final S3Service s3Service = new S3Service(mock(Environment.class), Settings.EMPTY, mock(ResourceWatcherService.class));
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
@@ -55,16 +56,17 @@ public class S3ServiceTests extends ESTestCase {
             .statusCode(RestStatus.FORBIDDEN.getStatus())
             .build();
 
-
         // AWS default retry condition does not retry on 403
-        assertFalse(RetryCondition
-            .defaultRetryCondition()
-            .shouldRetry(RetryPolicyContext.builder().retriesAttempted(between(0, 9)).exception(s3Exception).build())
+        assertFalse(
+            RetryCondition.defaultRetryCondition()
+                .shouldRetry(RetryPolicyContext.builder().retriesAttempted(between(0, 9)).exception(s3Exception).build())
         );
 
         // The retryable 403 condition retries on 403 invalid access key id
-        assertTrue(S3Service.RETRYABLE_403_RETRY_POLICY.shouldRetry(
-            RetryPolicyContext.builder().retriesAttempted(between(0, 9)).exception(s3Exception).build())
+        assertTrue(
+            S3Service.RETRYABLE_403_RETRY_POLICY.shouldRetry(
+                RetryPolicyContext.builder().retriesAttempted(between(0, 9)).exception(s3Exception).build()
+            )
         );
 
         if (randomBoolean()) {

@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.s3;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.apache.logging.log4j.LogManager;
@@ -268,9 +269,11 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
         public static final class ClientAndCredentials extends AmazonS3Wrapper {
             final AwsCredentialsProvider credentials;
+            final SdkHttpClient httpClient;
 
-            ClientAndCredentials(S3Client delegate, AwsCredentialsProvider credentials) {
+            ClientAndCredentials(S3Client delegate, SdkHttpClient httpClient, AwsCredentialsProvider credentials) {
                 super(delegate);
+                this.httpClient = httpClient;
                 this.credentials = credentials;
             }
 
@@ -281,7 +284,8 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
             @Override
             public void close() {
-
+                super.close();
+                httpClient.close();
             }
         }
 
@@ -297,9 +301,13 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            S3Client buildClient(final S3ClientSettings clientSettings) {
-                final S3Client client = super.buildClient(clientSettings);
-                return new ClientAndCredentials(client, buildCredentials(logger, clientSettings, webIdentityTokenCredentialsProvider));
+            S3Client buildClient(final S3ClientSettings clientSettings, SdkHttpClient httpClient) {
+                final S3Client client = super.buildClient(clientSettings, httpClient);
+                return new ClientAndCredentials(
+                    client,
+                    httpClient,
+                    buildCredentials(logger, clientSettings, webIdentityTokenCredentialsProvider)
+                );
             }
 
         }

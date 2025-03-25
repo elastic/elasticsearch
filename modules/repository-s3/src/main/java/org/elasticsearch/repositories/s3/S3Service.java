@@ -9,21 +9,19 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.common.ReferenceDocs;
-
-import org.elasticsearch.core.SuppressForbidden;
-
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
@@ -55,12 +53,9 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivilegedAction;
@@ -161,7 +156,9 @@ class S3Service implements Closeable {
             if (existing != null && existing.tryIncRef()) {
                 return existing;
             }
-            final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings));
+            // TODO NOMERGE: consider alternative methods of retaining an httpClient reference for an explicit close() call.
+            SdkHttpClient httpClient = buildHttpClient(clientSettings);
+            final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings, httpClient), httpClient);
             clientReference.mustIncRef();
             clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
             return clientReference;
@@ -204,25 +201,31 @@ class S3Service implements Closeable {
     }
 
     // proxy for testing
-    S3Client buildClient(final S3ClientSettings clientSettings) {
-        final S3ClientBuilder s3clientBuilder = buildClientBuilder(clientSettings);
+    S3Client buildClient(final S3ClientSettings clientSettings, SdkHttpClient httpClient) {
+        final S3ClientBuilder s3clientBuilder = buildClientBuilder(clientSettings, httpClient);
         return SocketAccess.doPrivileged(s3clientBuilder::build);
     }
 
-    protected S3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
+    protected S3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings, SdkHttpClient httpClient) {
         // TODO NOMERGE ensure this has all the same config features as the v1 SDK
         var s3clientBuilder = S3Client.builder();
-        s3clientBuilder.httpClient(buildHttpClient(clientSettings).build());
+        s3clientBuilder.httpClient(httpClient);
         s3clientBuilder.overrideConfiguration(buildConfiguration(clientSettings, isStateless));
         s3clientBuilder.serviceConfiguration(b -> b.chunkedEncodingEnabled(clientSettings.disableChunkedEncoding == false));
 
         s3clientBuilder.credentialsProvider(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
+        // TODO NOMERGE: may not want this, TBD
+        s3clientBuilder.crossRegionAccessEnabled(true);
 
         if (clientSettings.pathStyleAccess) {
             s3clientBuilder.forcePathStyle(true);
         }
         if (Strings.hasLength(clientSettings.region)) {
             s3clientBuilder.region(Region.of(clientSettings.region));
+        } else {
+            // TODO NOMERGE: how we handle regions TBD, this allows testing to pass
+            s3clientBuilder.region(Region.of("us-east-1"));
+
         }
         if (Strings.hasLength(clientSettings.endpoint)) {
             s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint)); // TODO NOMERGE what if URI.create fails?
@@ -231,14 +234,14 @@ class S3Service implements Closeable {
         return s3clientBuilder;
     }
 
-    static ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
+    static SdkHttpClient buildHttpClient(S3ClientSettings clientSettings) {
         ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
 
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
         httpClientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
 
         applyProxyConfiguration(clientSettings, httpClientBuilder);
-        return httpClientBuilder;
+        return httpClientBuilder.build();
     }
 
     static final RetryCondition RETRYABLE_403_RETRY_POLICY = (retryPolicyContext) -> {
@@ -302,20 +305,24 @@ class S3Service implements Closeable {
             if (webIdentityTokenCredentialsProvider.isActive()) {
                 logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials"); // TODO: fix comment?
                 return new PrivilegedAwsCredentialsProvider(
-                    AwsCredentialsProviderChain.of(
-                        new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER),
-                        // TODO: look into exceptions for these: sounds like they throw if unused? Instead of benignly doing nothing
-                        // TODO: Also maybe only one of these?
-                        // Thoughts: can I used DefaultCredentialsProvider.create() instead and avoid this problem entirely?
-                        // Thoughts: ContainerCredentialsProvider can go last? Then if it throws, that's OK.
-                        // new ErrorLoggingCredentialsProvider(ContainerCredentialsProvider.create(), LOGGER),
-                        // new ErrorLoggingCredentialsProvider(InstanceProfileCredentialsProvider.create(), LOGGER)
-                        new ErrorLoggingCredentialsProvider(DefaultCredentialsProvider.create(), LOGGER)
-                    )
+                    AwsCredentialsProviderChain.builder()
+                        .reuseLastProviderEnabled(false)
+                        .addCredentialsProvider(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER))
+                        // TODO NOMERGE: revisit whether this conversion makes sense
+                        // Consider using DefaultCredentialsProvider rather than these two particular providers.
+                        .addCredentialsProvider(new ErrorLoggingCredentialsProvider(ContainerCredentialsProvider.create(), LOGGER))
+                        .addCredentialsProvider(new ErrorLoggingCredentialsProvider(InstanceProfileCredentialsProvider.create(), LOGGER))
+                        .build()
                 );
             } else {
-                logger.debug("Using instance profile credentials"); // TODO: fix comment?
-                return new PrivilegedAwsCredentialsProvider(DefaultCredentialsProvider.create());
+                logger.debug("Using instance profile credentials"); // TODO NOMERGE: fix comment
+                return new PrivilegedAwsCredentialsProvider(
+                    AwsCredentialsProviderChain.builder()
+                        .reuseLastProviderEnabled(false)
+                        .addCredentialsProvider(ContainerCredentialsProvider.create())
+                        .addCredentialsProvider(InstanceProfileCredentialsProvider.create())
+                        .build()
+                );
             }
         } else {
             logger.debug("Using basic key/secret credentials");
@@ -632,4 +639,3 @@ class S3Service implements Closeable {
         String getProperty(String key, String defaultValue);
     }
 }
-

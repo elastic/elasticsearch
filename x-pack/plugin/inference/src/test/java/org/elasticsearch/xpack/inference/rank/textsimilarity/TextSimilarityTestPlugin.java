@@ -271,6 +271,8 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                             TaskType.RERANK,
                             inferenceId,
                             inferenceText,
+                            null,
+                            null,
                             docFeatures,
                             Map.of("throwing", true),
                             InputType.INTERNAL_SEARCH,

@@ -253,6 +253,7 @@ public class TransportVersions {
     public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16 = def(8_772_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_5 = def(8_772_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_6 = def(8_772_0_06);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_7 = def(8_772_0_07);
 
     /*
      * STOP! READ THIS FIRST! No, really,

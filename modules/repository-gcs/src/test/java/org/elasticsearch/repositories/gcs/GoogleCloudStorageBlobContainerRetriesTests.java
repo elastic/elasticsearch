@@ -449,12 +449,16 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                         return;
                     }
                 }
-
-                exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
             } else {
                 ExceptionsHelper.maybeDieOnAnotherThread(
                     new AssertionError("Unexpected request" + exchange.getRequestMethod() + " " + exchange.getRequestURI())
                 );
+            }
+
+            if (randomBoolean()) {
+                exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
+            } else {
+                logger.warn("Closing connection without response");
             }
         }));
 

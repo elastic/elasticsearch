@@ -109,6 +109,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public void infer(
             Model model,
             @Nullable String query,
+            @Nullable Boolean returnDocuments,
+            @Nullable Integer topN,
             List<String> input,
             boolean stream,
             Map<String, Object> taskSettings,

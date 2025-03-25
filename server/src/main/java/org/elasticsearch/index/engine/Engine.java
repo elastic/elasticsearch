@@ -2371,7 +2371,7 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine()}.
+     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine(Consumer<Engine>)}.
      *
      * In general, resetting the engine should be done with care, to consider any
      * in-progress operations and listeners (e.g., primary term and generation listeners).

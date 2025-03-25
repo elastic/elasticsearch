@@ -1241,17 +1241,8 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(document.getFieldValue("foo[\"dotted.field\"]", String.class), equalTo("value1"));
 
         // Test multiple bracket notations mixed with dots
-        document.setFieldValue("foo", Map.of(
-            "nested.field", Map.of(
-                "bar", Map.of(
-                    "another.field", "value2"
-                )
-            )
-        ));
-        assertThat(
-            document.getFieldValue("foo['nested.field'].bar[\"another.field\"]", String.class),
-            equalTo("value2")
-        );
+        document.setFieldValue("foo", Map.of("nested.field", Map.of("bar", Map.of("another.field", "value2"))));
+        assertThat(document.getFieldValue("foo['nested.field'].bar[\"another.field\"]", String.class), equalTo("value2"));
     }
 
     public void testInvalidBracketNotation() {
@@ -1268,10 +1259,7 @@ public class IngestDocumentTests extends ESTestCase {
         // Missing quotes
         document.setFieldValue("foo[dotted", Map.of("field]", "value"));
 
-        assertThat(
-            document.getFieldValue("foo[dotted.field]", String.class),
-            equalTo("value")
-        );
+        assertThat(document.getFieldValue("foo[dotted.field]", String.class), equalTo("value"));
 
         // Mixed quotes
         IllegalArgumentException e3 = expectThrows(
@@ -1281,10 +1269,7 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(e3.getMessage(), containsString("path [foo['dotted.field\"]] is not valid"));
 
         // Empty brackets
-        IllegalArgumentException e4 = expectThrows(
-            IllegalArgumentException.class,
-            () -> document.getFieldValue("['']", String.class)
-        );
+        IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class, () -> document.getFieldValue("['']", String.class));
         assertThat(e4.getMessage(), containsString("path [['']] is not valid"));
     }
 }

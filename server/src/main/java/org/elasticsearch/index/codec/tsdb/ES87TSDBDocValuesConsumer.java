@@ -222,7 +222,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void mergeNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeFieldInfo, mergeState, (docValuesProducer) -> {
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, (docValuesProducer) -> {
             var numeric = docValuesProducer.getNumeric(mergeFieldInfo);
             if (numeric instanceof ES87TSDBDocValuesProducer.BaseNumericDocValues baseNumericDocValues) {
                 var entry = baseNumericDocValues.entry;
@@ -315,7 +315,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void mergeSortedField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeFieldInfo, mergeState, (docValuesProducer) -> {
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, (docValuesProducer) -> {
             var sorted = docValuesProducer.getSorted(mergeFieldInfo);
             if (sorted instanceof ES87TSDBDocValuesProducer.BaseSortedDocValues baseSortedDocValues) {
                 var entry = baseSortedDocValues.entry;
@@ -568,7 +568,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void mergeSortedNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeFieldInfo, mergeState, (docValuesProducer) -> {
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, (docValuesProducer) -> {
             var sortedNumeric = docValuesProducer.getSortedNumeric(mergeFieldInfo);
             if (sortedNumeric instanceof ES87TSDBDocValuesProducer.BaseSortedNumericDocValues baseSortedNumericDocValues) {
                 var entry = baseSortedNumericDocValues.entry;
@@ -609,7 +609,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void mergeSortedSetField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeFieldInfo, mergeState, (docValuesProducer) -> {
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, (docValuesProducer) -> {
             var sortedSet = docValuesProducer.getSortedSet(mergeFieldInfo);
             if (sortedSet instanceof ES87TSDBDocValuesProducer.BaseSortedSetDocValues baseSortedSet) {
                 var entry = baseSortedSet.entry;

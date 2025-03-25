@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.DocIDMerger;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
@@ -38,7 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Contains mainly forked code from {@link org.apache.lucene.codecs.DocValuesConsumer}.
+ * Mostly contains forked code from {@link org.apache.lucene.codecs.DocValuesConsumer}.
  */
 class DocValuesConsumerUtil {
 
@@ -60,13 +59,10 @@ class DocValuesConsumerUtil {
 
     static MergeStats compatibleWithOptimizedMerge(
         boolean optimizedMergeEnabled,
-        FieldInfo mergeFieldInfo,
         MergeState mergeState,
         CheckedFunction<DocValuesProducer, FieldEntry, IOException> getEntryFunction
     ) throws IOException {
-        if (optimizedMergeEnabled == false
-            || mergeState.needsIndexSort == false
-            || mergeFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
+        if (optimizedMergeEnabled == false || mergeState.needsIndexSort == false) {
             return UNSUPPORTED;
         }
 

@@ -314,14 +314,9 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -
 
 <% if (docker_base == 'fips') { %>
 COPY --from=builder --chown=0:0 /opt /opt
-USER 1000:0
 ENV ES_PLUGIN_ARCHIVE_DIR /opt/plugins/archive
-
 WORKDIR /usr/share/elasticsearch
-
 COPY --from=builder --chown=0:0 /fips/libs/*.jar /usr/share/elasticsearch/lib/
-
-USER 1000:0
 <% } %>
 ################################################################################
 # End of multi-stage Dockerfile

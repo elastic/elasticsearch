@@ -38,18 +38,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":modules:reindex");
         map.put(LegacyRestTestBasePlugin.class, ":modules:repository-url");
         map.put(LegacyRestTestBasePlugin.class, ":modules:transport-netty4");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-icu");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-kuromoji");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-nori");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-phonetic");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-smartcn");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-stempel");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-ukrainian");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:discovery-azure-classic");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:discovery-ec2");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:discovery-gce");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:mapper-annotated-text");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:store-smb");
         map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-rolling-upgrade-remote-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:multi-cluster-search");

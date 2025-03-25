@@ -123,8 +123,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                     )
                 )
             );
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(exception.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
+            assertFailuresSelectorNotSupported(exception);
         }
         {
             // direct access to backing failure index is not allowed - no explicit read privileges over .fs-* indices

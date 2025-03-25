@@ -54,6 +54,8 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
     private static final String ALL_ACCESS = "all_access";
     private static final String DATA_ACCESS = "data_access";
     private static final String FAILURE_STORE_ACCESS = "failure_store_access";
+    private static final String MANAGE_FAILURE_STORE_ACCESS = "manage_failure_store_access";
+    private static final String READ_FAILURE_STORE_ACCESS = "read_failure_store_access";
 
     public void testRCS1CrossClusterSearch() throws Exception {
         final boolean rcs1Security = true;
@@ -106,14 +108,13 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                         String.format(
                             Locale.ROOT,
                             "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s&ignore_unavailable=true",
-                            randomFrom("test1::failures", "test*::failures", "*::failures"),
+                            randomFrom("test1::failures", "test*::failures", "*::failures", "other1::failures", "non-existing::failures"),
                             ccsMinimizeRoundtrips
                         )
                     )
                 )
             );
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(exception.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
+            assertFailuresSelectorNotSupported(exception);
         }
         {
             // direct access to backing failure index is subject to the user's permissions
@@ -137,25 +138,8 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                     ResponseException.class,
                     () -> performRequestWithUser(DATA_ACCESS, failureIndexSearchRequest)
                 );
-                assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-                assertThat(
-                    exception.getMessage(),
-                    containsString(
-                        "action ["
-                            + (ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards")
-                            + "] is unauthorized for user ["
-                            + DATA_ACCESS
-                            + "] "
-                            + "with effective roles ["
-                            + DATA_ACCESS
-                            + "] on indices ["
-                            + backingFailureIndexName
-                            + "], this action is granted by the index privileges ["
-                            + (ccsMinimizeRoundtrips ? "read,all" : "view_index_metadata,manage,read_cross_cluster,all")
-                            + "]"
-
-                    )
-                );
+                final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards";
+                assertActionUnauthorized(exception, DATA_ACCESS, action, backingFailureIndexName);
             }
 
             // for user with access to failure store, it depends on the underlying action that is being sent to the remote cluster
@@ -179,21 +163,37 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                     ResponseException.class,
                     () -> performRequestWithUser(FAILURE_STORE_ACCESS, failureIndexSearchRequest)
                 );
-                assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+                assertActionUnauthorized(exception, FAILURE_STORE_ACCESS, "indices:admin/search/search_shards", backingFailureIndexName);
+            }
+
+            // user with manage failure store access should be able to search the backing failure index
+            assertSearchResponseContainsIndices(
+                performRequestWithUser(MANAGE_FAILURE_STORE_ACCESS, failureIndexSearchRequest),
+                backingFailureIndexName
+            );
+
+            {
+                // user with only read_failure_store only access should not be able to resolve remote clusters
+                var exc = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithUser(READ_FAILURE_STORE_ACCESS, new Request("GET", "/_resolve/cluster/" + REMOTE_CLUSTER_ALIAS))
+                );
+                assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
                 assertThat(
-                    exception.getMessage(),
+                    exc.getMessage(),
                     containsString(
-                        "action [indices:admin/search/search_shards] is unauthorized for user ["
-                            + FAILURE_STORE_ACCESS
+                        "action ["
+                            + "indices:admin/resolve/cluster"
+                            + "] is unauthorized for user ["
+                            + READ_FAILURE_STORE_ACCESS
                             + "] "
                             + "with effective roles ["
-                            + FAILURE_STORE_ACCESS
-                            + "] on indices ["
-                            + backingFailureIndexName
-                            + "], this action is granted by the index privileges [view_index_metadata,manage,read_cross_cluster,all]"
+                            + READ_FAILURE_STORE_ACCESS
+                            + "]"
                     )
                 );
             }
+
         }
     }
 
@@ -237,6 +237,22 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
               ]
             }""");
         createUser(adminClient(), DATA_ACCESS, PASS, DATA_ACCESS);
+        createRole(adminClient(), MANAGE_FAILURE_STORE_ACCESS, """
+            {
+              "indices": [
+                {
+                  "names": ["local_index"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""");
+        createUser(adminClient(), MANAGE_FAILURE_STORE_ACCESS, PASS, MANAGE_FAILURE_STORE_ACCESS);
+
+        createRole(adminClient(), READ_FAILURE_STORE_ACCESS, """
+            {
+
+            }""");
+        createUser(adminClient(), READ_FAILURE_STORE_ACCESS, PASS, READ_FAILURE_STORE_ACCESS);
     }
 
     private static void createRole(RestClient client, String role, String roleDescriptor) throws IOException {
@@ -271,12 +287,23 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             {
               "indices": [
                 {
-                  "names": ["test*"],
+                  "names": ["test*", "non-existing-index"],
                   "privileges": ["read", "read_cross_cluster", "read_failure_store"]
                 }
               ]
             }""");
         putUserOnFulfillingCluster(FAILURE_STORE_ACCESS, FAILURE_STORE_ACCESS);
+
+        putRoleOnFulfillingCluster(MANAGE_FAILURE_STORE_ACCESS, """
+            {
+              "indices": [
+                {
+                  "names": ["test*", "non-existing-index"],
+                  "privileges": ["manage_failure_store", "read_cross_cluster", "read_failure_store"]
+                }
+              ]
+            }""");
+        putUserOnFulfillingCluster(MANAGE_FAILURE_STORE_ACCESS, MANAGE_FAILURE_STORE_ACCESS);
 
         putRoleOnFulfillingCluster(ALL_ACCESS, """
             {
@@ -288,6 +315,17 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
               ]
             }""");
         putUserOnFulfillingCluster(ALL_ACCESS, ALL_ACCESS);
+
+        putRoleOnFulfillingCluster(READ_FAILURE_STORE_ACCESS, """
+            {
+              "indices": [
+                {
+                  "names": ["test*", "non-existing-index"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }""");
+        putUserOnFulfillingCluster(READ_FAILURE_STORE_ACCESS, READ_FAILURE_STORE_ACCESS);
     }
 
     private static void putRoleOnFulfillingCluster(String roleName, String roleDescriptor) throws IOException {
@@ -306,4 +344,27 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
         assertOK(performRequestAgainstFulfillingCluster(request));
     }
 
+    private static void assertActionUnauthorized(
+        ResponseException exception,
+        String userAndRole,
+        String action,
+        String backingFailureIndexName
+    ) {
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "action ["
+                    + action
+                    + "] is unauthorized for user ["
+                    + userAndRole
+                    + "] "
+                    + "with effective roles ["
+                    + userAndRole
+                    + "] on indices ["
+                    + backingFailureIndexName
+                    + "]"
+            )
+        );
+    }
 }

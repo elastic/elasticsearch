@@ -37,15 +37,7 @@ public class RestUpdateTrainedModelDeploymentActionTests extends RestActionTestC
             assertEquals(request.getNumberOfAllocations().intValue(), 5);
 
             executeCalled.set(true);
-            final var response = mock(CreateTrainedModelAssignmentAction.Response.class);
-            try {
-                when(response.toXContent(any(), any())).thenAnswer(
-                    invocation -> asInstanceOf(XContentBuilder.class, invocation.getArgument(0)).startObject().endObject()
-                );
-            } catch (IOException e) {
-                fail(e);
-            }
-            return response;
+            return newMockResponse();
         }));
         var params = new HashMap<String, String>();
         params.put("number_of_allocations", "5");
@@ -68,7 +60,7 @@ public class RestUpdateTrainedModelDeploymentActionTests extends RestActionTestC
             assertEquals(request.getNumberOfAllocations().intValue(), 6);
 
             executeCalled.set(true);
-            return mock(CreateTrainedModelAssignmentAction.Response.class);
+            return newMockResponse();
         }));
 
         final String content = """
@@ -80,5 +72,17 @@ public class RestUpdateTrainedModelDeploymentActionTests extends RestActionTestC
             .build();
         dispatchRequest(inferenceRequest);
         assertThat(executeCalled.get(), equalTo(true));
+    }
+
+    private static CreateTrainedModelAssignmentAction.Response newMockResponse() {
+        final var response = mock(CreateTrainedModelAssignmentAction.Response.class);
+        try {
+            when(response.toXContent(any(), any())).thenAnswer(
+                invocation -> asInstanceOf(XContentBuilder.class, invocation.getArgument(0)).startObject().endObject()
+            );
+        } catch (IOException e) {
+            fail(e);
+        }
+        return response;
     }
 }

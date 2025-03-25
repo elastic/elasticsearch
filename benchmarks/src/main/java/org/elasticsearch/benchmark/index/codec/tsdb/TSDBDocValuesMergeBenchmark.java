@@ -61,7 +61,7 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 1)
 public class TSDBDocValuesMergeBenchmark {
 
-    @Param("13431204")
+    @Param("26431204")
     private int nDocs;
 
     @Param("1000")
@@ -139,7 +139,7 @@ public class TSDBDocValuesMergeBenchmark {
             doc.add(new SortedNumericDocValuesField("counter_2", counter2++));
             doc.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
             doc.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[i % gauge1Values.length]));
-            int numTags = 3;
+            int numTags = tags.length % (i + 1);
             for (int j = 0; j < numTags; j++) {
                 doc.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j])));
             }

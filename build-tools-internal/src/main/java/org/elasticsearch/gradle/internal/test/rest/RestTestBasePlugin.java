@@ -323,6 +323,8 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
     private Configuration createPluginConfiguration(Project project, String name, boolean useExploded, boolean isExtended) {
         return project.getConfigurations().create(name, c -> {
+            c.setCanBeResolved(true);
+            c.setCanBeConsumed(false);
             c.attributes(a -> a.attribute(CONFIGURATION_ATTRIBUTE, name));
             if (useExploded) {
                 c.attributes(a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE));

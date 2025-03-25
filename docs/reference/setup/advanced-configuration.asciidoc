@@ -153,7 +153,6 @@ options. We do not recommend using `ES_JAVA_OPTS` in production.
 NOTE: If you are running {es} as a Windows service, you can change the heap size
 using the service manager. See <<windows-service>>.
 
-[[heap-dump-path]]
 include::important-settings/heap-dump-path.asciidoc[leveloffset=-1]
 
 [[gc-logging]]

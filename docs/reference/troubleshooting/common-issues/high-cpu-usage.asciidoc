@@ -64,12 +64,12 @@ High CPU usage is often caused by excessive JVM garbage collection (GC) activity
 
 For optimal JVM performance, garbage collection should meet these criteria:
 
-* Young GC completes quickly (ideally within 50 ms).
-* Young GC does not occur too frequently (approximately once every 10 seconds).
-* Old GC completes quickly (ideally within 1 second).
-* Old GC does not occur too frequently (once every 10 minutes or less frequently).
+1. Young GC completes quickly (ideally within 50 ms).
+2. Young GC does not occur too frequently (approximately once every 10 seconds).
+3. Old GC completes quickly (ideally within 1 second).
+4. Old GC does not occur too frequently (once every 10 minutes or less frequently).
 
-Excessive JVM garbage collection usually indicates high heap memory usage. Common reasons for increased heap memory usage include:
+Excessive JVM garbage collection usually indicates high heap memory usage. Common potential reasons for increased heap memory usage include:
 
 * Oversharding of indices
 * Very large aggregation queries
@@ -78,11 +78,11 @@ Excessive JVM garbage collection usually indicates high heap memory usage. Commo
 * Improper heap size configuration
 * Misconfiguration of JVM new generation ratio (-XX:NewRatio)
 
-**Hotspotting**
+**Hot spotting**
 
-You might experience high CPU usage on specific data nodes or an entire <<data-tiers,data tier>> if traffic isn’t evenly distributed—a scenario known as <<hotspotting,hot spotting>>. This can happen when applications aren’t properly balancing requests across nodes or when “hot” write indices concentrate indexing activity on just one or a few shards.
+You might experience high CPU usage on specific data nodes or an entire <<data-tiers,data tier>> if traffic isn’t evenly distributed—a scenario known as <<hot spotting,hot spotting>>. This commonly occurs when read or write applications don’t properly balance requests across nodes, or when indices receiving heavy write activity (like hot-tier indices) have their shards concentrated on just one or a few nodes.
 
-For details on diagnosing and resolving hotspotting, see <<hotspotting,hot spotting>>.
+For details on diagnosing and resolving these issues, see <<hot spotting,hot spotting>>.
 
 **Oversharding**
 
@@ -91,12 +91,14 @@ If your Elasticsearch cluster contains a large number of shards, you might be fa
 Oversharding occurs when there are too many shards, causing each shard to be smaller than optimal. While Elasticsearch doesn’t have a strict minimum shard size, an excessive number of small shards can negatively impact performance. Each shard consumes cluster resources since Elasticsearch must maintain metadata and manage shard states across all nodes.
 
 If you have too many small shards, you can address this by:
+
 * Removing empty or unused indices.
 * Deleting or closing indices containing outdated or unnecessary data.
 * Reindexing smaller shards into fewer, larger shards to optimize cluster performance.
 
 See <<size-your-shards,Size your shards>> for more information.
-**Additional recommendations**
+
+==== Additional recommendations
 
 To further reduce CPU load or mitigate temporary spikes in resource usage, consider these steps:
 

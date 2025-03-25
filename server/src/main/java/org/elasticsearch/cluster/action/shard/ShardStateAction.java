@@ -276,7 +276,7 @@ public class ShardStateAction {
     }
 
     // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code
-    private static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
+    static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
         private final MasterServiceTaskQueue<FailedShardUpdateTask> taskQueue;
 
         ShardFailedTransportHandler(
@@ -290,7 +290,7 @@ public class ShardStateAction {
         public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) {
             logger.debug(() -> format("%s received shard failed for [%s]", request.getShardId(), request), request.failure);
             taskQueue.submitTask(
-                "shard-failed " + request,
+                "shard-failed " + request.toStringNoFailureStackTrace(),
                 new FailedShardUpdateTask(request, new ChannelActionListener<>(channel).map(ignored -> TransportResponse.Empty.INSTANCE)),
                 null
             );
@@ -499,6 +499,14 @@ public class ShardStateAction {
 
         @Override
         public String toString() {
+            return toString(true);
+        }
+
+        public String toStringNoFailureStackTrace() {
+            return toString(false);
+        }
+
+        private String toString(boolean includeStackTrace) {
             return Strings.format(
                 "FailedShardEntry{shardId [%s], allocationId [%s], primary term [%d], message [%s], markAsStale [%b], failure [%s]}",
                 shardId,
@@ -506,7 +514,7 @@ public class ShardStateAction {
                 primaryTerm,
                 message,
                 markAsStale,
-                failure != null ? ExceptionsHelper.stackTrace(failure) : null
+                failure == null ? null : (includeStackTrace ? ExceptionsHelper.stackTrace(failure) : failure.getMessage())
             );
         }
 

@@ -1,6 +1,6 @@
 pr: 125606
 summary: Rename deprecation index template
-area: Logging
+area: Infra/Logging
 type: breaking
 issues:
  - 125445

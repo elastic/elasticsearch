@@ -72,7 +72,7 @@ There is a limit on the number of fields times terms that can be queried at once
 `analyze_wildcard`
 :   (Optional, Boolean) If `true`, the query attempts to analyze wildcard terms in the query string. Defaults to `false`. Note that, in case of  `true`, only queries that end with a `*`
 are fully analyzed. Queries that start with `*` or have it in the middle
-are only [normalized](/reference/data-analysis/text-analysis/normalizers.md).
+are only [normalized](/reference/text-analysis/normalizers.md).
 
 `analyzer`
 :   (Optional, string) [Analyzer](docs-content://manage-data/data-store/text-analysis.md) used to convert text in the query string into tokens. Defaults to the [index-time analyzer](docs-content://manage-data/data-store/text-analysis/specify-an-analyzer.md#specify-index-time-analyzer) mapped for the `default_field`. If no analyzer is mapped, the index’s default analyzer is used.
@@ -282,7 +282,7 @@ You can run [`fuzzy` queries](/reference/query-languages/query-dsl/query-dsl-fuz
 ```
 quikc~ brwn~ foks~
 ```
-For these queries, the query string is [normalized](/reference/data-analysis/text-analysis/normalizers.md). If present, only certain filters from the analyzer are applied. For a list of applicable filters, see [*Normalizers*](/reference/data-analysis/text-analysis/normalizers.md).
+For these queries, the query string is [normalized](/reference/text-analysis/normalizers.md). If present, only certain filters from the analyzer are applied. For a list of applicable filters, see [*Normalizers*](/reference/text-analysis/normalizers.md).
 
 The query uses the [Damerau-Levenshtein distance](https://en.wikipedia.org/wiki/Damerau-Levenshtein_distance) to find all terms with a maximum of two changes, where a change is the insertion, deletion or substitution of a single character, or transposition of two adjacent characters.
 
@@ -606,7 +606,7 @@ NOTE: Additional top-level `multi_match` parameters may be available based on th
 
 ### Synonyms and the `query_string` query [query-string-synonyms]
 
-The `query_string` query supports multi-terms synonym expansion with the [synonym_graph](/reference/data-analysis/text-analysis/analysis-synonym-graph-tokenfilter.md) token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms. For example, the following synonym: `ny, new york` would produce:
+The `query_string` query supports multi-terms synonym expansion with the [synonym_graph](/reference/text-analysis/analysis-synonym-graph-tokenfilter.md) token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms. For example, the following synonym: `ny, new york` would produce:
 
 `(ny OR ("new york"))`
 

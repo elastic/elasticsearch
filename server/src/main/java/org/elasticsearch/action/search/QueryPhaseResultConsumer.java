@@ -348,16 +348,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             // we have to merge here in the same way we collect on a shard
             newTopDocs = topDocsList == null ? Lucene.EMPTY_TOP_DOCS : mergeTopDocs(topDocsList, topNSize, 0);
-            if (hasAggs) {
-                newAggs = aggregate(
+            newAggs = hasAggs
+                ? aggregate(
                     toConsume.iterator(),
                     lastMerge == null ? Collections.emptyIterator() : Iterators.single(lastMerge.reducedAggs),
                     resultSetSize,
                     aggReduceContextBuilder.forPartialReduction()
-                );
-            } else {
-                newAggs = null;
-            }
+                )
+                : null;
             for (QuerySearchResult querySearchResult : toConsume) {
                 querySearchResult.markAsPartiallyReduced();
             }
@@ -419,7 +417,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return numReducePhases;
     }
 
-    public boolean hasFailure() {
+    private boolean hasFailure() {
         return failure.get() != null;
     }
 

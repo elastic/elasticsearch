@@ -4531,7 +4531,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final long globalCheckpoint = getLastKnownGlobalCheckpoint();
         assert globalCheckpoint == getLastSyncedGlobalCheckpoint();
         engineLock.writeLock().lock();
-        Engine previousEngine = null;
         try {
             verifyNotClosed();
             // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
@@ -4588,17 +4587,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     IOUtils.close(super::close, newEngine);
                 }
             };
-            previousEngine = getAndSetCurrentEngine(readOnlyEngine);
+            IOUtils.close(getAndSetCurrentEngine(readOnlyEngine));
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         } finally {
-            engineLock.readLock().lock();
-            try {
-                engineLock.writeLock().unlock();
-                IOUtils.close(previousEngine);
-            } finally {
-                engineLock.readLock().unlock();
-            }
+            engineLock.writeLock().unlock();
         }
         final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
             engine,

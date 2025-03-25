@@ -98,9 +98,15 @@ indexPatternAndMetadataFields:
 
 indexPattern
     : (clusterString COLON)? indexString
+    | {this.isDevVersion()}? indexString (CAST_OP selectorString)?
     ;
 
 clusterString
+    : UNQUOTED_SOURCE
+    | QUOTED_STRING
+    ;
+
+selectorString
     : UNQUOTED_SOURCE
     | QUOTED_STRING
     ;

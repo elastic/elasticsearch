@@ -19,10 +19,10 @@ For example, you can use `ENRICH` to:
 
 * Enrichment data doesn't change frequently
 * You can accept index-time overhead
-* You are working with structured enrichment patterns
 * You can accept having multiple matches combined into multi-values
 * You can accept being limited to predefined match fields
-* `ENRICH` has a simplified security model. There are no restirctions to specific enrich policies or document and field level security.
+* You do not need fine-grained security: There are no restrictions to specific enrich policies or document and field level security.
+* You want to match using ranges or spatial relations
 
 ### How the `ENRICH` command works [esql-how-enrich-works]
 

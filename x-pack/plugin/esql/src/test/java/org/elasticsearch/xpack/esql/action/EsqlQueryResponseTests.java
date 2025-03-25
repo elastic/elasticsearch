@@ -763,6 +763,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "stop_millis" : 1723489819929,
                         "took_nanos" : 20021,
                         "cpu_nanos" : 20000,
+                        "documents_found" : 0,
+                        "values_loaded" : 0,
                         "iterations" : 12,
                         "operators" : [
                           {

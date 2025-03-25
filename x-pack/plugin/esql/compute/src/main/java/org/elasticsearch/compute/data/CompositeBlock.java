@@ -83,7 +83,11 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
 
     @Override
     public int getTotalValueCount() {
-        throw new UnsupportedOperationException("Composite block");
+        int totalValueCount = 0;
+        for (Block b : blocks) {
+            totalValueCount += b.getTotalValueCount();
+        }
+        return totalValueCount;
     }
 
     @Override

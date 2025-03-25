@@ -351,7 +351,9 @@ public class S3HttpHandler implements HttpHandler {
 
     private boolean isListMultipartUploadsRequest(String request) {
         return Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)
-            || Regex.simpleMatch("GET /" + bucket + "/?uploads&max-uploads=*&prefix=*", request);
+            || Regex.simpleMatch("GET /" + bucket + "/?uploads&max-uploads=*&prefix=*", request)
+            || Regex.simpleMatch("GET /" + bucket + "?uploads&prefix=*", request)
+            || Regex.simpleMatch("GET /" + bucket + "?uploads&max-uploads=*&prefix=*", request);
     }
 
     private boolean isListObjectsRequest(String request) {

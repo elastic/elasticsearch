@@ -17,24 +17,28 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+/**
+ * Calculates the maximum number of nodes that should be queried concurrently for the given data node plan.
+ * <p>
+ *     Used to avoid overloading the cluster with concurrent requests that may not be needed.
+ * </p>
+ */
 public class PlanConcurrencyCalculator {
     public static final PlanConcurrencyCalculator INSTANCE = new PlanConcurrencyCalculator();
 
     private PlanConcurrencyCalculator() {}
 
     /**
-     * Calculates the maximum number of nodes that should be executed concurrently for the given data node plan.
-     * <p>
-     *     Used to avoid overloading the cluster with concurrent requests that may not be needed.
-     * </p>
-     *
-     * @return Null if there should be no limit, otherwise, the maximum number of nodes that should be executed concurrently.
+     * @return {@code null} if there should be no limit, otherwise, the maximum number of nodes that should be queried concurrently.
      */
     @Nullable
     public Integer calculateNodesConcurrency(PhysicalPlan dataNodePlan, Configuration configuration) {
         // If available, pragma overrides any calculation
         if (configuration.pragmas().maxConcurrentNodesPerCluster() > 0) {
             return configuration.pragmas().maxConcurrentNodesPerCluster();
+        }
+        if (dataNodePlan == null) {
+            return null;
         }
 
         Integer dataNodeLimit = getDataNodeLimit(dataNodePlan);
@@ -57,7 +61,6 @@ public class PlanConcurrencyCalculator {
         // 1 | 2
         // 10 | 3
         // 1000 | 9
-        // 100000 | 16
         return Math.max(2, (int) (Math.log(limit) / Math.log(2)));
     }
 

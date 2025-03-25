@@ -39,6 +39,10 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
             """, 9);
     }
 
+    public void testLimitZero() {
+        assertConcurrency("FROM x | LIMIT 0", null);
+    }
+
     public void testBiggestPragmaOverride() {
         assertConcurrency("""
             FROM x

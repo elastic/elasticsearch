@@ -11,8 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
-import org.elasticsearch.cluster.metadata.DataStreamFailureStoreDefinition;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -86,11 +85,15 @@ public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurit
     }
 
     private boolean isBackingFailureStoreIndex(String index) {
-        IndexMetadata indexMetadata = clusterService.state().metadata().getProject(projectResolver.getProjectId()).index(index);
-        if (indexMetadata == null) {
+        final IndexAbstraction indexAbstraction = clusterService.state()
+            .metadata()
+            .getProject(projectResolver.getProjectId())
+            .getIndicesLookup()
+            .get(index);
+        if (indexAbstraction == null) {
             return false;
         }
-        return indexMetadata.getSettings().hasValue(DataStreamFailureStoreDefinition.INDEX_FAILURE_STORE_VERSION_SETTING_NAME);
+        return indexAbstraction.isFailureIndexOfDataStream();
     }
 
 }

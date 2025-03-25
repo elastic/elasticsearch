@@ -63,7 +63,7 @@ public final class TimeSeriesAggregationOperatorFactories {
             aggregators.addAll(valuesAggregatorForGroupings(groupings, timeBucketChannel));
             return new HashAggregationOperator(
                 aggregators,
-                () -> new TimeSeriesBlockHash(tsHashChannel, timeBucketChannel, driverContext),
+                () -> new TimeSeriesBlockHash(tsHashChannel, timeBucketChannel, driverContext.blockFactory()),
                 driverContext
             );
         }

@@ -108,6 +108,9 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ReindexDataStreamTaskParams params,
         PersistentTaskState persistentTaskState
     ) {
+        if (isComplete(persistentTaskState)) {
+            return;
+        }
         ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTaskState;
         String sourceDataStream = params.getSourceDataStream();
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
@@ -314,6 +317,18 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         Exception e
     ) {
         persistentTask.taskFailed(threadPool, updateCompletionTimeAndGetTimeToLive(persistentTask, state), e);
+    }
+
+    private boolean isComplete(PersistentTaskState persistentTaskState) {
+        if (persistentTaskState == null) {
+            return false;
+        } else {
+            if (persistentTaskState instanceof ReindexDataStreamPersistentTaskState state) {
+                return state.isComplete();
+            } else {
+                return false;
+            }
+        }
     }
 
     private TimeValue updateCompletionTimeAndGetTimeToLive(

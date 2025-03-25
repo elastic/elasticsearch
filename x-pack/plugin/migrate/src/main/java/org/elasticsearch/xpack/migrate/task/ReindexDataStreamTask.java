@@ -30,7 +30,6 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     private final long persistentTaskStartTime;
     private final int initialTotalIndices;
     private final int initialTotalIndicesToBeUpgraded;
-    private volatile boolean complete = false;
     private volatile Exception exception;
     private final Set<String> inProgress = Collections.synchronizedSet(new HashSet<>());
     private final AtomicInteger pending = new AtomicInteger();
@@ -84,7 +83,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
             persistentTaskStartTime,
             totalIndices,
             totalIndicesToBeUpgraded,
-            complete,
+            isComplete(),
             exception,
             inProgress,
             pending.get(),
@@ -93,7 +92,6 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     }
 
     public void allReindexesCompleted(ThreadPool threadPool, TimeValue timeToLive) {
-        this.complete = true;
         if (isCancelled()) {
             completeTask.run();
         } else {
@@ -120,6 +118,24 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         pending.decrementAndGet();
     }
 
+    private boolean isComplete() {
+        PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
+            .getMetadata()
+            .custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(getPersistentTaskId());
+        if (persistentTask != null) {
+            ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTask.getState();
+            if (state != null) {
+                return ((ReindexDataStreamPersistentTaskState) persistentTask.getState()).isComplete();
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+    }
+
     public void setPendingIndicesCount(int size) {
         pending.set(size);
     }
@@ -131,7 +147,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
          * immediately. This results in the running task being removed from the task manager. If the task is not complete, then one of
          * allReindexesCompleted or taskFailed will be called in the future, resulting in the same thing.
          */
-        if (complete) {
+        if (isComplete()) {
             completeTask.run();
         }
     }

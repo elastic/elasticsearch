@@ -17,7 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.EmptyResponseListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +38,6 @@ public class RestDeleteDesiredBalanceAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final var req = new DesiredBalanceRequest(RestUtils.getMasterNodeTimeout(request));
-        return channel -> client.execute(TransportDeleteDesiredBalanceAction.TYPE, req, new RestToXContentListener<>(channel));
+        return channel -> client.execute(TransportDeleteDesiredBalanceAction.TYPE, req, new EmptyResponseListener(channel));
     }
 }

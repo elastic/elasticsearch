@@ -27,6 +27,7 @@ public abstract class RestBuilderListener<Response> extends RestResponseListener
         try (XContentBuilder builder = channel.newBuilder()) {
             final RestResponse restResponse = buildResponse(response, builder);
             assert assertBuilderClosed(builder);
+            assert restResponse.content() != null && restResponse.content().length() > 0 : "Use EmptyResponseListener for empty responses";
             return restResponse;
         }
     }

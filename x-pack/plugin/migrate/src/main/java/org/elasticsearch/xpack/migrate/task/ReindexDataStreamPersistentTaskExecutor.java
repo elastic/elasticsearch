@@ -108,8 +108,9 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ReindexDataStreamTaskParams params,
         PersistentTaskState persistentTaskState
     ) {
-        if (isComplete(persistentTaskState)) {
-            task.markAsCompleted();
+        Long completionTime = getCompletionTime(persistentTaskState);
+        if (completionTime != null && task instanceof ReindexDataStreamTask reindexDataStreamTask) {
+            reindexDataStreamTask.allReindexesCompleted(threadPool, getTimeToLive(completionTime));
             return;
         }
         ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTaskState;
@@ -320,14 +321,14 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         persistentTask.taskFailed(threadPool, updateCompletionTimeAndGetTimeToLive(persistentTask, state), e);
     }
 
-    private boolean isComplete(PersistentTaskState persistentTaskState) {
+    private Long getCompletionTime(PersistentTaskState persistentTaskState) {
         if (persistentTaskState == null) {
-            return false;
+            return null;
         } else {
             if (persistentTaskState instanceof ReindexDataStreamPersistentTaskState state) {
-                return state.isComplete();
+                return state.completionTime();
             } else {
-                return false;
+                return null;
             }
         }
     }
@@ -361,6 +362,10 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                 completionTime = state.completionTime();
             }
         }
-        return TimeValue.timeValueMillis(TASK_KEEP_ALIVE_TIME.millis() - (threadPool.absoluteTimeInMillis() - completionTime));
+        return getTimeToLive(completionTime);
+    }
+
+    private TimeValue getTimeToLive(long completionTimeInMillis) {
+        return TimeValue.timeValueMillis(TASK_KEEP_ALIVE_TIME.millis() - (threadPool.absoluteTimeInMillis() - completionTimeInMillis));
     }
 }

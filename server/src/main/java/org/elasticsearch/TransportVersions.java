@@ -110,6 +110,7 @@ public class TransportVersions {
     public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16 = def(8_772_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_5 = def(8_772_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_6 = def(8_772_0_06);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_7 = def(8_772_0_07);
     public static final TransportVersion REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_773_0_00);
     public static final TransportVersion REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_774_0_00);
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED = def(8_775_0_00);

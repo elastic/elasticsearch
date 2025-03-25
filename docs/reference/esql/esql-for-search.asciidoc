@@ -52,6 +52,7 @@ The following table summarizes the key search features available in {esql} and w
 * **Searching** both filters documents and ranks them by how well they match the query
 
 Note that filtering is faster than searching, because it doesn't require score calculations.
+
 [[esql-for-search-scoring]]
 ===== Relevance scoring
 

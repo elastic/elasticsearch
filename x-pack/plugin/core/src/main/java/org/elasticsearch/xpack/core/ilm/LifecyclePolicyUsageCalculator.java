@@ -21,12 +21,13 @@ import org.elasticsearch.common.util.Maps;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * A class that can be used to calculate the usages of ILM policies across the cluster. The class makes a tradeoff by using some more memory
- * (but not a lot) to significantly improve the processing time.
+ * A class that can be used to calculate the usages of ILM policies across the cluster. By precomputing all the usages,
+ * the class makes a tradeoff by using a little bit more memory to significantly improve the overall processing time.
  */
 public class LifecyclePolicyUsageCalculator {
 
@@ -42,25 +43,17 @@ public class LifecyclePolicyUsageCalculator {
         ProjectMetadata project,
         List<String> requestedPolicyNames
     ) {
-        final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
-            project,
-            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR
-        );
-        // Sort all templates by descending priority. That way, findV2Template can exit on the first found template.
-        final var indexTemplates = new ArrayList<>(project.templatesV2().entrySet());
-        CollectionUtil.timSort(indexTemplates, Comparator.comparing(entry -> entry.getValue().priorityOrZero(), Comparator.reverseOrder()));
-
-        final IndexLifecycleMetadata metadata = project.custom(IndexLifecycleMetadata.TYPE);
+        final IndexLifecycleMetadata ilmMetadata = project.custom(IndexLifecycleMetadata.TYPE);
         // We're making a bet here that if the `name` contains a wildcard, there's a large chance it'll simply match all policies.
         final var expectedSize = Regex.isSimpleMatchPattern(requestedPolicyNames.get(0))
-            ? metadata.getPolicyMetadatas().size()
+            ? ilmMetadata.getPolicyMetadatas().size()
             : requestedPolicyNames.size();
 
         // We keep a map from composable template name to policy name to avoid having to resolve the template settings to determine
         // the template's policy twice.
-        final Map<String, String> templateToPolicy = Maps.newHashMapWithExpectedSize(indexTemplates.size());
+        final Map<String, String> templateToPolicy = new HashMap<>();
 
-        // Build the maps that will be used for the usage calculation later on.
+        // Build the map of which policy is used by which index templates.
         policyToTemplates = Maps.newHashMapWithExpectedSize(expectedSize);
         for (Map.Entry<String, ComposableIndexTemplate> entry : project.templatesV2().entrySet()) {
             Settings settings = MetadataIndexTemplateService.resolveSettings(entry.getValue(), project.componentTemplates());
@@ -73,11 +66,21 @@ public class LifecyclePolicyUsageCalculator {
             templateToPolicy.put(entry.getKey(), policyName);
         }
 
+        // Sort all templates by descending priority. That way, findV2Template can exit on the first-matched template.
+        final var indexTemplates = new ArrayList<>(project.templatesV2().entrySet());
+        CollectionUtil.timSort(indexTemplates, Comparator.comparing(entry -> entry.getValue().priorityOrZero(), Comparator.reverseOrder()));
+
+        // Build the map of which policy is used by which data streams.
         policyToDataStreams = Maps.newHashMapWithExpectedSize(expectedSize);
+        final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
+            project,
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR
+        );
         for (String dataStream : allDataStreams) {
+            // Find the index template with the highest priority that matches this data stream's name.
             String indexTemplate = MetadataIndexTemplateService.findV2TemplateFromSortedList(project, indexTemplates, dataStream, false);
             if (indexTemplate == null) {
-                // Every data stream should ordinarily have an index template, so this branch should not fire under normal circumstances.
+                assert false : "Data stream [" + dataStream + "] has no matching template";
                 continue;
             }
             final var policyName = templateToPolicy.get(indexTemplate);
@@ -88,6 +91,7 @@ public class LifecyclePolicyUsageCalculator {
             policyToDataStreams.computeIfAbsent(policyName, k -> new ArrayList<>()).add(dataStream);
         }
 
+        // Build the map of which policy is used by which indices.
         policyToIndices = Maps.newHashMapWithExpectedSize(expectedSize);
         for (IndexMetadata indexMetadata : project.indices().values()) {
             final var policyName = indexMetadata.getLifecyclePolicyName();

@@ -1359,7 +1359,7 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Return the name (id) of the highest matching index template, out of the provided templates (that <i>need</i> to be sorted descending
+     * Return the name (id) of the highest matching index template out of the provided templates (that <i>need</i> to be sorted descending
      * on priority beforehand), or the given index name. In the event that no templates are matched, {@code null} is returned.
      */
     @Nullable

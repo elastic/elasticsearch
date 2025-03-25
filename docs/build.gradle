@@ -2063,7 +2063,7 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
 
 tasks.register('verifyDocsLuceneVersion') {
   doFirst {
-    File docsVersionsFile = layout.settingsDirectory.file('docs/Versions.asciidoc').asFile
+    File docsVersionsFile = file('Versions.asciidoc')
     List<String> versionLines = docsVersionsFile.readLines('UTF-8')
     String docsLuceneVersion = null
     for (String line : versionLines) {

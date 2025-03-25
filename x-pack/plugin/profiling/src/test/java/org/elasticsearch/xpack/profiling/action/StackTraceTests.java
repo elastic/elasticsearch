@@ -96,11 +96,11 @@ public class StackTraceTests extends ESTestCase {
             new int[] { 1027822 },
             new String[] { "AAAAAAAAAAUAAAAAAAAB3g" },
             new String[] { "AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u" },
-            new int[] { 2 },
-            0.3d,
-            2.7d,
-            1
+            new int[] { 2 }
         );
+        stackTrace.annualCO2Tons = 0.3d;
+        stackTrace.annualCostsUSD = 2.7d;
+        stackTrace.count = 1;
         stackTrace.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
         assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);
@@ -111,10 +111,7 @@ public class StackTraceTests extends ESTestCase {
             new int[] { 102782 },
             new String[] { "AAAAAAAAAAUAAAAAAAAB3g" },
             new String[] { "AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u" },
-            new int[] { 2 },
-            0.3d,
-            2.7d,
-            1
+            new int[] { 2 }
         );
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -123,10 +120,7 @@ public class StackTraceTests extends ESTestCase {
                 Arrays.copyOf(o.addressOrLines, o.addressOrLines.length),
                 Arrays.copyOf(o.fileIds, o.fileIds.length),
                 Arrays.copyOf(o.frameIds, o.frameIds.length),
-                Arrays.copyOf(o.typeIds, o.typeIds.length),
-                0.3d,
-                2.7d,
-                1
+                Arrays.copyOf(o.typeIds, o.typeIds.length)
             ))
         );
     }

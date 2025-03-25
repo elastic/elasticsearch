@@ -180,7 +180,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (buffer != null && buffer.isEmpty() == false) {
             this.buffer = null;
             buffer.sort(RESULT_COMPARATOR);
-            mergeResult = partialReduce(buffer, emptyResults, topDocsStats, mergeResult, numReducePhases++);
+            mergeResult = partialReduce(buffer, emptyResults, topDocsStats, mergeResult, 0);
             emptyResults = null;
         }
         return mergeResult;

@@ -1,5 +1,0 @@
-pr: 123296
-summary: Avoid over collecting in Limit or Lucene Operator
-area: ES|QL
-type: bug
-issues: []

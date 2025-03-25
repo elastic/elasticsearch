@@ -29,7 +29,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -252,7 +251,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         Path fileSettings = configDir.resolve("operator").resolve("settings.json");
         Files.createDirectories(fileSettings.getParent());
 
-        Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tempFilePath, Strings.format(json, version));
         Files.move(tempFilePath, fileSettings, StandardCopyOption.ATOMIC_MOVE);
         logger.info("--> New file settings: [{}]", Strings.format(json, version));
     }

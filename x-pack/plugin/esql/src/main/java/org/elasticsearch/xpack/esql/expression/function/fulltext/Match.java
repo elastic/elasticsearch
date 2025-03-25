@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -159,7 +161,13 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             `MATCH` returns true if the provided query matches the row.""",
         examples = {
             @Example(file = "match-function", tag = "match-with-field"),
-            @Example(file = "match-function", tag = "match-with-named-function-params") }
+            @Example(file = "match-function", tag = "match-with-named-function-params") },
+        appliesTo = {
+            @FunctionAppliesTo(
+                lifeCycle = FunctionAppliesToLifecycle.COMING,
+                version = "9.1.0",
+                description = "Support for optional named parameters is only available from 9.1.0"
+            ) }
     )
     public Match(
         Source source,
@@ -180,13 +188,14 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     name = "analyzer",
                     type = "keyword",
                     valueHint = { "standard" },
-                    description = "Analyzer used to convert the text in the query value into token."
+                    description = "Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer"
+                        + " mapped for the field. If no analyzer is mapped, the index’s default analyzer is used."
                 ),
                 @MapParam.MapParamEntry(
                     name = "auto_generate_synonyms_phrase_query",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If true, match phrase queries are automatically created for multi-term synonyms."
+                    description = "If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzziness",
@@ -198,13 +207,14 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     name = "boost",
                     type = "float",
                     valueHint = { "2.5" },
-                    description = "Floating point number used to decrease or increase the relevance scores of the query."
+                    description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzzy_transpositions",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba)."
+                    description = "If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). "
+                        + "Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzzy_rewrite",
@@ -216,19 +226,22 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                         "top_terms_blended_freqs_N",
                         "top_terms_boost_N",
                         "top_terms_N" },
-                    description = "Method used to rewrite the query. See the rewrite parameter for valid values and more information."
+                    description = "Method used to rewrite the query. See the rewrite parameter for valid values and more information. "
+                        + "If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of "
+                        + "top_terms_blended_freqs_${max_expansions} by default."
                 ),
                 @MapParam.MapParamEntry(
                     name = "lenient",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned."
+                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned. "
+                        + "Defaults to false."
                 ),
                 @MapParam.MapParamEntry(
                     name = "max_expansions",
                     type = "integer",
                     valueHint = { "50" },
-                    description = "Maximum number of terms to which the query will expand."
+                    description = "Maximum number of terms to which the query will expand. Defaults to 50."
                 ),
                 @MapParam.MapParamEntry(
                     name = "minimum_should_match",
@@ -240,19 +253,20 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     name = "operator",
                     type = "keyword",
                     valueHint = { "AND", "OR" },
-                    description = "Boolean logic used to interpret text in the query value."
+                    description = "Boolean logic used to interpret text in the query value. Defaults to OR."
                 ),
                 @MapParam.MapParamEntry(
                     name = "prefix_length",
                     type = "integer",
                     valueHint = { "1" },
-                    description = "Number of beginning characters left unchanged for fuzzy matching."
+                    description = "Number of beginning characters left unchanged for fuzzy matching. Defaults to 0."
                 ),
                 @MapParam.MapParamEntry(
                     name = "zero_terms_query",
                     type = "keyword",
                     valueHint = { "none", "all" },
-                    description = "Number of beginning characters left unchanged for fuzzy matching."
+                    description = "Indicates whether all documents or none are returned if the analyzer removes all tokens, such as "
+                        + "when using a stop filter. Defaults to none."
                 ) },
             description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-match-query,match query>> for more information.",

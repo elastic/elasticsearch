@@ -107,7 +107,7 @@ public class TSDBDocValuesMergeBenchmark {
                 new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
             )
         );
-        ES87TSDBDocValuesFormat docValuesFormat = new ES87TSDBDocValuesFormat(4096, optimizedMergeEnabled);
+        ES87TSDBDocValuesFormat docValuesFormat = new ES87TSDBDocValuesFormat(optimizedMergeEnabled);
         config.setCodec(new Lucene101Codec() {
 
             @Override

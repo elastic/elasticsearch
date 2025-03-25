@@ -34,15 +34,17 @@ public class PerFieldFormatSupplier {
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
-    private static final ES87TSDBDocValuesFormat tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
+    private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final MapperService mapperService;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
         this.mapperService = mapperService;
+        var nodeSettings = mapperService.getIndexSettings().getNodeSettings();
+        this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat(CodecService.TSDB_DOC_VALUES_OPTIMIZED_MERGE_SETTING.get(nodeSettings));
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
     }
 

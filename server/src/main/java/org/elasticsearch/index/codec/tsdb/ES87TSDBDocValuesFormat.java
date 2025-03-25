@@ -13,9 +13,12 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.codec.CodecService.TSDB_DOC_VALUES_OPTIMIZED_MERGE;
 
 public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
@@ -76,25 +79,16 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         }
     }
 
-    // Default for escape hatch:
-    static final boolean OPTIMIZED_MERGE_ENABLE_DEFAULT;
-    static final FeatureFlag TSDB_DOC_VALUES_OPTIMIZED_MERGE = new FeatureFlag("tsdb_doc_values_optimized_merge");
-    static final String OPTIMIZED_MERGE_ENABLED_NAME = ES87TSDBDocValuesConsumer.class.getName() + ".enableOptimizedMerge";
-
-    static {
-        boolean optimizedMergeDefault = TSDB_DOC_VALUES_OPTIMIZED_MERGE.isEnabled();
-        OPTIMIZED_MERGE_ENABLE_DEFAULT = Boolean.parseBoolean(
-            System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.toString(optimizedMergeDefault))
-        );
-    }
-
     private final int skipIndexIntervalSize;
-    // TODO: remove escape hatch? Is useful now when testing/benchmarking, but current optimized merge logic currently do too scary things.
     private final boolean enableOptimizedMerge;
 
     /** Default constructor. */
     public ES87TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, OPTIMIZED_MERGE_ENABLE_DEFAULT);
+        this(TSDB_DOC_VALUES_OPTIMIZED_MERGE.isEnabled());
+    }
+
+    public ES87TSDBDocValuesFormat(boolean enableOptimizedMerge) {
+        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, enableOptimizedMerge);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */

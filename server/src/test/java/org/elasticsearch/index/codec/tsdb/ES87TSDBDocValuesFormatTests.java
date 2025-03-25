@@ -54,7 +54,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     private static final int NUM_DOCS = 10;
 
-    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
+    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat(true));
 
     @Override
     protected Codec getCodec() {

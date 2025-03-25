@@ -55,7 +55,7 @@ public enum AwsCredentialsUtils {
                 return authorizationHeader.contains("/" + serviceName + "/aws4_request, ");
             }
 
-            final var remainder = authorizationHeader.substring(expectedPrefix.length() + "YYYYMMDD".length() /* date not validated */);
+            final var remainder = authorizationHeader.substring(expectedPrefix.length() + "YYYYMMDD".length() /* skip over date field */);
             return remainder.startsWith("/" + region + "/" + serviceName + "/aws4_request, ");
         };
     }

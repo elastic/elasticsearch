@@ -11,10 +11,6 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.LocallyMountedSecrets;
-import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.ClusterSecrets;
-import org.elasticsearch.common.settings.SecureClusterStateSettings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;

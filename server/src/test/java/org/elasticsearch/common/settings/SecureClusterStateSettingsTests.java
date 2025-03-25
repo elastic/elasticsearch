@@ -10,8 +10,6 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureClusterStateSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

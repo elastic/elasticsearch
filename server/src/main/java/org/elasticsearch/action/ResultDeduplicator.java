@@ -10,7 +10,6 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -27,9 +26,7 @@ import java.util.function.BiConsumer;
 public final class ResultDeduplicator<T, R> {
 
     private final ThreadContext threadContext;
-    private final ConcurrentMap<T, CompositeListener<T, R>> requests = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<ProjectId, ConcurrentMap<T, CompositeListener<T, R>>> projectRequests = ConcurrentCollections
-        .newConcurrentMap();
+    private final ConcurrentMap<T, CompositeListener> requests = ConcurrentCollections.newConcurrentMap();
 
     public ResultDeduplicator(ThreadContext threadContext) {
         assert threadContext != null;
@@ -47,22 +44,7 @@ public final class ResultDeduplicator<T, R> {
      * @param callback Callback to be invoked with request and completion listener the first time the request is added to the deduplicator
      */
     public void executeOnce(T request, ActionListener<R> listener, BiConsumer<T, ActionListener<R>> callback) {
-        final var requests = this.requests;
-        extracted(request, listener, callback, requests);
-    }
-
-    public void executeOnce(ProjectId projectId, T request, ActionListener<R> listener, BiConsumer<T, ActionListener<R>> callback) {
-        final var requests = this.projectRequests.computeIfAbsent(projectId, k -> ConcurrentCollections.newConcurrentMap());
-        extracted(request, listener, callback, requests);
-    }
-
-    private void extracted(
-        T request,
-        ActionListener<R> listener,
-        BiConsumer<T, ActionListener<R>> callback,
-        ConcurrentMap<T, CompositeListener<T, R>> requests
-    ) {
-        ActionListener<R> completionListener = requests.computeIfAbsent(request, r -> new CompositeListener<>(r, requests))
+        ActionListener<R> completionListener = requests.computeIfAbsent(request, CompositeListener::new)
             .addListener(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
         if (completionListener != null) {
             callback.accept(request, completionListener);
@@ -81,23 +63,21 @@ public final class ResultDeduplicator<T, R> {
         return requests.size();
     }
 
-    private static final class CompositeListener<T, R> implements ActionListener<R> {
+    private final class CompositeListener implements ActionListener<R> {
 
         private final List<ActionListener<R>> listeners = new ArrayList<>();
 
         private final T request;
-        private final ConcurrentMap<T, CompositeListener<T, R>> requests;
 
         private boolean isNotified;
         private Exception failure;
         private R response;
 
-        CompositeListener(T request, ConcurrentMap<T, CompositeListener<T, R>> requests) {
+        CompositeListener(T request) {
             this.request = request;
-            this.requests = requests;
         }
 
-        CompositeListener<T, R> addListener(ActionListener<R> listener) {
+        CompositeListener addListener(ActionListener<R> listener) {
             synchronized (this) {
                 if (this.isNotified == false) {
                     listeners.add(listener);

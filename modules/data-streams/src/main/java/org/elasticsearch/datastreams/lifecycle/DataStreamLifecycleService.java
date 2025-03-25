@@ -166,8 +166,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
-    final ResultDeduplicator<String, Void> clusterStateChangesDeduplicator;
+    final ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator;
+    final ResultDeduplicator<Tuple<ProjectId, String>, Void> clusterStateChangesDeduplicator;
     private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
     private final ProjectResolver projectResolver;
@@ -595,8 +595,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             round.config()
         );
         transportActionsDeduplicator.executeOnce(
-            projectId,
-            request,
+            Tuple.tuple(projectId, request),
             new ErrorRecordingActionListener(
                 DownsampleAction.NAME,
                 projectId,
@@ -702,11 +701,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     ) {
         String requestName = "dsl-replace-" + dataStream.getName() + "-" + backingIndexName + "-" + downsampleIndexName;
         clusterStateChangesDeduplicator.executeOnce(
-            projectId,
             // we use a String key here as otherwise it's ... awkward as we have to create the DeleteSourceAndAddDownsampleToDS as the
             // key _without_ a listener (passing in null) and then below we create it again with the `reqListener`. We're using a String
             // as it seems to be clearer.
-            requestName,
+            Tuple.tuple(projectId, requestName),
             new ErrorRecordingActionListener(
                 requestName,
                 projectId,
@@ -749,8 +747,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private void deleteIndexOnce(ProjectId projectId, String indexName, String reason) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
         transportActionsDeduplicator.executeOnce(
-            projectId,
-            deleteIndexRequest,
+            Tuple.tuple(projectId, deleteIndexRequest),
             new ErrorRecordingActionListener(
                 TransportDeleteIndexAction.TYPE.name(),
                 projectId,
@@ -769,8 +766,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private void addIndexBlockOnce(ProjectId projectId, String indexName) {
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
         transportActionsDeduplicator.executeOnce(
-            projectId,
-            addIndexBlockRequest,
+            Tuple.tuple(projectId, addIndexBlockRequest),
             new ErrorRecordingActionListener(
                 TransportAddIndexBlockAction.TYPE.name(),
                 projectId,
@@ -868,8 +864,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     rolloverFailureStore
                 );
                 transportActionsDeduplicator.executeOnce(
-                    project.id(),
-                    rolloverRequest,
+                    Tuple.tuple(project.id(), rolloverRequest),
                     new ErrorRecordingActionListener(
                         RolloverAction.NAME,
                         project.id(),
@@ -995,8 +990,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 updateMergePolicySettingsRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
                 affectedIndices.add(index);
                 transportActionsDeduplicator.executeOnce(
-                    project.id(),
-                    updateMergePolicySettingsRequest,
+                    Tuple.tuple(project.id(), updateMergePolicySettingsRequest),
                     new ErrorRecordingActionListener(
                         TransportUpdateSettingsAction.TYPE.name(),
                         project.id(),
@@ -1016,8 +1010,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
                 // time to force merge the index
                 transportActionsDeduplicator.executeOnce(
-                    project.id(),
-                    new ForceMergeRequestWrapper(forceMergeRequest),
+                    Tuple.tuple(project.id(), new ForceMergeRequestWrapper(forceMergeRequest)),
                     new ErrorRecordingActionListener(
                         ForceMergeAction.NAME,
                         project.id(),

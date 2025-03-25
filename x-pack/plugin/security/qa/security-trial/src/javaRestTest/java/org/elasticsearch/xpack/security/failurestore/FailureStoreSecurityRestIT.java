@@ -775,6 +775,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """);
 
+        // invalid payloads with explicit selectors in index patterns
         expectThrows(() -> expectHasPrivileges("user", """
             {
                 "index": [
@@ -788,6 +789,89 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             """, """
             {}
             """), 400);
+        expectThrows(() -> expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1::data"],
+                        "privileges": ["read_failure_store", "read", "all"],
+                        "allow_restricted_indices": false
+                    }
+                ]
+            }
+            """, """
+            {}
+            """), 400);
+        expectThrows(() -> expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1::failures"],
+                        "privileges": ["read_failure_store", "read", "all"],
+                        "allow_restricted_indices": false
+                    }
+                ]
+            }
+            """, """
+            {}
+            """), 400);
+    }
+
+    public void testHasPrivilegesWithApiKeys() throws IOException {
+        var user = "user";
+        var role = "role";
+        createUser(user, PASSWORD, role);
+        upsertRole("""
+            {
+                "cluster": ["all"],
+                "indices": [
+                    {
+                        "names": ["*"],
+                        "privileges": ["read_failure_store"]
+                    }
+                ]
+            }
+            """, role);
+
+        String apiKey = createApiKey(user, """
+            {
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [{"names": ["test1"], "privileges": ["read_failure_store"]}]
+                }
+            }""");
+
+        expectHasPrivilegesWithApiKey(apiKey, """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read_failure_store"],
+                        "allow_restricted_indices": true
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["read_failure_store"],
+                        "allow_restricted_indices": true
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read_failure_store": true
+                    },
+                    "test2": {
+                        "read_failure_store": false
+                    }
+                },
+                "application": {}
+            }
+            """);
     }
 
     public void testRoleWithSelectorInIndexPattern() throws Exception {
@@ -2401,6 +2485,13 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         Request req = new Request("POST", "/_security/user/_has_privileges");
         req.setJsonEntity(requestBody);
         Response response = performRequestMaybeUsingApiKey(user, req);
+        assertThat(responseAsMap(response), equalTo(mapFromJson(expectedResponse)));
+    }
+
+    private void expectHasPrivilegesWithApiKey(String apiKey, String requestBody, String expectedResponse) throws IOException {
+        Request req = new Request("POST", "/_security/user/_has_privileges");
+        req.setJsonEntity(requestBody);
+        Response response = performRequestWithApiKey(apiKey, req);
         assertThat(responseAsMap(response), equalTo(mapFromJson(expectedResponse)));
     }
 }

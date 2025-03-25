@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.failurestore;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -29,6 +30,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
@@ -42,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -1577,6 +1580,23 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 : pathParamString + "&wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT;
             return new Request("POST", Strings.format("/%s/_async_search%s", searchTarget, pathParam));
         }
+
+        // Request toEsqlRequest() {
+        //
+        // }
+    }
+
+    protected Request esqlRequest(String user, String command) throws IOException {
+        if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
+            // add a (high) limit to avoid warnings on default limit
+            command += " | limit 10000000";
+        }
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", command);
+        addRandomPragmas(json);
+        json.endObject();
+        return new Request("POST", "_query");
     }
 
     private List<String> setupDataStream() throws IOException {
@@ -1826,5 +1846,36 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         assertThat(indices.v1().size(), equalTo(1));
         assertThat(indices.v2().size(), equalTo(1));
         return new Tuple<>(indices.v1().get(0), indices.v2().get(0));
+    }
+
+    static void addRandomPragmas(XContentBuilder builder) throws IOException {
+        if (Build.current().isSnapshot()) {
+            Settings pragmas = randomPragmas();
+            if (pragmas != Settings.EMPTY) {
+                builder.startObject("pragma");
+                builder.value(pragmas);
+                builder.endObject();
+            }
+        }
+    }
+
+    static Settings randomPragmas() {
+        Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put("page_size", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("exchange_buffer_size", between(1, 2));
+        }
+        if (randomBoolean()) {
+            settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
+        }
+        if (randomBoolean()) {
+            settings.put("enrich_max_workers", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("node_level_reduction", randomBoolean());
+        }
+        return settings.build();
     }
 }

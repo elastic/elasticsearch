@@ -140,12 +140,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     void expectError(String query, String errorMessage) {
-        expectThrows(
-            "Query [" + query + "] is expected to throw " + ParsingException.class + " with message [" + errorMessage + "]",
-            ParsingException.class,
-            containsString(errorMessage),
-            () -> parser.createStatement(query)
-        );
+        expectError(query, null, errorMessage);
     }
 
     void expectError(String query, List<QueryParam> params, String errorMessage) {

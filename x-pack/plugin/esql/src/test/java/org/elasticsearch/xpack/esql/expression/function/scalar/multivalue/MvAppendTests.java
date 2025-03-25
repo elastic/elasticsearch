@@ -169,8 +169,8 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void bytesRefs(List<TestCaseSupplier> suppliers) {
-        for (DataType lhs : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
-            for (DataType rhs : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
+        for (DataType lhs : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+            for (DataType rhs : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
                 suppliers.add(new TestCaseSupplier(List.of(lhs, rhs), () -> {
                     List<Object> field1 = randomList(1, 10, () -> randomLiteral(lhs).value());
                     List<Object> field2 = randomList(1, 10, () -> randomLiteral(rhs).value());

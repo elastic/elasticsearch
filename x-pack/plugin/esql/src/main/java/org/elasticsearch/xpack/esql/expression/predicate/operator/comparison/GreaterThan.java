@@ -38,7 +38,6 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
         Map.entry(DataType.DATE_NANOS, GreaterThanLongsEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, GreaterThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, GreaterThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.SEMANTIC_TEXT, GreaterThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, GreaterThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.IP, GreaterThanKeywordsEvaluator.Factory::new)
     );

@@ -72,16 +72,6 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
                     DataType.INTEGER,
                     equalTo(expectedLength)
                 )
-            ),
-            new TestCaseSupplier(
-                title + " with semantic_text",
-                List.of(DataType.SEMANTIC_TEXT),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.SEMANTIC_TEXT, "f")),
-                    "LengthEvaluator[val=Attribute[channel=0]]",
-                    DataType.INTEGER,
-                    equalTo(expectedLength)
-                )
             )
         );
     }

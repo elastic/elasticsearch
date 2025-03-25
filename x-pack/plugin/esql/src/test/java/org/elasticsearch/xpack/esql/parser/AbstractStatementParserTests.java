@@ -140,22 +140,30 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     void expectError(String query, String errorMessage) {
-        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
-
-    void expectVerificationError(String query, String errorMessage) {
-        VerificationException e = expectThrows(VerificationException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString(errorMessage));
+        expectThrows(
+            "Query [" + query + "] is expected to throw " + ParsingException.class + " with message [" + errorMessage + "]",
+            ParsingException.class,
+            containsString(errorMessage),
+            () -> parser.createStatement(query)
+        );
     }
 
     void expectError(String query, List<QueryParam> params, String errorMessage) {
-        ParsingException e = expectThrows(
+        expectThrows(
+            "Query [" + query + "] is expected to throw " + ParsingException.class + " with message [" + errorMessage + "]",
             ParsingException.class,
-            "Expected syntax error for " + query,
+            containsString(errorMessage),
             () -> statement(query, new QueryParams(params))
         );
-        assertThat(e.getMessage(), containsString(errorMessage));
+    }
+
+    void expectVerificationError(String query, String errorMessage) {
+        expectThrows(
+            "Query [" + query + "] is expected to throw " + VerificationException.class + " with message [" + errorMessage + "]",
+            VerificationException.class,
+            containsString(errorMessage),
+            () -> parser.createStatement(query)
+        );
     }
 
     void expectInvalidIndexNameErrorWithLineNumber(String query, String indexString, String lineNumber) {

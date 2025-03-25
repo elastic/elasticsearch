@@ -107,6 +107,7 @@ GET _all/_settings?expand_wildcards=all&filter_path=*.settings.index.*.slowlog
 [[search-slow-log]]
 ==== Enable slow logging for search events
 
+[[_identifying_search_slow_log_origin]]
 Search slow logs emit per shard. They must be enabled separately for the shard's link:https://www.elastic.co/blog/understanding-query-then-fetch-vs-dfs-query-then-fetch[query and fetch search phases].
 
 You can use the `index.search.slowlog.include.user` setting to append `user.*` and `auth.type` fields to slow log entries. These fields contain information about the user who triggered the request.

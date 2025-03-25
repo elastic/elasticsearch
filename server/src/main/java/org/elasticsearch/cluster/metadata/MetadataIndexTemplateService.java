@@ -1091,24 +1091,31 @@ public class MetadataIndexTemplateService {
             .flatMap(List::stream)
             .collect(Collectors.toSet());
 
-        // Determine all the composable templates that are not one of the provided templates.
-        var otherTemplates = projectMetadata.templatesV2()
-            .entrySet()
-            .stream()
-            .filter(
-                entry -> templateNames.contains(entry.getKey()) == false
-                    && isGlobalAndHasIndexHiddenSetting(projectMetadata, entry.getValue(), entry.getKey()) == false
-            )
-            // Sort here so we can `exitOnFirstMatch` in `findV2Template`.
-            .sorted(Comparator.comparing(entry -> entry.getValue().priorityOrZero(), Comparator.reverseOrder()))
-            .toList();
-
         return projectMetadata.dataStreams()
             .values()
             .stream()
             // Limit to checking data streams that match any of the templates' index patterns
             .filter(ds -> namePatterns.stream().anyMatch(pattern -> Regex.simpleMatch(pattern, ds.getName())))
-            .filter(ds -> findV2TemplateFromSortedList(projectMetadata, otherTemplates, ds.getName(), ds.isHidden()) == null)
+            .filter(ds -> {
+                // Retrieve the templates that match the data stream name ordered by priority
+                List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(
+                    projectMetadata.templatesV2().entrySet(),
+                    ds.getName(),
+                    ds.isHidden(),
+                    false
+                );
+                if (candidates.isEmpty()) {
+                    throw new IllegalStateException("Data stream " + ds.getName() + " did not match any composable index templates.");
+                }
+
+                // Limit data streams that can ONLY use any of the specified templates, we do this by filtering
+                // the matching templates that are others than the ones requested and could be a valid template to use.
+                return candidates.stream()
+                    .noneMatch(
+                        template -> templateNames.contains(template.v1()) == false
+                            && isGlobalAndHasIndexHiddenSetting(projectMetadata, template.v2(), template.v1()) == false
+                    );
+            })
             .map(DataStream::getName)
             .collect(Collectors.toSet());
     }

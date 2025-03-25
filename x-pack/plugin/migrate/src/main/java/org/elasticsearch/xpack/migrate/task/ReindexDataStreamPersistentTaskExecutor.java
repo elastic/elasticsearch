@@ -322,14 +322,10 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     }
 
     private Long getCompletionTime(PersistentTaskState persistentTaskState) {
-        if (persistentTaskState == null) {
-            return null;
+        if (persistentTaskState instanceof ReindexDataStreamPersistentTaskState state) {
+            return state.completionTime();
         } else {
-            if (persistentTaskState instanceof ReindexDataStreamPersistentTaskState state) {
-                return state.completionTime();
-            } else {
-                return null;
-            }
+            return null;
         }
     }
 

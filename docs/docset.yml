@@ -1,4 +1,5 @@
 project: 'Elasticsearch'
+max_toc_depth: 2
 exclude:
   - README.md
   - internal/*

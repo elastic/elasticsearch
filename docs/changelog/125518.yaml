@@ -1,0 +1,5 @@
+pr: 125518
+summary: Add `ToAggregateMetricDouble` example
+area: "ES|QL, TSDB"
+type: enhancement
+issues: []

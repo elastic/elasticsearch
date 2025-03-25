@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -458,7 +459,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             }""";
         var putIndexTemplateRequest = new Request(
             "POST",
-            "/_index_template/reindex_test_data_stream_template" + randomAlphanumericOfLength(10).toLowerCase()
+            "/_index_template/reindex_test_data_stream_template" + randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT)
         );
         putIndexTemplateRequest.setJsonEntity(indexTemplate.replace("$TEMPLATE", template).replace("$PATTERN", dataStreamName));
         assertOK(client().performRequest(putIndexTemplateRequest));

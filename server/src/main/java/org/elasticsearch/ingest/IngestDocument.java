@@ -1041,10 +1041,61 @@ public final class IngestDocument {
                     newPath = path;
                 }
             }
-            this.pathElements = newPath.split("\\.");
-            if (pathElements.length == 1 && pathElements[0].isEmpty()) {
+            this.pathElements = parsePath(newPath);
+            if (pathElements.length == 0 || (pathElements.length == 1 && pathElements[0].isEmpty())) {
                 throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
+        }
+
+        private String[] parsePath(String path) {
+            List<String> elements = new ArrayList<>();
+            StringBuilder current = new StringBuilder();
+            boolean inBrackets = false;
+            boolean doubleQuote = false;
+            for (int i = 0; i < path.length(); i++) {
+                char c = path.charAt(i);
+                char next = 0;
+                if (i < path.length() - 1) {
+                    next = path.charAt(i + 1);
+                }
+
+                if (inBrackets == false && c == '[' && (next == '\'' || next == '"')) {
+                    if (current.isEmpty() == false) {
+                        elements.add(current.toString());
+                        current.setLength(0);
+                    }
+                    inBrackets = true;
+                    doubleQuote = next == '"';
+                    i++;
+                } else if (inBrackets && (c == '\'' || c == '"') && next == ']') {
+                    char expected = doubleQuote ? '"' : '\'';
+                    if (expected != c) {
+                        throw new IllegalArgumentException("path [" + path + "] is not valid");
+                    }
+                    String element = current.toString();
+                    elements.add(element);
+                    current.setLength(0);
+                    inBrackets = false;
+                    i++;
+                } else if (inBrackets == false && c == '.') {
+                    if (current.isEmpty() == false) {
+                        elements.add(current.toString());
+                        current.setLength(0);
+                    }
+                } else {
+                    current.append(c);
+                }
+            }
+
+            if (inBrackets) {
+                throw new IllegalArgumentException("path [" + path + "] is not valid");
+            }
+
+            if (current.isEmpty() == false) {
+                elements.add(current.toString());
+            }
+
+            return elements.toArray(new String[0]);
         }
 
         public Object initialContext(IngestDocument document) {

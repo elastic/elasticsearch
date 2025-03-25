@@ -1227,4 +1227,64 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
         }
     }
+
+    public void testPathWithBracketNotation() {
+        // Test basic bracket notation
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random());
+
+        // Test bracket notation with single quotes
+        document.setFieldValue("foo", Map.of("dotted.field", "value1"));
+        assertThat(document.getFieldValue("foo['dotted.field']", String.class), equalTo("value1"));
+        assertThat(document.getFieldValue("foo.['dotted.field']", String.class), equalTo("value1"));
+
+        // Test bracket notation with double quotes
+        assertThat(document.getFieldValue("foo[\"dotted.field\"]", String.class), equalTo("value1"));
+
+        // Test multiple bracket notations mixed with dots
+        document.setFieldValue("foo", Map.of(
+            "nested.field", Map.of(
+                "bar", Map.of(
+                    "another.field", "value2"
+                )
+            )
+        ));
+        assertThat(
+            document.getFieldValue("foo['nested.field'].bar[\"another.field\"]", String.class),
+            equalTo("value2")
+        );
+    }
+
+    public void testInvalidBracketNotation() {
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random());
+        document.setFieldValue("foo", Map.of("dotted.field", "value"));
+
+        // Missing closing bracket
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> document.getFieldValue("foo['dotted.field", String.class)
+        );
+        assertThat(e1.getMessage(), containsString("path [foo['dotted.field] is not valid"));
+
+        // Missing quotes
+        document.setFieldValue("foo[dotted", Map.of("field]", "value"));
+
+        assertThat(
+            document.getFieldValue("foo[dotted.field]", String.class),
+            equalTo("value")
+        );
+
+        // Mixed quotes
+        IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> document.getFieldValue("foo['dotted.field\"]", String.class)
+        );
+        assertThat(e3.getMessage(), containsString("path [foo['dotted.field\"]] is not valid"));
+
+        // Empty brackets
+        IllegalArgumentException e4 = expectThrows(
+            IllegalArgumentException.class,
+            () -> document.getFieldValue("['']", String.class)
+        );
+        assertThat(e4.getMessage(), containsString("path [['']] is not valid"));
+    }
 }

@@ -61,7 +61,7 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 1)
 public class TSDBDocValuesMergeBenchmark {
 
-    @Param("26431204")
+    @Param("20431204")
     private int nDocs;
 
     @Param("1000")

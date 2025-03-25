@@ -1,7 +1,0 @@
-pr: 124769
-summary: Migrate `model_version` to `model_id` when parsing persistent elser inference
-  endpoints
-area: Machine Learning
-type: bug
-issues:
- - 124675

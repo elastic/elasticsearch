@@ -219,7 +219,7 @@ class S3Service implements Closeable {
             s3clientBuilder.region(Region.of(clientSettings.region));
         }
         if (Strings.hasLength(clientSettings.endpoint)) {
-            s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint));
+            s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint)); // TODO NOMERGE what if URI.create fails?
         }
 
         return s3clientBuilder;

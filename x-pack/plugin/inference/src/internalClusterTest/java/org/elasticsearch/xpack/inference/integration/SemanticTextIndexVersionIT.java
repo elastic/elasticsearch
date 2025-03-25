@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -141,7 +142,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             String[] text = new String[] { "inference test", "another inference test" };
             DocWriteResponse docWriteResponse = client().prepareIndex(indexName).setSource(Map.of("semantic_field", text)).get();
 
-            assertEquals("Document should be created", "created", docWriteResponse.getResult().toString().toLowerCase());
+            assertEquals("Document should be created", "created", docWriteResponse.getResult().toString().toLowerCase(Locale.ROOT));
 
             // Ensure index is ready
             client().admin().indices().refresh(new RefreshRequest(indexName)).get();

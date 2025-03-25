@@ -278,7 +278,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                         .map(entry -> new ProjectRepo(entry.projectId(), entry.repository()))
                         .collect(Collectors.toSet())
                 );
-                final List<Entry> forRepo = snapshotsInProgress.forRepo(repo.projectId(), repo.repoName());
+                final List<Entry> forRepo = snapshotsInProgress.forRepo(repo.projectId(), repo.name());
                 int index = randomIntBetween(0, forRepo.size() - 1);
                 Entry entry = forRepo.get(index);
                 final List<Entry> updatedEntries = new ArrayList<>(forRepo);
@@ -287,7 +287,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 } else {
                     updatedEntries.remove(index);
                 }
-                return snapshotsInProgress.withUpdatedEntriesForRepo(repo.projectId(), repo.repoName(), updatedEntries);
+                return snapshotsInProgress.withUpdatedEntriesForRepo(repo.projectId(), repo.name(), updatedEntries);
             }
         } else {
             return snapshotsInProgress.withUpdatedNodeIdsForRemoval(

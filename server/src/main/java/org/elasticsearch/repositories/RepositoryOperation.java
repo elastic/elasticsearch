@@ -44,9 +44,9 @@ public interface RepositoryOperation {
     /**
      * A project qualified repository
      * @param projectId The project that the repository belongs to
-     * @param repoName Name of the repository
+     * @param name Name of the repository
      */
-    record ProjectRepo(ProjectId projectId, String repoName) implements Writeable {
+    record ProjectRepo(ProjectId projectId, String name) implements Writeable {
 
         public ProjectRepo(StreamInput in) throws IOException {
             this(ProjectId.readFrom(in), in.readString());
@@ -55,7 +55,7 @@ public interface RepositoryOperation {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             projectId.writeTo(out);
-            out.writeString(repoName);
+            out.writeString(name);
         }
     }
 

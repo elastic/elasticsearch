@@ -1845,7 +1845,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                             assert false : message;
                             throw new IllegalArgumentException(message);
                         }
-                        return projectRepo.repoName();
+                        return projectRepo.name();
                     }, DiffableUtils.getStringKeySerializer()).writeTo(out);
                 } else {
                     mapDiff.writeTo(out);

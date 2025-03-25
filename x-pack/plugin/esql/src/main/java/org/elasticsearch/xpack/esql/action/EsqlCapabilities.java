@@ -551,6 +551,10 @@ public class EsqlCapabilities {
          */
         DATE_NANOS_DATE_DIFF(),
         /**
+         * Indicates that https://github.com/elastic/elasticsearch/issues/125439 (incorrect lucene push down for date nanos) is fixed
+         */
+        FIX_DATE_NANOS_LUCENE_PUSHDOWN_BUG(),
+        /**
          * DATE_PARSE supports reading timezones
          */
         DATE_PARSE_TZ(),

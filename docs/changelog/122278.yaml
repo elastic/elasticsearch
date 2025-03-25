@@ -1,5 +1,0 @@
-pr: 122278
-summary: Fix serialising the inference update request
-area: Machine Learning
-type: bug
-issues: []

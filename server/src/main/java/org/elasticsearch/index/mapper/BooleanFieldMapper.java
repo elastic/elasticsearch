@@ -186,7 +186,8 @@ public class BooleanFieldMapper extends FieldMapper {
                 stored.getValue(),
                 this,
                 indexCreatedVersion,
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN,
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN_BACKPORT_8_X
             );
             return new BooleanFieldMapper(
                 leafName(),

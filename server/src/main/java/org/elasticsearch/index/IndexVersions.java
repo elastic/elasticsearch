@@ -137,6 +137,7 @@ public class IndexVersions {
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT = def(8_526_0_00, parseUnchecked("9.12.1"));
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD_BACKPORT_8_X = def(8_527_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER_BACKPORT_8_X = def(8_528_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN_BACKPORT_8_X = def(8_529_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_0_00, Version.LUCENE_10_0_0);

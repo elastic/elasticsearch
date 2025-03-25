@@ -1,6 +1,0 @@
-pr: 122357
-summary: Handle search timeout in `SuggestPhase`
-area: Search
-type: bug
-issues:
- - 122186

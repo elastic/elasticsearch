@@ -13,7 +13,6 @@ import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.util.Arrays;
-import java.util.function.ToDoubleBiFunction;
 import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -25,30 +24,44 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     static final ESVectorizationProvider defOrPanamaProvider = BaseVectorizationTests.maybePanamaProvider();
 
     public void testIpByteBit() {
-        byte[] q = new byte[16];
-        byte[] d = new byte[] { (byte) Integer.parseInt("01100010", 2), (byte) Integer.parseInt("10100111", 2) };
+        byte[] d = new byte[random().nextInt(128)];
+        byte[] q = new byte[d.length * 8];
+        random().nextBytes(d);
         random().nextBytes(q);
-        int expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
-        assertEquals(expected, ESVectorUtil.ipByteBit(q, d));
+
+        int sum = 0;
+        for (int i = 0; i < q.length; i++) {
+            if (((d[i / 8] << (i % 8)) & 0x80) == 0x80) {
+                sum += q[i];
+            }
+        }
+
+        assertEquals(sum, ESVectorUtil.ipByteBit(q, d));
+        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipByteBit(q, d));
+        assertEquals(sum, defOrPanamaProvider.getVectorUtilSupport().ipByteBit(q, d));
     }
 
     public void testIpFloatBit() {
-        float[] q = new float[16];
-        byte[] d = new byte[] { (byte) Integer.parseInt("01100010", 2), (byte) Integer.parseInt("10100111", 2) };
+        byte[] d = new byte[random().nextInt(128)];
+        float[] q = new float[d.length * 8];
+        random().nextBytes(d);
+
+        float sum = 0;
         for (int i = 0; i < q.length; i++) {
             q[i] = random().nextFloat();
+            if (((d[i / 8] << (i % 8)) & 0x80) == 0x80) {
+                sum += q[i];
+            }
         }
-        float expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
-        assertEquals(expected, ESVectorUtil.ipFloatBit(q, d), 1e-6);
+
+        double delta = 1e-5 * q.length;
+
+        assertEquals(sum, ESVectorUtil.ipFloatBit(q, d), delta);
+        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
+        assertEquals(sum, defOrPanamaProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
     }
 
     public void testIpFloatByte() {
-        testIpFloatByteImpl(ESVectorUtil::ipFloatByte);
-        testIpFloatByteImpl(defaultedProvider.getVectorUtilSupport()::ipFloatByte);
-        testIpFloatByteImpl(defOrPanamaProvider.getVectorUtilSupport()::ipFloatByte);
-    }
-
-    private void testIpFloatByteImpl(ToDoubleBiFunction<float[], byte[]> impl) {
         int vectorSize = randomIntBetween(1, 1024);
         // scale the delta according to the vector size
         double delta = 1e-5 * vectorSize;
@@ -64,7 +77,9 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         for (int i = 0; i < q.length; i++) {
             expected += q[i] * d[i];
         }
-        assertThat(impl.applyAsDouble(q, d), closeTo(expected, delta));
+        assertThat((double) ESVectorUtil.ipFloatByte(q, d), closeTo(expected, delta));
+        assertThat((double) defaultedProvider.getVectorUtilSupport().ipFloatByte(q, d), closeTo(expected, delta));
+        assertThat((double) defOrPanamaProvider.getVectorUtilSupport().ipFloatByte(q, d), closeTo(expected, delta));
     }
 
     public void testBitAndCount() {

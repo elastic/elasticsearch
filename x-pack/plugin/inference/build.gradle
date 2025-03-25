@@ -38,7 +38,6 @@ dependencies {
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   api "com.ibm.icu:icu4j:${versions.icu4j}"
-  api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 
   runtimeOnly 'com.google.guava:guava:32.0.1-jre'
   implementation 'com.google.code.gson:gson:2.10'
@@ -55,13 +54,14 @@ dependencies {
   implementation 'com.google.http-client:google-http-client-jackson2:1.42.3'
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation 'com.google.api:gax-httpjson:0.105.1'
+  implementation 'com.jayway.jsonpath:json-path:2.9.0'
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
-  implementation 'org.apache.commons:commons-text:1.4'
-  implementation 'com.jayway.jsonpath:json-path:2.9.0'
   implementation 'net.minidev:json-smart:2.5.2'
   implementation 'net.minidev:accessors-smart:2.5.2'
+  implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  implementation 'org.apache.commons:commons-text:1.4'
 
 
   /* AWS SDK v2 */
@@ -218,6 +218,14 @@ tasks.named("thirdPartyAudit").configure {
   )
 
   ignoreMissingClasses(
+    'com.fasterxml.jackson.databind.JsonNode',
+    'com.fasterxml.jackson.databind.ObjectMapper',
+    'com.fasterxml.jackson.databind.ObjectReader',
+    'com.fasterxml.jackson.databind.node.ArrayNode',
+    'com.fasterxml.jackson.databind.node.JsonNodeFactory',
+    'com.fasterxml.jackson.databind.node.ObjectNode',
+    'com.fasterxml.jackson.databind.node.TextNode',
+    'com.fasterxml.jackson.databind.type.TypeFactory',
     'com.google.api.AnnotationsProto',
     'com.google.api.ClientProto',
     'com.google.api.FieldBehaviorProto',
@@ -400,8 +408,42 @@ tasks.named("thirdPartyAudit").configure {
     'software.amazon.awssdk.crt.http.HttpHeader',
     'software.amazon.awssdk.crt.http.HttpRequest',
     'software.amazon.awssdk.crt.http.HttpRequestBodyStream',
+    'jakarta.json.JsonArray',
+    'jakarta.json.JsonArrayBuilder',
+    'jakarta.json.JsonBuilderFactory',
+    'jakarta.json.JsonNumber',
+    'jakarta.json.JsonObject',
+    'jakarta.json.JsonObjectBuilder',
+    'jakarta.json.JsonReader',
+    'jakarta.json.JsonString',
+    'jakarta.json.JsonStructure',
+    'jakarta.json.JsonValue',
+    'jakarta.json.JsonValue$ValueType',
+    'jakarta.json.bind.Jsonb',
+    'jakarta.json.bind.JsonbBuilder',
+    'jakarta.json.bind.JsonbConfig',
+    'jakarta.json.spi.JsonProvider',
+    'jakarta.json.stream.JsonLocation',
+    'jakarta.json.stream.JsonParser',
+    'jakarta.json.stream.JsonParser$Event',
+    'org.apache.tapestry5.json.JSONArray',
+    'org.apache.tapestry5.json.JSONCollection',
+    'org.apache.tapestry5.json.JSONObject',
+    'org.codehaus.jettison.json.JSONArray',
+    'org.codehaus.jettison.json.JSONException',
+    'org.codehaus.jettison.json.JSONObject',
+    'org.codehaus.jettison.json.JSONTokener',
+    'org.json.JSONArray',
+    'org.json.JSONObject',
+    'org.json.JSONTokener',
+    'org.objectweb.asm.ClassWriter',
+    'org.objectweb.asm.Label',
+    'org.objectweb.asm.MethodVisitor',
+    'org.objectweb.asm.Type',
   )
 }
+
+
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("to be triaged")

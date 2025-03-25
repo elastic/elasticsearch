@@ -393,6 +393,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
   method: testAlreadyUpgraded
   issue: https://github.com/elastic/elasticsearch/issues/125585
+- class: org.elasticsearch.xpack.security.authz.accesscontrol.IndicesPermissionTests
+  method: testAuthorizeDataStreamFailureIndices
+  issue: https://github.com/elastic/elasticsearch/issues/125555
 
 # Examples:
 #

@@ -30,7 +30,6 @@ import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.core.CheckedFunction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,12 +54,11 @@ class DocValuesConsumerUtil {
 
     record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField) {}
 
-    record FieldEntry(long docsWithFieldOffset, long numValues, int numDocsWithField) {}
-
     static MergeStats compatibleWithOptimizedMerge(
         boolean optimizedMergeEnabled,
         MergeState mergeState,
-        CheckedFunction<DocValuesProducer, FieldEntry, IOException> getEntryFunction
+        FieldInfo fieldInfo,
+        DocValuesType docValuesType
     ) throws IOException {
         if (optimizedMergeEnabled == false || mergeState.needsIndexSort == false) {
             return UNSUPPORTED;
@@ -76,15 +74,72 @@ class DocValuesConsumerUtil {
         long sumNumValues = 0;
         int sumNumDocsWithField = 0;
 
-        for (DocValuesProducer docValuesProducer : mergeState.docValuesProducers) {
-            // TODO bring back codec version check? (per field doc values producer sits between ES87TSDBDocValuesConsumer)
-            var entry = getEntryFunction.apply(docValuesProducer);
-            if (entry == null) {
-                return UNSUPPORTED;
+        // TODO bring back codec version check? (per field doc values producer sits between ES87TSDBDocValuesConsumer)
+        for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+            DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
+            switch (docValuesType) {
+                case NUMERIC -> {
+                    var numeric = docValuesProducer.getNumeric(fieldInfo);
+                    if (numeric instanceof ES87TSDBDocValuesProducer.BaseNumericDocValues baseNumericDocValues) {
+                        var entry = baseNumericDocValues.entry;
+                        sumNumValues += entry.numValues;
+                        // In this case the numDocsWithField doesn't get recorded in meta:
+                        int numDocsWithField;
+                        if (entry.docsWithFieldOffset == -2) {
+                            numDocsWithField = 0;
+                        } else if (entry.docsWithFieldOffset == -1) {
+                            numDocsWithField = mergeState.maxDocs[i];
+                        } else {
+                            // Value doesn't matter in this case:
+                            numDocsWithField = mergeState.maxDocs[i] - 1;
+                        }
+                        sumNumDocsWithField += numDocsWithField;
+                    } else {
+                        return UNSUPPORTED;
+                    }
+                }
+                case SORTED_NUMERIC -> {
+                    var sortedNumeric = docValuesProducer.getSortedNumeric(fieldInfo);
+                    if (sortedNumeric instanceof ES87TSDBDocValuesProducer.BaseSortedNumericDocValues baseSortedNumericDocValues) {
+                        var entry = baseSortedNumericDocValues.entry;
+                        sumNumValues += entry.numValues;
+                        sumNumDocsWithField += entry.numDocsWithField;
+                    } else {
+                        return UNSUPPORTED;
+                    }
+                }
+                case SORTED -> {
+                    var sorted = docValuesProducer.getSorted(fieldInfo);
+                    if (sorted instanceof ES87TSDBDocValuesProducer.BaseSortedDocValues baseSortedDocValues) {
+                        var entry = baseSortedDocValues.entry;
+                        sumNumValues += entry.ordsEntry.numValues;
+                        // In this case the numDocsWithField doesn't get recorded in meta:
+                        int numDocsWithField;
+                        if (entry.ordsEntry.docsWithFieldOffset == -2) {
+                            numDocsWithField = 0;
+                        } else if (entry.ordsEntry.docsWithFieldOffset == -1) {
+                            numDocsWithField = mergeState.maxDocs[i];
+                        } else {
+                            // Value doesn't matter in this case:
+                            numDocsWithField = mergeState.maxDocs[i] - 1;
+                        }
+                        sumNumDocsWithField += numDocsWithField;
+                    } else {
+                        return UNSUPPORTED;
+                    }
+                }
+                case SORTED_SET -> {
+                    var sortedSet = docValuesProducer.getSortedSet(fieldInfo);
+                    if (sortedSet instanceof ES87TSDBDocValuesProducer.BaseSortedSetDocValues baseSortedSet) {
+                        var entry = baseSortedSet.entry;
+                        sumNumValues += entry.ordsEntry.numValues;
+                        sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
+                    } else {
+                        return UNSUPPORTED;
+                    }
+                }
+                default -> throw new IllegalStateException("unexpected doc values producer type: " + docValuesType);
             }
-
-            sumNumValues += entry.numValues;
-            sumNumDocsWithField += entry.numDocsWithField;
         }
 
         return new MergeStats(true, sumNumValues, sumNumDocsWithField);

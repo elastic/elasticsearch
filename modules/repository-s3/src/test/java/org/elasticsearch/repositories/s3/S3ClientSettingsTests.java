@@ -15,6 +15,7 @@ import com.amazonaws.services.s3.AmazonS3Client;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -46,6 +47,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(defaultSettings.maxConnections, is(ClientConfiguration.DEFAULT_MAX_CONNECTIONS));
         assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
         assertThat(defaultSettings.throttleRetries, is(ClientConfiguration.DEFAULT_THROTTLE_RETRIES));
+        assertThat(defaultSettings.connectionMaxIdleTimeMillis, is(ClientConfiguration.DEFAULT_CONNECTION_MAX_IDLE_MILLIS));
     }
 
     public void testDefaultClientSettingsCanBeSet() {
@@ -198,6 +200,22 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(defaultConfiguration.getSignerOverride(), nullValue());
         ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"), false);
         assertThat(configuration.getSignerOverride(), is(signerOverride));
+    }
+
+    public void testConnectionMaxIdleTimeCanBeSet() {
+        final TimeValue connectionMaxIdleTimeValue = randomValueOtherThan(
+            S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME,
+            ESTestCase::randomTimeValue
+        );
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.connection_max_idle_time", connectionMaxIdleTimeValue).build()
+        );
+        assertThat(settings.get("default").connectionMaxIdleTimeMillis, is(S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME.millis()));
+        assertThat(settings.get("other").connectionMaxIdleTimeMillis, is(connectionMaxIdleTimeValue.millis()));
+        ClientConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"), randomBoolean());
+        assertThat(defaultConfiguration.getConnectionMaxIdleMillis(), is(S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME.millis()));
+        ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"), randomBoolean());
+        assertThat(configuration.getConnectionMaxIdleMillis(), is(connectionMaxIdleTimeValue.millis()));
     }
 
     public void testMaxConnectionsCanBeSet() {

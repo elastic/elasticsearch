@@ -558,6 +558,16 @@ public class EsqlDataTypeConverter {
         return DateUtils.toLong(parsed);
     }
 
+    public static String dateWithTypeToString(long dateTime, DataType type) {
+        if (type == DATETIME) {
+            return dateTimeToString(dateTime);
+        }
+        if (type == DATE_NANOS) {
+            return nanoTimeToString(dateTime);
+        }
+        throw new IllegalArgumentException("Unsupported data type [" + type + "]");
+    }
+
     public static String dateTimeToString(long dateTime) {
         return DEFAULT_DATE_TIME_FORMATTER.formatMillis(dateTime);
     }

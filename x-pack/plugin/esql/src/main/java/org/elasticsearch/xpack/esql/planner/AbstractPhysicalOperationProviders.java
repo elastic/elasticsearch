@@ -13,13 +13,12 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FilteredAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorFactory;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -175,21 +174,16 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels))
             );
             // time-series aggregation
-            if (source.sourceOperatorFactory instanceof TimeSeriesSortedSourceOperatorFactory
-                && aggregatorMode.isInputPartial() == false
+            if (Expressions.anyMatch(aggregates, a -> a instanceof ToTimeSeriesAggregator)
                 && groupSpecs.size() == 2
                 && groupSpecs.get(0).attribute.dataType() == DataType.TSID_DATA_TYPE
                 && groupSpecs.get(1).attribute.dataType() == DataType.LONG) {
-                operatorFactory = new HashAggregationOperatorFactory(
-                    driverContext -> new TimeSeriesBlockHash(
-                        groupSpecs.get(0).channel,
-                        groupSpecs.get(1).channel,
-                        driverContext.blockFactory()
-                    ),
+                operatorFactory = new TimeSeriesAggregationOperator.Factory(
+                    groupSpecs.get(0).toHashGroupSpec(),
+                    groupSpecs.get(1).toHashGroupSpec(),
                     aggregatorMode,
                     aggregatorFactories,
-                    context.pageSize(aggregateExec.estimatedRowSize()),
-                    analysisRegistry
+                    context.pageSize(aggregateExec.estimatedRowSize())
                 );
                 // ordinal grouping
             } else if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {

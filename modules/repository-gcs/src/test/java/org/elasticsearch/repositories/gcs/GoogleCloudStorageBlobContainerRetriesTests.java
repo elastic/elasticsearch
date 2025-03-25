@@ -457,8 +457,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
             if (randomBoolean()) {
                 exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
-            } else {
-                logger.warn("Closing connection without response");
             }
         }));
 

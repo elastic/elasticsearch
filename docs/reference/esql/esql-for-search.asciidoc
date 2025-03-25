@@ -16,7 +16,7 @@ The following table summarizes the key search features available in {esql} and w
 
 |<<esql-search-functions,Full text search functions>>
 |8.17
-|Perform text searches with <<esql-match, match function>> and <<esql-search-operators,match operator (`:`)>>
+|Perform basic text searches with <<esql-match, match function>> and <<esql-search-operators,match operator (`:`)>>
 
 |<<esql-for-search-query-string,Query string function>>
 |8.17
@@ -176,7 +176,7 @@ Refer to <<esql-limitations-full-text-search, {esql} limitations>> for a list of
 ===== Technical reference
 
 * <<esql-search-functions>>: Complete reference for all search functions
-* <<esql-limitations-full-text-search>>: Current limitations for search in ES|QL
+* <<esql-limitations-full-text-search, Limitations>>: Current limitations for search in ES|QL
 
 [[esql-for-search-concepts]]
 ===== Background concepts

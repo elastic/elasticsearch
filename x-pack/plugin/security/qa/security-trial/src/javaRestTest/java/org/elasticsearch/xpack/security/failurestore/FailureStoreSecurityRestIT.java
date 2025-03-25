@@ -1527,11 +1527,28 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                         "names": ["%s"],
                         "privileges": ["read"],
                         "field_security": {
+                            "grant": ["@timestamp", "age"]
+                        }
+                     },
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "field_security": {
                             "grant": ["@timestamp", "document.source.name"]
                         }
                      }
                  ]
-             }""", failureIndexName), role);
+             }""", dataIndexName, failureIndexName), role);
+
+        // FLS applies to backing data index
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search(dataIndexName).toSearchRequest()),
+            Map.of(dataIndexName, Set.of("@timestamp", "age"))
+        );
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search(".ds-*").toSearchRequest()),
+            Map.of(dataIndexName, Set.of("@timestamp", "age"))
+        );
         // FLS is not applicable to backing failure store indices
         expectFlsDlsError(() -> performRequest(user, new Search(failureIndexName).toSearchRequest()));
         expectFlsDlsError(() -> performRequest(user, new Search(".fs-*").toSearchRequest()));

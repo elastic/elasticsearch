@@ -11,7 +11,11 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreDefinition;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,8 +25,18 @@ import java.util.Map;
 
 public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
-    public FailureStoreRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
+    private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
+
+    public FailureStoreRequestInterceptor(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        ThreadPool threadPool,
+        XPackLicenseState licenseState
+    ) {
         super(threadPool.getThreadContext(), licenseState);
+        this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -32,7 +46,8 @@ public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurit
         ActionListener<Void> listener
     ) {
         for (var indexAccessControl : indicesAccessControlByIndex.entrySet()) {
-            if (hasFailuresSelectorSuffix(indexAccessControl.getKey()) && hasDlsFlsPermissions(indexAccessControl.getValue())) {
+            if ((hasFailuresSelectorSuffix(indexAccessControl.getKey()) || isBackingFailureStoreIndex(indexAccessControl.getKey()))
+                && hasDlsFlsPermissions(indexAccessControl.getValue())) {
                 listener.onFailure(
                     new ElasticsearchSecurityException(
                         "Failure store access is not allowed for users who have "
@@ -50,7 +65,7 @@ public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurit
     boolean supports(IndicesRequest request) {
         if (request.indicesOptions().allowSelectors()) {
             for (String index : request.indices()) {
-                if (hasFailuresSelectorSuffix(index)) {
+                if (hasFailuresSelectorSuffix(index) || isBackingFailureStoreIndex(index)) {
                     return true;
                 }
             }
@@ -68,6 +83,14 @@ public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurit
     private boolean hasDlsFlsPermissions(IndicesAccessControl.IndexAccessControl indexAccessControl) {
         return indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
             || indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+    }
+
+    private boolean isBackingFailureStoreIndex(String index) {
+        IndexMetadata indexMetadata = clusterService.state().metadata().getProject(projectResolver.getProjectId()).index(index);
+        if (indexMetadata == null) {
+            return false;
+        }
+        return indexMetadata.getSettings().hasValue(DataStreamFailureStoreDefinition.INDEX_FAILURE_STORE_VERSION_SETTING_NAME);
     }
 
 }

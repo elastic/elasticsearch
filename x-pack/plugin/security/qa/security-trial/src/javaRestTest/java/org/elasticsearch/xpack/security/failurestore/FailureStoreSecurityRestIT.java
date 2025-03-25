@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -1448,7 +1449,21 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         assertSearchResponseContainsExpectedIndicesAndFields(
             performRequest(user, new Search("test1::failures").toSearchRequest()),
-            Map.of(failureIndexName, Set.of("@timestamp", "document", "error"))
+            Map.of(
+                failureIndexName,
+                Set.of(
+                    "@timestamp",
+                    "document.id",
+                    "document.index",
+                    "document.source.@timestamp",
+                    "document.source.age",
+                    "document.source.email",
+                    "document.source.name",
+                    "error.message",
+                    "error.stack_trace",
+                    "error.type"
+                )
+            )
         );
 
         // DLS
@@ -1502,6 +1517,40 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
              }""", role);
         // DLS does not apply because there is a section without DLS
         expectSearch(user, new Search(randomFrom("test1", "test1::data")), dataIndexDocId);
+
+        // check that direct access to backing failure store indices is not allowed
+        upsertRole(Strings.format("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "field_security": {
+                            "grant": ["@timestamp", "document.source.name"]
+                        }
+                     }
+                 ]
+             }""", failureIndexName), role);
+        // FLS is not applicable to backing failure store indices
+        expectFlsDlsError(() -> performRequest(user, new Search(failureIndexName).toSearchRequest()));
+        expectFlsDlsError(() -> performRequest(user, new Search(".fs-*").toSearchRequest()));
+
+        // DLS is not applicable to backing failure store, even when granted directly
+        upsertRole(Strings.format("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "query":{"term":{"name":{"value":"jack"}}}
+                     }
+                 ]
+             }""", failureIndexName), role);
+        expectFlsDlsError(() -> performRequest(user, new Search(failureIndexName).toSearchRequest()));
+        expectFlsDlsError(() -> performRequest(user, new Search(".fs-*").toSearchRequest()));
+
     }
 
     private static void expectThrows(ThrowingRunnable runnable, int statusCode) {
@@ -1792,7 +1841,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 assertThat(searchResult.keySet(), equalTo(expectedIndicesAndFields.keySet()));
                 for (String index : expectedIndicesAndFields.keySet()) {
                     Set<String> expectedFields = expectedIndicesAndFields.get(index);
-                    assertThat(searchResult.get(index).keySet(), equalTo(expectedFields));
+                    assertThat(Maps.flatten(searchResult.get(index), false, true).keySet(), equalTo(expectedFields));
                 }
             } finally {
                 response.decRef();

@@ -1142,7 +1142,7 @@ public class Security extends Plugin
                 )
             );
             if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                requestInterceptors.add(new FailureStoreRequestInterceptor(threadPool, getLicenseState()));
+                requestInterceptors.add(new FailureStoreRequestInterceptor(clusterService, projectResolver, threadPool, getLicenseState()));
             }
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);

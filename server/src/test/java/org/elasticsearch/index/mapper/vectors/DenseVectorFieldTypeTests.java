@@ -492,6 +492,22 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         checkRescoreQueryParameters(fieldType, 1000, 1000, 11.0F, OVERSAMPLE_LIMIT, OVERSAMPLE_LIMIT, 1000);
     }
 
+    public void testRescoreOversampleZeroBypassesRescore() {
+        DenseVectorFieldType fieldType = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            3,
+            true,
+            VectorSimilarity.COSINE,
+            randomIndexOptionsHnswQuantized(),
+            Collections.emptyMap()
+        );
+
+        Query query = fieldType.createKnnQuery(VectorData.fromFloats(new float[] { 1, 4, 10 }), 10, 100, 0f, null, null, null);
+        assertTrue(query instanceof ESKnnFloatVectorQuery);
+    }
+
     private static void checkRescoreQueryParameters(
         DenseVectorFieldType fieldType,
         int k,

@@ -50,7 +50,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     );
     private final ShardId shardId;
     private final MergeSchedulerConfig config;
-    private final Logger logger;
+    protected final Logger logger;
     private final MergeTracking mergeTracking;
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(

@@ -15,6 +15,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.allocatedProcessors;
+import static org.elasticsearch.threadpool.ThreadPool.halfAllocatedProcessorsMaxFive;
+import static org.elasticsearch.threadpool.ThreadPool.twiceAllocatedProcessors;
+
 /**
  * The merge scheduler (<code>ConcurrentMergeScheduler</code>) controls the execution of
  * merge operations once they are needed (according to the merge policy).  Merges
@@ -27,7 +31,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
  * <li> <code>index.merge.scheduler.max_thread_count</code>:
  *
  *     The maximum number of threads that may be merging at once. Defaults to
- *     <code>Math.max(1, Math.min(4, {@link EsExecutors#allocatedProcessors(Settings)} / 2))</code>
+ *     <code>Math.max(1, Math.min(5, {@link EsExecutors#allocatedProcessors(Settings)} / 2))</code>
  *     which works well for a good solid-state-disk (SSD).  If your index is on
  *     spinning platter drives instead, decrease this to 1.
  *
@@ -45,14 +49,14 @@ public final class MergeSchedulerConfig {
 
     public static final Setting<Integer> MAX_THREAD_COUNT_SETTING = new Setting<>(
         "index.merge.scheduler.max_thread_count",
-        (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.allocatedProcessors(s) / 2))),
+        (s) -> Integer.toString(halfAllocatedProcessorsMaxFive(allocatedProcessors(s))),
         (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"),
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<Integer> MAX_MERGE_COUNT_SETTING = new Setting<>(
         "index.merge.scheduler.max_merge_count",
-        (s) -> Integer.toString(MAX_THREAD_COUNT_SETTING.get(s) + 5),
+        (s) -> Integer.toString(MAX_THREAD_COUNT_SETTING.get(s) + twiceAllocatedProcessors(allocatedProcessors(s))),
         (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_merge_count"),
         Property.Dynamic,
         Property.IndexScope

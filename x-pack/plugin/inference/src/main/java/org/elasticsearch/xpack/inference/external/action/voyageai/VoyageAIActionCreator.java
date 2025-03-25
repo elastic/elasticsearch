@@ -75,7 +75,13 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
             serviceComponents.threadPool(),
             overriddenModel,
             RERANK_HANDLER,
-            (rerankInput) -> new VoyageAIRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model),
+            (rerankInput) -> new VoyageAIRerankRequest(
+                rerankInput.getQuery(),
+                rerankInput.getChunks(),
+                rerankInput.getReturnDocuments(),
+                rerankInput.getTopN(),
+                model
+            ),
             QueryAndDocsInputs.class
         );
 

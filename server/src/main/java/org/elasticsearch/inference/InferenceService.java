@@ -91,18 +91,22 @@ public interface InferenceService extends Closeable {
     /**
      * Perform inference on the model.
      *
-     * @param model        The model
-     * @param query        Inference query, mainly for re-ranking
-     * @param input        Inference input
-     * @param stream       Stream inference results
-     * @param taskSettings Settings in the request to override the model's defaults
-     * @param inputType    For search, ingest etc
-     * @param timeout      The timeout for the request
-     * @param listener     Inference result listener
+     * @param model           The model
+     * @param query           Inference query, mainly for re-ranking
+     * @param returnDocuments For re-ranking task type, whether to return documents
+     * @param topN            For re-ranking task type, how many docs to return
+     * @param input           Inference input
+     * @param stream          Stream inference results
+     * @param taskSettings    Settings in the request to override the model's defaults
+     * @param inputType       For search, ingest etc
+     * @param timeout         The timeout for the request
+     * @param listener        Inference result listener
      */
     void infer(
         Model model,
         @Nullable String query,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
         List<String> input,
         boolean stream,
         Map<String, Object> taskSettings,

@@ -85,6 +85,7 @@ public class IndexVersions {
     public static final IndexVersion V_8_3_0 = def(8_03_00_99, Version.LUCENE_9_2_0);
     public static final IndexVersion V_8_4_0 = def(8_04_00_99, Version.LUCENE_9_3_0);
     public static final IndexVersion V_8_5_0 = def(8_05_00_99, Version.LUCENE_9_4_1);
+    public static final IndexVersion V_8_5_3 = def(8_05_03_99, Version.LUCENE_9_4_2);
     public static final IndexVersion V_8_6_0 = def(8_06_00_99, Version.LUCENE_9_4_2);
     public static final IndexVersion V_8_7_0 = def(8_07_00_99, Version.LUCENE_9_5_0);
     public static final IndexVersion V_8_8_0 = def(8_08_00_99, Version.LUCENE_9_6_0);
@@ -153,6 +154,7 @@ public class IndexVersions {
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP = def(9_014_0_00, Version.LUCENE_10_1_0);
     public static final IndexVersion ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS = def(9_015_0_00, Version.LUCENE_10_1_0);
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER = def(9_016_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN = def(9_017_0_00, Version.LUCENE_10_1_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

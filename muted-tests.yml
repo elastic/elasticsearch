@@ -276,9 +276,6 @@ tests:
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testDuplicatePrunedPaths
   issue: https://github.com/elastic/elasticsearch/issues/124006
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
-  issue: https://github.com/elastic/elasticsearch/issues/124052
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120814
@@ -300,9 +297,6 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testIndexCompatibilityChecks
   issue: https://github.com/elastic/elasticsearch/issues/124388
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
-  method: testFilesEntitlementsWithExclusive
-  issue: https://github.com/elastic/elasticsearch/issues/124420
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/124159
@@ -333,9 +327,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testUpdateIndexTemplateToDataStreamLifecyclePreference
   issue: https://github.com/elastic/elasticsearch/issues/124837
-- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
-  method: testAutomaticForceMerge
-  issue: https://github.com/elastic/elasticsearch/issues/124846
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
   issue: https://github.com/elastic/elasticsearch/issues/124848
@@ -357,9 +348,6 @@ tests:
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/124940
-- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
-  method: testErrorRecordingOnRetention
-  issue: https://github.com/elastic/elasticsearch/issues/124950
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocalNoRemotes
   issue: https://github.com/elastic/elasticsearch/issues/124959
@@ -381,9 +369,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test011SecurityEnabledStatus
   issue: https://github.com/elastic/elasticsearch/issues/124990
-- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
-  method: testLifecycleAppliedToFailureStore
-  issue: https://github.com/elastic/elasticsearch/issues/124999
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testGetDataStreamResponse
   issue: https://github.com/elastic/elasticsearch/issues/125083
@@ -393,12 +378,27 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
   method: testSchedulerCloseWaitsForRunningMerge
   issue: https://github.com/elastic/elasticsearch/issues/125236
-- class: org.elasticsearch.reservedstate.service.ReservedClusterStateServiceTests
-  method: testProcessMultipleChunks
-  issue: https://github.com/elastic/elasticsearch/issues/125305
-- class: org.elasticsearch.index.mapper.NativeArrayIntegrationTestCase
-  method: testSynthesizeArrayRandomIgnoresMalformed
-  issue: https://github.com/elastic/elasticsearch/issues/125319
+- class: org.elasticsearch.xpack.ilm.history.ILMHistoryItemTests
+  method: testTruncateLongError
+  issue: https://github.com/elastic/elasticsearch/issues/125216
+- class: org.elasticsearch.index.shard.StoreRecoveryTests
+  method: testAddIndices
+  issue: https://github.com/elastic/elasticsearch/issues/124104
+- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
+  method: testInvalidJoinPatterns
+  issue: https://github.com/elastic/elasticsearch/issues/125536
+- class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
+  method: testUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/125554
+- class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
+  method: testAlreadyUpgraded
+  issue: https://github.com/elastic/elasticsearch/issues/125585
+- class: org.elasticsearch.xpack.security.authz.accesscontrol.IndicesPermissionTests
+  method: testAuthorizeDataStreamFailureIndices
+  issue: https://github.com/elastic/elasticsearch/issues/125555
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/data_frame_analytics_crud/Test get stats on newly created config}
+  issue: https://github.com/elastic/elasticsearch/issues/121726
 
 # Examples:
 #

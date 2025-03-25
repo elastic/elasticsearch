@@ -663,6 +663,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -700,6 +702,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 ValidationException.class,
                 () -> service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of(""),
                     false,
@@ -776,6 +780,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("input"),
                 false,
                 new HashMap<>(),
@@ -832,6 +838,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of(input),
                 false,
@@ -1005,6 +1013,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,

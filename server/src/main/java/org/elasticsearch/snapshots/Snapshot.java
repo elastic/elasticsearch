@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.FixForMultiProject;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,6 +32,7 @@ public final class Snapshot implements Writeable {
     /**
      * Constructs a snapshot.
      */
+    @FixForMultiProject
     @Deprecated(forRemoval = true)
     public Snapshot(final String repository, final SnapshotId snapshotId) {
         this(ProjectId.DEFAULT, repository, snapshotId);

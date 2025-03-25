@@ -324,27 +324,15 @@ tests:
 - class: org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRateTests
   method: testEwmr_threadSafe
   issue: https://github.com/elastic/elasticsearch/issues/124692
-- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
-  method: testUpdateIndexTemplateToDataStreamLifecyclePreference
-  issue: https://github.com/elastic/elasticsearch/issues/124837
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
   issue: https://github.com/elastic/elasticsearch/issues/124848
-- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
-  method: testUpdateIndexTemplateToMigrateFromDataStreamLifecycleToIlm
-  issue: https://github.com/elastic/elasticsearch/issues/124849
-- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
-  method: testUpdateIndexTemplateFromILMtoBothILMAndDataStreamLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/124850
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/124882
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testSystemExplainLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/124885
-- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
-  method: testIndexTemplateSwapsILMForDataStreamLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/124886
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/124940
@@ -369,9 +357,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test011SecurityEnabledStatus
   issue: https://github.com/elastic/elasticsearch/issues/124990
-- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
-  method: testGetDataStreamResponse
-  issue: https://github.com/elastic/elasticsearch/issues/125083
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test012SecurityCanBeDisabled
   issue: https://github.com/elastic/elasticsearch/issues/116636

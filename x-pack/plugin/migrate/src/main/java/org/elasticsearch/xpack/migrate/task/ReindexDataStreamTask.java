@@ -30,6 +30,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     private final long persistentTaskStartTime;
     private final int initialTotalIndices;
     private final int initialTotalIndicesToBeUpgraded;
+    private boolean isCompleteLocally = false;
     private volatile Exception exception;
     private final Set<String> inProgress = Collections.synchronizedSet(new HashSet<>());
     private final AtomicInteger pending = new AtomicInteger();
@@ -100,6 +101,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     }
 
     public void allReindexesCompleted(ThreadPool threadPool, TimeValue timeToLive) {
+        isCompleteLocally = true;
         if (isCancelled()) {
             completeTask.run();
         } else {
@@ -126,7 +128,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         pending.decrementAndGet();
     }
 
-    private boolean isComplete() {
+    private boolean isCompleteInClusterState() {
         PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
             .getMetadata()
             .getProject()
@@ -154,8 +156,10 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
          * If the task is complete, but just waiting for its scheduled removal, we go ahead and call markAsCompleted/markAsFailed
          * immediately. This results in the running task being removed from the task manager. If the task is not complete, then one of
          * allReindexesCompleted or taskFailed will be called in the future, resulting in the same thing.
+         * We check both the cluster state and isCompleteLocally -- it is possible (especially in tests) that hte cluster state
+         * update has not happened in between when allReindexesCompleted was called and when this is called.
          */
-        if (isComplete()) {
+        if (isCompleteInClusterState() || isCompleteLocally) {
             completeTask.run();
         }
     }

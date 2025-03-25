@@ -98,6 +98,10 @@ public class SelectorResolverTests extends ESTestCase {
         assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "*:*::failures");
         // even with an empty index name
         assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster:::failures");
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "failures:index::failures");
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "data:index::failures");
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "failures:failures::failures");
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "data:data::failures");
     }
 
     public void assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(Context context, String expression) {

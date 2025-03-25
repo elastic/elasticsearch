@@ -2365,7 +2365,13 @@ public class IndexNameExpressionResolver {
             int lastDoubleColon = expression.lastIndexOf(SELECTOR_SEPARATOR);
             if (lastDoubleColon >= 0) {
                 String suffix = expression.substring(lastDoubleColon + SELECTOR_SEPARATOR.length());
-                doValidateSelectorString(() -> expression, suffix);
+                IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
+                if (selector == null) {
+                    throw new InvalidIndexNameException(
+                        expression,
+                        "invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
+                    );
+                }
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
                 ensureNoCrossClusterExpressionWithFailuresSelector(expressionBase, selector, expression);

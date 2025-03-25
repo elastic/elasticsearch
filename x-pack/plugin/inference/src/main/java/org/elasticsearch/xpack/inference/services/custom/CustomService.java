@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.inference.external.request.custom.CustomUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.EnumSet;

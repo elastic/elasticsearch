@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.custom;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -29,7 +28,7 @@ public class CustomActionCreator implements CustomActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(CustomModel model, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction create(CustomModel model, Map<String, Object> taskSettings) {
         var overriddenModel = CustomModel.of(model, taskSettings);
 
         return new CustomAction(sender, overriddenModel, serviceComponents);

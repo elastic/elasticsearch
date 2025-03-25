@@ -67,10 +67,10 @@ public class CustomRequestManager extends BaseRequestManager {
         } else if (inferenceInputs instanceof ChatCompletionInput chatInputs) {
             query = null;
             input = chatInputs.getInputs();
-        } else if (inferenceInputs instanceof DocumentsOnlyInput) {
-            DocumentsOnlyInput docsInputs = DocumentsOnlyInput.of(inferenceInputs);
+        } else if (inferenceInputs instanceof EmbeddingsInput) {
+            EmbeddingsInput embeddingsInput = EmbeddingsInput.of(inferenceInputs);
             query = null;
-            input = docsInputs.getInputs();
+            input = embeddingsInput.getInputs();
         } else {
             throw InferenceInputs.createUnsupportedTypeException(inferenceInputs, InferenceInputs.class);
         }

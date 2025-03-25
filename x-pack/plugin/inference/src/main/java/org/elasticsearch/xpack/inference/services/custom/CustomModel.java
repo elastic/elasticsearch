@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -95,8 +94,8 @@ public class CustomModel extends Model {
         return (CustomSecretSettings) super.getSecretSettings();
     }
 
-    public ExecutableAction accept(CustomActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
-        return visitor.create(this, taskSettings, inputType);
+    public ExecutableAction accept(CustomActionVisitor visitor, Map<String, Object> taskSettings) {
+        return visitor.create(this, taskSettings);
     }
 
     public CustomRateLimitServiceSettings rateLimitServiceSettings() {

@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.inference.external.action.custom;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 
 import java.util.Map;
 
 public interface CustomActionVisitor {
-    ExecutableAction create(CustomModel model, Map<String, Object> taskSettings, InputType inputType);
+    ExecutableAction create(CustomModel model, Map<String, Object> taskSettings);
 }

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -180,13 +180,13 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
         try {
             final var barrier = new CyclicBarrier(2);
-            final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
+            final ExponentialBucketHistogram expectedHistogram = new ExponentialBucketHistogram();
             Future<?> runningTask = executor.submit(() -> {
                 safeAwait(barrier);
                 safeAwait(barrier);
             });
             safeAwait(barrier); // wait till first task starts
-            handlingTimeTracker.addHandlingTime(0L); // first task should not be delayed
+            expectedHistogram.addObservation(0L); // first task should not be delayed
             for (int i = 0; i < 10; i++) {
                 Future<?> waitingTask = executor.submit(() -> {
                     safeAwait(barrier);
@@ -197,7 +197,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
                 safeAwait(barrier); // let running task complete
                 safeAwait(barrier); // wait for next task to start
                 safeGet(runningTask); // ensure previous task is complete
-                handlingTimeTracker.addHandlingTime(delayTimeMs);
+                expectedHistogram.addObservation(delayTimeMs);
                 runningTask = waitingTask;
             }
             safeAwait(barrier); // let last task finish
@@ -212,8 +212,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
                 );
             assertThat(measurements, hasSize(2));
             // we have to use greater than or equal to because the actual delay might be higher than what we imposed
-            assertThat(getPercentile(measurements, "90"), greaterThanOrEqualTo(handlingTimeTracker.getPercentile(0.9f)));
-            assertThat(getPercentile(measurements, "50"), greaterThanOrEqualTo(handlingTimeTracker.getPercentile(0.5f)));
+            assertThat(getPercentile(measurements, "90"), greaterThanOrEqualTo(expectedHistogram.getPercentile(0.9f)));
+            assertThat(getPercentile(measurements, "50"), greaterThanOrEqualTo(expectedHistogram.getPercentile(0.5f)));
         } finally {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }

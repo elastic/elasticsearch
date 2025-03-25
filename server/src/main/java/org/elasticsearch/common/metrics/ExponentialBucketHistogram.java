@@ -7,15 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.network;
+package org.elasticsearch.common.metrics;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Tracks how long message handling takes on a transport thread as a histogram with fixed buckets.
+ * A histogram with a fixed number of buckets of exponentially increasing width.
+ *
+ * The upper bounds of the buckets are defined by increasing powers of two, e.g.
+ * <code>
+ *     1, 2, 4, 8, 16...
+ * </code>
+ * There are {@link #BUCKET_COUNT} buckets
  */
-public class HandlingTimeTracker {
+public class ExponentialBucketHistogram {
 
     public static int[] getBucketUpperBounds() {
         int[] bounds = new int[17];
@@ -41,15 +47,15 @@ public class HandlingTimeTracker {
 
     private final LongAdder[] buckets;
 
-    public HandlingTimeTracker() {
+    public ExponentialBucketHistogram() {
         buckets = new LongAdder[BUCKET_COUNT];
         for (int i = 0; i < BUCKET_COUNT; i++) {
             buckets[i] = new LongAdder();
         }
     }
 
-    public void addHandlingTime(long handlingTimeMillis) {
-        buckets[getBucket(handlingTimeMillis)].increment();
+    public void addObservation(long observedValue) {
+        buckets[getBucket(observedValue)].increment();
     }
 
     /**

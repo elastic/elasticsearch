@@ -25,7 +25,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -83,7 +83,7 @@ public class OutboundHandlerTests extends ESTestCase {
             statsTracker,
             threadPool,
             recycler,
-            new HandlingTimeTracker(),
+            new ExponentialBucketHistogram(),
             false
         );
 

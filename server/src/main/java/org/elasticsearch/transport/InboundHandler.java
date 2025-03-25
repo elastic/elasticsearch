@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -46,7 +46,7 @@ public class InboundHandler {
     private final TransportKeepAlive keepAlive;
     private final Transport.ResponseHandlers responseHandlers;
     private final Transport.RequestHandlers requestHandlers;
-    private final HandlingTimeTracker handlingTimeTracker;
+    private final ExponentialBucketHistogram exponentialBucketHistogram;
     private final boolean ignoreDeserializationErrors;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
@@ -61,7 +61,7 @@ public class InboundHandler {
         TransportKeepAlive keepAlive,
         Transport.RequestHandlers requestHandlers,
         Transport.ResponseHandlers responseHandlers,
-        HandlingTimeTracker handlingTimeTracker,
+        ExponentialBucketHistogram exponentialBucketHistogram,
         boolean ignoreDeserializationErrors
     ) {
         this.threadPool = threadPool;
@@ -71,7 +71,7 @@ public class InboundHandler {
         this.keepAlive = keepAlive;
         this.requestHandlers = requestHandlers;
         this.responseHandlers = responseHandlers;
-        this.handlingTimeTracker = handlingTimeTracker;
+        this.exponentialBucketHistogram = exponentialBucketHistogram;
         this.ignoreDeserializationErrors = ignoreDeserializationErrors;
     }
 
@@ -127,7 +127,7 @@ public class InboundHandler {
             }
         } finally {
             final long took = threadPool.rawRelativeTimeInMillis() - startTime;
-            handlingTimeTracker.addHandlingTime(took);
+            exponentialBucketHistogram.addObservation(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 logSlowMessage(message, took, logThreshold, responseHandler);

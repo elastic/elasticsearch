@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Re
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Tuple;
@@ -843,8 +843,8 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
-                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
+                IntStream.range(0, ExponentialBucketHistogram.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
+                IntStream.range(0, ExponentialBucketHistogram.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
                 Map.of("test-action", new TransportActionStats(1, 2, new long[29], 3, 4, new long[29]))
             )
             : null;

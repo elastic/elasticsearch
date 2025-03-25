@@ -10,7 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -20,7 +20,7 @@ import java.util.Map;
 
 public class TransportStatsTests extends ESTestCase {
     public void testToXContent() {
-        final var histogram = new long[HandlingTimeTracker.BUCKET_COUNT];
+        final var histogram = new long[ExponentialBucketHistogram.BUCKET_COUNT];
         histogram[4] = 10;
 
         final var requestSizeHistogram = new long[29];
@@ -67,7 +67,7 @@ public class TransportStatsTests extends ESTestCase {
     }
 
     public void testHistogram() {
-        final var histogram = new long[HandlingTimeTracker.BUCKET_COUNT];
+        final var histogram = new long[ExponentialBucketHistogram.BUCKET_COUNT];
 
         assertHistogram(histogram, """
             {"h":[]}""");
@@ -102,11 +102,11 @@ public class TransportStatsTests extends ESTestCase {
             ]}""");
 
         Arrays.fill(histogram, 0L);
-        histogram[HandlingTimeTracker.BUCKET_COUNT - 1] = 5;
+        histogram[ExponentialBucketHistogram.BUCKET_COUNT - 1] = 5;
         assertHistogram(histogram, """
             {"h":[{"ge":"1m","ge_millis":65536,"count":5}]}""");
 
-        histogram[HandlingTimeTracker.BUCKET_COUNT - 3] = 6;
+        histogram[ExponentialBucketHistogram.BUCKET_COUNT - 3] = 6;
         assertHistogram(histogram, """
             {"h":[\
             {"ge":"16.3s","ge_millis":16384,"lt":"32.7s","lt_millis":32768,"count":6},\

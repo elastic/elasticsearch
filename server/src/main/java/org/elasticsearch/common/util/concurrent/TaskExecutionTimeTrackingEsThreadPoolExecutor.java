@@ -10,7 +10,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.LongGauge;
@@ -43,7 +43,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
-    private final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
+    private final ExponentialBucketHistogram queueLatencyHistogram = new ExponentialBucketHistogram();
     private final LongGauge queueLatencyGauge;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
@@ -82,12 +82,12 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 List<LongWithAttributes> metricValues = Arrays.stream(LATENCY_PERCENTILES_TO_REPORT)
                     .mapToObj(
                         percentile -> new LongWithAttributes(
-                            handlingTimeTracker.getPercentile(percentile / 100f),
+                            queueLatencyHistogram.getPercentile(percentile / 100f),
                             Map.of("percentile", String.valueOf(percentile))
                         )
                     )
                     .toList();
-                handlingTimeTracker.clear();
+                queueLatencyHistogram.clear();
                 return metricValues;
             }
         );
@@ -165,7 +165,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                     + ", failedOrRejected: "
                     + failedOrRejected;
             if (taskQueueLatency != -1) {
-                handlingTimeTracker.addHandlingTime(TimeUnit.NANOSECONDS.toMillis(taskQueueLatency));
+                queueLatencyHistogram.addObservation(TimeUnit.NANOSECONDS.toMillis(taskQueueLatency));
             }
         } finally {
             // if trackOngoingTasks is false -> ongoingTasks must be empty

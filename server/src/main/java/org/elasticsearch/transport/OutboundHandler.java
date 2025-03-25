@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.core.Nullable;
@@ -47,7 +47,7 @@ final class OutboundHandler {
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final Recycler<BytesRef> recycler;
-    private final HandlingTimeTracker handlingTimeTracker;
+    private final ExponentialBucketHistogram handlingTimeTracker;
     private final boolean rstOnClose;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
@@ -60,7 +60,7 @@ final class OutboundHandler {
         StatsTracker statsTracker,
         ThreadPool threadPool,
         Recycler<BytesRef> recycler,
-        HandlingTimeTracker handlingTimeTracker,
+        ExponentialBucketHistogram handlingTimeTracker,
         boolean rstOnClose
     ) {
         this.nodeName = nodeName;
@@ -275,7 +275,7 @@ final class OutboundHandler {
                     final long logThreshold = slowLogThresholdMs;
                     if (logThreshold > 0) {
                         final long took = threadPool.rawRelativeTimeInMillis() - startTime;
-                        handlingTimeTracker.addHandlingTime(took);
+                        handlingTimeTracker.addObservation(took);
                         if (took > logThreshold) {
                             logger.warn(
                                 "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn "

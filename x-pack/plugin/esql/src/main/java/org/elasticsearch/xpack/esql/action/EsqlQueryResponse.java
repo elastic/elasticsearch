@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.TransportVersions.ESQL_VALUES_LOADED;
+
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
     implements
         ChunkedToXContentObject,
@@ -47,6 +49,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     private final List<ColumnInfoImpl> columns;
     private final List<Page> pages;
+    private final long documentsFound;
+    private final long valuesLoaded;
     private final Profile profile;
     private final boolean columnar;
     private final String asyncExecutionId;
@@ -58,6 +62,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
+        long documentsFound,
+        long valuesLoaded,
         @Nullable Profile profile,
         boolean columnar,
         @Nullable String asyncExecutionId,
@@ -67,6 +73,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     ) {
         this.columns = columns;
         this.pages = pages;
+        this.valuesLoaded = valuesLoaded;
+        this.documentsFound = documentsFound;
         this.profile = profile;
         this.columnar = columnar;
         this.asyncExecutionId = asyncExecutionId;
@@ -78,12 +86,14 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
+        long documentsFound,
+        long valuesLoaded,
         @Nullable Profile profile,
         boolean columnar,
         boolean isAsync,
         EsqlExecutionInfo executionInfo
     ) {
-        this(columns, pages, profile, columnar, null, false, isAsync, executionInfo);
+        this(columns, pages, documentsFound, valuesLoaded, profile, columnar, null, false, isAsync, executionInfo);
     }
 
     /**
@@ -109,6 +119,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
+        long documentsFound = in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED) ? in.readVInt() : 0;
+        long valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED) ? in.readVInt() : 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::new);
         }
@@ -117,7 +129,18 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         }
-        return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync, executionInfo);
+        return new EsqlQueryResponse(
+            columns,
+            pages,
+            documentsFound,
+            valuesLoaded,
+            profile,
+            columnar,
+            asyncExecutionId,
+            isRunning,
+            isAsync,
+            executionInfo
+        );
     }
 
     @Override
@@ -129,6 +152,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         out.writeCollection(columns);
         out.writeCollection(pages);
+        if (out.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED)) {
+            out.writeVLong(documentsFound);
+            out.writeVLong(valuesLoaded);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(profile);
         }
@@ -218,6 +245,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             tookTime = Collections.emptyIterator();
         }
 
+        Iterator<ToXContent> meta = ChunkedToXContentHelper.chunk((builder, p) -> {
+            builder.field("documents_found", documentsFound);
+            builder.field("values_loaded", valuesLoaded);
+            return builder;
+        });
+
         Iterator<? extends ToXContent> columnHeadings = dropNullColumns
             ? Iterators.concat(
                 ResponseXContentUtils.allColumns(columns, "all_columns"),
@@ -235,6 +268,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             ChunkedToXContentHelper.startObject(),
             asyncPropertiesOrEmpty(),
             tookTime,
+            meta,
             columnHeadings,
             ChunkedToXContentHelper.array("values", valuesIt),
             executionInfoRender,
@@ -275,6 +309,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && Objects.equals(isRunning, that.isRunning)
             && columnar == that.columnar
             && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
+            && documentsFound == that.documentsFound
+            && valuesLoaded == that.valuesLoaded
             && Objects.equals(profile, that.profile)
             && Objects.equals(executionInfo, that.executionInfo);
     }
@@ -285,8 +321,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             asyncExecutionId,
             isRunning,
             columns,
-            Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
             columnar,
+            Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
+            documentsFound,
+            valuesLoaded,
+            profile,
             executionInfo
         );
     }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.core.TimeValue;
@@ -79,12 +80,12 @@ public class ComputeListenerTests extends ESTestCase {
     }
 
     public void testEmpty() {
-        PlainActionFuture<List<DriverProfile>> results = new PlainActionFuture<>();
+        PlainActionFuture<DriverCompletionInfo> results = new PlainActionFuture<>();
         try (var ignored = new ComputeListener(threadPool, () -> {}, results)) {
             assertFalse(results.isDone());
         }
         assertTrue(results.isDone());
-        assertThat(results.actionGet(10, TimeUnit.SECONDS), empty());
+        assertThat(results.actionGet(10, TimeUnit.SECONDS).collectedProfiles(), empty());
     }
 
     public void testCollectComputeResults() {

@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -208,10 +209,14 @@ public class ComputeService {
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (
-                var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
-                    updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                    return new Result(physicalPlan.output(), collectedPages, profiles, execInfo);
-                }))
+                var computeListener = new ComputeListener(
+                    transportService.getThreadPool(),
+                    cancelQueryOnFailure,
+                    listener.map(completionInfo -> {
+                        updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
+                        return new Result(physicalPlan.output(), collectedPages, completionInfo, execInfo);
+                    })
+                )
             ) {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
                 return;
@@ -240,10 +245,16 @@ public class ComputeService {
         );
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
-        try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
-            execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
-            return new Result(outputAttributes, collectedPages, profiles, execInfo);
-        }))) {
+        try (
+            var computeListener = new ComputeListener(
+                transportService.getThreadPool(),
+                cancelQueryOnFailure,
+                listener.map(completionInfo -> {
+                    execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
+                    return new Result(outputAttributes, collectedPages, completionInfo, execInfo);
+                })
+            )
+        ) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
@@ -251,7 +262,7 @@ public class ComputeService {
                     var localListener = new ComputeListener(
                         transportService.getThreadPool(),
                         cancelQueryOnFailure,
-                        computeListener.acquireCompute().delegateFailure((l, profiles) -> {
+                        computeListener.acquireCompute().delegateFailure((l, completionInfo) -> {
                             if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = TimeValue.timeValueNanos(System.nanoTime() - execInfo.getRelativeStartNanos());
@@ -266,7 +277,7 @@ public class ComputeService {
                                     return builder.build();
                                 });
                             }
-                            l.onResponse(profiles);
+                            l.onResponse(completionInfo);
                         })
                     )
                 ) {
@@ -309,7 +320,7 @@ public class ComputeService {
                                         .setFailures(r.failures)
                                         .build()
                                 );
-                                dataNodesListener.onResponse(r.getProfiles());
+                                dataNodesListener.onResponse(r.getCompletionInfo());
                             }, e -> {
                                 if (configuration.allowPartialResults()) {
                                     execInfo.swapCluster(
@@ -318,7 +329,7 @@ public class ComputeService {
                                             EsqlExecutionInfo.Cluster.Status.PARTIAL
                                         ).setFailures(List.of(new ShardSearchFailure(e))).build()
                                     );
-                                    dataNodesListener.onResponse(List.of());
+                                    dataNodesListener.onResponse(DriverCompletionInfo.EMPTY);
                                 } else {
                                     dataNodesListener.onFailure(e);
                                 }
@@ -378,7 +389,7 @@ public class ComputeService {
         }
     }
 
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<List<DriverProfile>> listener) {
+    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {
         listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
         for (int i = 0; i < context.searchContexts().size(); i++) {
@@ -435,9 +446,9 @@ public class ComputeService {
         }
         ActionListener<Void> listenerCollectingStatus = listener.map(ignored -> {
             if (context.configuration().profile()) {
-                return drivers.stream().map(Driver::profile).toList();
+                return DriverCompletionInfo.includingProfiles(drivers);
             } else {
-                return List.of();
+                return DriverCompletionInfo.excludingProfiles(drivers);
             }
         });
         listenerCollectingStatus = ActionListener.releaseAfter(listenerCollectingStatus, () -> Releasables.close(drivers));

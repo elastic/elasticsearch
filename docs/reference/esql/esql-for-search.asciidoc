@@ -101,7 +101,7 @@ These full-text functions address several key limitations that existed for text 
 * They leverage analyzers, ensuring the query is analyzed with the same process as the indexed data (enabling case-insensitive matching, ASCII folding, stopword removal, and synonym support)
 * They are highly performant, using Lucene index structures rather than pattern matching or regular expressions to locate terms in your data
 
-Refer to this blog for more context: https://www.elastic.co/search-labs/blog/filtering-in-esql-full-text-search-match-qstr[Introducing full text filtering in ES|QL] for more information..
+Refer to this blog for more context: https://www.elastic.co/search-labs/blog/filtering-in-esql-full-text-search-match-qstr[Introducing full text filtering in ES|QL].
 
 [TIP]
 ====

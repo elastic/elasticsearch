@@ -92,8 +92,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
-import org.elasticsearch.xpack.core.security.secrets.ClusterSecrets;
-import org.elasticsearch.xpack.core.security.secrets.ProjectSecrets;
+import org.elasticsearch.common.settings.ClusterSecrets;
+import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.core.slm.SLMFeatureSetUsage;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -184,11 +184,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 RemoteClusterPermissionGroup.NAME,
                 RemoteClusterPermissionGroup::new
             ),
-            // security : secrets
-            new NamedWriteableRegistry.Entry(NamedDiff.class, ClusterSecrets.TYPE, ClusterSecrets::readDiffFrom),
-            new NamedWriteableRegistry.Entry(ClusterState.Custom.class, ClusterSecrets.TYPE, ClusterSecrets::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, ProjectSecrets.TYPE, ProjectSecrets::readDiffFrom),
-            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ProjectSecrets.TYPE, ProjectSecrets::new),
             // eql
             new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.EQL, EqlFeatureSetUsage::new),
             // esql

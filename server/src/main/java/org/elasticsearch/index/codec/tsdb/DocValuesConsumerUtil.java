@@ -70,6 +70,13 @@ class DocValuesConsumerUtil {
             return UNSUPPORTED;
         }
 
+        // Documents marked as deleted should be rare. Maybe in the case of noop operation?
+        for (int i = 0; i < mergeState.liveDocs.length; i++) {
+            if (mergeState.liveDocs[i] != null) {
+                return UNSUPPORTED;
+            }
+        }
+
         long sumNumValues = 0;
         int sumNumDocsWithField = 0;
 
@@ -82,13 +89,6 @@ class DocValuesConsumerUtil {
 
             sumNumValues += entry.numValues;
             sumNumDocsWithField += entry.numDocsWithField;
-        }
-
-        // Documents marked as deleted should be rare. Maybe in the case of noop operation?
-        for (int i = 0; i < mergeState.liveDocs.length; i++) {
-            if (mergeState.liveDocs[i] != null) {
-                return UNSUPPORTED;
-            }
         }
 
         return new MergeStats(true, sumNumValues, sumNumDocsWithField);

@@ -2352,6 +2352,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
+    private Response performRequestWithRunAs(String user, Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).build());
+        return adminClient().performRequest(request);
+    }
+
     private Response performRequestMaybeUsingApiKey(String user, Request request) throws IOException {
         if (randomBoolean() && apiKeys.containsKey(user)) {
             return performRequestWithApiKey(apiKeys.get(user), request);
@@ -2484,7 +2489,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private void expectHasPrivileges(String user, String requestBody, String expectedResponse) throws IOException {
         Request req = new Request("POST", "/_security/user/_has_privileges");
         req.setJsonEntity(requestBody);
-        Response response = performRequestMaybeUsingApiKey(user, req);
+        Response response = randomBoolean() ? performRequestMaybeUsingApiKey(user, req) : performRequestWithRunAs(user, req);
         assertThat(responseAsMap(response), equalTo(mapFromJson(expectedResponse)));
     }
 

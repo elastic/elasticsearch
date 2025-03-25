@@ -91,7 +91,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             algorithm, which counts based on the hashes of the values with some interesting
             properties:
 
-            :::{include} /reference/data-analysis/aggregations/_snippets/search-aggregations-metrics-cardinality-aggregation-explanation.md
+            :::{include} /reference/aggregations/_snippets/search-aggregations-metrics-cardinality-aggregation-explanation.md
             :::
 
             The `COUNT_DISTINCT` function takes an optional second parameter to configure

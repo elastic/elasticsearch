@@ -138,6 +138,7 @@ public class TransportVersions {
     public static final TransportVersion SOURCE_MODE_TELEMETRY_FIX_8_17 = def(8_797_0_02);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_4 = def(8_797_0_04);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_5 = def(8_797_0_05);
     public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_0_00);
     public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_0_00);
     public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_0_00);
@@ -262,7 +263,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_8_16_6;
+    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_8_17_4;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

@@ -20,8 +20,3 @@ dependencies {
   clusterModules project(":modules:ingest-geoip")
   clusterModules project(":modules:mapper-extras")
 }
-
-tasks.named("yamlRestTest") {
-  // Muting temporarily while I figure out what's going on here
-  systemProperty 'tests.rest.blacklist', 'ingest/80_ingest_simulate/Test ingest simulate with index template substitutions'
-}

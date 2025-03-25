@@ -216,12 +216,10 @@ class StatelessIndexEventListener implements IndexEventListener {
                     recoveryCommit.getAllFilesSizeInBytes(),
                     blobFileRanges
                 );
-                if (recoveryCommit.hollow() == false) {
-                    // We must use a copied instance for warming as the index directory will move forward with new commits
-                    var warmingDirectory = indexDirectory.createNewInstance();
-                    warmingDirectory.updateMetadata(blobFileRanges, recoveryCommit.getAllFilesSizeInBytes());
-                    warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, warmingDirectory);
-                }
+                // We must use a copied instance for warming as the index directory will move forward with new commits
+                var warmingDirectory = indexDirectory.createNewInstance();
+                warmingDirectory.updateMetadata(blobFileRanges, recoveryCommit.getAllFilesSizeInBytes());
+                warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, warmingDirectory);
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);

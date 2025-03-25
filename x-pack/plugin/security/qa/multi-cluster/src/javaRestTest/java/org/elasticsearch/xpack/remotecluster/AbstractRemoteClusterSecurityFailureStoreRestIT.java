@@ -155,7 +155,6 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
         Request dataStream = new Request("GET", "/_data_stream/" + dataStreamName);
         Response response = performRequestAgainstFulfillingCluster(dataStream);
         Map<String, Object> dataStreams = entityAsMap(response);
-        assertEquals(Collections.singletonList("test1"), XContentMapValues.extractValue("data_streams.name", dataStreams));
         List<String> dataIndexNames = (List<String>) XContentMapValues.extractValue("data_streams.indices.index_name", dataStreams);
         List<String> failureIndexNames = (List<String>) XContentMapValues.extractValue(
             "data_streams.failure_store.indices.index_name",

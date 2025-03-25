@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -153,6 +154,17 @@ import static org.hamcrest.Matchers.notNullValue;
  * it’s creating its own Source physical operator, aggregation operator (just a tiny bit of it) and field extract operator.
  * <p>
  * To log the results logResults() should return "true".
+ * <p>
+ * This test never pushes to Lucene because there isn't a Lucene index to push to. It always runs everything in
+ * the compute engine. This yields the same results modulo a few things:
+ * <ul>
+ *     <li>Warnings for multivalued fields: See {@link SingleValueMatchQuery} for an in depth discussion, but the
+ *         short version is this class will always emit warnings on multivalued fields but tests that run against
+ *         a real index are only guaranteed to emit a warning if the document would match all filters <strong>except</strong>
+ *         it has a multivalue field.</li>
+ *     <li>Sorting: This class emits values in the order they appear in the {@code .csv} files that power it. A real
+ *         index emits documents a fair random order. Multi-shard and multi-node tests doubly so.</li>
+ * </ul>
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {

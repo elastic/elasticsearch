@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;

@@ -11,15 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A variant of {@link RefCountingListener} with the following differences:

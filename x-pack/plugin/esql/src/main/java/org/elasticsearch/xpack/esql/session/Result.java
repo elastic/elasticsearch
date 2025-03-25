@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -27,4 +26,9 @@ import java.util.List;
  * @param completionInfo Information collected from drivers after they've been completed.
  * @param executionInfo Metadata about the execution of this query. Used for cross cluster queries.
  */
-public record Result(List<Attribute> schema, List<Page> pages, DriverCompletionInfo completionInfo, @Nullable EsqlExecutionInfo executionInfo) {}
+public record Result(
+    List<Attribute> schema,
+    List<Page> pages,
+    DriverCompletionInfo completionInfo,
+    @Nullable EsqlExecutionInfo executionInfo
+) {}

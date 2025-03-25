@@ -145,7 +145,7 @@ documents found:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [profile_documents_found]
+          capabilities: [documents_found]
       reason: "checks for documents_found and values_loaded"
 
   - do:

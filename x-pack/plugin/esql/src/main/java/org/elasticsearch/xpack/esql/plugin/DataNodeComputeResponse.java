@@ -15,9 +15,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.ESQL_VALUES_LOADED;
 

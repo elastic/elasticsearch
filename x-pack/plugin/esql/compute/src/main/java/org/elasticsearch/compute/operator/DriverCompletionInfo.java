@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *                          the request.
  */
 public record DriverCompletionInfo(long documentsFound, long valuesLoaded, List<DriverProfile> collectedProfiles) implements Writeable {
+
     /**
      * Completion info we use when we didn't properly complete any drivers.
      * Usually this is returned with an error, but it's also used when receiving

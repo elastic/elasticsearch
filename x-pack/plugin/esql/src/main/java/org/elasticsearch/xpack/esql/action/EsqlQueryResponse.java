@@ -119,8 +119,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
-        long documentsFound = in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED) ? in.readVInt() : 0;
-        long valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED) ? in.readVInt() : 0;
+        long documentsFound = in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED) ? in.readVLong() : 0;
+        long valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED) ? in.readVLong() : 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::new);
         }
@@ -186,6 +186,14 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     public Iterator<Object> column(int columnIndex) {
         if (columnIndex < 0 || columnIndex >= columns.size()) throw new IllegalArgumentException();
         return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages);
+    }
+
+    public long documentsFound() {
+        return documentsFound;
+    }
+
+    public long valuesLoaded() {
+        return valuesLoaded;
     }
 
     public Profile profile() {

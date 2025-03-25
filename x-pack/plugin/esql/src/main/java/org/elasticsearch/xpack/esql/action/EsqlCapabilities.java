@@ -921,9 +921,9 @@ public class EsqlCapabilities {
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
-         * in the profile?
+         * in the response and profile?
          */
-        PROFILE_DOCUMENTS_FOUND,
+        DOCUMENTS_FOUND,
 
         /**
          * Index component selector syntax (my-data-stream-name::failures)

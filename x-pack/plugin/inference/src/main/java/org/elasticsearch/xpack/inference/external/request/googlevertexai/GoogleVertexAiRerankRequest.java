@@ -58,9 +58,8 @@ public class GoogleVertexAiRerankRequest implements GoogleVertexAiRequest {
                     query,
                     input,
                     returnDocuments,
-                    topN,
-                    model.getServiceSettings().modelId(),
-                    model.getTaskSettings().topN()
+                    topN != null ? topN : model.getTaskSettings().topN(),
+                    model.getServiceSettings().modelId()
                 )
             ).getBytes(StandardCharsets.UTF_8)
         );

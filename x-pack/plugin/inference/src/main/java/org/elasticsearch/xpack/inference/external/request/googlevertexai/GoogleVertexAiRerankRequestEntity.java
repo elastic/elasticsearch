@@ -20,8 +20,7 @@ public record GoogleVertexAiRerankRequestEntity(
     List<String> inputs,
     @Nullable Boolean returnDocuments,
     @Nullable Integer topN,
-    @Nullable String model,
-    @Nullable Integer taskSettingsTopN
+    @Nullable String model
 ) implements ToXContentObject {
 
     private static final String MODEL_FIELD = "model";
@@ -66,8 +65,6 @@ public record GoogleVertexAiRerankRequestEntity(
         // prefer the root level top_n over task settings
         if (topN != null) {
             builder.field(TOP_N_FIELD, topN);
-        } else if (taskSettingsTopN != null) {
-            builder.field(TOP_N_FIELD, taskSettingsTopN);
         }
 
         if (returnDocuments != null) {

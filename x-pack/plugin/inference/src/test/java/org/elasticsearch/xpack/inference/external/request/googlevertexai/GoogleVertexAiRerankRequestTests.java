@@ -53,8 +53,31 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var input = "input";
         var query = "query";
         var topN = 1;
+        var taskSettingsTopN = 3;
 
-        var request = createRequest(query, input, null, topN, null, null);
+        var request = createRequest(query, input, null, topN, null, taskSettingsTopN);
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+
+        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap.get("records"), is(List.of(Map.of("id", "0", "content", input))));
+        assertThat(requestMap.get("query"), is(query));
+        assertThat(requestMap.get("topN"), is(topN));
+    }
+
+    public void testCreateRequest_UsesTaskSettingsTopNWhenRootLevelIsNull() throws IOException {
+        var input = "input";
+        var query = "query";
+        var topN = 1;
+
+        var request = createRequest(query, input, null, null, null, topN);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));

@@ -456,7 +456,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 "data_stream": {
                 }
             }""";
-        var putIndexTemplateRequest = new Request("POST", "/_index_template/reindex_test_data_stream_template");
+        var putIndexTemplateRequest = new Request("POST", "/_index_template/reindex_test_data_stream_template" + randomAlphanumericOfLength(10).toLowerCase());
         putIndexTemplateRequest.setJsonEntity(indexTemplate.replace("$TEMPLATE", template).replace("$PATTERN", dataStreamName));
         assertOK(client().performRequest(putIndexTemplateRequest));
         bulkLoadData(dataStreamName);

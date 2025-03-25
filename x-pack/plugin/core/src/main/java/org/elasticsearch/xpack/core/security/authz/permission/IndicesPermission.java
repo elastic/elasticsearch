@@ -321,7 +321,8 @@ public final class IndicesPermission {
             combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
             IndexComponentSelector.DATA
         );
-        // optimization: if there are no failures access privileges in the set of privileges to check, we can skip building the automaton
+        // optimization: if there are no failures selector privileges in the set of privileges to check, we can skip building
+        // the automaton map
         final boolean containsPrivilegesForFailuresSelector = containsPrivilegesForFailuresSelector(checkForPrivileges);
         Map<Automaton, Automaton> indexGroupAutomatonsForFailuresSelector = false == containsPrivilegesForFailuresSelector
             ? Map.of()
@@ -866,9 +867,9 @@ public final class IndicesPermission {
 
     private static boolean containsPrivilegesForFailuresSelector(Set<String> checkForPrivileges) {
         for (String privilege : checkForPrivileges) {
-            // use getNamedOrNull since only a named privilege can be a failures-only privilege (raw action names are always data access)
+            // use `getNamedOrNull` since only a named privilege can be a failures-only privilege (raw action names are always data access)
             IndexPrivilege named = IndexPrivilege.getNamedOrNull(privilege);
-            // note: we are only looking for failures-only privileges here, not `all` which does cover failures but is not a failures-only
+            // note: we are looking for failures-only privileges here, not `all` which does cover failures but is not a failures-only
             // privilege
             if (named != null && named.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
                 return true;
@@ -877,7 +878,11 @@ public final class IndicesPermission {
         return false;
     }
 
+    @Nullable
     private static Automaton getIndexPrivilegesAutomaton(Map<Automaton, Automaton> indexGroupAutomatons, Automaton checkIndexAutomaton) {
+        if (indexGroupAutomatons.isEmpty()) {
+            return null;
+        }
         Automaton allowedPrivilegesAutomaton = null;
         for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
             Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();

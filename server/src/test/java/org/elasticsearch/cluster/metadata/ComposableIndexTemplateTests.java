@@ -74,7 +74,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                 builder.aliases(randomAliases());
             }
             if (dataStreamTemplate != null && randomBoolean()) {
-                builder.lifecycle(DataStreamLifecycleTests.randomLifecycle());
+                builder.lifecycle(DataStreamLifecycleTemplateTests.randomLifecycleTemplate());
             }
             template = builder.build();
         }
@@ -173,7 +173,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                                 .settings(randomSettings())
                                 .mappings(randomMappings(orig.getDataStreamTemplate()))
                                 .aliases(randomAliases())
-                                .lifecycle(orig.getDataStreamTemplate() == null ? null : DataStreamLifecycleTests.randomLifecycle())
+                                .lifecycle(
+                                    orig.getDataStreamTemplate() == null ? null : DataStreamLifecycleTemplateTests.randomLifecycleTemplate()
+                                )
                                 .build()
                         )
                     )
@@ -234,7 +236,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             dataStreamOptions = ComponentTemplateTests.randomDataStreamOptionsTemplate();
         }
         // We use the empty lifecycle so the global retention can be in effect
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
         Template template = new Template(settings, mappings, aliases, lifecycle, dataStreamOptions);
         ComposableIndexTemplate.builder()
             .indexPatterns(List.of(randomAlphaOfLength(4)))
@@ -254,7 +256,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
             for (String label : rolloverConfiguration.resolveRolloverConditions(
-                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
+                lifecycle.toDataStreamLifecycle().getEffectiveDataRetention(globalRetention, randomBoolean())
             ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }

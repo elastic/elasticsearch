@@ -97,6 +97,7 @@ public class FieldArrayContext {
             && sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
             && hasDocValues
             && isStored == false
+            && context.isInNestedContext() == false
             && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
             && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false
             && indexVersionSupportStoringArraysNatively(indexCreatedVersion, minSupportedVersionMain)) {
@@ -118,7 +119,7 @@ public class FieldArrayContext {
     ) {
         return indexCreatedVersion.onOrAfter(minSupportedVersionMain)
             || indexCreatedVersion.between(
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD_BACKPORT_8_X,
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BACKPORT_8_X,
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0
             );
     }

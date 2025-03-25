@@ -49,8 +49,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":plugins:discovery-ec2");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:discovery-gce");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:mapper-annotated-text");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:mapper-murmur3");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:repository-hdfs");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:store-smb");
         map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-rolling-upgrade-remote-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
@@ -63,7 +61,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":qa:smoke-test-ingest-with-all-dependencies");
         map.put(LegacyRestTestBasePlugin.class, ":qa:smoke-test-plugins");
         map.put(LegacyRestTestBasePlugin.class, ":qa:system-indices");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:verify-version-constants");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-apm-integration");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-delayed-aggs");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-die-with-dignity");
@@ -74,11 +71,7 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ent-search");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:fleet");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:logstash");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:mapper-constant-keyword");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:mapper-unsigned-long");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:mapper-version");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:vector-tile");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:wildcard");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:mixed-tier-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:repository-old-versions");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade");

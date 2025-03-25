@@ -418,7 +418,6 @@ public class InboundHandler {
         final T response;
         try (releaseResponseBuffer) {
             response = handler.read(stream);
-            response.remoteAddress(remoteAddress);
         } catch (Exception e) {
             final TransportException serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",

@@ -102,12 +102,12 @@ public class PolicyManagerTests extends ESTestCase {
 
         assertEquals(
             "No policy for the unnamed module",
-            policyManager.defaultEntitlements("plugin1", plugin1SourcePath),
+            policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName()),
             policyManager.getEntitlements(callerClass)
         );
 
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath)),
+            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName())),
             policyManager.moduleEntitlementsMap
         );
     }
@@ -132,12 +132,12 @@ public class PolicyManagerTests extends ESTestCase {
 
         assertEquals(
             "No policy for this plugin",
-            policyManager.defaultEntitlements("plugin1", plugin1SourcePath),
+            policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName()),
             policyManager.getEntitlements(callerClass)
         );
 
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath)),
+            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName())),
             policyManager.moduleEntitlementsMap
         );
     }
@@ -160,18 +160,24 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals(policyManager.defaultEntitlements("plugin1", plugin1SourcePath), policyManager.getEntitlements(callerClass));
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath)),
+            policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName()),
+            policyManager.getEntitlements(callerClass)
+        );
+        assertEquals(
+            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName())),
             policyManager.moduleEntitlementsMap
         );
 
         // A second time
-        assertEquals(policyManager.defaultEntitlements("plugin1", plugin1SourcePath), policyManager.getEntitlements(callerClass));
+        assertEquals(
+            policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName()),
+            policyManager.getEntitlements(callerClass)
+        );
 
         // Nothing new in the map
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath)),
+            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName())),
             policyManager.moduleEntitlementsMap
         );
     }
@@ -219,12 +225,15 @@ public class PolicyManagerTests extends ESTestCase {
 
         assertEquals(
             "No policy for this module in server",
-            policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath),
+            policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, requestingModule.getName()),
             policyManager.getEntitlements(mockServerClass)
         );
 
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath)),
+            Map.of(
+                requestingModule,
+                policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, requestingModule.getName())
+            ),
             policyManager.moduleEntitlementsMap
         );
     }
@@ -499,7 +508,7 @@ public class PolicyManagerTests extends ESTestCase {
         assertThat(
             iae.getMessage(),
             allOf(
-                containsString("Path [/base/test] is already exclusive"),
+                containsString("Path [" + testPath1 + "] is already exclusive"),
                 containsString("[plugin1][test.module1]"),
                 containsString("[plugin2][test.module2]"),
                 containsString("cannot add exclusive access")

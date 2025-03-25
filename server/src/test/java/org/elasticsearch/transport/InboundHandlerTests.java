@@ -170,18 +170,19 @@ public class InboundHandlerTests extends ESTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
-            threadPool.getThreadContext(),
-            new TestRequest(requestValue),
-            TransportVersion.current(),
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        BytesReference fullRequestBytes = OutboundHandler.serialize(
+            OutboundHandler.MessageDirection.REQUEST,
             action,
             requestId,
             false,
-            null
+            TransportVersion.current(),
+            null,
+            new TestRequest(requestValue),
+            threadPool.getThreadContext(),
+            new RecyclerBytesStreamOutput(recycler)
         );
 
-        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
         BytesReference requestContent = fullRequestBytes.slice(TcpHeader.HEADER_SIZE, fullRequestBytes.length() - TcpHeader.HEADER_SIZE);
         Header requestHeader = new Header(
             fullRequestBytes.length() - 6,
@@ -276,7 +277,7 @@ public class InboundHandlerTests extends ESTestCase {
                     "expected slow request",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
-                    "handling request*modules-network.html#modules-network-threading-model"
+                    "handling request*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
                 )
             );
 
@@ -311,7 +312,7 @@ public class InboundHandlerTests extends ESTestCase {
                     "expected slow response",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
-                    "handling response*modules-network.html#modules-network-threading-model"
+                    "handling response*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
                 )
             );
 

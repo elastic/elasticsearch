@@ -88,6 +88,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIndexPatternAndMetadataFields(EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -100,6 +112,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitClusterString(EsqlBaseParser.ClusterStringContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#selectorString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSelectorString(EsqlBaseParser.SelectorStringContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -111,12 +129,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitMetadata(EsqlBaseParser.MetadataContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree
@@ -185,6 +197,20 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code inputDoubleParams}
+   * labeled alternative in {@link EsqlBaseParser#doubleParameter}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInputDoubleParams(EsqlBaseParser.InputDoubleParamsContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code inputNamedOrPositionalDoubleParams}
+   * labeled alternative in {@link EsqlBaseParser#doubleParameter}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInputNamedOrPositionalDoubleParams(EsqlBaseParser.InputNamedOrPositionalDoubleParamsContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#identifierOrParameter}.
    * @param ctx the parse tree

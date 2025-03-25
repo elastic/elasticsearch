@@ -11,7 +11,6 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +27,8 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,10 +37,13 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -48,7 +51,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
@@ -56,6 +58,7 @@ import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticI
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
@@ -64,6 +67,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -96,17 +100,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ElasticInferenceServiceTests extends ESTestCase {
+public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
+
+    private ModelRegistry modelRegistry;
     private ThreadPool threadPool;
 
     private HttpClientManager clientManager;
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(LocalStateInferencePlugin.class);
+    }
+
     @Before
     public void init() throws Exception {
         webServer.start();
+        modelRegistry = node().injector().getInstance(ModelRegistry.class);
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
@@ -356,6 +368,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -379,24 +393,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    private ModelRegistry mockModelRegistry() {
-        return mockModelRegistry(threadPool);
-    }
-
-    public static ModelRegistry mockModelRegistry(ThreadPool threadPool) {
-        var client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadPool);
-
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<Boolean>) invocationOnMock.getArgument(2);
-            listener.onResponse(true);
-
-            return Void.TYPE;
-        }).when(client).execute(any(), any(), any());
-        return new ModelRegistry(client);
-    }
-
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid() throws IOException {
         var sender = mock(Sender.class);
 
@@ -409,6 +405,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -448,6 +446,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -499,6 +499,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("input text"),
                 false,
@@ -556,6 +558,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             try {
                 service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of("input text"),
                     false,
@@ -645,8 +649,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     sparseResult.chunks(),
                     is(
                         List.of(
-                            new SparseEmbeddingResults.Chunk(
-                                List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                            new EmbeddingResults.Chunk(
+                                new SparseEmbeddingResults.Embedding(
+                                    List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                                    false
+                                ),
                                 new ChunkedInference.TextOffset(0, "input text".length())
                             )
                         )
@@ -767,8 +774,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 sparseResult.chunks(),
                 is(
                     List.of(
-                        new SparseEmbeddingResults.Chunk(
-                            List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                        new EmbeddingResults.Chunk(
+                            new SparseEmbeddingResults.Embedding(
+                                List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                                false
+                            ),
                             new ChunkedInference.TextOffset(0, "input text".length())
                         )
                     )
@@ -1159,7 +1169,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 service.defaultConfigIds(),
                 is(
                     List.of(
-                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
+                        new InferenceService.DefaultConfigId(
+                            ".rainbow-sprinkles-elastic",
+                            MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
+                            service
+                        )
                     )
                 )
             );
@@ -1198,8 +1212,16 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 service.defaultConfigIds(),
                 is(
                     List.of(
-                        new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service),
-                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
+                        new InferenceService.DefaultConfigId(
+                            ".elser-v2-elastic",
+                            MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                            service
+                        ),
+                        new InferenceService.DefaultConfigId(
+                            ".rainbow-sprinkles-elastic",
+                            MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
+                            service
+                        )
                     )
                 )
             );
@@ -1327,7 +1349,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             factory,
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceSettings(Settings.EMPTY),
-            mockModelRegistry(),
+            modelRegistry,
             mockAuthHandler
         );
     }
@@ -1356,7 +1378,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             senderFactory,
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
-            mockModelRegistry(),
+            modelRegistry,
             mockAuthHandler
         );
     }
@@ -1369,21 +1391,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             senderFactory,
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
-            mockModelRegistry(),
-            new ElasticInferenceServiceAuthorizationRequestHandler(elasticInferenceServiceURL, threadPool)
-        );
-    }
-
-    public static ElasticInferenceService createServiceWithAuthHandler(
-        HttpRequestSender.Factory senderFactory,
-        String elasticInferenceServiceURL,
-        ThreadPool threadPool
-    ) {
-        return new ElasticInferenceService(
-            senderFactory,
-            createWithEmptySettings(threadPool),
-            ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
-            mockModelRegistry(threadPool),
+            modelRegistry,
             new ElasticInferenceServiceAuthorizationRequestHandler(elasticInferenceServiceURL, threadPool)
         );
     }

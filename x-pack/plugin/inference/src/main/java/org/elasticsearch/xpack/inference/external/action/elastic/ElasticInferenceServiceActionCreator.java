@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.action.elastic;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.ElasticInferenceServiceSparseEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.Locale;
@@ -30,23 +29,15 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
 
     private final TraceContext traceContext;
 
-    private final InputType inputType;
-
-    public ElasticInferenceServiceActionCreator(
-        Sender sender,
-        ServiceComponents serviceComponents,
-        TraceContext traceContext,
-        InputType inputType
-    ) {
+    public ElasticInferenceServiceActionCreator(Sender sender, ServiceComponents serviceComponents, TraceContext traceContext) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
         this.traceContext = traceContext;
-        this.inputType = inputType;
     }
 
     @Override
     public ExecutableAction create(ElasticInferenceServiceSparseEmbeddingsModel model) {
-        var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents, traceContext, inputType);
+        var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents, traceContext);
         var errorMessage = constructFailedToSendRequestMessage(
             String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );

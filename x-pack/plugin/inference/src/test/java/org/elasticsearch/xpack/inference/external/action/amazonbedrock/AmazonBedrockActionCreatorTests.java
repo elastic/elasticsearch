@@ -16,9 +16,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockMockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
@@ -31,9 +32,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
-import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockActionCreatorTests extends ESTestCase {
@@ -50,7 +51,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testEmbeddingsRequestAction() throws IOException {
+    public void testEmbeddingsRequestAction_Titan() throws IOException {
         var serviceComponents = ServiceComponentsTests.createWithEmptySettings(threadPool);
         var mockedFloatResults = List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F }));
         var mockedResult = new TextEmbeddingFloatResults(mockedFloatResults);
@@ -72,7 +73,11 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
             );
             var action = creator.create(model, Map.of());
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
@@ -81,6 +86,46 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
             var sentInputs = sender.getInputs();
             assertThat(sentInputs.size(), is(1));
             assertThat(sentInputs.get(0), is("abc"));
+        }
+    }
+
+    public void testEmbeddingsRequestAction_Cohere() throws IOException {
+        var serviceComponents = ServiceComponentsTests.createWithEmptySettings(threadPool);
+        var mockedFloatResults = List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F }));
+        var mockedResult = new TextEmbeddingFloatResults(mockedFloatResults);
+        try (var sender = new AmazonBedrockMockRequestSender()) {
+            sender.enqueue(mockedResult);
+            var creator = new AmazonBedrockActionCreator(sender, serviceComponents, TIMEOUT);
+            var model = AmazonBedrockEmbeddingsModelTests.createModel(
+                "test_id",
+                "test_region",
+                "test_model",
+                AmazonBedrockProvider.COHERE,
+                null,
+                false,
+                null,
+                null,
+                null,
+                "accesskey",
+                "secretkey"
+            );
+            var action = creator.create(model, Map.of());
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var inputType = InputTypeTests.randomWithNull();
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
+
+            assertThat(sender.sendCount(), is(1));
+            var sentInputs = sender.getInputs();
+            assertThat(sentInputs.size(), is(1));
+            assertThat(sentInputs.get(0), is("abc"));
+
+            if (inputType != null) {
+                var sentInputType = sender.getInputType();
+                assertThat(sentInputType, is(inputType));
+            }
         }
     }
 
@@ -100,7 +145,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
             );
             var action = creator.create(model, Map.of());
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(sender.sendCount(), is(1));

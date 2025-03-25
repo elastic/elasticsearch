@@ -103,10 +103,6 @@ public class GoogleVertexAiRerankResponseEntity {
         return parseList(parser, (listParser, index) -> {
             var parsedRankedDoc = RankedDoc.parse(parser);
 
-            if (parsedRankedDoc.content == null) {
-                throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, RankedDoc.CONTENT.getPreferredName()));
-            }
-
             if (parsedRankedDoc.score == null) {
                 throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, RankedDoc.SCORE.getPreferredName()));
             }

@@ -86,8 +86,6 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                 if (projection instanceof FieldAttribute f
                     // Do not use the attribute name, this can deviate from the field name for union types
                     && stats.exists(f.fieldName()) == false
-                // Replace only once per Project
-                    && fieldAttrReplacedBy.containsKey(f) == false
                     && joinAttributes.contains(f) == false
                     && f.field() instanceof PotentiallyUnmappedKeywordEsField == false) {
                     // TODO: Should do a searchStats lookup for join attributes instead of just ignoring them here

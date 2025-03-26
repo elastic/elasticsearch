@@ -783,8 +783,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         ) {
             assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
                 {
-                  "documents_found": 1,
-                  "values_loaded": 1,
+                  "documents_found" : 1,
+                  "values_loaded" : 1,
                   "columns" : [
                     {
                       "name" : "foo",

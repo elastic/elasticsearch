@@ -45,6 +45,7 @@ redirects:
   # Related to https://github.com/elastic/elasticsearch/pull/125118
   'reference/data-analysis/aggregations/index.md': 'reference/aggregations/index.md'
   'reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md': 'reference/aggregations/search-aggregations-bucket-terms-aggregation.md'
+  'reference/ingestion-tools/enrich-processor/dot-expand-processor.md': 'reference/enrich-processor/dot-expand-processor.md'
   'reference/ingestion-tools/enrich-processor/geoip-processor.md': 'reference/enrich-processor/geoip-processor.md'
   'reference/ingestion-tools/enrich-processor/enrich-processor.md': 'reference/enrich-processor/enrich-processor.md'
   'reference/ingestion-tools/enrich-processor/user-agent-processor.md': 'reference/enrich-processor/user-agent-processor.md'

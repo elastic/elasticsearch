@@ -20,9 +20,7 @@ import org.junit.ClassRule;
 public class DelayedShardAggregationClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("test-delayed-aggs")
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("test-delayed-aggs").build();
 
     public DelayedShardAggregationClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

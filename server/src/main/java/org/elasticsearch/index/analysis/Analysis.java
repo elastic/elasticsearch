@@ -48,6 +48,7 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -363,16 +364,28 @@ public class Analysis {
         synonymsManagementAPIService.getSynonymSetRules(synonymsSet, synonymsLoadingFuture);
 
         PagedResult<SynonymRule> results;
+
         try {
             results = synonymsLoadingFuture.actionGet();
-        } catch (ResourceNotFoundException e) {
+        } catch (ElasticsearchException e) {
             if (ignoreMissing == false) {
                 throw e;
             }
-            logger.warn(
-                "Synonyms set {} not found - synonyms will not be applied to search results on indices that use this synonym set",
-                synonymsSet
+
+            boolean notFound = e instanceof ResourceNotFoundException;
+            String message = String.format(
+                Locale.ROOT,
+                "Synonyms set %s %s." + " synonyms will not be applied to search results on indices that use this synonym set",
+                synonymsSet,
+                notFound ? "not found" : "could not be loaded"
             );
+
+            if (notFound) {
+                logger.warn(message);
+            } else {
+                logger.error(message, e);
+            }
+
             results = new PagedResult<>(0, new SynonymRule[0]);
         }
 

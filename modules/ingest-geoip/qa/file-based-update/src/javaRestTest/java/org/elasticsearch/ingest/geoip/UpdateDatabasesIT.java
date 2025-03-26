@@ -34,6 +34,7 @@ public class UpdateDatabasesIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("ingest-geoip")
         .withConfigDir(() -> configDir.getRoot().toPath())
+        .setting("resource.reload.interval.high", "100ms")
         .build();
 
     @ClassRule

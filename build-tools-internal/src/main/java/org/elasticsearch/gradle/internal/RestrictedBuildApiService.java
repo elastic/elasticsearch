@@ -61,7 +61,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":qa:smoke-test-ingest-with-all-dependencies");
         map.put(LegacyRestTestBasePlugin.class, ":qa:smoke-test-plugins");
         map.put(LegacyRestTestBasePlugin.class, ":qa:system-indices");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:verify-version-constants");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-apm-integration");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-delayed-aggs");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-die-with-dignity");

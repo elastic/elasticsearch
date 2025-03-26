@@ -66,9 +66,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(RRFRankPlugin.class);
-        return plugins;
+        return List.of(RRFRankPlugin.class);
     }
 
     @Before
@@ -780,12 +778,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                 rankConstant
             )
         );
-        QueryBuilder preFilterQuery = QueryBuilders.boolQuery().must(QueryBuilders.termQuery(DOC_FIELD, "doc_7"));
-        standardRetriever.getPreFilterQueryBuilders().add(preFilterQuery);
-        knnRetriever.getPreFilterQueryBuilders().add(preFilterQuery);
+        source.retriever().getPreFilterQueryBuilders().add(QueryBuilders.boolQuery().must(QueryBuilders.termQuery(DOC_FIELD, "doc_7")));
         source.size(10);
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-        ElasticsearchAssertions.assertResponse(req, resp -> {
+        ElasticsearchAssertions.assertResponse(req, resp -> {   
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
             assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
@@ -826,10 +822,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null);
         var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, null));
         var rrf = new RRFRetrieverBuilder(
-            Arrays.asList(
-                new CompoundRetrieverBuilder.RetrieverSource(knn, null),
-                new CompoundRetrieverBuilder.RetrieverSource(standard, null)
-            ),
+            List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
             10,
             10
         );

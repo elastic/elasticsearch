@@ -58,9 +58,9 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
 
     @Override
     protected void doAssertLuceneQuery(RankDocsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertThat(query, instanceOf(RankDocsQuery.class));
+        assertTrue(query instanceof RankDocsQuery);
         RankDocsQuery rankDocsQuery = (RankDocsQuery) query;
-        assertThat(rankDocsQuery.rankDocs(), equalTo(queryBuilder.rankDocs()));
+        assertArrayEquals(queryBuilder.rankDocs(), rankDocsQuery.rankDocs());
     }
 
     protected Query createTestQuery() throws IOException {

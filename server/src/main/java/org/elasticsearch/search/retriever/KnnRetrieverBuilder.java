@@ -202,7 +202,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public QueryBuilder topDocsQuery() {
         assert queryVector != null : "query vector must be materialized at this point";
         assert rankDocs != null : "rankDocs should have been materialized by now";
-        var rankDocsQuery = new RankDocsQueryBuilder(rankDocs, null, true, DEFAULT_MIN_SCORE);
+        var rankDocsQuery = new RankDocsQueryBuilder(rankDocs, null, true);
         if (preFilterQueryBuilders.isEmpty()) {
             return rankDocsQuery.queryName(retrieverName);
         }
@@ -218,8 +218,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         var rankDocsQuery = new RankDocsQueryBuilder(
             rankDocs,
             new QueryBuilder[] { new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector.get()), field, similarity) },
-            false,
-            DEFAULT_MIN_SCORE
+            false
         );
         if (preFilterQueryBuilders.isEmpty()) {
             return rankDocsQuery.queryName(retrieverName);

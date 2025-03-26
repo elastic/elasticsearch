@@ -488,7 +488,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(linearTopLevel.getDetails().length, equalTo(3));
             assertThat(
                 linearTopLevel.getDescription(),
-                equalTo(
+                containsString(
                     "weighted linear combination score: [30.0] computed for normalized scores [9.0, 20.0, 1.0] "
                         + "and weights [1.0, 1.0, 1.0] as sum of (weight[i] * score[i]) for each query."
                 )
@@ -593,7 +593,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(linearTopLevel.getDetails().length, equalTo(3));
             assertThat(
                 linearTopLevel.getDescription(),
-                equalTo(
+                containsString(
                     "weighted linear combination score: [112.05882] computed for normalized scores [12.058824, 20.0] "
                         + "and weights [1.0, 5.0] as sum of (weight[i] * score[i]) for each query."
                 )

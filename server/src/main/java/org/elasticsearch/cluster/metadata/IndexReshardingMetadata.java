@@ -229,6 +229,10 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         };
     }
 
+    public boolean isSplit() {
+        return state instanceof IndexReshardingState.Split;
+    }
+
     /**
      * @return the number of shards the index has at the start of this operation
      */

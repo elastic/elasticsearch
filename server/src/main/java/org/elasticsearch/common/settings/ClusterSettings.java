@@ -89,7 +89,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.indices.IndexingMemoryController;
@@ -636,7 +635,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME,
         DataStream.isFailureStoreFeatureFlagEnabled() ? DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING : null,
         IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING,
-        TransportGetAllocationStatsAction.CACHE_TTL_SETTING,
-        CodecService.TSDB_DOC_VALUES_OPTIMIZED_MERGE_SETTING
+        TransportGetAllocationStatsAction.CACHE_TTL_SETTING
     ).filter(Objects::nonNull).collect(toSet());
 }

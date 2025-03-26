@@ -48,7 +48,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             baselineConfig.setMergePolicy(mergePolicy);
             baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
             var contenderConf = newIndexWriterConfig();
-            contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat(true)));
+            contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat()));
             contenderConf.setMergePolicy(mergePolicy);
 
             try (

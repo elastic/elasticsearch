@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
@@ -33,12 +32,6 @@ import java.util.stream.Collectors;
 public class CodecService implements CodecProvider {
 
     public static final FeatureFlag ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields");
-    public static final FeatureFlag TSDB_DOC_VALUES_OPTIMIZED_MERGE = new FeatureFlag("tsdb_doc_values_codec_optimized_merge");
-    public static Setting<Boolean> TSDB_DOC_VALUES_OPTIMIZED_MERGE_SETTING = Setting.boolSetting(
-        "indices.time_series.doc_values_codec_optimized_merge",
-        TSDB_DOC_VALUES_OPTIMIZED_MERGE.isEnabled(),
-        Setting.Property.NodeScope
-    );
 
     private final Map<String, Codec> codecs;
 

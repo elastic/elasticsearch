@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -63,23 +62,13 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
         AttributeSet lookupFields,
         AttributeMap<Attribute> fieldAttrReplacedBy
     ) {
-        if (fieldAttrReplacedBy.size() > 0) {
-            plan = plan.transformExpressionsOnly(FieldAttribute.class, f -> {
-                Attribute replacement = fieldAttrReplacedBy.get(f);
-                return replacement == null ? f : replacement;
-            });
-        }
-
         if (plan instanceof EsRelation || plan instanceof LocalRelation) {
             return plan;
-        }
+        } else if (plan instanceof Project) {
+            // Only create null literals for newly encountered missing fields
+            plan = resolveAlreadyReplacedAttributes(plan, fieldAttrReplacedBy);
+            Project project = (Project) plan;
 
-        if (plan instanceof Aggregate a) {
-            // don't do anything (for now)
-            return a;
-        }
-        // keep the aliased name
-        else if (plan instanceof Project project) {
             var projections = project.projections();
             List<NamedExpression> newProjections = new ArrayList<>(projections.size());
             Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
@@ -117,6 +106,8 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                 plan = new Eval(project.source(), project.child(), new ArrayList<>(nullLiteral.values()));
                 plan = new Project(project.source(), plan, newProjections);
             }
+
+            return plan;
         } else if (plan instanceof Eval
             || plan instanceof Filter
             || plan instanceof OrderBy
@@ -131,8 +122,22 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                         ? f
                         : Literal.of(f, null)
                 );
+
+                return plan;
             }
 
+        // If we replaced any field attribute by a null literal previously, we must reference the null literal now - the initial field
+        // attribute is no longer available (projected away).
+        return resolveAlreadyReplacedAttributes(plan, fieldAttrReplacedBy);
+    }
+
+    private LogicalPlan resolveAlreadyReplacedAttributes(LogicalPlan plan, AttributeMap<Attribute> fieldAttrReplacedBy) {
+        if (fieldAttrReplacedBy.size() > 0) {
+            plan = plan.transformExpressionsOnly(FieldAttribute.class, f -> {
+                Attribute replacement = fieldAttrReplacedBy.get(f);
+                return replacement == null ? f : replacement;
+            });
+        }
         return plan;
     }
 

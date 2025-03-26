@@ -150,7 +150,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
-            } else if (Regex.simpleMatch("PUT /" + path + "/*?uploadId=*&partNumber=*", request)) {
+            } else if (isUploadPartRequest(request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
 
@@ -342,11 +342,20 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else {
+                logger.error("unknown request: {}", request);
                 exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
             }
+        } catch (Exception e) {
+            logger.error("exception in request " + request, e);
+            throw e;
         } finally {
             exchange.close();
         }
+    }
+
+    private boolean isUploadPartRequest(String request) {
+        return Regex.simpleMatch("PUT /" + path + "/*?uploadId=*&partNumber=*", request)
+            || Regex.simpleMatch("PUT /" + path + "/*?partNumber=*&uploadId=*", request);
     }
 
     private boolean isListMultipartUploadsRequest(String request) {

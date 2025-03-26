@@ -94,7 +94,7 @@ class S3RetryingInputStream extends InputStream {
                 if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                     assert start + currentOffset <= end
                         : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
-                    getObjectRequestBuilder.range(Math.addExact(start, currentOffset) + "-" + end);
+                    getObjectRequestBuilder.range("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
                 }
                 this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
                 final var getObjectRequest = getObjectRequestBuilder.build();
@@ -136,12 +136,22 @@ class S3RetryingInputStream extends InputStream {
             final var rangeString = getObjectResponse.contentRange();
             if (rangeString != null) {
                 // TODO NOMERGE this went from Long[] to String, had to add parsing, needs some testing too
+                if (rangeString.startsWith("bytes ") == false) {
+                    throw new IllegalArgumentException(
+                        "unexpected Content-range header [" + rangeString + "], should have started with [bytes ]"
+                    );
+                }
                 final var hyphenPos = rangeString.indexOf('-');
                 if (hyphenPos == -1) {
-                    throw new IllegalArgumentException("could not parse Content-range header [" + rangeString + "]");
+                    throw new IllegalArgumentException("could not parse Content-range header [" + rangeString + "], missing hyphen");
                 }
-                final var rangeStart = Long.parseLong(rangeString, 0, hyphenPos - 1, 10);
-                final var rangeEnd = Long.parseLong(rangeString, hyphenPos + 1, rangeString.length(), 10);
+                final var slashPos = rangeString.indexOf('/');
+                if (slashPos == -1) {
+                    throw new IllegalArgumentException("could not parse Content-range header [" + rangeString + "], missing slash");
+                }
+
+                final var rangeStart = Long.parseLong(rangeString, "bytes ".length(), hyphenPos, 10);
+                final var rangeEnd = Long.parseLong(rangeString, hyphenPos + 1, slashPos, 10);
                 if (rangeEnd < rangeStart) {
                     throw new IllegalArgumentException("invalid Content-range header [" + rangeString + "]");
                 }

@@ -32,11 +32,14 @@ public class CreateIndexCapabilities {
 
     private static final String HUNSPELL_DICT_400 = "hunspell_dict_400";
 
+    private static final String SYNONYMS_SET_LENIENT_ON_NON_EXISTING = "synonyms_set_lenient_on_non_existing";
+
     public static final Set<String> CAPABILITIES = Set.of(
         LOGSDB_INDEX_MODE_CAPABILITY,
         LOOKUP_INDEX_MODE_CAPABILITY,
         NESTED_DENSE_VECTOR_SYNTHETIC_TEST,
         POORLY_FORMATTED_BAD_REQUEST,
-        HUNSPELL_DICT_400
+        HUNSPELL_DICT_400,
+        SYNONYMS_SET_LENIENT_ON_NON_EXISTING
     );
 }

@@ -48,6 +48,8 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -353,10 +355,23 @@ public class Analysis {
         }
     }
 
-    public static Reader getReaderFromIndex(String synonymsSet, SynonymsManagementAPIService synonymsManagementAPIService) {
+    public static Reader getReaderFromIndex(String synonymsSet, SynonymsManagementAPIService synonymsManagementAPIService, boolean ignoreMissing) {
         final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
         synonymsManagementAPIService.getSynonymSetRules(synonymsSet, synonymsLoadingFuture);
-        PagedResult<SynonymRule> results = synonymsLoadingFuture.actionGet();
+
+        PagedResult<SynonymRule> results;
+        try {
+            results = synonymsLoadingFuture.actionGet();
+        } catch (ResourceNotFoundException e) {
+            if (ignoreMissing == false) {
+                throw e;
+            }
+            logger.info(
+                "Synonyms set {} not found - synonyms will not be applied to search results on indices that use this synonym set",
+                synonymsSet
+            );
+            results = new PagedResult<>(0, new SynonymRule[0]);
+        }
 
         SynonymRule[] synonymRules = results.pageResults();
         StringBuilder sb = new StringBuilder();

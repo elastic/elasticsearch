@@ -288,6 +288,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
         return cast(this);
     }
 
+    @Override
+    public T version(String version) {
+        this.version = Version.fromString(version);
+        return cast(this);
+    }
+
     public Version getVersion() {
         return inherit(() -> parent.getVersion(), version);
     }

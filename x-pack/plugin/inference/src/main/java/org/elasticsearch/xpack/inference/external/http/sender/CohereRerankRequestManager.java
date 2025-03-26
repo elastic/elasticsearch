@@ -49,7 +49,13 @@ public class CohereRerankRequestManager extends CohereRequestManager {
         ActionListener<InferenceServiceResults> listener
     ) {
         var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
-        CohereRerankRequest request = new CohereRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
+        CohereRerankRequest request = new CohereRerankRequest(
+            rerankInput.getQuery(),
+            rerankInput.getChunks(),
+            rerankInput.getReturnDocuments(),
+            rerankInput.getTopN(),
+            model
+        );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

@@ -2403,7 +2403,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             client,
                             null,
                             FailureStoreMetrics.NOOP,
-                            TestProjectResolvers.singleProjectOnly()
+                            TestProjectResolvers.alwaysThrow()
                         ),
                         client,
                         actionFilters,
@@ -2541,7 +2541,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         allocationService,
                         actionFilters,
-                        TestProjectResolvers.singleProjectOnly()
+                        TestProjectResolvers.alwaysThrow()
                     )
                 );
                 actions.put(

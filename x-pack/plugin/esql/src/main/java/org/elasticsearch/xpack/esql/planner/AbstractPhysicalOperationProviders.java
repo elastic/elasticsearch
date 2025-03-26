@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -171,8 +173,20 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 true, // grouping
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels))
             );
-
-            if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
+            // time-series aggregation
+            if (Expressions.anyMatch(aggregates, a -> a instanceof ToTimeSeriesAggregator)
+                && groupSpecs.size() == 2
+                && groupSpecs.get(0).attribute.dataType() == DataType.TSID_DATA_TYPE
+                && groupSpecs.get(1).attribute.dataType() == DataType.LONG) {
+                operatorFactory = new TimeSeriesAggregationOperator.Factory(
+                    groupSpecs.get(0).toHashGroupSpec(),
+                    groupSpecs.get(1).toHashGroupSpec(),
+                    aggregatorMode,
+                    aggregatorFactories,
+                    context.pageSize(aggregateExec.estimatedRowSize())
+                );
+                // ordinal grouping
+            } else if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
                 operatorFactory = ordinalGroupingOperatorFactory(
                     source,
                     aggregateExec,

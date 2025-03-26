@@ -65,7 +65,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -262,7 +264,9 @@ public class ClusterModule extends AbstractModule {
             RegisteredPolicySnapshots::new,
             RegisteredPolicySnapshots.RegisteredSnapshotsDiff::new
         );
-
+        // Secrets
+        registerClusterCustom(entries, ClusterSecrets.TYPE, ClusterSecrets::new, ClusterSecrets::readDiffFrom);
+        registerProjectCustom(entries, ProjectSecrets.TYPE, ProjectSecrets::new, ProjectSecrets::readDiffFrom);
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
 

@@ -15,6 +15,8 @@ import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
+import com.amazonaws.services.s3.model.CopyObjectRequest;
+import com.amazonaws.services.s3.model.CopyObjectResult;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadResult;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -354,6 +356,51 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             assertEquals(blobName, abortRequest.getKey());
             assertEquals(uploadId, abortRequest.getUploadId());
         }
+
+        closeMockClient(blobStore);
+    }
+
+    public void testCopy() throws Exception {
+        final var sourceBucketName = randomAlphaOfLengthBetween(1, 10);
+        final var sourceBlobName = randomAlphaOfLengthBetween(1, 10);
+        final var targetBlobName = randomAlphaOfLengthBetween(1, 10);
+
+        final StorageClass storageClass = randomFrom(StorageClass.values());
+        final CannedAccessControlList cannedAccessControlList = randomBoolean() ? randomFrom(CannedAccessControlList.values()) : null;
+
+        final var blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(sourceBucketName);
+        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        if (cannedAccessControlList != null) {
+            when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
+        }
+
+        final var sourceBlobPath = BlobPath.EMPTY.add(randomAlphaOfLengthBetween(1, 10));
+        final var sourceBlobContainer = new S3BlobContainer(sourceBlobPath, blobStore);
+
+        final var targetBlobPath = BlobPath.EMPTY.add(randomAlphaOfLengthBetween(1, 10));
+        final var targetBlobContainer = new S3BlobContainer(targetBlobPath, blobStore);
+
+        final var client = configureMockClient(blobStore);
+
+        final ArgumentCaptor<CopyObjectRequest> captor = ArgumentCaptor.forClass(CopyObjectRequest.class);
+        when(client.copyObject(captor.capture())).thenReturn(new CopyObjectResult());
+
+        sourceBlobContainer.copyBlob(randomPurpose(), sourceBlobName, targetBlobContainer, targetBlobName, false);
+
+        final CopyObjectRequest request = captor.getValue();
+        assertEquals(sourceBucketName, request.getSourceBucketName());
+        assertEquals(sourceBlobPath.buildAsString() + sourceBlobName, request.getSourceKey());
+        assertEquals(sourceBucketName, request.getDestinationBucketName());
+        assertEquals(targetBlobPath.buildAsString() + targetBlobName, request.getDestinationKey());
+        assertEquals(storageClass.toString(), request.getStorageClass());
+        assertEquals(cannedAccessControlList, request.getCannedAccessControlList());
+
+        // failIfAlreadyExists is not currently supported on S3
+        assertThrows(
+            UnsupportedOperationException.class,
+            () -> sourceBlobContainer.copyBlob(randomPurpose(), sourceBlobName, targetBlobContainer, targetBlobName, true)
+        );
 
         closeMockClient(blobStore);
     }

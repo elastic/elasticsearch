@@ -228,10 +228,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             }
         }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
-        // Since no abort request is made, filter it out from the stats (also ensure it is 0) before comparing to the mock counts
         Map<String, Long> sdkRequestCounts = repositoryStats.actionStats.entrySet()
             .stream()
-            .filter(entry -> false == ("AbortMultipartObject".equals(entry.getKey()) && entry.getValue().requests() == 0L))
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().requests()));
 
         final Map<String, Long> mockCalls = getMockRequestCounts();
@@ -358,6 +356,13 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         public HttpStatsCollectorHandler(HttpHandler delegate) {
             this.delegate = delegate;
+        }
+
+        public HttpStatsCollectorHandler(HttpHandler delegate, String[] operations) {
+            this.delegate = delegate;
+            for (String operation : operations) {
+                operationCount.put(operation, 0L);
+            }
         }
 
         @Override

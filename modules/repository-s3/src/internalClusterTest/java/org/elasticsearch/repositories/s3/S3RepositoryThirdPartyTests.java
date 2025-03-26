@@ -228,4 +228,23 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             e -> asInstanceOf(AmazonS3Exception.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
         );
     }
+
+    public void testCopy() {
+        final var sourceBlobName = randomIdentifier();
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
+        final var targetBlobName = randomIdentifier();
+
+        final var repository = getRepository();
+
+        final var targetBytes = executeOnBlobStore(repository, sourceBlobContainer -> {
+            sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+
+            final var targetBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
+            sourceBlobContainer.copyBlob(randomPurpose(), sourceBlobName, targetBlobContainer, targetBlobName, false);
+
+            return sourceBlobContainer.readBlob(randomPurpose(), sourceBlobName).readAllBytes();
+        });
+
+        assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);
+    }
 }

@@ -14,6 +14,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
+import com.amazonaws.services.s3.model.CopyObjectRequest;
 import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
@@ -315,6 +316,57 @@ class S3BlobContainer extends AbstractBlobContainer {
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+    }
+
+    /**
+     * Perform server-side copy of a blob
+     *
+     * Server-side copy can be done for any size object, but if the object is larger than 5 GB then
+     * it must be done through a series of part copy operations rather than a single blob copy.
+     * See <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html">CopyObject</a>.
+     * @param purpose             The purpose of the operation
+     * @param sourceBlobName      The name of the blob to copy from
+     * @param targetBlobContainer The blob container to copy the blob into
+     * @param targetBlobName      The name of the blob to copy to
+     * @param failIfAlreadyExists Whether to throw a FileAlreadyExistsException if the target blob already exists
+     *                            On S3, if true, throws UnsupportedOperationException because we don't know how
+     *                            to do this atomically.
+     * @throws IOException
+     */
+    @Override
+    public void copyBlob(
+        OperationPurpose purpose,
+        String sourceBlobName,
+        BlobContainer targetBlobContainer,
+        String targetBlobName,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
+        assert BlobContainer.assertPurposeConsistency(purpose, targetBlobName);
+        if (targetBlobContainer instanceof S3BlobContainer == false) {
+            throw new IllegalArgumentException("target blob container must be a S3BlobContainer");
+        }
+        if (failIfAlreadyExists) {
+            throw new UnsupportedOperationException("S3 blob container does not support failIfAlreadyExists");
+        }
+
+        final var s3TargetBlobContainer = (S3BlobContainer) targetBlobContainer;
+
+        // metadata is inherited from source, but not canned ACL or storage class
+        final CopyObjectRequest copyRequest = new CopyObjectRequest(
+            blobStore.bucket(),
+            buildKey(sourceBlobName),
+            s3TargetBlobContainer.blobStore.bucket(),
+            s3TargetBlobContainer.buildKey(targetBlobName)
+        ).withCannedAccessControlList(blobStore.getCannedACL()).withStorageClass(blobStore.getStorageClass());
+
+        S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
+        } catch (final AmazonClientException e) {
+            throw new IOException("Unable to copy object [" + sourceBlobName + "]", e);
+        }
     }
 
     @Override

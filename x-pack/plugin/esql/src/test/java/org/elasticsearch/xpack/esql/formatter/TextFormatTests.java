@@ -269,11 +269,16 @@ public class TextFormatTests extends ESTestCase {
     }
 
     private static EsqlQueryResponse emptyData() {
-<<<<<<< HEAD
-        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword")), emptyList(), 0, 0, null, false, false, null);
-=======
-        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword", null)), emptyList(), null, false, false, null);
->>>>>>> main
+        return new EsqlQueryResponse(
+            singletonList(new ColumnInfoImpl("name", "keyword", null)),
+            emptyList(),
+            0,
+            0,
+            null,
+            false,
+            false,
+            null
+        );
     }
 
     private static EsqlQueryResponse regularData() {

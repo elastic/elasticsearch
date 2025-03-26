@@ -24,7 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
-import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -132,11 +133,25 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         entry(TYPE_FIELD.getPreferredName(), OBJECT)
     );
 
-    @FunctionInfo(returnType = "boolean", preview = true, description = "something", examples = @Example(file = "eval", tag = "docsConcat"))
+    @FunctionInfo(
+        returnType = "boolean",
+        preview = true,
+        description = """
+            Use `MULTI_MATCH` to perform a <<query-dsl-multi-match-query,multi-match query>> on the specified field.
+            The multi_match query builds on the match query to allow multi-field queries.
 
-    // TODO: add annotations.
-    // Fields are separate arguments like this: multi_match("harry potter", title, plot, summary, { "type": "cross_fields" })
-    // Field1: title, Field2: plot, Field3: summary
+            TODO.
+            TODO.""",
+        // examples = {
+        // @Example(file = "match-function", tag = "match-with-field"),
+        // @Example(file = "match-function", tag = "match-with-named-function-params") },
+        appliesTo = {
+            @FunctionAppliesTo(
+                lifeCycle = FunctionAppliesToLifecycle.COMING,
+                version = "9.1.0",
+                description = "Support for optional named parameters is only available from 9.1.0"
+            ) }
+    )
     public MultiMatch(
         Source source,
         @Param(
@@ -163,8 +178,13 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     private final transient Expression options;
     private final transient List<Expression> fields;
 
+    private static List<Expression> initChildren(Expression query, List<Expression> fields, Expression options) {
+        Stream<Expression> fieldsAndQuery = Stream.concat(Stream.of(query), fields.stream());
+        return (options == null ? fieldsAndQuery : Stream.concat(fieldsAndQuery, Stream.of(options))).toList();
+    }
+
     private MultiMatch(Source source, Expression query, List<Expression> fields, Expression options, QueryBuilder queryBuilder) {
-        super(source, query, Stream.concat(Stream.concat(Stream.of(query), fields.stream()), Stream.of(options)).toList(), queryBuilder);
+        super(source, query, initChildren(query, fields, options), queryBuilder);
         this.options = options;
         this.fields = fields;
     }
@@ -223,6 +243,10 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
         return new MultiMatch(source(), query(), fields, options, queryBuilder);
+    }
+
+    public List<Expression> fields() {
+        return fields;
     }
 
     public Expression options() {
@@ -307,9 +331,13 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text, semantic_text").and(
-            isNotNullAndFoldable(query(), sourceText(), FIRST)
-        );
+        return isType(
+            query(),
+            QUERY_DATA_TYPES::contains,
+            sourceText(),
+            FIRST,
+            "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
+        ).and(isNotNullAndFoldable(query(), sourceText(), FIRST));
     }
 
     @Override
@@ -319,5 +347,21 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
     private static String unpackLiteralValue(Literal literal) {
         return literal.value() instanceof BytesRef br ? br.utf8ToString() : literal.value().toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        // MultiMatch does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
+        // ignore options when comparing two MultiMatch functions
+        if (o == null || getClass() != o.getClass()) return false;
+        MultiMatch mm = (MultiMatch) o;
+        return Objects.equals(fields(), mm.fields())
+            && Objects.equals(query(), mm.query())
+            && Objects.equals(queryBuilder(), mm.queryBuilder());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(fields(), query(), queryBuilder());
     }
 }

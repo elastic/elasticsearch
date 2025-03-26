@@ -14,19 +14,22 @@ import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import java.util.List;
 
 public class InternalElasticsearchDistributionTypes {
+
     public static final ElasticsearchDistributionType DEB = new DebElasticsearchDistributionType();
     public static final ElasticsearchDistributionType RPM = new RpmElasticsearchDistributionType();
     public static final ElasticsearchDistributionType DOCKER = new DockerElasticsearchDistributionType();
     public static final ElasticsearchDistributionType DOCKER_IRONBANK = new DockerIronBankElasticsearchDistributionType();
     public static final ElasticsearchDistributionType DOCKER_CLOUD_ESS = new DockerCloudEssElasticsearchDistributionType();
     public static final ElasticsearchDistributionType DOCKER_WOLFI = new DockerWolfiElasticsearchDistributionType();
+    public static final ElasticsearchDistributionType DOCKER_FIPS = new DockerFipsElasticsearchDistributionType();
 
     public static final List<ElasticsearchDistributionType> ALL_INTERNAL = List.of(
         DEB,
         RPM,
         DOCKER,
         DOCKER_IRONBANK,
+        DOCKER_WOLFI,
         DOCKER_CLOUD_ESS,
-        DOCKER_WOLFI
+        DOCKER_FIPS
     );
 }

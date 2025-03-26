@@ -615,13 +615,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                             r.indexPattern().indexPattern()
                         );
                     }
-                    if (leftPattern.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
-                        throw new ParsingException(
-                            source(target),
-                            "invalid index pattern [{}], index pattern selectors are not supported in LOOKUP JOIN",
-                            r.indexPattern().indexPattern()
-                        );
-                    }
                 }
             });
 

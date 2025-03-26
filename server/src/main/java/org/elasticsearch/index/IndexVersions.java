@@ -127,8 +127,7 @@ public class IndexVersions {
     public static final IndexVersion INFERENCE_METADATA_FIELDS_BACKPORT = def(8_524_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT = def(8_525_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT = def(8_526_0_00, Version.LUCENE_9_12_1);
-    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD = def(8_527_0_00, Version.LUCENE_9_12_1);
-    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER = def(8_528_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY = def(8_527_0_00, Version.LUCENE_9_12_1);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

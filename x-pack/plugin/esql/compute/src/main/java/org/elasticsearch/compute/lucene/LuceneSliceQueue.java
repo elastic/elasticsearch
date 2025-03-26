@@ -7,16 +7,19 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.core.Nullable;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -26,8 +29,8 @@ import java.util.function.Function;
  * Shared Lucene slices between Lucene operators.
  */
 public final class LuceneSliceQueue {
-    private static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher
-    private static final int MAX_SEGMENTS_PER_SLICE = 5; // copied from IndexSearcher
+    public static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher
+    public static final int MAX_SEGMENTS_PER_SLICE = 5; // copied from IndexSearcher
 
     private final int totalSlices;
     private final Queue<LuceneSlice> slices;
@@ -52,19 +55,27 @@ public final class LuceneSliceQueue {
 
     public static LuceneSliceQueue create(
         List<? extends ShardContext> contexts,
-        Function<ShardContext, Weight> weightFunction,
+        Function<ShardContext, Query> queryFunction,
         DataPartitioning dataPartitioning,
-        int taskConcurrency
+        Function<Query, PartitioningStrategy> autoStrategy,
+        int taskConcurrency,
+        ScoreMode scoreMode
     ) {
         final List<LuceneSlice> slices = new ArrayList<>();
         for (ShardContext ctx : contexts) {
-            final List<LeafReaderContext> leafContexts = ctx.searcher().getLeafContexts();
-            List<List<PartialLeafReaderContext>> groups = switch (dataPartitioning) {
-                case SHARD -> Collections.singletonList(leafContexts.stream().map(PartialLeafReaderContext::new).toList());
-                case SEGMENT -> segmentSlices(leafContexts);
-                case DOC -> docSlices(ctx.searcher().getIndexReader(), taskConcurrency);
-            };
-            final Weight weight = weightFunction.apply(ctx);
+            Query query = queryFunction.apply(ctx);
+            /*
+             * Rewrite the query on the local segment so things like fully
+             * overlapping range queries become match all.
+             */
+            try {
+                query = query.rewrite(ctx.searcher());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
+            List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
+            Weight weight = weight(ctx, query, scoreMode);
             for (List<PartialLeafReaderContext> group : groups) {
                 if (group.isEmpty() == false) {
                     slices.add(new LuceneSlice(ctx, group, weight));
@@ -74,54 +85,113 @@ public final class LuceneSliceQueue {
         return new LuceneSliceQueue(slices);
     }
 
-    static List<List<PartialLeafReaderContext>> docSlices(IndexReader indexReader, int numSlices) {
-        final int totalDocCount = indexReader.maxDoc();
-        final int normalMaxDocsPerSlice = totalDocCount / numSlices;
-        final int extraDocsInFirstSlice = totalDocCount % numSlices;
-        final List<List<PartialLeafReaderContext>> slices = new ArrayList<>();
-        int docsAllocatedInCurrentSlice = 0;
-        List<PartialLeafReaderContext> currentSlice = null;
-        int maxDocsPerSlice = normalMaxDocsPerSlice + extraDocsInFirstSlice;
-        for (LeafReaderContext ctx : indexReader.leaves()) {
-            final int numDocsInLeaf = ctx.reader().maxDoc();
-            int minDoc = 0;
-            while (minDoc < numDocsInLeaf) {
-                int numDocsToUse = Math.min(maxDocsPerSlice - docsAllocatedInCurrentSlice, numDocsInLeaf - minDoc);
-                if (numDocsToUse <= 0) {
-                    break;
-                }
-                if (currentSlice == null) {
-                    currentSlice = new ArrayList<>();
-                }
-                currentSlice.add(new PartialLeafReaderContext(ctx, minDoc, minDoc + numDocsToUse));
-                minDoc += numDocsToUse;
-                docsAllocatedInCurrentSlice += numDocsToUse;
-                if (docsAllocatedInCurrentSlice == maxDocsPerSlice) {
-                    slices.add(currentSlice);
-                    maxDocsPerSlice = normalMaxDocsPerSlice; // once the first slice with the extra docs is added, no need for extra docs
-                    currentSlice = null;
-                    docsAllocatedInCurrentSlice = 0;
-                }
+    public enum PartitioningStrategy {
+        SHARD {
+            @Override
+            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices) {
+                return List.of(searcher.getLeafContexts().stream().map(PartialLeafReaderContext::new).toList());
             }
+        },
+        SEGMENT {
+            @Override
+            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices) {
+                IndexSearcher.LeafSlice[] gs = IndexSearcher.slices(
+                    searcher.getLeafContexts(),
+                    MAX_DOCS_PER_SLICE,
+                    MAX_SEGMENTS_PER_SLICE,
+                    false
+                );
+                return Arrays.stream(gs).map(g -> Arrays.stream(g.partitions).map(PartialLeafReaderContext::new).toList()).toList();
+            }
+        },
+        DOC {
+            @Override
+            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices) {
+                final int totalDocCount = searcher.getIndexReader().maxDoc();
+                final int normalMaxDocsPerSlice = totalDocCount / requestedNumSlices;
+                final int extraDocsInFirstSlice = totalDocCount % requestedNumSlices;
+                final List<List<PartialLeafReaderContext>> slices = new ArrayList<>();
+                int docsAllocatedInCurrentSlice = 0;
+                List<PartialLeafReaderContext> currentSlice = null;
+                int maxDocsPerSlice = normalMaxDocsPerSlice + extraDocsInFirstSlice;
+                for (LeafReaderContext ctx : searcher.getLeafContexts()) {
+                    final int numDocsInLeaf = ctx.reader().maxDoc();
+                    int minDoc = 0;
+                    while (minDoc < numDocsInLeaf) {
+                        int numDocsToUse = Math.min(maxDocsPerSlice - docsAllocatedInCurrentSlice, numDocsInLeaf - minDoc);
+                        if (numDocsToUse <= 0) {
+                            break;
+                        }
+                        if (currentSlice == null) {
+                            currentSlice = new ArrayList<>();
+                        }
+                        currentSlice.add(new PartialLeafReaderContext(ctx, minDoc, minDoc + numDocsToUse));
+                        minDoc += numDocsToUse;
+                        docsAllocatedInCurrentSlice += numDocsToUse;
+                        if (docsAllocatedInCurrentSlice == maxDocsPerSlice) {
+                            slices.add(currentSlice);
+                            // once the first slice with the extra docs is added, no need for extra docs
+                            maxDocsPerSlice = normalMaxDocsPerSlice;
+                            currentSlice = null;
+                            docsAllocatedInCurrentSlice = 0;
+                        }
+                    }
+                }
+                if (currentSlice != null) {
+                    slices.add(currentSlice);
+                }
+                if (requestedNumSlices < totalDocCount && slices.size() != requestedNumSlices) {
+                    throw new IllegalStateException("wrong number of slices, expected " + requestedNumSlices + " but got " + slices.size());
+                }
+                if (slices.stream()
+                    .flatMapToInt(
+                        l -> l.stream()
+                            .mapToInt(partialLeafReaderContext -> partialLeafReaderContext.maxDoc() - partialLeafReaderContext.minDoc())
+                    )
+                    .sum() != totalDocCount) {
+                    throw new IllegalStateException("wrong doc count");
+                }
+                return slices;
+            }
+        };
+
+        abstract List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices);
+
+        private static PartitioningStrategy pick(
+            DataPartitioning dataPartitioning,
+            Function<Query, PartitioningStrategy> autoStrategy,
+            ShardContext ctx,
+            Query query
+        ) {
+            return switch (dataPartitioning) {
+                case SHARD -> PartitioningStrategy.SHARD;
+                case SEGMENT -> PartitioningStrategy.SEGMENT;
+                case DOC -> PartitioningStrategy.DOC;
+                case AUTO -> forAuto(autoStrategy, ctx, query);
+            };
         }
-        if (currentSlice != null) {
-            slices.add(currentSlice);
+
+        /**
+         * {@link DataPartitioning#AUTO} resolves to {@link #SHARD} for indices
+         * with fewer than this many documents.
+         */
+        private static final int SMALL_INDEX_BOUNDARY = MAX_DOCS_PER_SLICE;
+
+        private static PartitioningStrategy forAuto(Function<Query, PartitioningStrategy> autoStrategy, ShardContext ctx, Query query) {
+            if (ctx.searcher().getIndexReader().maxDoc() < SMALL_INDEX_BOUNDARY) {
+                return PartitioningStrategy.SHARD;
+            }
+            return autoStrategy.apply(query);
         }
-        if (numSlices < totalDocCount && slices.size() != numSlices) {
-            throw new IllegalStateException("wrong number of slices, expected " + numSlices + " but got " + slices.size());
-        }
-        if (slices.stream()
-            .flatMapToInt(
-                l -> l.stream().mapToInt(partialLeafReaderContext -> partialLeafReaderContext.maxDoc() - partialLeafReaderContext.minDoc())
-            )
-            .sum() != totalDocCount) {
-            throw new IllegalStateException("wrong doc count");
-        }
-        return slices;
     }
 
-    static List<List<PartialLeafReaderContext>> segmentSlices(List<LeafReaderContext> leafContexts) {
-        IndexSearcher.LeafSlice[] gs = IndexSearcher.slices(leafContexts, MAX_DOCS_PER_SLICE, MAX_SEGMENTS_PER_SLICE, false);
-        return Arrays.stream(gs).map(g -> Arrays.stream(g.partitions).map(PartialLeafReaderContext::new).toList()).toList();
+    static Weight weight(ShardContext ctx, Query query, ScoreMode scoreMode) {
+        var searcher = ctx.searcher();
+        try {
+            Query actualQuery = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
+            return searcher.createWeight(searcher.rewrite(actualQuery), scoreMode, 1);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

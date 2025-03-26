@@ -56,7 +56,15 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
         int maxPageSize,
         int limit
     ) {
-        super(contexts, queryFunction, DataPartitioning.SHARD, taskConcurrency, limit, ScoreMode.COMPLETE_NO_SCORES);
+        super(
+            contexts,
+            queryFunction,
+            DataPartitioning.SHARD,
+            query -> { throw new UnsupportedOperationException("locked to SHARD partitioning"); },
+            taskConcurrency,
+            limit,
+            ScoreMode.COMPLETE_NO_SCORES
+        );
         this.maxPageSize = maxPageSize;
     }
 

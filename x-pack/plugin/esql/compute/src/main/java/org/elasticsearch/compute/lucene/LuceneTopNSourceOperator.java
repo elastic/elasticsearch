@@ -65,7 +65,15 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             List<SortBuilder<?>> sorts,
             boolean scoring
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, scoring ? TOP_DOCS_WITH_SCORES : TOP_DOCS);
+            super(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                taskConcurrency,
+                limit,
+                scoring ? TOP_DOCS_WITH_SCORES : TOP_DOCS
+            );
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
         }

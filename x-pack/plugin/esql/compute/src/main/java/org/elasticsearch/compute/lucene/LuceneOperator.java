@@ -9,7 +9,6 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -96,6 +95,7 @@ public abstract class LuceneOperator extends SourceOperator {
             List<? extends ShardContext> contexts,
             Function<ShardContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
+            Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
             int taskConcurrency,
             int limit,
             ScoreMode scoreMode
@@ -103,8 +103,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.limit = limit;
             this.scoreMode = scoreMode;
             this.dataPartitioning = dataPartitioning;
-            var weightFunction = weightFunction(queryFunction, scoreMode);
-            this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
+            this.sliceQueue = LuceneSliceQueue.create(contexts, queryFunction, dataPartitioning, autoStrategy, taskConcurrency, scoreMode);
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
         }
 
@@ -469,18 +468,5 @@ public abstract class LuceneOperator extends SourceOperator {
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersions.V_8_11_X;
         }
-    }
-
-    static Function<ShardContext, Weight> weightFunction(Function<ShardContext, Query> queryFunction, ScoreMode scoreMode) {
-        return ctx -> {
-            final var query = queryFunction.apply(ctx);
-            final var searcher = ctx.searcher();
-            try {
-                Query actualQuery = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
-                return searcher.createWeight(searcher.rewrite(actualQuery), scoreMode, 1);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        };
     }
 }

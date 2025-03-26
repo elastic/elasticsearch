@@ -7,8 +7,14 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -58,7 +64,15 @@ public class LuceneSourceOperator extends LuceneOperator {
             int limit,
             boolean scoring
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, scoring ? COMPLETE : COMPLETE_NO_SCORES);
+            super(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy(limit),
+                taskConcurrency,
+                limit,
+                scoring ? COMPLETE : COMPLETE_NO_SCORES
+            );
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
@@ -84,6 +98,76 @@ public class LuceneSourceOperator extends LuceneOperator {
                 + ", scoreMode = "
                 + scoreMode
                 + "]";
+        }
+
+        /**
+         * Pick a strategy for the {@link DataPartitioning#AUTO} partitioning.
+         */
+        public static Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy(int limit) {
+            return limit == NO_LIMIT ? Factory::highSpeedAutoStrategy : Factory::lowOverheadAutoStrategy;
+        }
+
+        /**
+         * Use the {@link LuceneSliceQueue.PartitioningStrategy#SHARD} strategy because
+         * it has the lowest overhead. Used when there is a {@code limit} on the operator
+         * because that's for cases like {@code FROM foo | LIMIT 10} or
+         * {@code FROM foo | WHERE a == 1 | LIMIT 10} when the {@code WHERE} can be pushed
+         * to Lucene. In those cases we're better off with the lowest overhead we can
+         * manage - and that's {@link LuceneSliceQueue.PartitioningStrategy#SHARD}.
+         */
+        private static LuceneSliceQueue.PartitioningStrategy lowOverheadAutoStrategy(Query query) {
+            return LuceneSliceQueue.PartitioningStrategy.SHARD;
+        }
+
+        /**
+         * Select the {@link LuceneSliceQueue.PartitioningStrategy} based on the {@link Query}.
+         * <ul>
+         *     <li>
+         *         If the {@linkplain Query} matches <strong>no</strong> documents then this will
+         *         use the {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT} strategy so we
+         *         minimize the overhead of finding nothing.
+         *     </li>
+         *     <li>
+         *         If the {@linkplain Query} matches <strong>all</strong> documents then this will
+         *         use the {@link LuceneSliceQueue.PartitioningStrategy#DOC} strategy because the
+         *         overhead of using that strategy for {@link MatchAllDocsQuery} is very low, and
+         *         we need as many CPUs as we can get to process all the documents.
+         *     </li>
+         *     <li>
+         *         Otherwise use the {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT} strategy
+         *         because it's overhead is generally low.
+         *     </li>
+         * </ul>
+         */
+        private static LuceneSliceQueue.PartitioningStrategy highSpeedAutoStrategy(Query query) {
+            if (query instanceof ConstantScoreQuery c) {
+                return highSpeedAutoStrategy(c.getQuery());
+            }
+            if (query instanceof BoostQuery b) {
+                return highSpeedAutoStrategy(b.getQuery());
+            }
+            if (query instanceof BooleanQuery bq) {
+                for (BooleanClause c : bq) {
+                    if (c.isRequired() == false) {
+                        return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                    }
+                    LuceneSliceQueue.PartitioningStrategy forClause = highSpeedAutoStrategy(c.query());
+                    if (forClause == LuceneSliceQueue.PartitioningStrategy.SHARD) {
+                        return LuceneSliceQueue.PartitioningStrategy.SHARD;
+                    }
+                    if (forClause != LuceneSliceQueue.PartitioningStrategy.DOC) {
+                        return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                    }
+                }
+                return LuceneSliceQueue.PartitioningStrategy.DOC;
+            }
+            if (query instanceof MatchAllDocsQuery) {
+                return LuceneSliceQueue.PartitioningStrategy.DOC;
+            }
+            if (query instanceof MatchNoDocsQuery) {
+                return LuceneSliceQueue.PartitioningStrategy.SHARD;
+            }
+            return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
         }
     }
 

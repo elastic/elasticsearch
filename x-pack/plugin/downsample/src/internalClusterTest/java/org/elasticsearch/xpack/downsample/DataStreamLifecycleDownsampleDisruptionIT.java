@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -101,8 +100,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         );
 
         logger.info("-> Starting the disruption.");
-        internalCluster().rollingRestart(new InternalTestCluster.RestartCallback() {
-        });
+        internalCluster().rollingRestart(new InternalTestCluster.RestartCallback());
 
         ensureDownsamplingStatus(targetIndex, Set.of(IndexMetadata.DownsampleTaskStatus.SUCCESS), TimeValue.timeValueSeconds(120));
         ensureGreen(targetIndex);
@@ -115,28 +113,18 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         TimeValue timeout
     ) {
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        final IndexMetadata.DownsampleTaskStatus[] downsamplingStatus = new IndexMetadata.DownsampleTaskStatus[1];
         final var listener = ClusterServiceUtils.addTemporaryStateListener(clusterService, clusterState -> {
             final var indexMetadata = clusterState.metadata().getProject().index(downsampledIndex);
             if (indexMetadata == null) {
                 return false;
             }
-            downsamplingStatus[0] = INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
-            return expectedStatuses.contains(downsamplingStatus[0]);
-        });
-        try {
-            final var future = new TestPlainActionFuture<Void>();
-            listener.addListener(future);
-            future.get(timeout.getMillis(), TimeUnit.MILLISECONDS);
-            logger.info("-> Downsampling status for index [{}] is [{}]", downsampledIndex, downsamplingStatus[0]);
-        } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
+            var downsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
+            if (expectedStatuses.contains(downsamplingStatus)) {
+                logger.info("-> Downsampling status for index [{}] is [{}]", downsampledIndex, downsamplingStatus);
+                return true;
             }
-            throw new AssertionError(
-                "Error while waiting for " + expectedStatuses + " but found '" + downsamplingStatus[0] + "'. " + e.getMessage(),
-                e
-            );
-        }
+            return false;
+        });
+        safeAwait(listener, timeout.millis(), TimeUnit.MILLISECONDS);
     }
 }

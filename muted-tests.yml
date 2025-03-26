@@ -327,12 +327,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
   issue: https://github.com/elastic/elasticsearch/issues/124848
-- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
-  method: testExplainLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/124882
-- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
-  method: testSystemExplainLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/124885
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/124940
@@ -351,9 +345,6 @@ tests:
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test10Install
   issue: https://github.com/elastic/elasticsearch/issues/124957
-- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
-  method: testRolloverAction
-  issue: https://github.com/elastic/elasticsearch/issues/124987
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test011SecurityEnabledStatus
   issue: https://github.com/elastic/elasticsearch/issues/124990
@@ -384,6 +375,15 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_crud/Test get stats on newly created config}
   issue: https://github.com/elastic/elasticsearch/issues/121726
+- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
+  method: testMergeSourceWithFollowUpMergesRunSequentially
+  issue: https://github.com/elastic/elasticsearch/issues/125639
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header and column selection}
+  issue: https://github.com/elastic/elasticsearch/issues/125641
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/data_frame_analytics_cat_apis/Test cat data frame analytics single job with header}
+  issue: https://github.com/elastic/elasticsearch/issues/125642
 
 # Examples:
 #

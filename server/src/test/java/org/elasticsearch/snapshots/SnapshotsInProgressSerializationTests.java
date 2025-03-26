@@ -91,13 +91,13 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.PROJECT_ID_IN_SNAPSHOT);
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(oldVersion);
-        final Custom orig = createTestInstance(() -> randomSnapshot(ProjectId.DEFAULT));
-        orig.writeTo(out);
+        final Custom original = createTestInstance(() -> randomSnapshot(ProjectId.DEFAULT));
+        original.writeTo(out);
 
         final var in = out.bytes().streamInput();
         in.setTransportVersion(oldVersion);
         final SnapshotsInProgress fromStream = new SnapshotsInProgress(in);
-        assertThat(fromStream, equalTo(orig));
+        assertThat(fromStream, equalTo(original));
     }
 
     public void testDiffSerializationBwc() throws IOException {

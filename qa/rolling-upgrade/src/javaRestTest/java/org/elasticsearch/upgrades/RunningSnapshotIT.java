@@ -12,12 +12,15 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.util.Collection;
 
+import static org.elasticsearch.upgrades.SnapshotBasedRecoveryIT.indexDocs;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -34,18 +37,22 @@ public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
         final var nodeIds = getNodesInfo(client()).keySet();
 
         if (isOldCluster()) {
+            registerRepository(repositoryName, "fs", randomBoolean(), Settings.builder().put("location", "backup").build());
             // create an index to have one shard per node
             createIndex(indexName, indexSettings(3, 0).put("index.routing.allocation.total_shards_per_node", 1).build());
             ensureGreen(indexName);
+            if (randomBoolean()) {
+                indexDocs(indexName, between(10, 50));
+            }
             flush(indexName, true);
             // Signal shutdown to prevent snapshot from being completed
             putShutdownMetadata(nodeIds);
-            registerRepository(repositoryName, "fs", randomBoolean(), Settings.builder().put("location", "backup").build());
             createSnapshot(repositoryName, snapshotName, false);
             assertRunningSnapshot(repositoryName, snapshotName);
         } else {
             if (isUpgradedCluster()) {
                 deleteShutdownMetadata(nodeIds);
+                assertNoShutdownMetadata(nodeIds);
                 ensureGreen(indexName);
                 assertBusy(() -> assertCompletedSnapshot(repositoryName, snapshotName));
             } else {
@@ -71,6 +78,13 @@ public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
             final Request request = new Request("DELETE", "/_nodes/" + nodeId + "/shutdown");
             client().performRequest(request);
         }
+    }
+
+    private void assertNoShutdownMetadata(Collection<String> nodeIds) throws IOException {
+        final ObjectPath responsePath = assertOKAndCreateObjectPath(
+            client().performRequest(new Request("GET", "/_nodes/" + Strings.collectionToCommaDelimitedString(nodeIds) + "/shutdown"))
+        );
+        assertThat(responsePath.evaluate("nodes"), empty());
     }
 
     private void assertRunningSnapshot(String repositoryName, String snapshotName) throws IOException {

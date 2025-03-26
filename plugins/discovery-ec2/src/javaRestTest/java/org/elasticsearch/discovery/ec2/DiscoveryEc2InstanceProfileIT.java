@@ -33,8 +33,9 @@ public class DiscoveryEc2InstanceProfileIT extends DiscoveryEc2ClusterFormationT
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "ec2");
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
-        new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).instanceIdentityDocument((builder, params) -> builder.field("region", regionSupplier))
-            .newCredentialsConsumer(dynamicCredentials::addValidCredentials)
+        new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).instanceIdentityDocument(
+            (builder, params) -> builder.field("region", regionSupplier.get())
+        ).newCredentialsConsumer(dynamicCredentials::addValidCredentials)
     );
 
     private static final AwsEc2HttpFixture ec2ApiFixture = new AwsEc2HttpFixture(

@@ -321,18 +321,7 @@ RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
-<<<<<<< HEAD
-<% if (docker_base == "cloud") { %>
-ENTRYPOINT ["/bin/tini", "--"]
-CMD ["/app/elasticsearch.sh"]
-# Generate a stub command that will be overwritten at runtime
-RUN mkdir /app && \\
-    echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
-    chmod 0555 /app/elasticsearch.sh
-<% } else if (docker_base == "wolfi") { %>
-=======
 <% if (docker_base == "wolfi" || docker_base == "fips") { %>
->>>>>>> 653c179b08b ([Build] Add FIPS docker image for GovCloud (#117152))
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]

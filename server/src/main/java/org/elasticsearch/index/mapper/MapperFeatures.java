@@ -79,7 +79,8 @@ public class MapperFeatures implements FeatureSpecification {
             SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
             COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
             SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
-            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
+            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
+            DateFieldMapper.INVALID_DATE_FIX
         );
     }
 }

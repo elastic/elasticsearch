@@ -2667,6 +2667,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial) {
         MapMatcher mapMatcher = matchesMap();
+        mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
+        mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
         if (includeMetadata) {
             mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
         }

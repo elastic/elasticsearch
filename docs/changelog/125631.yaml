@@ -1,0 +1,5 @@
+pr: 125631
+summary: Add `documents_found` and `values_loaded`
+area: ES|QL
+type: enhancement
+issues: []

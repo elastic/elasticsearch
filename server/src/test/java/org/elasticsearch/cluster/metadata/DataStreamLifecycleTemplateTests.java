@@ -45,7 +45,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
             case 2 -> downsampling = randomValueOtherThan(downsampling, DataStreamLifecycleTemplateTests::randomDownsampling);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return DataStreamLifecycle.Template.builder().dataRetention(retention).downsampling(downsampling).enabled(enabled).build();
+        return new DataStreamLifecycle.Template(enabled, retention, downsampling);
     }
 
     @Override
@@ -57,7 +57,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.Template.builder()
+                () -> DataStreamLifecycle.builder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -70,7 +70,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
                             )
                         )
                     )
-                    .build()
+                    .buildTemplate()
             );
             assertThat(
                 exception.getMessage(),
@@ -80,7 +80,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.Template.builder()
+                () -> DataStreamLifecycle.builder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -93,14 +93,14 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
                             )
                         )
                     )
-                    .build()
+                    .buildTemplate()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling interval [2h] must be greater than the source index interval [2h]."));
         }
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.Template.builder()
+                () -> DataStreamLifecycle.builder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -113,21 +113,21 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
                             )
                         )
                     )
-                    .build()
+                    .buildTemplate()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling interval [3h] must be a multiple of the source index interval [2h]."));
         }
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.Template.builder().downsampling((List.of())).build()
+                () -> DataStreamLifecycle.builder().downsampling((List.of())).buildTemplate()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
         }
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.Template.builder()
+                () -> DataStreamLifecycle.builder()
                     .downsampling(
                         Stream.iterate(1, i -> i * 2)
                             .limit(12)
@@ -139,7 +139,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
                             )
                             .toList()
                     )
-                    .build()
+                    .buildTemplate()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration supports maximum 10 configured rounds. Found: 12"));
         }
@@ -147,7 +147,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.Template.builder()
+                () -> DataStreamLifecycle.builder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -156,7 +156,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
                             )
                         )
                     )
-                    .build()
+                    .buildTemplate()
             );
             assertThat(
                 exception.getMessage(),
@@ -166,11 +166,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
     }
 
     public static DataStreamLifecycle.Template randomLifecycleTemplate() {
-        return DataStreamLifecycle.Template.builder()
-            .enabled(randomBoolean())
-            .dataRetention(randomRetention())
-            .downsampling(randomDownsampling())
-            .build();
+        return new DataStreamLifecycle.Template(randomBoolean(), randomRetention(), randomDownsampling());
     }
 
     private static ResettableValue<TimeValue> randomRetention() {

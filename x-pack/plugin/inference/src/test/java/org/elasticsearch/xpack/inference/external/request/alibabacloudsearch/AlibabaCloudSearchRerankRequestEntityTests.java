@@ -22,7 +22,13 @@ import static org.hamcrest.CoreMatchers.is;
 
 public class AlibabaCloudSearchRerankRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
-        var entity = new AlibabaCloudSearchRerankRequestEntity("query", List.of("abc"), new AlibabaCloudSearchRerankTaskSettings());
+        var entity = new AlibabaCloudSearchRerankRequestEntity(
+            "query",
+            List.of("abc"),
+            Boolean.TRUE,
+            22,
+            new AlibabaCloudSearchRerankTaskSettings()
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

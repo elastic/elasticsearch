@@ -774,7 +774,7 @@ final class MaxmindIpDataLookups {
     }
 
     /**
-     * As an internal detail, the {@code com.maxmind.geoip2.model } classes that are populated by
+     * As an internal detail, the {@code com.maxmind.geoip2.model} classes that are populated by
      * {@link Reader#getRecord(InetAddress, Class)} are kinda half-populated and need to go through a second round of construction
      * with context from the querying caller. This method gives us a place do that additional binding. Cleverly, the signature
      * here matches the constructor for many of these model classes exactly, so an appropriate implementation can 'just' be a method
@@ -823,13 +823,14 @@ final class MaxmindIpDataLookups {
         }
 
         /**
-         * Given a fully-built response object, create a record that is suitable for caching. If the fully-built response object
+         * Given a fully-populated response object, create a record that is suitable for caching. If the fully-populated response object
          * itself is suitable for caching, then it is acceptable to simply return it.
          */
         protected abstract RECORD record(RESPONSE response);
 
         /**
-         * Extract the configured properties from the retrieved response
+         * Extract the configured properties from the retrieved response.
+         *
          * @param response the non-null response that was retrieved
          * @return a mapping of properties for the ip from the response
          */

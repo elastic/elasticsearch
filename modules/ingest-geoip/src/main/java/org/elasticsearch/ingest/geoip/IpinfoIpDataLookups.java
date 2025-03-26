@@ -496,7 +496,8 @@ final class IpinfoIpDataLookups {
         }
 
         /**
-         * Extract the configured properties from the retrieved response
+         * Extract the configured properties from the retrieved response.
+         *
          * @param response the non-null response that was retrieved
          * @return a mapping of properties for the ip from the response
          */

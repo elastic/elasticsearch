@@ -520,6 +520,10 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         query = fieldType.createKnnQuery(VectorData.fromFloats(new float[] { 1, 4, 10 }), 10, 100, 2f, null, null, null);
         assertTrue(query instanceof RescoreKnnVectorQuery);
+        assertThat(((RescoreKnnVectorQuery) query).k(), equalTo(10));
+        ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) ((RescoreKnnVectorQuery) query).innerQuery();
+        assertThat(esKnnQuery.kParam(), equalTo(20));
+
     }
 
     private static void checkRescoreQueryParameters(

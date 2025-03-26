@@ -8,23 +8,24 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
-import java.util.concurrent.atomic.AtomicReference;
-
 public class PropagateSampleFrequencyToAggs extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {
-        AtomicReference<Expression> sampleProbability = new AtomicReference<>(null);
+        Holder<Expression> sampleProbability = new Holder<>(null);
         return logicalPlan.transformUp(plan -> {
             if (plan instanceof RandomSample randomSample) {
                 sampleProbability.set(randomSample.probability());
             }
-            if (sampleProbability.get() != null) {
+            if (plan instanceof Aggregate && sampleProbability.get() != null) {
                 plan = plan.transformExpressionsOnly(AggregateFunction.class, af -> af.correctForSampling(sampleProbability.get()));
+                sampleProbability.set(null);
             }
             return plan;
         });

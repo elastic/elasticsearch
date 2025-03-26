@@ -3318,7 +3318,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankSingleField() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title WITH \"inferenceID\"");
+        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceID");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3329,7 +3329,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankMultipleFields() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title, description, authors_renamed=authors WITH \"inferenceID\"");
+        var plan = processingCommand("RERANK \"query text\" ON title, description, authors_renamed=authors WITH inferenceID");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3349,9 +3349,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankComputedFields() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand(
-            "RERANK \"query text\" ON title, short_description = SUBSTRING(description, 0, 100) WITH \"inferenceID\""
-        );
+        var plan = processingCommand("RERANK \"query text\" ON title, short_description = SUBSTRING(description, 0, 100) WITH inferenceID");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3391,17 +3389,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidRerank() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-        expectError(
-            "FROM foo* | RERANK ON title WITH inferenceId",
-            "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING, '?', NAMED_OR_POSITIONAL_PARAM}"
-        );
+        expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING");
 
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
 
-        expectError(
-            "FROM foo* | RERANK \"query text\" ON title",
-            "line 1:41: mismatched input '<EOF>' expecting {'and', '::', ',', '.', 'or', 'with', '+', '-', '*', '/', '%'}"
-        );
+        expectError("FROM foo* | RERANK \"query text\" ON title", "line 1:41: mismatched input '<EOF>' expecting {'and',");
     }
 
     static Alias alias(String name, Expression value) {

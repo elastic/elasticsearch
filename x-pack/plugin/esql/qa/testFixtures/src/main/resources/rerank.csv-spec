@@ -9,7 +9,7 @@ required_capability: match_function
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title WITH "test_reranker"
+| RERANK "war and peace" ON title WITH test_reranker
 | KEEP book_no, title, author, _score
 ;
 
@@ -27,7 +27,7 @@ required_capability: match_function
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title, author WITH "test_reranker"
+| RERANK "war and peace" ON title, author WITH test_reranker
 | KEEP book_no, title, author, _score
 ;
 
@@ -47,7 +47,7 @@ FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC
 | LIMIT 3
-| RERANK "war and peace" ON title WITH "test_reranker"
+| RERANK "war and peace" ON title WITH test_reranker
 | KEEP book_no, title, author, _score
 ;
 
@@ -64,7 +64,7 @@ required_capability: match_function
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title WITH "test_reranker"
+| RERANK "war and peace" ON title WITH test_reranker
 | KEEP book_no, title, author, _score
 | LIMIT 3
 ;
@@ -82,7 +82,7 @@ required_capability: match_function
 
 FROM books
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title WITH "test_reranker"
+| RERANK "war and peace" ON title WITH test_reranker
 | KEEP book_no, title, author, _score
 ;
 

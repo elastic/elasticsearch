@@ -176,11 +176,6 @@ identifierOrParameter
     | {this.isDevVersion()}? doubleParameter
     ;
 
-stringOrParameter
-    : string
-    | parameter
-    ;
-
 limitCommand
     : LIMIT INTEGER_LITERAL
     ;
@@ -296,5 +291,5 @@ rrfCommand
    ;
 
 rerankCommand
-    : DEV_RERANK queryText=stringOrParameter ON fields WITH inferenceId=stringOrParameter
+    : DEV_RERANK queryText=constant ON fields WITH inferenceId=identifierOrParameter
     ;

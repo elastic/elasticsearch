@@ -29,11 +29,11 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
 
     private static final String AUTH_HEADER_VALUE = "foo";
 
-    public void testCreateRequest_WithoutModelSet_And_WithoutTopNSet() throws IOException {
+    public void testCreateRequest_WithMinimalFieldsSet() throws IOException {
         var input = "input";
         var query = "query";
 
-        var request = createRequest(query, input, null, null);
+        var request = createRequest(query, input, null, null, null, null);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -53,8 +53,9 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var input = "input";
         var query = "query";
         var topN = 1;
+        var taskSettingsTopN = 3;
 
-        var request = createRequest(query, input, null, topN);
+        var request = createRequest(query, input, null, topN, null, taskSettingsTopN);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -71,12 +72,55 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         assertThat(requestMap.get("topN"), is(topN));
     }
 
+    public void testCreateRequest_UsesTaskSettingsTopNWhenRootLevelIsNull() throws IOException {
+        var input = "input";
+        var query = "query";
+        var topN = 1;
+
+        var request = createRequest(query, input, null, null, null, topN);
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+
+        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap.get("records"), is(List.of(Map.of("id", "0", "content", input))));
+        assertThat(requestMap.get("query"), is(query));
+        assertThat(requestMap.get("topN"), is(topN));
+    }
+
+    public void testCreateRequest_WithReturnDocumentsSet() throws IOException {
+        var input = "input";
+        var query = "query";
+
+        var request = createRequest(query, input, null, null, Boolean.TRUE, null);
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+
+        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap.get("records"), is(List.of(Map.of("id", "0", "content", input))));
+        assertThat(requestMap.get("query"), is(query));
+        assertThat(requestMap.get("ignoreRecordDetailsInResponse"), is(Boolean.FALSE));
+    }
+
     public void testCreateRequest_WithModelSet() throws IOException {
         var input = "input";
         var query = "query";
         var modelId = "model";
 
-        var request = createRequest(query, input, modelId, null);
+        var request = createRequest(query, input, modelId, null, null, null);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -94,24 +138,37 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
     }
 
     public void testTruncate_DoesNotTruncate() {
-        var request = createRequest("query", "input", null, null);
+        var request = createRequest("query", "input", null, null, null, null);
         var truncatedRequest = request.truncate();
 
         assertThat(truncatedRequest, sameInstance(request));
     }
 
-    private static GoogleVertexAiRerankRequest createRequest(String query, String input, @Nullable String modelId, @Nullable Integer topN) {
-        var rerankModel = GoogleVertexAiRerankModelTests.createModel(modelId, topN);
+    private static GoogleVertexAiRerankRequest createRequest(
+        String query,
+        String input,
+        @Nullable String modelId,
+        @Nullable Integer topN,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer taskSettingsTopN
+    ) {
+        var rerankModel = GoogleVertexAiRerankModelTests.createModel(modelId, taskSettingsTopN);
 
-        return new GoogleVertexAiRerankWithoutAuthRequest(query, List.of(input), rerankModel);
+        return new GoogleVertexAiRerankWithoutAuthRequest(query, List.of(input), rerankModel, topN, returnDocuments);
     }
 
     /**
      * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequest}
      */
     private static class GoogleVertexAiRerankWithoutAuthRequest extends GoogleVertexAiRerankRequest {
-        GoogleVertexAiRerankWithoutAuthRequest(String query, List<String> input, GoogleVertexAiRerankModel model) {
-            super(query, input, model);
+        GoogleVertexAiRerankWithoutAuthRequest(
+            String query,
+            List<String> input,
+            GoogleVertexAiRerankModel model,
+            @Nullable Integer topN,
+            @Nullable Boolean returnDocuments
+        ) {
+            super(query, input, returnDocuments, topN, model);
         }
 
         @Override

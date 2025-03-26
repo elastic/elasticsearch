@@ -60,6 +60,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -76,6 +77,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.SparseVectorStats;
@@ -241,6 +243,34 @@ public abstract class Engine implements Closeable {
             }
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+    }
+
+    /**
+     * @throws AlreadyClosedException if the shard is closed
+     */
+    public ShardFieldStats shardFieldStats() {
+        try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
+            return shardFieldStats(searcher.getLeafContexts());
+        }
+    }
+
+    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves) {
+        int numSegments = 0;
+        int totalFields = 0;
+        long usages = 0;
+        for (LeafReaderContext leaf : leaves) {
+            numSegments++;
+            var fieldInfos = leaf.reader().getFieldInfos();
+            totalFields += fieldInfos.size();
+            if (fieldInfos instanceof FieldInfosWithUsages ft) {
+                if (usages != -1) {
+                    usages += ft.getTotalUsages();
+                }
+            } else {
+                usages = -1;
+            }
+        }
+        return new ShardFieldStats(numSegments, totalFields, usages);
     }
 
     /**
@@ -2341,7 +2371,7 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine()}.
+     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine(Consumer<Engine>)}.
      *
      * In general, resetting the engine should be done with care, to consider any
      * in-progress operations and listeners (e.g., primary term and generation listeners).

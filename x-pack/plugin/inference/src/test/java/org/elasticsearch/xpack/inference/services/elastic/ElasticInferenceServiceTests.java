@@ -368,6 +368,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -403,6 +405,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -442,6 +446,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -493,6 +499,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("input text"),
                 false,
@@ -550,6 +558,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             try {
                 service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of("input text"),
                     false,

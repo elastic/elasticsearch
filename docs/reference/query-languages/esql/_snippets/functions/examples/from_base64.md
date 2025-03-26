@@ -3,8 +3,8 @@
 **Example**
 
 ```esql
-row a = "ZWxhc3RpYw=="
-| eval d = from_base64(a)
+ROW a = "ZWxhc3RpYw=="
+| EVAL d = FROM_BASE64(a)
 ```
 
 | a:keyword | d:keyword |

@@ -684,7 +684,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             if (spec.getPlugins().isEmpty() == false) {
                 Pattern pattern = Pattern.compile("(.+)(?:-\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?\\.zip)");
 
-                LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins(), name);
+                LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins().keySet(), name);
                 List<Path> pluginPaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP).split(File.pathSeparator))
                     .map(Path::of)
                     .toList();
@@ -762,7 +762,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void installModules() {
             if (spec.getModules().isEmpty() == false) {
-                LOGGER.info("Installing modules {} into node '{}", spec.getModules(), name);
+                LOGGER.info("Installing modules {} into node '{}", spec.getModules().keySet(), name);
                 List<Path> modulePaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP).split(File.pathSeparator))
                     .map(Path::of)
                     .toList();

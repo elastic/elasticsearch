@@ -40,7 +40,7 @@ import java.util.List;
  */
 class DocValuesConsumerUtil {
 
-    static final MergeStats UNSUPPORTED = new MergeStats(false, -1, -1);
+    static final MergeStats UNSUPPORTED = new MergeStats(false, -1, -1, false);
 
     abstract static class TsdbDocValuesProducer extends EmptyDocValuesProducer {
 
@@ -52,7 +52,7 @@ class DocValuesConsumerUtil {
 
     }
 
-    record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField) {}
+    record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField, boolean sumNumDocsWithFieldAccurate) {}
 
     static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo fieldInfo)
         throws IOException {
@@ -69,6 +69,7 @@ class DocValuesConsumerUtil {
 
         long sumNumValues = 0;
         int sumNumDocsWithField = 0;
+        boolean sumNumDocsWithFieldAccurate = true;
 
         // TODO bring back codec version check? (per field doc values producer sits between ES87TSDBDocValuesConsumer)
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
@@ -77,6 +78,7 @@ class DocValuesConsumerUtil {
                 case NUMERIC -> {
                     var numeric = docValuesProducer.getNumeric(fieldInfo);
                     if (numeric instanceof ES87TSDBDocValuesProducer.BaseNumericDocValues baseNumeric) {
+                        sumNumDocsWithFieldAccurate = false;
                         var entry = baseNumeric.entry;
                         sumNumValues += entry.numValues;
                         int numDocsWithField = getNumDocsWithField(entry, mergeState.maxDocs[i]);
@@ -94,6 +96,7 @@ class DocValuesConsumerUtil {
                     } else {
                         var singleton = DocValues.unwrapSingleton(sortedNumeric);
                         if (singleton instanceof ES87TSDBDocValuesProducer.BaseNumericDocValues baseNumeric) {
+                            sumNumDocsWithFieldAccurate = false;
                             var entry = baseNumeric.entry;
                             sumNumValues += entry.numValues;
                             // In this case the numDocsWithField doesn't get recorded in meta:
@@ -107,6 +110,7 @@ class DocValuesConsumerUtil {
                 case SORTED -> {
                     var sorted = docValuesProducer.getSorted(fieldInfo);
                     if (sorted instanceof ES87TSDBDocValuesProducer.BaseSortedDocValues baseSortedDocValues) {
+                        sumNumDocsWithFieldAccurate = false;
                         var entry = baseSortedDocValues.entry;
                         sumNumValues += entry.ordsEntry.numValues;
                         // In this case the numDocsWithField doesn't get recorded in meta:v
@@ -125,6 +129,7 @@ class DocValuesConsumerUtil {
                     } else {
                         var singleton = DocValues.unwrapSingleton(sortedSet);
                         if (singleton instanceof ES87TSDBDocValuesProducer.BaseSortedDocValues baseSorted) {
+                            sumNumDocsWithFieldAccurate = false;
                             var entry = baseSorted.entry;
                             sumNumValues += entry.ordsEntry.numValues;
                             // In this case the numDocsWithField doesn't get recorded in meta:
@@ -139,7 +144,7 @@ class DocValuesConsumerUtil {
             }
         }
 
-        return new MergeStats(true, sumNumValues, sumNumDocsWithField);
+        return new MergeStats(true, sumNumValues, sumNumDocsWithField, sumNumDocsWithFieldAccurate);
     }
 
     private static int getNumDocsWithField(ES87TSDBDocValuesProducer.NumericEntry entry, int maxDoc) {

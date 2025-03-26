@@ -26,11 +26,14 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.CheckedIntConsumer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -57,6 +60,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     IndexOutput data, meta;
     final int maxDoc;
+    final Directory dir;
     final boolean enableOptimizedMerge;
     private byte[] termsDictBuffer;
     private final int skipIndexIntervalSize;
@@ -94,6 +98,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             maxDoc = state.segmentInfo.maxDoc();
             this.skipIndexIntervalSize = skipIndexIntervalSize;
             this.enableOptimizedMerge = enableOptimizedMerge;
+            this.dir = state.directory;
             success = true;
         } finally {
             if (success == false) {
@@ -116,10 +121,15 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             writeSkipIndex(field, producer);
         }
 
-        writeField(field, producer, -1);
+        writeField(field, producer, -1, null);
     }
 
-    private long[] writeField(FieldInfo field, DocValuesProducer valuesProducer, long maxOrd) throws IOException {
+    private long[] writeField(
+        FieldInfo field,
+        DocValuesProducer valuesProducer,
+        long maxOrd,
+        CheckedIntConsumer<IOException> docCountConsumer
+    ) throws IOException {
         int numDocsWithValue = 0;
         long numValues = 0;
 
@@ -184,6 +194,9 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                     numDocsWithValue++;
                     final int count = values.docValueCount();
+                    if (docCountConsumer != null) {
+                        docCountConsumer.accept(count);
+                    }
                     for (int i = 0; i < count; ++i) {
                         buffer[bufferSize++] = values.nextValue();
                         if (bufferSize == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
@@ -368,7 +381,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         }
         SortedDocValues sorted = valuesProducer.getSorted(field);
         int maxOrd = sorted.getValueCount();
-        writeField(field, producer, maxOrd);
+        writeField(field, producer, maxOrd, null);
         addTermsDict(DocValues.singleton(valuesProducer.getSorted(field)));
     }
 
@@ -527,32 +540,93 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         if (maxOrd > -1) {
             meta.writeByte((byte) 1); // multiValued (1 = multiValued)
         }
-        long[] stats = writeField(field, valuesProducer, maxOrd);
-        int numDocsWithField = Math.toIntExact(stats[0]);
-        long numValues = stats[1];
-        assert numValues >= numDocsWithField;
 
-        meta.writeInt(numDocsWithField);
-        if (numValues > numDocsWithField) {
-            long start = data.getFilePointer();
-            meta.writeLong(start);
-            meta.writeVInt(ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
-
-            final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
-                meta,
-                data,
-                numDocsWithField + 1L,
-                ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
-            );
-            long addr = 0;
-            addressesWriter.add(addr);
-            SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                addr += values.docValueCount();
-                addressesWriter.add(addr);
+        boolean optimizedAddressWriting = false;
+        if (valuesProducer instanceof DocValuesConsumerUtil.TsdbDocValuesProducer tsdbDocValuesProducer) {
+            if (tsdbDocValuesProducer.mergeStats.sumNumDocsWithFieldAccurate()) {
+                optimizedAddressWriting = true;
             }
-            addressesWriter.finish();
-            meta.writeLong(data.getFilePointer() - start);
+        }
+        if (optimizedAddressWriting) {
+            DocValuesConsumerUtil.TsdbDocValuesProducer tsdbDocValuesProducer =
+                (DocValuesConsumerUtil.TsdbDocValuesProducer) valuesProducer;
+            int numDocsWithField = tsdbDocValuesProducer.mergeStats.sumNumDocsWithField();
+            long numValues = tsdbDocValuesProducer.mergeStats.sumNumValues();
+            if (numDocsWithField == numValues) {
+                writeField(field, valuesProducer, maxOrd, null);
+                assert numValues >= numDocsWithField;
+                meta.writeInt(numDocsWithField);
+            } else {
+                assert numValues >= numDocsWithField;
+
+                var addressMetaBuffer = new ByteBuffersDataOutput();
+                String addressDataOutputName = null;
+                try (
+                    var addressMetaOutput = new ByteBuffersIndexOutput(addressMetaBuffer, "meta-temp", "meta-temp");
+                    // TODO: which IOContext should be used here?
+                    var addressDataOutput = dir.createTempOutput(data.getName(), "address-data", IOContext.DEFAULT)
+                ) {
+                    addressDataOutputName = addressDataOutput.getName();
+                    final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
+                        addressMetaOutput,
+                        addressDataOutput,
+                        numDocsWithField + 1L,
+                        ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                    );
+                    long[] addr = new long[1];
+                    addressesWriter.add(addr[0]);
+                    writeField(field, valuesProducer, maxOrd, docValueCount -> {
+                        addr[0] += docValueCount;
+                        addressesWriter.add(addr[0]);
+                    });
+                    addressesWriter.finish();
+
+                    meta.writeInt(numDocsWithField);
+                    long start = data.getFilePointer();
+                    meta.writeLong(start);
+                    meta.writeVInt(ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
+                    addressMetaBuffer.copyTo(meta);
+                    addressDataOutput.close();
+                    try (
+                        // TODO: which IOContext should be used here?
+                        var addressDataInput = dir.openInput(addressDataOutput.getName(), IOContext.DEFAULT)
+                    ) {
+                        data.copyBytes(addressDataInput, addressDataInput.length());
+                        meta.writeLong(data.getFilePointer() - start);
+                    }
+                } finally {
+                    if (addressDataOutputName != null) {
+                        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, addressDataOutputName);
+                    }
+                }
+            }
+        } else {
+            long[] stats = writeField(field, valuesProducer, maxOrd, null);
+            int numDocsWithField = Math.toIntExact(stats[0]);
+            long numValues = stats[1];
+            assert numValues >= numDocsWithField;
+            meta.writeInt(numDocsWithField);
+            if (numValues > numDocsWithField) {
+                long start = data.getFilePointer();
+                meta.writeLong(start);
+                meta.writeVInt(ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
+
+                final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
+                    meta,
+                    data,
+                    numDocsWithField + 1L,
+                    ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                );
+                long addr = 0;
+                addressesWriter.add(addr);
+                SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    addr += values.docValueCount();
+                    addressesWriter.add(addr);
+                }
+                addressesWriter.finish();
+                meta.writeLong(data.getFilePointer() - start);
+            }
         }
     }
 

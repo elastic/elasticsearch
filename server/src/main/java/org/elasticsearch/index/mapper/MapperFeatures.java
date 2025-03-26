@@ -87,7 +87,8 @@ public class MapperFeatures implements FeatureSpecification {
             TSDB_NESTED_FIELD_SUPPORT,
             SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
             ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
-            UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE
+            UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
+            DateFieldMapper.INVALID_DATE_FIX
         );
     }
 }

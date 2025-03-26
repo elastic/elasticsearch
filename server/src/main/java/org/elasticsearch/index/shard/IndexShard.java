@@ -156,6 +156,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -413,7 +415,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.fieldInfos = FieldInfos.EMPTY;
     }
 
     public ThreadPool getThreadPool() {
@@ -1015,12 +1016,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return index(engine, operation);
     }
 
-    public void setFieldInfos(FieldInfos fieldInfos) {
-        this.fieldInfos = fieldInfos;
+    private static final VarHandle FIELD_INFOS;
+
+    static {
+        try {
+            FIELD_INFOS = MethodHandles.lookup().findVarHandle(IndexShard.class, "fieldInfos", FieldInfos.class);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
     }
 
     public FieldInfos getFieldInfos() {
-        return fieldInfos;
+        var res = fieldInfos;
+        if (res == null) {
+            // don't replace field infos loaded via the refresh listener to avoid overwriting the field with an older version of the
+            // field infos when racing with a refresh
+            var read = loadFieldInfos();
+            var existing = (FieldInfos) FIELD_INFOS.compareAndExchange(this, null, read);
+            return existing == null ? read : existing;
+        }
+        return res;
     }
 
     public static Engine.Index prepareIndex(
@@ -4114,14 +4129,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (enableFieldHasValue && (didRefresh || fieldInfos == FieldInfos.EMPTY)) {
-                try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-                    setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
-                } catch (AlreadyClosedException ignore) {
-                    // engine is closed - no updated FieldInfos is fine
-                }
+            if (enableFieldHasValue && (didRefresh || fieldInfos == null)) {
+                FIELD_INFOS.setRelease(IndexShard.this, loadFieldInfos());
             }
         }
+    }
+
+    private FieldInfos loadFieldInfos() {
+        try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
+            return FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader());
+        } catch (AlreadyClosedException ignore) {
+            // engine is closed - no update to FieldInfos is fine
+        }
+        return FieldInfos.EMPTY;
     }
 
     /**

@@ -189,7 +189,8 @@ public class LocalExecutionPlanner {
             bigArrays,
             blockFactory,
             foldCtx,
-            settings
+            settings,
+            shardContexts
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -895,7 +896,8 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         FoldContext foldCtx,
-        Settings settings
+        Settings settings,
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

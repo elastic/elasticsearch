@@ -57,7 +57,7 @@ public class TermIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[Term] function is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[Term] function is only supported in WHERE and STATS ... WHERE commands"));
     }
 
     public void testMultipleTerm() {

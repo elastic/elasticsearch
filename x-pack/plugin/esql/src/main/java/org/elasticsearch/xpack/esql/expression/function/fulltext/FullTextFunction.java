@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -209,10 +210,29 @@ public abstract class FullTextFunction extends Function
                 failures
             );
             checkFullTextFunctionsParents(condition, failures);
+        } else if (plan instanceof Aggregate agg) {
+            agg.forEachExpression(exp -> checkFullTextFunctionsInAggs(exp, failures));
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
+                failures.add(
+                    fail(ftf, "[{}] {} is only supported in WHERE and STATS ... WHERE commands", ftf.functionName(), ftf.functionType())
+                );
             });
+        }
+    }
+
+    private static void checkFullTextFunctionsInAggs(Expression expression, Failures failures) {
+        if (expression instanceof FilteredExpression) {
+            return;
+        }
+        for (Expression child : expression.children()) {
+            if (child instanceof FullTextFunction ftf) {
+                failures.add(
+                    fail(ftf, "[{}] {} is only supported in WHERE and STATS ... WHERE commands", ftf.functionName(), ftf.functionType())
+                );
+                return;
+            }
+            checkFullTextFunctionsInAggs(child, failures);
         }
     }
 

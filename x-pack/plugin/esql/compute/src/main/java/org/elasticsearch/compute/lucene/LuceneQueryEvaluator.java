@@ -54,6 +54,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
     private final List<ShardState> perShardState;
 
     protected LuceneQueryEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
+        assert shards.length > 0 : "LuceneQueryEvaluator expects shard configs";
         this.blockFactory = blockFactory;
         this.shards = shards;
         this.perShardState = new ArrayList<>(Collections.nCopies(shards.length, null));

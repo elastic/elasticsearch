@@ -210,3 +210,29 @@ book_no:keyword | title:text
 7480            | The Hobbit                                     
 // end::qstr-with-options-result[]
 ;
+
+testQstrInStatsNonPushable
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| where length(title) > 40 
+| stats c = count(*) where qstr("title:Lord")
+;
+
+c:long
+3
+;
+
+testQstrInStatsPushable
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where qstr("author:tolkien")
+;
+
+c:long
+22
+;
+

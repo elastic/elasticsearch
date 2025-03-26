@@ -932,7 +932,12 @@ public class EsqlCapabilities {
         /**
          * Index component selector syntax (my-data-stream-name::failures)
          */
-        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled());
+        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+
+        /**
+         * Full text functions in STATS ... WHERE
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
 
         private final boolean enabled;
 

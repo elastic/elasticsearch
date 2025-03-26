@@ -336,12 +336,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testUpdateIndexTemplateFromILMtoBothILMAndDataStreamLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/124850
-- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
-  method: testExplainLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/124882
-- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
-  method: testSystemExplainLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/124885
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testIndexTemplateSwapsILMForDataStreamLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/124886
@@ -363,9 +357,6 @@ tests:
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test10Install
   issue: https://github.com/elastic/elasticsearch/issues/124957
-- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
-  method: testRolloverAction
-  issue: https://github.com/elastic/elasticsearch/issues/124987
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test011SecurityEnabledStatus
   issue: https://github.com/elastic/elasticsearch/issues/124990
@@ -390,6 +381,24 @@ tests:
 - class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
   method: testUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/125554
+- class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
+  method: testAlreadyUpgraded
+  issue: https://github.com/elastic/elasticsearch/issues/125585
+- class: org.elasticsearch.xpack.security.authz.accesscontrol.IndicesPermissionTests
+  method: testAuthorizeDataStreamFailureIndices
+  issue: https://github.com/elastic/elasticsearch/issues/125555
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/data_frame_analytics_crud/Test get stats on newly created config}
+  issue: https://github.com/elastic/elasticsearch/issues/121726
+- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
+  method: testMergeSourceWithFollowUpMergesRunSequentially
+  issue: https://github.com/elastic/elasticsearch/issues/125639
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header and column selection}
+  issue: https://github.com/elastic/elasticsearch/issues/125641
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/data_frame_analytics_cat_apis/Test cat data frame analytics single job with header}
+  issue: https://github.com/elastic/elasticsearch/issues/125642
 
 # Examples:
 #

@@ -108,6 +108,11 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ReindexDataStreamTaskParams params,
         PersistentTaskState persistentTaskState
     ) {
+        Long completionTime = getCompletionTime(persistentTaskState);
+        if (completionTime != null && task instanceof ReindexDataStreamTask reindexDataStreamTask) {
+            reindexDataStreamTask.allReindexesCompleted(threadPool, getTimeToLive(completionTime));
+            return;
+        }
         ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTaskState;
         String sourceDataStream = params.getSourceDataStream();
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
@@ -316,6 +321,14 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         persistentTask.taskFailed(threadPool, updateCompletionTimeAndGetTimeToLive(persistentTask, state), e);
     }
 
+    private Long getCompletionTime(PersistentTaskState persistentTaskState) {
+        if (persistentTaskState instanceof ReindexDataStreamPersistentTaskState state) {
+            return state.completionTime();
+        } else {
+            return null;
+        }
+    }
+
     private TimeValue updateCompletionTimeAndGetTimeToLive(
         ReindexDataStreamTask reindexDataStreamTask,
         @Nullable ReindexDataStreamPersistentTaskState state
@@ -345,6 +358,15 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                 completionTime = state.completionTime();
             }
         }
-        return TimeValue.timeValueMillis(TASK_KEEP_ALIVE_TIME.millis() - (threadPool.absoluteTimeInMillis() - completionTime));
+        return getTimeToLive(completionTime);
+    }
+
+    private TimeValue getTimeToLive(long completionTimeInMillis) {
+        return TimeValue.timeValueMillis(
+            TASK_KEEP_ALIVE_TIME.millis() - Math.min(
+                TASK_KEEP_ALIVE_TIME.millis(),
+                threadPool.absoluteTimeInMillis() - completionTimeInMillis
+            )
+        );
     }
 }

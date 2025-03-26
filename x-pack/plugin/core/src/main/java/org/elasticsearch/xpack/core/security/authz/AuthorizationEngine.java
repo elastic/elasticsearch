@@ -354,7 +354,7 @@ public interface AuthorizationEngine {
                             if (IndexNameExpressionResolver.hasSelector(indexPattern, IndexComponentSelector.FAILURES)
                                 || IndexNameExpressionResolver.hasSelector(indexPattern, IndexComponentSelector.DATA)) {
                                 validationException = addValidationError(
-                                    "may only check index privileges without any selectors index patterns [" + indexPattern + "]",
+                                    "may only check index privileges without selectors in index patterns [" + indexPattern + "]",
                                     validationException
                                 );
                                 break;

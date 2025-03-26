@@ -1,6 +1,8 @@
 [[esql-for-search]]
 === Search with {esql}
 
+preview[]
+
 This page provides an overview of how to use {esql} for search use cases.
 
 // [TIP]

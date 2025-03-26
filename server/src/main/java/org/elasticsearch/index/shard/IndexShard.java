@@ -418,7 +418,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.fieldInfos = FieldInfos.EMPTY;
     }
 
     public ThreadPool getThreadPool() {
@@ -1025,7 +1024,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FieldInfos getFieldInfos() {
-        return fieldInfos;
+        var res = fieldInfos;
+        if (res == null) {
+            return loadFieldInfos();
+        }
+        return res;
     }
 
     public static Engine.Index prepareIndex(
@@ -4131,14 +4134,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (enableFieldHasValue && (didRefresh || fieldInfos == FieldInfos.EMPTY)) {
-                try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-                    setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
-                } catch (AlreadyClosedException ignore) {
-                    // engine is closed - no updated FieldInfos is fine
-                }
+            if (enableFieldHasValue && (didRefresh || fieldInfos == null)) {
+                loadFieldInfos();
             }
         }
+    }
+
+    private FieldInfos loadFieldInfos() {
+        try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
+            var res = FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader());
+            setFieldInfos(res);
+            return res;
+        } catch (AlreadyClosedException ignore) {
+            // engine is closed - no update to3 FieldInfos is fine
+        }
+        return FieldInfos.EMPTY;
     }
 
     /**

@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,10 +50,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -144,10 +147,10 @@ public class CacheService extends AbstractLifecycleComponent {
     private final ByteSizeValue recoveryRangeSize;
     private final Map<ShardEviction, PlainActionFuture<?>> pendingShardsEvictions;
     private final ReadWriteLock shardsEvictionsLock;
-    private final Object shardsEvictionsMutex;
+    private final AbstractRefCounted allowShardsEvictions;
+    private final PlainActionFuture<?> evictionSchedulingComplete;
 
     private volatile int maxCacheFilesToSyncAtOnce;
-    private boolean allowShardsEvictions;
 
     public CacheService(
         final Settings settings,
@@ -178,9 +181,14 @@ public class CacheService extends AbstractLifecycleComponent {
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING, this::setCacheSyncInterval);
         this.cacheSyncStopTimeout = SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT.get(settings);
         this.shardsEvictionsLock = new ReentrantReadWriteLock();
-        this.pendingShardsEvictions = new HashMap<>();
-        this.shardsEvictionsMutex = new Object();
-        this.allowShardsEvictions = true;
+        this.pendingShardsEvictions = new ConcurrentHashMap<>();
+        this.evictionSchedulingComplete = new PlainActionFuture<>();
+        this.allowShardsEvictions = new AbstractRefCounted() {
+            @Override
+            protected void closeInternal() {
+                evictionSchedulingComplete.onResponse(null);
+            }
+        };
     }
 
     public static Path getShardCachePath(ShardPath shardPath) {
@@ -348,12 +356,13 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param shardId           the {@link ShardId}
      */
     public void markShardAsEvictedInCache(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
-        synchronized (shardsEvictionsMutex) {
-            if (allowShardsEvictions) {
+        if (allowShardsEvictions.tryIncRef()) {
+            try {
                 final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
+                final AtomicReference<AbstractRunnable> evictionToSchedule = new AtomicReference<>();
                 pendingShardsEvictions.computeIfAbsent(shardEviction, shard -> {
                     final PlainActionFuture<?> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
-                    threadPool.generic().execute(new AbstractRunnable() {
+                    evictionToSchedule.set(new AbstractRunnable() {
                         @Override
                         protected void doRun() {
                             processShardEviction(shard);
@@ -367,6 +376,12 @@ public class CacheService extends AbstractLifecycleComponent {
                     });
                     return future;
                 });
+                // Only schedule after we return to ensure the eviction is present before the eviction runs
+                if (evictionToSchedule.get() != null) {
+                    threadPool.generic().execute(evictionToSchedule.get());
+                }
+            } finally {
+                allowShardsEvictions.decRef();
             }
         }
     }
@@ -382,14 +397,17 @@ public class CacheService extends AbstractLifecycleComponent {
     public void waitForCacheFilesEvictionIfNeeded(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final Future<?> future;
-        synchronized (shardsEvictionsMutex) {
-            if (allowShardsEvictions == false) {
-                throw new AlreadyClosedException("Cannot wait for shard eviction to be processed, cache is stopping");
+        if (allowShardsEvictions.tryIncRef()) {
+            try {
+                future = pendingShardsEvictions.get(new ShardEviction(snapshotUUID, snapshotIndexName, shardId));
+                if (future == null) {
+                    return;
+                }
+            } finally {
+                allowShardsEvictions.decRef();
             }
-            future = pendingShardsEvictions.get(new ShardEviction(snapshotUUID, snapshotIndexName, shardId));
-            if (future == null) {
-                return;
-            }
+        } else {
+            throw new AlreadyClosedException("Cannot wait for shard eviction to be processed, cache is stopping");
         }
         FutureUtils.get(future);
     }
@@ -406,11 +424,7 @@ public class CacheService extends AbstractLifecycleComponent {
         shardsEvictionsLock.readLock().lock();
         try {
             try {
-                final boolean canEvict;
-                synchronized (shardsEvictionsMutex) {
-                    canEvict = allowShardsEvictions;
-                }
-                if (canEvict) {
+                if (allowShardsEvictions.hasReferences()) {
                     final List<CacheFile> cacheFilesToEvict = new ArrayList<>();
                     cache.forEach((cacheKey, cacheFile) -> {
                         if (shardEviction.matches(cacheKey)) {
@@ -432,10 +446,8 @@ public class CacheService extends AbstractLifecycleComponent {
                     );
                 }
             } finally {
-                synchronized (shardsEvictionsMutex) {
-                    final PlainActionFuture<?> removedFuture = pendingShardsEvictions.remove(shardEviction);
-                    removedFuture.onResponse(null);
-                }
+                final PlainActionFuture<?> removedFuture = pendingShardsEvictions.remove(shardEviction);
+                removedFuture.onResponse(null);
             }
         } finally {
             shardsEvictionsLock.readLock().unlock();
@@ -446,9 +458,8 @@ public class CacheService extends AbstractLifecycleComponent {
      * Waits for all pending shard evictions to complete.
      */
     private void waitForAllPendingShardsEvictions() {
-        synchronized (shardsEvictionsMutex) {
-            allowShardsEvictions = false;
-        }
+        allowShardsEvictions.decRef();
+        FutureUtils.get(evictionSchedulingComplete);
         boolean success = false;
         try {
             if (shardsEvictionsLock.writeLock().tryLock(10L, TimeUnit.SECONDS) == false) {
@@ -467,16 +478,12 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     boolean isPendingShardEviction(ShardEviction shardEviction) {
-        synchronized (shardsEvictionsMutex) {
-            return pendingShardsEvictions.get(shardEviction) != null;
-        }
+        return pendingShardsEvictions.get(shardEviction) != null;
     }
 
     // used in tests
     Map<ShardEviction, Future<?>> pendingShardsEvictions() {
-        synchronized (shardsEvictionsMutex) {
-            return Map.copyOf(pendingShardsEvictions);
-        }
+        return Map.copyOf(pendingShardsEvictions);
     }
 
     void setCacheSyncInterval(TimeValue interval) {

@@ -119,6 +119,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS;
 
     public static final NodeFeature RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature("mapper.dense_vector.rescore_vector");
+    public static final NodeFeature RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature(
+        "mapper.dense_vector.rescore_zero_vector"
+    );
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static final short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
@@ -2007,10 +2010,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (oversampleValue == 0 && indexVersion.before(RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS)) {
                 throw new IllegalArgumentException("oversample must be greater than 1");
             }
-            if (oversampleValue < 1) {
-                throw new IllegalArgumentException("oversample must be greater than 1");
-            }
-            if (oversampleValue > 10) {
+            if (oversampleValue < 1 && oversampleValue != 0) {
+                throw new IllegalArgumentException("oversample must be greater than 1 or exactly 0");
+            } else if (oversampleValue > 10) {
                 throw new IllegalArgumentException("oversample must be less than or equal to 10");
             }
             return new RescoreVector(oversampleValue);

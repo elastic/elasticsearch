@@ -905,10 +905,6 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private static void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
-        entry.docsWithFieldOffset = meta.readLong();
-        entry.docsWithFieldLength = meta.readLong();
-        entry.jumpTableEntryCount = meta.readShort();
-        entry.denseRankPower = meta.readByte();
         entry.numValues = meta.readLong();
         if (entry.numValues > 0) {
             final int indexBlockShift = meta.readInt();
@@ -926,6 +922,10 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             entry.valuesOffset = meta.readLong();
             entry.valuesLength = meta.readLong();
         }
+        entry.docsWithFieldOffset = meta.readLong();
+        entry.docsWithFieldLength = meta.readLong();
+        entry.jumpTableEntryCount = meta.readShort();
+        entry.denseRankPower = meta.readByte();
     }
 
     private BinaryEntry readBinary(IndexInput meta) throws IOException {

@@ -39,6 +39,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LongsRef;
+import org.apache.lucene.util.RoaringDocIdSet;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
@@ -145,28 +146,10 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 numValues += count;
             }
         }
-
-        if (numDocsWithValue == 0) { // meta[-2, 0]: No documents with values
-            meta.writeLong(-2); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else if (numDocsWithValue == maxDoc) { // meta[-1, 0]: All documents have values
-            meta.writeLong(-1); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else { // meta[data.offset, data.length]: IndexedDISI structure for documents with values
-            long offset = data.getFilePointer();
-            meta.writeLong(offset); // docsWithFieldOffset
-            values = valuesProducer.getSortedNumeric(field);
-            final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-            meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
-            meta.writeShort(jumpTableEntryCount);
-            meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-        }
         meta.writeLong(numValues);
 
+        // TODO: write DISI to temp file and append it later to data part:
+        var docIdSetBuilder = new RoaringDocIdSet.Builder(maxDoc);
         if (numValues > 0) {
             // Special case for maxOrd of 1, signal -1 that no blocks will be written
             meta.writeInt(maxOrd != 1 ? ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT : -1);
@@ -193,6 +176,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                     numDocsWithValue++;
+                    docIdSetBuilder.add(doc);
                     final int count = values.docValueCount();
                     if (docCountConsumer != null) {
                         docCountConsumer.accept(count);
@@ -234,6 +218,35 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
             meta.writeLong(valuesDataOffset);
             meta.writeLong(valuesDataLength);
+        }
+        if (numDocsWithValue == 0) { // meta[-2, 0]: No documents with values
+            meta.writeLong(-2); // docsWithFieldOffset
+            meta.writeLong(0L); // docsWithFieldLength
+            meta.writeShort((short) -1); // jumpTableEntryCount
+            meta.writeByte((byte) -1); // denseRankPower
+        } else if (numDocsWithValue == maxDoc) { // meta[-1, 0]: All documents have values
+            meta.writeLong(-1); // docsWithFieldOffset
+            meta.writeLong(0L); // docsWithFieldLength
+            meta.writeShort((short) -1); // jumpTableEntryCount
+            meta.writeByte((byte) -1); // denseRankPower
+        } else { // meta[data.offset, data.length]: IndexedDISI structure for documents with values
+            long offset = data.getFilePointer();
+            meta.writeLong(offset); // docsWithFieldOffset
+            final short jumpTableEntryCount;
+            if (maxOrd != 1) {
+                var bitSet = docIdSetBuilder.build();
+                var iterator = bitSet.iterator();
+                if (iterator == null) {
+                    iterator = DocIdSetIterator.empty();
+                }
+                jumpTableEntryCount = IndexedDISI.writeBitSet(iterator, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+            } else {
+                values = valuesProducer.getSortedNumeric(field);
+                jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+            }
+            meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
+            meta.writeShort(jumpTableEntryCount);
+            meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
         }
 
         return new long[] { numDocsWithValue, numValues };

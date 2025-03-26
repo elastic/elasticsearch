@@ -366,7 +366,7 @@ public class Analysis {
             if (ignoreMissing == false) {
                 throw e;
             }
-            logger.info(
+            logger.warn(
                 "Synonyms set {} not found - synonyms will not be applied to search results on indices that use this synonym set",
                 synonymsSet
             );

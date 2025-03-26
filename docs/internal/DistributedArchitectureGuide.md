@@ -112,7 +112,6 @@ to communicate with Elasticsearch.
 
 [ClusterState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
 [Metadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
-/elasticsearch/cluster/coordination/CoordinationMetadata.java
 [ProjectMetadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/ProjectMetadata.java
 
 The [Metadata] of a [ClusterState] is persisted on disk and comprises information from two categories:

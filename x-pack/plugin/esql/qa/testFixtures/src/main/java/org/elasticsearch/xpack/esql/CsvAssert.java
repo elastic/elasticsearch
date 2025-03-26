@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FOR
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -409,6 +411,11 @@ public final class CsvAssert {
             case Type.VERSION -> // convert BytesRef-packed Version to String
                 rebuildExpected(expectedValue, BytesRef.class, x -> new Version((BytesRef) x).toString());
             case UNSIGNED_LONG -> rebuildExpected(expectedValue, Long.class, x -> unsignedLongAsNumber((long) x));
+            case AGGREGATE_METRIC_DOUBLE -> rebuildExpected(
+                expectedValue,
+                AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class,
+                x -> aggregateMetricDoubleLiteralToString((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) x)
+            );
             default -> expectedValue;
         };
     }

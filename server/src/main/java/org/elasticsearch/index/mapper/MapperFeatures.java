@@ -61,7 +61,8 @@ public class MapperFeatures implements FeatureSpecification {
             ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
             UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
             DOC_VALUES_SKIPPER,
-            RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING
+            RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
+            DateFieldMapper.INVALID_DATE_FIX
         );
     }
 }

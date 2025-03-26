@@ -8,7 +8,7 @@
  */
 
 apply plugin: 'elasticsearch.base-internal-es-plugin'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   name = 'system-indices-qa'
@@ -16,11 +16,4 @@ esplugin {
   classname ='org.elasticsearch.system.indices.SystemIndicesQA'
   licenseFile = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
   noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.autoconfiguration.enabled', 'false'
-  user username: 'rest_user', password: 'rest-user-password'
 }

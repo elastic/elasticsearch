@@ -97,23 +97,19 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         // empty lifecycle contains the default rollover
         prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.Template.DEFAULT);
 
-        assertBusy(() -> {
-            assertNoAuthzErrors();
-            List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
-            assertThat(backingIndices.size(), equalTo(2));
-            String backingIndex = backingIndices.get(0).getName();
-            assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-            String writeIndex = backingIndices.get(1).getName();
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-        });
+        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String backingIndex = backingIndices.get(0);
+        assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
+        String writeIndex = backingIndices.get(1);
+        assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+
+        assertNoAuthzErrors();
         // Index another doc to force another rollover and trigger an attempted force-merge. The force-merge may be a noop under
         // the hood but for authz purposes this doesn't matter, it only matters that the force-merge API was called
         indexDoc(dataStreamName);
-        assertBusy(() -> {
-            assertNoAuthzErrors();
-            List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
-            assertThat(backingIndices.size(), equalTo(3));
-        });
+
+        waitForDataStreamBackingIndices(dataStreamName, 3);
+        assertNoAuthzErrors();
     }
 
     public void testRolloverAndRetentionAuthorized() throws Exception {

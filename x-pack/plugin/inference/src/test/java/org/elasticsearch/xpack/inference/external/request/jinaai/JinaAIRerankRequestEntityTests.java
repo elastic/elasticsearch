@@ -21,8 +21,15 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class JinaAIRerankRequestEntityTests extends ESTestCase {
-    public void testXContent_SingleRequest_WritesModelAndTopNIfDefined() throws IOException {
-        var entity = new JinaAIRerankRequestEntity("query", List.of("abc"), new JinaAIRerankTaskSettings(8, null), "model");
+    public void testXContent_SingleRequest_WritesAllFieldsIfDefined() throws IOException {
+        var entity = new JinaAIRerankRequestEntity(
+            "query",
+            List.of("abc"),
+            Boolean.TRUE,
+            12,
+            new JinaAIRerankTaskSettings(8, Boolean.FALSE),
+            "model"
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -35,33 +42,86 @@ public class JinaAIRerankRequestEntityTests extends ESTestCase {
                 "documents": [
                     "abc"
                 ],
-                "top_n": 8
-            }
-            """));
-    }
-
-    public void testXContent_SingleRequest_WritesModelAndTopNIfDefined_ReturnDocumentsTrue() throws IOException {
-        var entity = new JinaAIRerankRequestEntity("query", List.of("abc"), new JinaAIRerankTaskSettings(8, true), "model");
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "model": "model",
-                "query": "query",
-                "documents": [
-                    "abc"
-                ],
-                "top_n": 8,
+                "top_n": 12,
                 "return_documents": true
             }
             """));
     }
 
-    public void testXContent_SingleRequest_WritesModelAndTopNIfDefined_ReturnDocumentsFalse() throws IOException {
-        var entity = new JinaAIRerankRequestEntity("query", List.of("abc"), new JinaAIRerankTaskSettings(8, false), "model");
+    public void testXContent_SingleRequest_WritesMinimalFields() throws IOException {
+        var entity = new JinaAIRerankRequestEntity("query", List.of("abc"), null, null, new JinaAIRerankTaskSettings(null, null), "model");
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "model": "model",
+                "query": "query",
+                "documents": [
+                    "abc"
+                ]
+            }
+            """));
+    }
+
+    public void testXContent_MultipleRequests_WritesAllFieldsIfDefined() throws IOException {
+        var entity = new JinaAIRerankRequestEntity(
+            "query",
+            List.of("abc", "def"),
+            Boolean.FALSE,
+            12,
+            new JinaAIRerankTaskSettings(8, Boolean.TRUE),
+            "model"
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "model": "model",
+                "query": "query",
+                "documents": [
+                    "abc",
+                    "def"
+                ],
+                "top_n": 12,
+                "return_documents": false
+            }
+            """));
+    }
+
+    public void testXContent_MultipleRequests_WritesMinimalFields() throws IOException {
+        var entity = new JinaAIRerankRequestEntity("query", List.of("abc", "def"), null, null, null, "model");
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "model": "model",
+                "query": "query",
+                "documents": [
+                   "abc",
+                   "def"
+                ]
+            }
+            """));
+    }
+
+    public void testXContent_SingleRequest_UsesTaskSettingsTopNIfRootIsNotDefined() throws IOException {
+        var entity = new JinaAIRerankRequestEntity(
+            "query",
+            List.of("abc"),
+            null,
+            null,
+            new JinaAIRerankTaskSettings(8, Boolean.FALSE),
+            "model"
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -76,63 +136,6 @@ public class JinaAIRerankRequestEntityTests extends ESTestCase {
                 ],
                 "top_n": 8,
                 "return_documents": false
-            }
-            """));
-    }
-
-    public void testXContent_SingleRequest_DoesNotWriteTopNIfNull() throws IOException {
-        var entity = new JinaAIRerankRequestEntity("query", List.of("abc"), null, "model");
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "model": "model",
-                "query": "query",
-                "documents": [
-                    "abc"
-                ]
-            }
-            """));
-    }
-
-    public void testXContent_MultipleRequests_WritesModelAndTopNIfDefined() throws IOException {
-        var entity = new JinaAIRerankRequestEntity("query", List.of("abc", "def"), new JinaAIRerankTaskSettings(8, null), "model");
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "model": "model",
-                "query": "query",
-                "documents": [
-                    "abc",
-                    "def"
-                ],
-                "top_n": 8
-            }
-            """));
-    }
-
-    public void testXContent_MultipleRequests_DoesNotWriteTopNIfNull() throws IOException {
-        var entity = new JinaAIRerankRequestEntity("query", List.of("abc", "def"), null, "model");
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "model": "model",
-                "query": "query",
-                "documents": [
-                   "abc",
-                   "def"
-                ]
             }
             """));
     }

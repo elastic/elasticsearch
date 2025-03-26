@@ -9,11 +9,16 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Map;
 
 public final class CefProcessor extends AbstractProcessor {
@@ -25,13 +30,23 @@ public final class CefProcessor extends AbstractProcessor {
     final String targetField;
     final boolean ignoreMissing;
     final boolean removeEmptyValue;
+    private final TemplateScript.Factory timezone;
 
-    CefProcessor(String tag, String description, String field, String targetField, boolean ignoreMissing, boolean removeEmptyValue) {
+    CefProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        boolean ignoreMissing,
+        boolean removeEmptyValue,
+        @Nullable TemplateScript.Factory timezone
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
         this.removeEmptyValue = removeEmptyValue;
+        this.timezone = timezone;
     }
 
     @Override
@@ -42,7 +57,8 @@ public final class CefProcessor extends AbstractProcessor {
         } else if (line == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
-        new CefParser(ingestDocument, removeEmptyValue).process(line, targetField);
+        ZoneId timezone = getTimezone(ingestDocument);
+        new CefParser(ingestDocument, timezone, removeEmptyValue).process(line, targetField);
         return ingestDocument;
     }
 
@@ -51,7 +67,22 @@ public final class CefProcessor extends AbstractProcessor {
         return TYPE;
     }
 
+    ZoneId getTimezone(IngestDocument document) {
+        String value = timezone == null ? null : document.renderTemplate(timezone);
+        if (value == null) {
+            return ZoneOffset.UTC;
+        } else {
+            return ZoneId.of(value);
+        }
+    }
+
     public static final class Factory implements org.elasticsearch.ingest.Processor.Factory {
+        private final ScriptService scriptService;
+
+        public Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
+        }
+
         @Override
         public CefProcessor create(
             Map<String, Processor.Factory> processorFactories,
@@ -61,11 +92,30 @@ public final class CefProcessor extends AbstractProcessor {
             ProjectId projectId
         ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-
             boolean removeEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", true);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
-            return new CefProcessor(processorTag, description, field, targetField, ignoreMissing, removeEmptyValue);
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "cef");
+            String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
+            TemplateScript.Factory compiledTimezoneTemplate = null;
+            if (timezoneString != null) {
+                compiledTimezoneTemplate = ConfigurationUtils.compileTemplate(
+                    TYPE,
+                    processorTag,
+                    "timezone",
+                    timezoneString,
+                    scriptService
+                );
+            }
+
+            return new CefProcessor(
+                processorTag,
+                description,
+                field,
+                targetField,
+                ignoreMissing,
+                removeEmptyValue,
+                compiledTimezoneTemplate
+            );
         }
     }
 }

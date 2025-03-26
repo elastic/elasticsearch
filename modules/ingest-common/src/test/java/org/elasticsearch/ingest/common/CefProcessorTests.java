@@ -13,6 +13,9 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,7 +42,7 @@ public class CefProcessorTests extends ESTestCase {
                 + "src=89.160.20.156 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart"
         );
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -69,7 +72,7 @@ public class CefProcessorTests extends ESTestCase {
         invalidSource.put("message", "Invalid CEF message");
         IngestDocument invalidIngestDocument = new IngestDocument("index", "id", 1L, null, null, invalidSource);
 
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         expectThrows(IllegalArgumentException.class, () -> processor.execute(invalidIngestDocument));
     }
 
@@ -80,7 +83,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -106,7 +109,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -125,7 +128,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -149,7 +152,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -172,7 +175,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -195,7 +198,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -217,7 +220,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -240,7 +243,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -261,7 +264,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -283,7 +286,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -307,7 +310,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -332,7 +335,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -344,7 +347,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("Success"));
         assertThat(cef.get("severity"), equalTo("2"));
 
-        assertThat(ingestDocument.getFieldValue("@timestamp", String.class), equalTo("Sep 07 2018 14:50:39"));
+        assertThat(ingestDocument.getFieldValue("@timestamp", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2018-09-07T14:50:39Z")));
         assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("1.1.1.1"));
         assertThat(ingestDocument.getFieldValue("destination.domain", String.class), equalTo("foo.example.com"));
         assertThat(ingestDocument.getFieldValue("source.user.name", String.class), equalTo("redacted"));
@@ -367,7 +370,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -394,7 +397,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -418,7 +421,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -442,7 +445,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -465,7 +468,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -489,7 +492,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -516,7 +519,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -545,7 +548,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -570,7 +573,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -602,7 +605,7 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
-        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
@@ -641,23 +644,26 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("observer.egress.interface.name", String.class), equalTo("eth1"));
         assertThat(ingestDocument.getFieldValue("process.pid", Long.class), equalTo(5678L));
         assertThat(ingestDocument.getFieldValue("process.name", String.class), equalTo("procname"));
-        assertThat(ingestDocument.getFieldValue("@timestamp", String.class), equalTo("1622547800000"));
+        assertThat(ingestDocument.getFieldValue("@timestamp", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z")));
         assertThat(ingestDocument.getFieldValue("event.timezone", String.class), equalTo("UTC"));
         assertThat(ingestDocument.getFieldValue("host.nat.ip", String.class), equalTo("10.0.0.1"));
         assertThat(ingestDocument.getFieldValue("observer.version", String.class), equalTo("1.0"));
-        assertThat(ingestDocument.getFieldValue("event.end", String.class), equalTo("1622547900000"));
+        assertThat(ingestDocument.getFieldValue("event.end", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:45Z")));
         assertThat(ingestDocument.getFieldValue("event.id", String.class), equalTo("evt123"));
         assertThat(ingestDocument.getFieldValue("event.outcome", String.class), equalTo("success"));
-        assertThat(ingestDocument.getFieldValue("file.created", String.class), equalTo("1622547800000"));
+        assertThat(ingestDocument.getFieldValue("file.created", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z")));
         assertThat(ingestDocument.getFieldValue("file.hash", String.class), equalTo("abcd1234"));
         assertThat(ingestDocument.getFieldValue("file.inode", String.class), equalTo("5678"));
-        assertThat(ingestDocument.getFieldValue("file.mtime", String.class), equalTo("1622547900000"));
+        assertThat(ingestDocument.getFieldValue("file.mtime", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:45Z")));
         assertThat(ingestDocument.getFieldValue("file.name", String.class), equalTo("file.txt"));
         assertThat(ingestDocument.getFieldValue("file.path", String.class), equalTo("/path/to/file"));
         assertThat(ingestDocument.getFieldValue("file.group", String.class), equalTo("rw-r--r--"));
         assertThat(ingestDocument.getFieldValue("file.size", Long.class), equalTo(1024L));
         assertThat(ingestDocument.getFieldValue("file.extension", String.class), equalTo("txt"));
-        assertThat(ingestDocument.getFieldValue("event.ingested", String.class), equalTo("1622547800000"));
+        assertThat(
+            ingestDocument.getFieldValue("event.ingested", ZonedDateTime.class),
+            equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z"))
+        );
         assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("message"));
         assertThat(ingestDocument.getFieldValue("event.reason", String.class), equalTo("reason"));
         assertThat(ingestDocument.getFieldValue("user_agent.original", String.class), equalTo("Mozilla"));
@@ -674,7 +680,47 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.process.pid", Long.class), equalTo(1234L));
         assertThat(ingestDocument.getFieldValue("source.process.name", String.class), equalTo("procname"));
         assertThat(ingestDocument.getFieldValue("source.service.name", String.class), equalTo("service"));
-        assertThat(ingestDocument.getFieldValue("event.start", String.class), equalTo("1622547800000"));
+        assertThat(ingestDocument.getFieldValue("event.start", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z")));
         assertThat(ingestDocument.getFieldValue("network.transport", String.class), equalTo("TCP"));
+    }
+
+    // Date parsing tests
+    public void testToTimestampWithUnixTimestamp() {
+        CefParser parser = new CefParser(null, ZoneId.of("UTC"), false);
+        String unixTimestamp = "1633072800000"; // Example Unix timestamp in milliseconds
+        ZonedDateTime expected = ZonedDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(unixTimestamp)), ZoneId.of("UTC"));
+        ZonedDateTime result = parser.toTimestamp(unixTimestamp);
+        assertEquals(expected, result);
+    }
+
+    public void testToTimestampWithFormattedDate() {
+        CefParser parser = new CefParser(null, ZoneId.of("Europe/Stockholm"), false);
+        String formattedDate = "Oct 01 2021 12:00:00 UTC"; // Example formatted date
+        ZonedDateTime expected = ZonedDateTime.parse("2021-10-01T14:00+02:00[Europe/Stockholm]");
+        ZonedDateTime result = parser.toTimestamp(formattedDate);
+        assertEquals(expected, result);
+    }
+
+    public void testToTimestampWithFormattedDateWithoutYear() {
+        CefParser parser = new CefParser(null, ZoneId.of("UTC"), false);
+        String formattedDate = "Oct 01 12:00:00 UTC"; // Example formatted date without year
+        int currentYear = ZonedDateTime.now(ZoneId.of("UTC")).getYear();
+        ZonedDateTime expected = ZonedDateTime.parse(currentYear + "-10-01T12:00:00Z[UTC]");
+        ZonedDateTime result = parser.toTimestamp(formattedDate);
+        assertEquals(expected, result);
+    }
+
+    public void testToTimestampWithFormattedDateWithoutTimezone() {
+        CefParser parser = new CefParser(null, ZoneId.of("UTC"), false);
+        String formattedDate = "Sep 07 2018 14:50:39"; // Example formatted date without year
+        ZonedDateTime expected = ZonedDateTime.parse("2018-09-07T14:50:39Z[UTC]");
+        ZonedDateTime result = parser.toTimestamp(formattedDate);
+        assertEquals(expected, result);
+    }
+
+    public void testToTimestampWithInvalidDate() {
+        CefParser parser = new CefParser(null, ZoneId.of("UTC"), false);
+        String invalidDate = "invalid date";
+        assertThrows(IllegalArgumentException.class, () -> parser.toTimestamp(invalidDate));
     }
 }

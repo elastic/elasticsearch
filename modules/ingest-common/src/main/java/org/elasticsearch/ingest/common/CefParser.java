@@ -8,24 +8,46 @@
  */
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.ingest.IngestDocument;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
+import java.time.temporal.WeekFields;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static java.time.temporal.ChronoField.DAY_OF_MONTH;
+import static java.time.temporal.ChronoField.HOUR_OF_DAY;
+import static java.time.temporal.ChronoField.MINUTE_OF_DAY;
+import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
+import static java.time.temporal.ChronoField.NANO_OF_SECOND;
+import static java.time.temporal.ChronoField.SECOND_OF_DAY;
+
 final class CefParser {
 
     private final IngestDocument ingestDocument;
     private final boolean removeEmptyValue;
+    private final ZoneId timezone;
 
-    CefParser(IngestDocument ingestDocument, boolean removeEmptyValue) {
+    CefParser(IngestDocument ingestDocument, ZoneId timezone, boolean removeEmptyValue) {
         this.ingestDocument = ingestDocument;
         this.removeEmptyValue = removeEmptyValue;
+        this.timezone = timezone;
     }
 
     private static final Pattern HEADER_PATTERN = Pattern.compile("(?:\\\\\\||\\\\\\\\|[^|])*?");
@@ -42,6 +64,41 @@ final class CefParser {
     private static final Map<String, String> EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING = new HashMap<>();
     private static final Map<String, String> FIELD_MAPPING = new HashMap<>();
     private static final String ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = "incomplete CEF header";
+    private static final List<String> TIME_LAYOUTS = Arrays.asList(
+        // MMM dd HH:mm:ss.SSS zzz
+        "MMM dd HH:mm:ss.SSS z",
+        "MMM dd HH:mm:ss.SSS Z",
+        "MMM dd HH:mm:ss.SSS 'GMT'XX:XX",
+        // MMM dd HH:mm:sss.SSS
+        "MMM dd HH:mm:ss.SSS",
+        // MMM dd HH:mm:ss zzz
+        "MMM dd HH:mm:ss z",
+        "MMM dd HH:mm:ss Z",
+        "MMM dd HH:mm:ss 'GMT'XX:XX",
+        // MMM dd HH:mm:ss
+        "MMM dd HH:mm:ss",
+        // MMM dd yyyy HH:mm:ss.SSS zzz
+        "MMM dd yyyy HH:mm:ss.SSS z",
+        "MMM dd yyyy HH:mm:ss.SSS Z",
+        "MMM dd yyyy HH:mm:ss.SSS 'GMT'XX:XX",
+        // MMM dd yyyy HH:mm:ss.SSS
+        "MMM dd yyyy HH:mm:ss.SSS",
+        // MMM dd yyyy HH:mm:ss zzz
+        "MMM dd yyyy HH:mm:ss z",
+        "MMM dd yyyy HH:mm:ss Z",
+        "MMM dd yyyy HH:mm:ss 'GMT'XX:XX",
+        // MMM dd yyyy HH:mm:ss
+        "MMM dd yyyy HH:mm:ss"
+    );
+
+    private final List<ChronoField> FIELDS = Arrays.asList(
+        NANO_OF_SECOND,
+        SECOND_OF_DAY,
+        MINUTE_OF_DAY,
+        HOUR_OF_DAY,
+        DAY_OF_MONTH,
+        MONTH_OF_YEAR
+    );
 
     static {
         EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\\\", "\\");
@@ -206,9 +263,51 @@ final class CefParser {
             return Double.parseDouble(value);
         } else if (type == Integer.class) {
             return Integer.parseInt(value);
+        } else if (type == ZonedDateTime.class) {
+            return toTimestamp(value);
         } else {
             return value; // Default to String
         }
+    }
+
+    ZonedDateTime toTimestamp(String value) {
+        // First, try parsing as milliseconds
+        try {
+            long milliseconds = Long.parseLong(value);
+            return Instant.ofEpochMilli(milliseconds).atZone(timezone);
+        } catch (NumberFormatException ignored) {
+            // Not a millisecond timestamp, continue to format parsing
+        }
+
+        // Try parsing with different layouts
+        for (String layout : TIME_LAYOUTS) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern(layout, Locale.ROOT);
+                TemporalAccessor accessor = formatter.parse(value);
+                // if there is no year nor year-of-era, we fall back to the current one and
+                // fill the rest of the date up with the parsed date
+                if (accessor.isSupported(ChronoField.YEAR) == false
+                    && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
+                    && accessor.isSupported(WeekFields.ISO.weekBasedYear()) == false
+                    && accessor.isSupported(WeekFields.of(Locale.ROOT).weekBasedYear()) == false
+                    && accessor.isSupported(ChronoField.INSTANT_SECONDS) == false) {
+                    int year = LocalDate.now(ZoneOffset.UTC).getYear();
+                    ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
+                    for (ChronoField field : FIELDS) {
+                        if (accessor.isSupported(field)) {
+                            newTime = newTime.with(field, accessor.get(field));
+                        }
+                    }
+                    accessor = newTime.withZoneSameLocal(timezone);
+                }
+                return DateFormatters.from(accessor, Locale.ROOT, timezone).withZoneSameInstant(timezone);
+            } catch (DateTimeParseException ignored) {
+                // Try next layout
+            }
+        }
+
+        // If no layout matches, throw an exception
+        throw new IllegalArgumentException("Value is not a valid timestamp: " + value);
     }
 
     private Map<String, String> parseExtensions(String extensionString) {
@@ -235,8 +334,7 @@ final class CefParser {
     }
 
     private void removeEmptyValue(Map<String, String> map) {
-        map.entrySet().removeIf(entry -> entry.getValue().isEmpty());
-        map.entrySet().removeIf(entry -> entry.getValue() == null);
+        map.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
     }
 
     private String convertArrayLikeKey(String key) {
@@ -357,10 +455,8 @@ final class CefParser {
             event.put("device.event_class_id", deviceEventClassId);
             event.put("name", name);
             event.put("severity", severity);
-            if (extensions != null) {
-                for (Map.Entry<String, String> entry : extensions.entrySet()) {
-                    event.put("extensions." + entry.getKey(), entry.getValue());
-                }
+            for (Map.Entry<String, String> entry : extensions.entrySet()) {
+                event.put("extensions." + entry.getKey(), entry.getValue());
             }
             return event;
         }
@@ -374,7 +470,7 @@ final class CefParser {
         }
 
         static {
-            FIELDS.put("@timestamp", String.class);
+            FIELDS.put("@timestamp", ZonedDateTime.class);
             FIELDS.put("destination.bytes", Long.class);
             FIELDS.put("destination.domain", String.class);
             FIELDS.put("destination.geo.location.lat", Double.class);
@@ -394,19 +490,19 @@ final class CefParser {
             FIELDS.put("device.version", String.class);
             FIELDS.put("event.action", String.class);
             FIELDS.put("event.code", String.class);
-            FIELDS.put("event.end", String.class);
+            FIELDS.put("event.end", ZonedDateTime.class);
             FIELDS.put("event.id", String.class);
-            FIELDS.put("event.ingested", String.class);
+            FIELDS.put("event.ingested", ZonedDateTime.class);
             FIELDS.put("event.outcome", String.class);
             FIELDS.put("event.reason", String.class);
-            FIELDS.put("event.start", String.class);
+            FIELDS.put("event.start", ZonedDateTime.class);
             FIELDS.put("event.timezone", String.class);
-            FIELDS.put("file.created", String.class);
+            FIELDS.put("file.created", ZonedDateTime.class);
             FIELDS.put("file.extension", String.class);
             FIELDS.put("file.group", String.class);
             FIELDS.put("file.hash", String.class);
             FIELDS.put("file.inode", String.class);
-            FIELDS.put("file.mtime", String.class);
+            FIELDS.put("file.mtime", ZonedDateTime.class);
             FIELDS.put("file.name", String.class);
             FIELDS.put("file.path", String.class);
             FIELDS.put("file.size", Long.class);

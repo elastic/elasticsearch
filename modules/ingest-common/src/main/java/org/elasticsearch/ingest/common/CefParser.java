@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.time.Instant;
@@ -24,7 +25,6 @@ import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,6 +39,7 @@ import static java.time.temporal.ChronoField.MINUTE_OF_DAY;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_DAY;
+import static java.util.Map.entry;
 
 final class CefParser {
     private final IngestDocument ingestDocument;
@@ -62,19 +63,162 @@ final class CefParser {
     private static final Pattern EXTENSION_NEXT_KEY_VALUE_PATTERN = Pattern.compile(
         "(" + EXTENSION_KEY_PATTERN + ")=(" + EXTENSION_VALUE_PATTERN + ")(?:\\s+|$)"
     );
-    private static final Map<String, String> EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING = Map.of(
-        "\\\\",
-        "\\",
-        "\\=",
-        "=",
-        "\\\n",
-        "\n",
-        "\\\r",
-        "\r"
+    private static final Map<String, String> EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING = Map.ofEntries(
+        entry("\\\\", "\\"),
+        entry("\\=", "="),
+        entry("\\\n", "\n"),
+        entry("\\\r", "\r")
     );
-    private static final Map<String, String> FIELD_MAPPING = new HashMap<>();
-    private static final Map<String, Class<?>> FIELDS = new HashMap<>();
-    private static final Set<String> FILED_MAPPINGS_AND_VALUES = new HashSet<>();
+
+    private static final Map<String, String> FIELD_MAPPING = Map.<String, String>ofEntries(
+        entry("app", "network.protocol"),
+        entry("in", "source.bytes"),
+        entry("out", "destination.bytes"),
+        entry("dst", "destination.ip"),
+        entry("dlat", "destination.geo.location.lat"),
+        entry("dlong", "destination.geo.location.lon"),
+        entry("dhost", "destination.domain"),
+        entry("dmac", "destination.mac"),
+        entry("dntdom", "destination.registered_domain"),
+        entry("dpt", "destination.port"),
+        entry("dpid", "destination.process.pid"),
+        entry("dproc", "destination.process.name"),
+        entry("duid", "destination.user.id"),
+        entry("duser", "destination.user.name"),
+        entry("dpriv", "destination.user.group.name"),
+        entry("act", "event.action"),
+        entry("dvc", "observer.ip"),
+        entry("deviceDirection", "network.direction"),
+        entry("deviceDnsDomain", "observer.registered_domain"),
+        entry("deviceExternalId", "observer.name"),
+        entry("deviceFacility", "log.syslog.facility.code"),
+        entry("dvchost", "observer.hostname"),
+        entry("deviceInboundInterface", "observer.ingress.interface.name"),
+        entry("dvcmac", "observer.mac"),
+        entry("deviceOutboundInterface", "observer.egress.interface.name"),
+        entry("dvcpid", "process.pid"),
+        entry("deviceProcessName", "process.name"),
+        entry("rt", "@timestamp"),
+        entry("dtz", "event.timezone"),
+        entry("deviceTranslatedAddress", "host.nat.ip"),
+        entry("device.version", "observer.version"),
+        entry("deviceVersion", "observer.version"),
+        entry("device.product", "observer.product"),
+        entry("deviceProduct", "observer.product"),
+        entry("device.event_class_id", "event.code"),
+        entry("device.vendor", "observer.vendor"),
+        entry("deviceVendor", "observer.vendor"),
+        entry("end", "event.end"),
+        entry("eventId", "event.id"),
+        entry("outcome", "event.outcome"),
+        entry("fileCreateTime", "file.created"),
+        entry("fileHash", "file.hash"),
+        entry("fileId", "file.inode"),
+        entry("fileModificationTime", "file.mtime"),
+        entry("fname", "file.name"),
+        entry("filePath", "file.path"),
+        entry("filePermission", "file.group"),
+        entry("fsize", "file.size"),
+        entry("fileType", "file.extension"),
+        entry("mrt", "event.ingested"),
+        entry("msg", "message"),
+        entry("reason", "event.reason"),
+        entry("requestClientApplication", "user_agent.original"),
+        entry("requestContext", "http.request.referrer"),
+        entry("requestMethod", "http.request.method"),
+        entry("request", "url.original"),
+        entry("src", "source.ip"),
+        entry("sourceDnsDomain", "source.registered_domain"),
+        entry("slat", "source.geo.location.lat"),
+        entry("slong", "source.geo.location.lon"),
+        entry("shost", "source.domain"),
+        entry("smac", "source.mac"),
+        entry("sntdom", "source.registered_domain"),
+        entry("spt", "source.port"),
+        entry("spid", "source.process.pid"),
+        entry("sproc", "source.process.name"),
+        entry("sourceServiceName", "source.service.name"),
+        entry("suser", "source.user.name"),
+        entry("start", "event.start"),
+        entry("proto", "network.transport")
+    );
+
+    private static final Map<String, Class<?>> FIELDS = Map.<String, Class<?>>ofEntries(
+        entry("@timestamp", ZonedDateTime.class),
+        entry("destination.bytes", Long.class),
+        entry("destination.domain", String.class),
+        entry("destination.geo.location.lat", Double.class),
+        entry("destination.geo.location.lon", Double.class),
+        entry("destination.ip", String.class),
+        entry("destination.mac", String.class),
+        entry("destination.port", Long.class),
+        entry("destination.process.name", String.class),
+        entry("destination.process.pid", Long.class),
+        entry("destination.registered_domain", String.class),
+        entry("destination.user.group.name", String.class),
+        entry("destination.user.id", String.class),
+        entry("destination.user.name", String.class),
+        entry("device.event_class_id", String.class),
+        entry("device.product", String.class),
+        entry("device.vendor", String.class),
+        entry("device.version", String.class),
+        entry("event.action", String.class),
+        entry("event.code", String.class),
+        entry("event.end", ZonedDateTime.class),
+        entry("event.id", String.class),
+        entry("event.ingested", ZonedDateTime.class),
+        entry("event.outcome", String.class),
+        entry("event.reason", String.class),
+        entry("event.start", ZonedDateTime.class),
+        entry("event.timezone", String.class),
+        entry("file.created", ZonedDateTime.class),
+        entry("file.extension", String.class),
+        entry("file.group", String.class),
+        entry("file.hash", String.class),
+        entry("file.inode", String.class),
+        entry("file.mtime", ZonedDateTime.class),
+        entry("file.name", String.class),
+        entry("file.path", String.class),
+        entry("file.size", Long.class),
+        entry("host.nat.ip", String.class),
+        entry("http.request.method", String.class),
+        entry("http.request.referrer", String.class),
+        entry("log.syslog.facility.code", Long.class),
+        entry("message", String.class),
+        entry("network.direction", String.class),
+        entry("network.protocol", String.class),
+        entry("network.transport", String.class),
+        entry("observer.egress.interface.name", String.class),
+        entry("observer.hostname", String.class),
+        entry("observer.ingress.interface.name", String.class),
+        entry("observer.ip", String.class),
+        entry("observer.mac", String.class),
+        entry("observer.name", String.class),
+        entry("observer.registered_domain", String.class),
+        entry("observer.version", String.class),
+        entry("observer.vendor", String.class),
+        entry("observer.product", String.class),
+        entry("process.name", String.class),
+        entry("process.pid", Long.class),
+        entry("source.bytes", Long.class),
+        entry("source.domain", String.class),
+        entry("source.geo.location.lat", Double.class),
+        entry("source.geo.location.lon", Double.class),
+        entry("source.ip", String.class),
+        entry("source.mac", String.class),
+        entry("source.port", Long.class),
+        entry("source.process.name", String.class),
+        entry("source.process.pid", Long.class),
+        entry("source.registered_domain", String.class),
+        entry("source.service.name", String.class),
+        entry("source.user.name", String.class),
+        entry("url.original", String.class),
+        entry("user_agent.original", String.class)
+    );
+
+    private static final Set<String> FIELD_MAPPINGS_AND_VALUES = Set.copyOf(
+        Sets.union(FIELD_MAPPING.keySet(), Set.copyOf(FIELD_MAPPING.values()))
+    );
 
     private static final String ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = "incomplete CEF header";
     private static final List<String> TIME_LAYOUTS = Arrays.asList(
@@ -104,7 +248,7 @@ final class CefParser {
         "MMM dd yyyy HH:mm:ss"
     );
 
-    private final List<ChronoField> CHRONO_FIELDS = Arrays.asList(
+    private final List<ChronoField> CHRONO_FIELDS = List.of(
         NANO_OF_SECOND,
         SECOND_OF_DAY,
         MINUTE_OF_DAY,
@@ -112,154 +256,6 @@ final class CefParser {
         DAY_OF_MONTH,
         MONTH_OF_YEAR
     );
-
-    static {
-        FIELD_MAPPING.put("app", "network.protocol");
-        FIELD_MAPPING.put("in", "source.bytes");
-        FIELD_MAPPING.put("out", "destination.bytes");
-        FIELD_MAPPING.put("dst", "destination.ip");
-        FIELD_MAPPING.put("dlat", "destination.geo.location.lat");
-        FIELD_MAPPING.put("dlong", "destination.geo.location.lon");
-        FIELD_MAPPING.put("dhost", "destination.domain");
-        FIELD_MAPPING.put("dmac", "destination.mac");
-        FIELD_MAPPING.put("dntdom", "destination.registered_domain");
-        FIELD_MAPPING.put("dpt", "destination.port");
-        FIELD_MAPPING.put("dpid", "destination.process.pid");
-        FIELD_MAPPING.put("dproc", "destination.process.name");
-        FIELD_MAPPING.put("duid", "destination.user.id");
-        FIELD_MAPPING.put("duser", "destination.user.name");
-        FIELD_MAPPING.put("dpriv", "destination.user.group.name");
-        FIELD_MAPPING.put("act", "event.action");
-        FIELD_MAPPING.put("dvc", "observer.ip");
-        FIELD_MAPPING.put("deviceDirection", "network.direction");
-        FIELD_MAPPING.put("deviceDnsDomain", "observer.registered_domain");
-        FIELD_MAPPING.put("deviceExternalId", "observer.name");
-        FIELD_MAPPING.put("deviceFacility", "log.syslog.facility.code");
-        FIELD_MAPPING.put("dvchost", "observer.hostname");
-        FIELD_MAPPING.put("deviceInboundInterface", "observer.ingress.interface.name");
-        FIELD_MAPPING.put("dvcmac", "observer.mac");
-        FIELD_MAPPING.put("deviceOutboundInterface", "observer.egress.interface.name");
-        FIELD_MAPPING.put("dvcpid", "process.pid");
-        FIELD_MAPPING.put("deviceProcessName", "process.name");
-        FIELD_MAPPING.put("rt", "@timestamp");
-        FIELD_MAPPING.put("dtz", "event.timezone");
-        FIELD_MAPPING.put("deviceTranslatedAddress", "host.nat.ip");
-        FIELD_MAPPING.put("device.version", "observer.version");
-        FIELD_MAPPING.put("deviceVersion", "observer.version");
-        FIELD_MAPPING.put("device.product", "observer.product");
-        FIELD_MAPPING.put("deviceProduct", "observer.product");
-        FIELD_MAPPING.put("device.event_class_id", "event.code");
-        FIELD_MAPPING.put("device.vendor", "observer.vendor");
-        FIELD_MAPPING.put("deviceVendor", "observer.vendor");
-        FIELD_MAPPING.put("end", "event.end");
-        FIELD_MAPPING.put("eventId", "event.id");
-        FIELD_MAPPING.put("outcome", "event.outcome");
-        FIELD_MAPPING.put("fileCreateTime", "file.created");
-        FIELD_MAPPING.put("fileHash", "file.hash");
-        FIELD_MAPPING.put("fileId", "file.inode");
-        FIELD_MAPPING.put("fileModificationTime", "file.mtime");
-        FIELD_MAPPING.put("fname", "file.name");
-        FIELD_MAPPING.put("filePath", "file.path");
-        FIELD_MAPPING.put("filePermission", "file.group");
-        FIELD_MAPPING.put("fsize", "file.size");
-        FIELD_MAPPING.put("fileType", "file.extension");
-        FIELD_MAPPING.put("mrt", "event.ingested");
-        FIELD_MAPPING.put("msg", "message");
-        FIELD_MAPPING.put("reason", "event.reason");
-        FIELD_MAPPING.put("requestClientApplication", "user_agent.original");
-        FIELD_MAPPING.put("requestContext", "http.request.referrer");
-        FIELD_MAPPING.put("requestMethod", "http.request.method");
-        FIELD_MAPPING.put("request", "url.original");
-        FIELD_MAPPING.put("src", "source.ip");
-        FIELD_MAPPING.put("sourceDnsDomain", "source.registered_domain");
-        FIELD_MAPPING.put("slat", "source.geo.location.lat");
-        FIELD_MAPPING.put("slong", "source.geo.location.lon");
-        FIELD_MAPPING.put("shost", "source.domain");
-        FIELD_MAPPING.put("smac", "source.mac");
-        FIELD_MAPPING.put("sntdom", "source.registered_domain");
-        FIELD_MAPPING.put("spt", "source.port");
-        FIELD_MAPPING.put("spid", "source.process.pid");
-        FIELD_MAPPING.put("sproc", "source.process.name");
-        FIELD_MAPPING.put("sourceServiceName", "source.service.name");
-        FIELD_MAPPING.put("suser", "source.user.name");
-        FIELD_MAPPING.put("start", "event.start");
-        FIELD_MAPPING.put("proto", "network.transport");
-        // Add more mappings as needed
-
-        FIELDS.put("@timestamp", ZonedDateTime.class);
-        FIELDS.put("destination.bytes", Long.class);
-        FIELDS.put("destination.domain", String.class);
-        FIELDS.put("destination.geo.location.lat", Double.class);
-        FIELDS.put("destination.geo.location.lon", Double.class);
-        FIELDS.put("destination.ip", String.class);
-        FIELDS.put("destination.mac", String.class);
-        FIELDS.put("destination.port", Long.class);
-        FIELDS.put("destination.process.name", String.class);
-        FIELDS.put("destination.process.pid", Long.class);
-        FIELDS.put("destination.registered_domain", String.class);
-        FIELDS.put("destination.user.group.name", String.class);
-        FIELDS.put("destination.user.id", String.class);
-        FIELDS.put("destination.user.name", String.class);
-        FIELDS.put("device.event_class_id", String.class);
-        FIELDS.put("device.product", String.class);
-        FIELDS.put("device.vendor", String.class);
-        FIELDS.put("device.version", String.class);
-        FIELDS.put("event.action", String.class);
-        FIELDS.put("event.code", String.class);
-        FIELDS.put("event.end", ZonedDateTime.class);
-        FIELDS.put("event.id", String.class);
-        FIELDS.put("event.ingested", ZonedDateTime.class);
-        FIELDS.put("event.outcome", String.class);
-        FIELDS.put("event.reason", String.class);
-        FIELDS.put("event.start", ZonedDateTime.class);
-        FIELDS.put("event.timezone", String.class);
-        FIELDS.put("file.created", ZonedDateTime.class);
-        FIELDS.put("file.extension", String.class);
-        FIELDS.put("file.group", String.class);
-        FIELDS.put("file.hash", String.class);
-        FIELDS.put("file.inode", String.class);
-        FIELDS.put("file.mtime", ZonedDateTime.class);
-        FIELDS.put("file.name", String.class);
-        FIELDS.put("file.path", String.class);
-        FIELDS.put("file.size", Long.class);
-        FIELDS.put("host.nat.ip", String.class);
-        FIELDS.put("http.request.method", String.class);
-        FIELDS.put("http.request.referrer", String.class);
-        FIELDS.put("log.syslog.facility.code", Long.class);
-        FIELDS.put("message", String.class);
-        FIELDS.put("network.direction", String.class);
-        FIELDS.put("network.protocol", String.class);
-        FIELDS.put("network.transport", String.class);
-        FIELDS.put("observer.egress.interface.name", String.class);
-        FIELDS.put("observer.hostname", String.class);
-        FIELDS.put("observer.ingress.interface.name", String.class);
-        FIELDS.put("observer.ip", String.class);
-        FIELDS.put("observer.mac", String.class);
-        FIELDS.put("observer.name", String.class);
-        FIELDS.put("observer.registered_domain", String.class);
-        FIELDS.put("observer.version", String.class);
-        FIELDS.put("observer.vendor", String.class);
-        FIELDS.put("observer.product", String.class);
-        FIELDS.put("process.name", String.class);
-        FIELDS.put("process.pid", Long.class);
-        FIELDS.put("source.bytes", Long.class);
-        FIELDS.put("source.domain", String.class);
-        FIELDS.put("source.geo.location.lat", Double.class);
-        FIELDS.put("source.geo.location.lon", Double.class);
-        FIELDS.put("source.ip", String.class);
-        FIELDS.put("source.mac", String.class);
-        FIELDS.put("source.port", Long.class);
-        FIELDS.put("source.process.name", String.class);
-        FIELDS.put("source.process.pid", Long.class);
-        FIELDS.put("source.registered_domain", String.class);
-        FIELDS.put("source.service.name", String.class);
-        FIELDS.put("source.user.name", String.class);
-        FIELDS.put("url.original", String.class);
-        FIELDS.put("user_agent.original", String.class);
-
-        FILED_MAPPINGS_AND_VALUES.addAll(FIELD_MAPPING.keySet());
-        FILED_MAPPINGS_AND_VALUES.addAll(FIELD_MAPPING.values());
-    }
 
     void process(String cefString, String targetField) {
         List<String> headerFields = new ArrayList<>();
@@ -510,7 +506,7 @@ final class CefParser {
         }
 
         public void removeMappedExtensions() {
-            extensions.entrySet().removeIf(entry -> FILED_MAPPINGS_AND_VALUES.contains(entry.getKey()));
+            this.extensions.keySet().removeAll(FIELD_MAPPINGS_AND_VALUES);
         }
 
         public Map<String, String> getTranslatedFields() {

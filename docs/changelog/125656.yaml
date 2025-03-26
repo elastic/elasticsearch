@@ -1,0 +1,6 @@
+pr: 125656
+summary: Unique ids when replacing missing fields
+area: ES|QL
+type: bug
+issues:
+ - 121754

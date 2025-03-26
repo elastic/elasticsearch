@@ -1296,9 +1296,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalStateException("get operations not allowed on a legacy index");
         }
         if (translogOnly) {
-            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
+            return withEngine(engine -> engine.getFromTranslog(get, mappingLookup, mapperService.documentParser(), searcherWrapper));
         }
-        return getEngine().get(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
+        return withEngine(engine -> engine.get(get, mappingLookup, mapperService.documentParser(), searcherWrapper));
     }
 
     /**
@@ -4698,9 +4698,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param listener the listener to be notified when the shard is mutable
      */
     public void ensureMutable(ActionListener<Void> listener) {
-        indexEventListener.beforeIndexShardMutableOperation(this, listener.delegateFailure((l, unused) -> {
-            // TODO ES-10826: Acquire ref to engine and retry if it's immutable again?
-            l.onResponse(null);
-        }));
+        indexEventListener.beforeIndexShardMutableOperation(this, listener.delegateFailure((l, unused) -> l.onResponse(null)));
     }
 }

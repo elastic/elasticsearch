@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN;

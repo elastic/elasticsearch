@@ -33,7 +33,6 @@ import java.util.Random;
 
 import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQueryBuilder> {

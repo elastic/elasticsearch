@@ -34,7 +34,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 

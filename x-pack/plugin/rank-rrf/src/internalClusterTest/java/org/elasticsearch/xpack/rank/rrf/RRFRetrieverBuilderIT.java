@@ -41,7 +41,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -781,7 +780,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         source.retriever().getPreFilterQueryBuilders().add(QueryBuilders.boolQuery().must(QueryBuilders.termQuery(DOC_FIELD, "doc_7")));
         source.size(10);
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-        ElasticsearchAssertions.assertResponse(req, resp -> {   
+        ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
             assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));

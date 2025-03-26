@@ -389,6 +389,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 () -> service.infer(
                     model,
                     null,
+                    null,
+                    null,
                     List.of(""),
                     false,
                     new HashMap<>(),
@@ -431,6 +433,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 () -> service.infer(
                     model,
                     null,
+                    null,
+                    null,
                     List.of(""),
                     false,
                     new HashMap<>(),
@@ -442,6 +446,53 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             assertThat(
                 thrownException.getMessage(),
                 is("Validation Failed: 1: Input type [classification] is not supported for [AlibabaCloud AI Search];")
+            );
+        }
+    }
+
+    public void testInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        Map<String, Object> serviceSettingsMap = new HashMap<>();
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
+        serviceSettingsMap.put(ServiceFields.DIMENSIONS, 1536);
+
+        Map<String, Object> taskSettingsMap = new HashMap<>();
+
+        Map<String, Object> secretSettingsMap = new HashMap<>();
+        secretSettingsMap.put("api_key", "secret");
+
+        var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
+            "service",
+            TaskType.RERANK,
+            serviceSettingsMap,
+            taskSettingsMap,
+            secretSettingsMap
+        );
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    "hi",
+                    Boolean.TRUE,
+                    10,
+                    List.of("a"),
+                    false,
+                    new HashMap<>(),
+                    null,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    "Validation Failed: 1: Invalid return_documents [true]. The return_documents option is not supported by this "
+                        + "service;2: Invalid top_n [10]. The top_n option is not supported by this service;"
+                )
             );
         }
     }

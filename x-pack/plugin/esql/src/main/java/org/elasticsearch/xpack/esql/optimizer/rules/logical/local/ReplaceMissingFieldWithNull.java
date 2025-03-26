@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -81,7 +84,7 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                     Alias nullAlias = nullLiteral.get(f.dataType());
                     // save the first field as null (per datatype)
                     if (nullAlias == null) {
-                        // In case of batch executions on data nodes and join exists, SearchStats may not always be available for all,
+                        // In case of batch executions on data nodes and join exists, SearchStats may not always be available for all
                         // fields, creating a new alias for null with the same id as the field id can potentially cause planEval to add a
                         // duplicated ChannelSet to a layout, and Layout.builder().build() could throw a NullPointerException.
                         // As a workaround, assign a new alias id to the null alias when join exists and SearchStats is not available.
@@ -117,14 +120,40 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                         ? f
                         : Literal.of(f, null)
                 );
+            } else if (plan instanceof MvExpand m) {
+                NamedExpression target = m.target();
+                AttributeSet joinAttributes = joinAttributes(m);
+                if (joinAttributes.isEmpty() == false // rewrite only when there is join, TODO do we want to rewrite when there is no join?
+                    && target instanceof FieldAttribute f
+                    && stats.exists(f.fieldName()) == false
+                    && joinAttributes.contains(f) == false
+                    && f.field() instanceof PotentiallyUnmappedKeywordEsField == false) {
+                    // Replace missing target field with null.
+                    Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null));
+                    NamedExpression nullTarget = alias.toAttribute();
+                    plan = new Eval(m.source(), m.child(), List.of(alias));
+                    // The expanded reference is built on top of target field with the same name, and the parent plans all reference to the
+                    // expanded reference other than the target field, keep expanded's id unchanged, otherwise the parent plans cannot find
+                    // it.
+                    Attribute nullExpanded = new ReferenceAttribute(
+                        nullTarget.source(),
+                        nullTarget.name(),
+                        nullTarget.dataType(),
+                        nullTarget.nullable(),
+                        m.expanded().id(),
+                        false
+                    );
+                    plan = new MvExpand(m.source(), plan, nullTarget, nullExpanded);
+                }
             }
-
         return plan;
     }
 
-    private AttributeSet joinAttributes(Project project) {
+    private AttributeSet joinAttributes(LogicalPlan plan) {
         var attributes = new AttributeSet();
-        project.forEachDown(Join.class, j -> j.right().forEachDown(EsRelation.class, p -> attributes.addAll(p.output())));
+        if (plan instanceof Project || plan instanceof MvExpand) {
+            plan.forEachDown(Join.class, j -> j.right().forEachDown(EsRelation.class, p -> attributes.addAll(p.output())));
+        }
         return attributes;
     }
 }

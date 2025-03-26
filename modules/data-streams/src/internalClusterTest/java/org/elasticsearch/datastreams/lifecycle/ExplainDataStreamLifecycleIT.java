@@ -23,7 +23,9 @@ import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLife
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +33,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -64,7 +67,8 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         return List.of(
             DataStreamsPlugin.class,
             MockTransportService.TestPlugin.class,
-            DataStreamLifecycleServiceIT.TestSystemDataStreamPlugin.class
+            DataStreamLifecycleServiceIT.TestSystemDataStreamPlugin.class,
+            MapperExtrasPlugin.class
         );
     }
 
@@ -238,6 +242,143 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         }
     }
 
+    public void testExplainFailureLifecycle() throws Exception {
+        // Failure indices are always managed unless explicitly disabled.
+        putComposableIndexTemplate(
+            "id1",
+            """
+                {
+                    "properties": {
+                      "@timestamp" : {
+                        "type": "date"
+                      },
+                      "count": {
+                        "type": "long"
+                      }
+                    }
+                }""",
+            List.of("metrics-foo*"),
+            null,
+            null,
+            null,
+            new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null))
+        );
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        indexFailedDocs(dataStreamName, 1);
+
+        List<String> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
+        String firstGenerationIndex = failureIndices.get(0);
+        assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 2));
+
+        indexFailedDocs(dataStreamName, 1);
+        failureIndices = waitForDataStreamIndices(dataStreamName, 2, true);
+        String secondGenerationIndex = failureIndices.get(1);
+        assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 3));
+
+        {
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { firstGenerationIndex, secondGenerationIndex }
+            );
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
+            assertThat(response.getIndices().size(), is(2));
+            // we requested the explain for indices with the default include_details=false
+            assertThat(response.getRolloverConfiguration(), nullValue());
+            for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
+                assertThat(explainIndex.isManagedByLifecycle(), is(true));
+                assertThat(explainIndex.getIndexCreationDate(), notNullValue());
+                assertThat(explainIndex.getLifecycle(), notNullValue());
+                assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
+                if (internalCluster().numDataNodes() > 1) {
+                    // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
+                    assertThat(explainIndex.getError(), nullValue());
+                }
+
+                if (explainIndex.getIndex().equals(firstGenerationIndex)) {
+                    // first generation index was rolled over
+                    assertThat(explainIndex.getRolloverDate(), notNullValue());
+                    assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), notNullValue());
+                    assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), notNullValue());
+                } else {
+                    // the write index has not been rolled over yet
+                    assertThat(explainIndex.getRolloverDate(), nullValue());
+                    assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
+                    assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
+                }
+            }
+        }
+
+        {
+            // let's also explain with include_defaults=true
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { firstGenerationIndex },
+                true
+            );
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
+            assertThat(response.getIndices().size(), is(1));
+            RolloverConfiguration rolloverConfiguration = response.getRolloverConfiguration();
+            assertThat(rolloverConfiguration, notNullValue());
+            Map<String, Condition<?>> conditions = rolloverConfiguration.resolveRolloverConditions(null).getConditions();
+            assertThat(conditions.size(), is(2));
+            assertThat(conditions.get(RolloverConditions.MAX_DOCS_FIELD.getPreferredName()).value(), is(1L));
+            assertThat(conditions.get(RolloverConditions.MIN_DOCS_FIELD.getPreferredName()).value(), is(1L));
+        }
+
+        {
+            // Let's also explain using the data stream name
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
+            assertThat(response.getIndices().size(), is(1));
+            for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
+                if (explainIndex.getIndex().startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+                    assertThat(explainIndex.isManagedByLifecycle(), is(false));
+                } else {
+                    assertThat(explainIndex.isManagedByLifecycle(), is(true));
+                    assertThat(explainIndex.getIndexCreationDate(), notNullValue());
+                    assertThat(explainIndex.getLifecycle(), notNullValue());
+                    assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
+
+                    if (internalCluster().numDataNodes() > 1) {
+                        // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
+                        assertThat(explainIndex.getError(), nullValue());
+                    }
+
+                    if (explainIndex.getIndex().equals(firstGenerationIndex)) {
+                        // first generation index was rolled over
+                        assertThat(explainIndex.getRolloverDate(), notNullValue());
+                        assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), notNullValue());
+                        assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), notNullValue());
+                    } else {
+                        // the write index has not been rolled over yet
+                        assertThat(explainIndex.getRolloverDate(), nullValue());
+                        assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
+                        assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
+                    }
+                }
+            }
+        }
+    }
+
     public void testExplainLifecycleForIndicesWithErrors() throws Exception {
         // empty lifecycle contains the default rollover
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
@@ -390,6 +531,29 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
     }
 
+    private void indexFailedDocs(String dataStream, int numDocs) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+            bulkRequest.add(
+                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                    .source(
+                        String.format(Locale.ROOT, "{\"%s\":\"%s\", \"count\":\"not-a-number\"}", DEFAULT_TIMESTAMP_FIELD, value),
+                        XContentType.JSON
+                    )
+            );
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        String failureIndexPrefix = DataStream.FAILURE_STORE_PREFIX + dataStream;
+        for (BulkItemResponse itemResponse : bulkResponse) {
+            assertThat(itemResponse.getFailureMessage(), nullValue());
+            assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
+            assertThat(itemResponse.getIndex(), startsWith(failureIndexPrefix));
+        }
+        indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
+    }
+
     static void putComposableIndexTemplate(
         String id,
         @Nullable String mappings,
@@ -397,6 +561,18 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamLifecycle.Template lifecycle
+    ) throws IOException {
+        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, lifecycle, null);
+    }
+
+    static void putComposableIndexTemplate(
+        String id,
+        @Nullable String mappings,
+        List<String> patterns,
+        @Nullable Settings settings,
+        @Nullable Map<String, Object> metadata,
+        @Nullable DataStreamLifecycle.Template lifecycle,
+        @Nullable DataStreamOptions.Template options
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
@@ -407,6 +583,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                         .settings(settings)
                         .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
                         .lifecycle(lifecycle)
+                        .dataStreamOptions(options)
                 )
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())

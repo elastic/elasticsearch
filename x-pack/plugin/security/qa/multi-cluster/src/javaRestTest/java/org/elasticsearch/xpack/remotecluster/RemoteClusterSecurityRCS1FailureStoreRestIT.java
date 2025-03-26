@@ -123,7 +123,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                 "/%s%s:%s/_search?ccs_minimize_roundtrips=%s",
                 alsoSearchLocally ? "local_index," : "",
                 randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                randomFrom("*", "*::data"),
+                "*",
                 ccsMinimizeRoundtrips
             )
         );

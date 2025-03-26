@@ -22,6 +22,56 @@ a series of operations, where the output of one operation becomes the input for
 the next, enabling complex data transformations and analysis.
 
 [discrete]
+=== Documentation organization
+
+The {esql} documentation is organized in these sections:
+
+<<esql-getting-started>>::
+A tutorial to help you get started with {esql}.
+
+<<esql-language>>::
+
+Reference documentation for the <<esql-syntax,{esql} syntax>>:
+
+* Reference for <<esql-commands,commands>>, and <<esql-functions-operators,functions and
+operators>>
+* How to work with <<esql-metadata-fields,metadata
+fields>> and <<esql-multivalued-fields,multivalued fields>>
+* How to work with
+<<esql-process-data-with-dissect-and-grok,DISSECT and
+GROK>>, <<esql-enrich-data,ENRICH>>, and <<esql-lookup-join,LOOKUP join>>
+
+<<esql-using>>::
+An overview of:
+* <<esql-rest,Using the {esql} rest API>>
+* <<esql-for-search>>
+* <<esql-kibana>>
+* <<esql-elastic-security>>
+* <<esql-cross-clusters>>
+* <<esql-task-management>>
+
+<<esql-limitations>>::
+The current limitations of {esql}.
+
+<<esql-examples>>::
+A few examples of what you can do with {esql}.
+
+
+
+include::esql-get-started.asciidoc[]
+
+include::esql-language.asciidoc[]
+
+include::esql-using.asciidoc[]
+
+include::esql-limitations.asciidoc[]
+
+include::esql-examples.asciidoc[]
+
+:esql-tests!:
+:esql-specs!:
+
+[discrete]
 === The {esql} Compute Engine
 
 {esql} is more than a language: it represents a significant investment in new
@@ -37,40 +87,3 @@ operates on blocks at a time instead of per row, targets vectorization and cache
 locality, and embraces specialization and multi-threading. It is a separate
 component from the existing Elasticsearch aggregation framework with different
 performance characteristics.
-
-The {esql} documentation is organized in these sections:
-
-<<esql-getting-started>>::
-A tutorial to help you get started with {esql}.
-
-<<esql-language>>::
-
-Reference documentation for the <<esql-syntax,{esql} syntax>>,
-<<esql-commands,commands>>, and <<esql-functions-operators,functions and
-operators>>. Information about working with <<esql-metadata-fields,metadata
-fields>> and <<esql-multivalued-fields,multivalued fields>>. And guidance for
-<<esql-process-data-with-dissect-and-grok,data processing with DISSECT and
-GROK>> and <<esql-enrich-data,data enrichment with ENRICH>>.
-
-<<esql-using>>::
-An overview of using the <<esql-rest>>, <<esql-kibana>>,
-<<esql-elastic-security>>, <<esql-cross-clusters>>, and <<esql-task-management>>.
-
-<<esql-limitations>>::
-The current limitations of {esql}.
-
-<<esql-examples>>::
-A few examples of what you can do with {esql}.
-
-include::esql-get-started.asciidoc[]
-
-include::esql-language.asciidoc[]
-
-include::esql-using.asciidoc[]
-
-include::esql-limitations.asciidoc[]
-
-include::esql-examples.asciidoc[]
-
-:esql-tests!:
-:esql-specs!:

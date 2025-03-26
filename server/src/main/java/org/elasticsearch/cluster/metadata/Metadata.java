@@ -1370,7 +1370,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
 
         DataStream parentDataStream = indexAbstraction.getParentDataStream();
-        if (parentDataStream != null && parentDataStream.getLifecycle() != null && parentDataStream.getLifecycle().enabled()) {
+        if (parentDataStream != null && parentDataStream.getDataLifecycle() != null && parentDataStream.getDataLifecycle().enabled()) {
             // index has both ILM and data stream lifecycle configured so let's check which is preferred
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         }

@@ -352,7 +352,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         for (var projectId : state.metadata().projects().keySet()) {
             // We catch inside the loop to avoid one broken project preventing DLM to run on other projects.
             try {
-                projectResolver.executeOnProject(projectId, () -> run(state.projectState(projectId)));
+                run(state.projectState(projectId));
             } catch (Exception e) {
                 logger.error(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
             }
@@ -608,7 +608,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 ),
                 signallingErrorRetryInterval
             ),
-            (req, reqListener) -> downsampleIndex(request, reqListener)
+            (req, reqListener) -> downsampleIndex(projectId, request, reqListener)
         );
     }
 
@@ -1042,7 +1042,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             rolloverRequest.indicesOptions()
         );
         logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverRequest.getRolloverTarget());
-        client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
+        projectResolver.projectClient(client, projectId).admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
                 // Log only when the conditions were met and the index was rolled over.
@@ -1096,7 +1096,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             updateSettingsRequest.settings().keySet(),
             targetIndex
         );
-        client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<>() {
+        projectResolver.projectClient(client, projectId).admin().indices().updateSettings(updateSettingsRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info(
@@ -1132,7 +1132,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             addIndexBlockRequest.getBlock(),
             targetIndex
         );
-        client.admin().indices().addBlock(addIndexBlockRequest, new ActionListener<>() {
+        projectResolver.projectClient(client, projectId).admin().indices().addBlock(addIndexBlockRequest, new ActionListener<>() {
             @Override
             public void onResponse(AddIndexBlockResponse addIndexBlockResponse) {
                 if (addIndexBlockResponse.isAcknowledged()) {
@@ -1211,7 +1211,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         // "saving" the index name here so we don't capture the entire request
         String targetIndex = deleteIndexRequest.indices()[0];
         logger.trace("Data stream lifecycle issues request to delete index [{}]", targetIndex);
-        client.admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
+        projectResolver.projectClient(client, projectId).admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (acknowledgedResponse.isAcknowledged()) {
@@ -1248,11 +1248,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         });
     }
 
-    private void downsampleIndex(DownsampleAction.Request request, ActionListener<Void> listener) {
+    private void downsampleIndex(ProjectId projectId, DownsampleAction.Request request, ActionListener<Void> listener) {
         String sourceIndex = request.getSourceIndex();
         String downsampleIndex = request.getTargetIndex();
         logger.info("Data stream lifecycle issuing request to downsample index [{}] to index [{}]", sourceIndex, downsampleIndex);
-        client.execute(DownsampleAction.INSTANCE, request, new ActionListener<>() {
+        projectResolver.projectClient(client, projectId).execute(DownsampleAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 assert acknowledgedResponse.isAcknowledged() : "the downsample response is always acknowledged";
@@ -1277,7 +1277,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             : "Data stream lifecycle force merges one index at a time";
         final String targetIndex = forceMergeRequest.indices()[0];
         logger.info("Data stream lifecycle is issuing a request to force merge index [{}]", targetIndex);
-        client.admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
+        projectResolver.projectClient(client, projectId).admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
             @Override
             public void onResponse(BroadcastResponse forceMergeResponse) {
                 if (forceMergeResponse.getFailedShards() > 0) {

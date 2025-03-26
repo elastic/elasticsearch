@@ -795,6 +795,7 @@ final class MaxmindIpDataLookups {
 
         protected final Set<Database.Property> properties;
         protected final Class<RESPONSE> clazz;
+        // see the docstring on ResponseBuilder to understand why this isn't yet another abstract method on this class
         protected final ResponseBuilder<RESPONSE> builder;
 
         AbstractBase(final Set<Database.Property> properties, final Class<RESPONSE> clazz, final ResponseBuilder<RESPONSE> builder) {

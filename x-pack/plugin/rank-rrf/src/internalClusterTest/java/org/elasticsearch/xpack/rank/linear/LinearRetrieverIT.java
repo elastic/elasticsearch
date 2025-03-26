@@ -1010,13 +1010,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
 
         try {
-            // Create a PIT context first
-            var pitResponse = client().prepareOpenPointInTime(INDEX).execute().actionGet();
-            var pit = new PointInTimeBuilder(new BytesArray(pitResponse.getPointInTimeId()));
-
-            // Use the PIT context for rewriting
             RetrieverBuilder rewrittenRetriever = linearRetriever.rewrite(
-                new QueryRewriteContext(XContentParserConfiguration.EMPTY, client(), System::currentTimeMillis, null, pit)
+                new QueryRewriteContext(XContentParserConfiguration.EMPTY, client(), System::currentTimeMillis)
             );
             rewrittenRetriever.extractToSearchSourceBuilder(searchSourceBuilder, false);
             searchRequestBuilder.setSource(searchSourceBuilder);

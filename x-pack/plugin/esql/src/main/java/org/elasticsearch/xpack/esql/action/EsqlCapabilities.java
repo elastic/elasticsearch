@@ -860,7 +860,12 @@ public class EsqlCapabilities {
         /**
          * Non full text functions do not contribute to score
          */
-        NON_FULL_TEXT_FUNCTIONS_SCORING;
+        NON_FULL_TEXT_FUNCTIONS_SCORING,
+
+        /**
+         * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
+         */
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT;
 
         private final boolean enabled;
 

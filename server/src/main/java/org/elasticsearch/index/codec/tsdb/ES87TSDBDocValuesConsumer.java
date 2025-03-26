@@ -16,7 +16,6 @@ import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
@@ -223,7 +222,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void mergeNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo, DocValuesType.NUMERIC);
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
         if (result.supported()) {
             addNumericField(mergeFieldInfo, DocValuesConsumerUtil.mergeNumericProducer(result, mergeFieldInfo, mergeState));
         } else {
@@ -308,7 +307,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void mergeSortedField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo, DocValuesType.SORTED);
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
         if (result.supported()) {
             addSortedField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedProducer(result, mergeFieldInfo, mergeState));
         } else {
@@ -553,7 +552,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void mergeSortedNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo, DocValuesType.SORTED_NUMERIC);
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
         if (result.supported()) {
             addSortedNumericField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedNumericProducer(result, mergeFieldInfo, mergeState));
         } else {
@@ -586,7 +585,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void mergeSortedSetField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo, DocValuesType.SORTED_SET);
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
         if (result.supported()) {
             addSortedSetField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedSetProducer(result, mergeFieldInfo, mergeState));
         } else {

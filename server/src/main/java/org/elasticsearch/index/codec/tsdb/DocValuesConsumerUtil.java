@@ -54,12 +54,8 @@ class DocValuesConsumerUtil {
 
     record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField) {}
 
-    static MergeStats compatibleWithOptimizedMerge(
-        boolean optimizedMergeEnabled,
-        MergeState mergeState,
-        FieldInfo fieldInfo,
-        DocValuesType docValuesType
-    ) throws IOException {
+    static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo fieldInfo)
+        throws IOException {
         if (optimizedMergeEnabled == false || mergeState.needsIndexSort == false) {
             return UNSUPPORTED;
         }
@@ -77,24 +73,15 @@ class DocValuesConsumerUtil {
         // TODO bring back codec version check? (per field doc values producer sits between ES87TSDBDocValuesConsumer)
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
-            switch (docValuesType) {
+            switch (fieldInfo.getDocValuesType()) {
                 case NUMERIC -> {
                     var numeric = docValuesProducer.getNumeric(fieldInfo);
-                    if (numeric instanceof ES87TSDBDocValuesProducer.BaseNumericDocValues baseNumericDocValues) {
-                        var entry = baseNumericDocValues.entry;
+                    if (numeric instanceof ES87TSDBDocValuesProducer.BaseNumericDocValues baseNumeric) {
+                        var entry = baseNumeric.entry;
                         sumNumValues += entry.numValues;
-                        // In this case the numDocsWithField doesn't get recorded in meta:
-                        int numDocsWithField;
-                        if (entry.docsWithFieldOffset == -2) {
-                            numDocsWithField = 0;
-                        } else if (entry.docsWithFieldOffset == -1) {
-                            numDocsWithField = mergeState.maxDocs[i];
-                        } else {
-                            // Value doesn't matter in this case:
-                            numDocsWithField = mergeState.maxDocs[i] - 1;
-                        }
+                        int numDocsWithField = getNumDocsWithField(entry, mergeState.maxDocs[i]);
                         sumNumDocsWithField += numDocsWithField;
-                    } else {
+                    } else if (numeric != null) {
                         return UNSUPPORTED;
                     }
                 }
@@ -105,7 +92,16 @@ class DocValuesConsumerUtil {
                         sumNumValues += entry.numValues;
                         sumNumDocsWithField += entry.numDocsWithField;
                     } else {
-                        return UNSUPPORTED;
+                        var singleton = DocValues.unwrapSingleton(sortedNumeric);
+                        if (singleton instanceof ES87TSDBDocValuesProducer.BaseNumericDocValues baseNumeric) {
+                            var entry = baseNumeric.entry;
+                            sumNumValues += entry.numValues;
+                            // In this case the numDocsWithField doesn't get recorded in meta:
+                            int numDocsWithField = getNumDocsWithField(entry, mergeState.maxDocs[i]);
+                            sumNumDocsWithField += numDocsWithField;
+                        } else if (sortedNumeric != null) {
+                            return UNSUPPORTED;
+                        }
                     }
                 }
                 case SORTED -> {
@@ -113,18 +109,10 @@ class DocValuesConsumerUtil {
                     if (sorted instanceof ES87TSDBDocValuesProducer.BaseSortedDocValues baseSortedDocValues) {
                         var entry = baseSortedDocValues.entry;
                         sumNumValues += entry.ordsEntry.numValues;
-                        // In this case the numDocsWithField doesn't get recorded in meta:
-                        int numDocsWithField;
-                        if (entry.ordsEntry.docsWithFieldOffset == -2) {
-                            numDocsWithField = 0;
-                        } else if (entry.ordsEntry.docsWithFieldOffset == -1) {
-                            numDocsWithField = mergeState.maxDocs[i];
-                        } else {
-                            // Value doesn't matter in this case:
-                            numDocsWithField = mergeState.maxDocs[i] - 1;
-                        }
+                        // In this case the numDocsWithField doesn't get recorded in meta:v
+                        int numDocsWithField = getNumDocsWithField(entry.ordsEntry, mergeState.maxDocs[i]);
                         sumNumDocsWithField += numDocsWithField;
-                    } else {
+                    } else if (sorted != null) {
                         return UNSUPPORTED;
                     }
                 }
@@ -135,14 +123,35 @@ class DocValuesConsumerUtil {
                         sumNumValues += entry.ordsEntry.numValues;
                         sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
                     } else {
-                        return UNSUPPORTED;
+                        var singleton = DocValues.unwrapSingleton(sortedSet);
+                        if (singleton instanceof ES87TSDBDocValuesProducer.BaseSortedDocValues baseSorted) {
+                            var entry = baseSorted.entry;
+                            sumNumValues += entry.ordsEntry.numValues;
+                            // In this case the numDocsWithField doesn't get recorded in meta:
+                            int numDocsWithField = getNumDocsWithField(entry.ordsEntry, mergeState.maxDocs[i]);
+                            sumNumDocsWithField += numDocsWithField;
+                        } else if (sortedSet != null) {
+                            return UNSUPPORTED;
+                        }
                     }
                 }
-                default -> throw new IllegalStateException("unexpected doc values producer type: " + docValuesType);
+                default -> throw new IllegalStateException("unexpected doc values producer type: " + fieldInfo.getDocValuesType());
             }
         }
 
         return new MergeStats(true, sumNumValues, sumNumDocsWithField);
+    }
+
+    private static int getNumDocsWithField(ES87TSDBDocValuesProducer.NumericEntry entry, int maxDoc) {
+        // In this case the numDocsWithField doesn't get recorded in meta:
+        if (entry.docsWithFieldOffset == -2) {
+            return 0;
+        } else if (entry.docsWithFieldOffset == -1) {
+            return maxDoc;
+        } else {
+            // numDocsWithField doesn't matter in this case:
+            return 1;
+        }
     }
 
     static DocValuesProducer mergeNumericProducer(MergeStats mergeStats, FieldInfo mergeFieldInfo, MergeState mergeState) {

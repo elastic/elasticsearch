@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
@@ -568,6 +569,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 rightPattern
             );
         }
+        if (rightPattern.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
+            throw new ParsingException(
+                source(target),
+                "invalid index pattern [{}], index pattern selectors are not supported in LOOKUP JOIN",
+                rightPattern
+            );
+        }
 
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
@@ -604,6 +612,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                         throw new ParsingException(
                             source(target),
                             "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
+                            r.indexPattern().indexPattern()
+                        );
+                    }
+                    if (leftPattern.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
+                        throw new ParsingException(
+                            source(target),
+                            "invalid index pattern [{}], index pattern selectors are not supported in LOOKUP JOIN",
                             r.indexPattern().indexPattern()
                         );
                     }

@@ -2400,8 +2400,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"unknown_option\": true})"),
             containsString(
-                "1:19: Invalid option [unknown_option] in [MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"unknown_option\": true})],"
-                    + " expected one of "
+                "1:19: Invalid option [unknown_option] in [MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", "
+                    + "{\"unknown_option\": true})], expected one of "
             )
         );
     }

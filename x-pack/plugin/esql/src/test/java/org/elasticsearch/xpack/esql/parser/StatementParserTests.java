@@ -3397,8 +3397,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         expectError(
-            "FROM foo* | RERANK \"query text\"  ON title",
-            "line 1:42: mismatched input '<EOF>' expecting {'with', 'and', '::', ',', '.', 'or', '+', '-', '*', '/', '%'}"
+            "FROM foo* | RERANK \"query text\" WITH inferenceId",
+            "line 1:33: mismatched input 'WITH' expecting 'on'"
+        );
+
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title",
+            "line 1:41: mismatched input '<EOF>' expecting {'and', '::', ',', '.', 'or', 'with', '+', '-', '*', '/', '%'}"
         );
     }
 

@@ -115,8 +115,8 @@ public class SelectorResolverTests extends ESTestCase {
             "*:-test*,*::data"
         );
         for (String expression : remoteClusterExpressionsWithSelectors) {
-            var e = expectThrows(IllegalArgumentException.class, () -> resolve(selectorsAllowed, expression));
-            assertThat(e.getMessage(), containsString("selectors are not supported with cross-cluster expressions"));
+            var e = expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, expression));
+            assertThat(e.getMessage(), containsString("Selectors are not yet supported on remote cluster patterns"));
         }
     }
 

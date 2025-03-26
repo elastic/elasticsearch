@@ -171,7 +171,7 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
 
     protected static void assertSelectorsNotSupported(ResponseException exception) {
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(exception.getMessage(), containsString("selectors are not supported with cross-cluster expressions"));
+        assertThat(exception.getMessage(), containsString("Selectors are not yet supported on remote cluster patterns"));
     }
 
 }

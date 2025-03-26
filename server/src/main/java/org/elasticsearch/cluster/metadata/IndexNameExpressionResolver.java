@@ -2368,7 +2368,7 @@ public class IndexNameExpressionResolver {
                 IndexComponentSelector selector = resolveAndValidateSelectorString(() -> expression, suffix);
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
-                ensureNoCrossClusterExpressionWithSelectorSeparator(expressionBase, selector, expression);
+                ensureNotMixingRemoteClusterExpressionWithSelectorSeparator(expressionBase, selector, expression);
                 return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
@@ -2420,24 +2420,17 @@ public class IndexNameExpressionResolver {
         }
 
         /**
-         * Checks the expression for cross-cluster syntax and throws an exception if it is combined with ::failures selector.
-         * @throws IllegalArgumentException if cross-cluster syntax is detected after parsing the selector expression
+         * Checks the expression for remote cluster pattern and throws an exception if it is combined with :: selectors.
+         * @throws InvalidIndexNameException if remote cluster pattern is detected after parsing the selector expression
          */
-        private static void ensureNoCrossClusterExpressionWithSelectorSeparator(
+        private static void ensureNotMixingRemoteClusterExpressionWithSelectorSeparator(
             String expressionWithoutSelector,
             IndexComponentSelector selector,
             String originalExpression
         ) {
             if (selector != null) {
                 if (RemoteClusterAware.isRemoteIndexName(expressionWithoutSelector)) {
-                    throw new IllegalArgumentException(
-                        "Invalid usage of ["
-                            + SELECTOR_SEPARATOR
-                            + selector.getKey()
-                            + "] selector in ["
-                            + originalExpression
-                            + "], selectors are not supported with cross-cluster expressions"
-                    );
+                    throw new InvalidIndexNameException(originalExpression, "Selectors are not yet supported on remote cluster patterns");
                 }
             }
         }

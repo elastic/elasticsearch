@@ -18,15 +18,11 @@ import fixture.s3.S3HttpFixture;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
-import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
-
-import java.util.function.Supplier;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
@@ -37,13 +33,10 @@ public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3Res
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "imdsv2_credentials_client";
 
-    private static final Supplier<String> regionSupplier = new LazyInitializable<>(ESTestCase::randomIdentifier)::getOrCompute;
-
-    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
+    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials("*", "s3");
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
         new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).newCredentialsConsumer(dynamicCredentials::addValidCredentials)
-            .instanceIdentityDocument((b, p) -> b.field("region", regionSupplier.get()))
     );
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);

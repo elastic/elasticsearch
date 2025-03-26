@@ -26,7 +26,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 
 import java.io.IOException;
@@ -45,6 +47,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
  */
 public class Sum extends NumericAggregate implements SurrogateExpression, HasSampleCorrection {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
+
+    private boolean sampleCorrected = false;
 
     @FunctionInfo(
         returnType = { "long", "double" },
@@ -149,7 +153,19 @@ public class Sum extends NumericAggregate implements SurrogateExpression, HasSam
     }
 
     @Override
+    public boolean sampleCorrected() {
+        return sampleCorrected;
+    }
+
+    @Override
     public Expression sampleCorrection(Expression sampleProbability) {
-        return new SumSampleCorrection(source(), field(), filter(), sampleProbability);
+        Sum sum = new Sum(source(), field(), filter());
+        sum.sampleCorrected = true;
+        Expression correctedSum = new Div(source(), sum, sampleProbability);
+        return switch (dataType()) {
+            case DOUBLE -> correctedSum;
+            case LONG -> new ToLong(source(), correctedSum);
+            default -> throw new IllegalStateException("unexpected data type [" + dataType() + "]");
+        };
     }
 }

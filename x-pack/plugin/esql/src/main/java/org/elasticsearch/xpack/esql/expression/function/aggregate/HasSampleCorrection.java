@@ -15,5 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
  */
 public interface HasSampleCorrection {
 
+    boolean sampleCorrected();
+
     Expression sampleCorrection(Expression sampleProbability);
 }

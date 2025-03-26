@@ -20,5 +20,6 @@ esplugin {
 
 dependencies {
   clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:ingest-common')
   clusterModules project(':x-pack:plugin:migrate')
 }

@@ -214,32 +214,28 @@ public class InternalUsers {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
                     .privileges(
-                        filterNonNull(
-                            // needed to rollover failure store
-                            DataStream.isFailureStoreFeatureFlagEnabled() ? "manage_failure_store" : null,
-                            GetDataStreamAction.NAME,
-                            RolloverAction.NAME,
-                            IndicesStatsAction.NAME,
-                            TransportDeleteIndexAction.TYPE.name(),
-                            "indices:admin/data_stream/index/reindex",
-                            "indices:admin/index/create_from_source",
-                            "indices:admin/index/copy_lifecycle_index_metadata",
-                            TransportAddIndexBlockAction.TYPE.name(),
-                            OpenIndexAction.NAME,
-                            TransportCloseIndexAction.NAME,
-                            TransportCreateIndexAction.TYPE.name(),
-                            TransportClusterSearchShardsAction.TYPE.name(),
-                            GetSettingsAction.NAME,
-                            TransportUpdateSettingsAction.TYPE.name(),
-                            RefreshAction.NAME,
-                            ReindexAction.NAME,
-                            TransportSearchAction.NAME,
-                            TransportBulkAction.NAME,
-                            TransportIndexAction.NAME,
-                            TransportSearchScrollAction.TYPE.name(),
-                            ModifyDataStreamsAction.NAME,
-                            ILMActions.RETRY.name()
-                        )
+                        GetDataStreamAction.NAME,
+                        RolloverAction.NAME,
+                        IndicesStatsAction.NAME,
+                        TransportDeleteIndexAction.TYPE.name(),
+                        "indices:admin/data_stream/index/reindex",
+                        "indices:admin/index/create_from_source",
+                        "indices:admin/index/copy_lifecycle_index_metadata",
+                        TransportAddIndexBlockAction.TYPE.name(),
+                        OpenIndexAction.NAME,
+                        TransportCloseIndexAction.NAME,
+                        TransportCreateIndexAction.TYPE.name(),
+                        TransportClusterSearchShardsAction.TYPE.name(),
+                        GetSettingsAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        RefreshAction.NAME,
+                        ReindexAction.NAME,
+                        TransportSearchAction.NAME,
+                        TransportBulkAction.NAME,
+                        TransportIndexAction.NAME,
+                        TransportSearchScrollAction.TYPE.name(),
+                        ModifyDataStreamsAction.NAME,
+                        ILMActions.RETRY.name()
                     )
                     .allowRestrictedIndices(false)
                     .build() },

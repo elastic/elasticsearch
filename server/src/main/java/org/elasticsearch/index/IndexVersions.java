@@ -69,12 +69,14 @@ public class IndexVersions {
     public static final IndexVersion V_7_15_0 = def(7_15_00_99, Version.LUCENE_8_9_0);
     public static final IndexVersion V_7_16_0 = def(7_16_00_99, Version.LUCENE_8_10_1);
     public static final IndexVersion V_7_17_0 = def(7_17_00_99, Version.LUCENE_8_11_1);
+    public static final IndexVersion V_7_17_19 = def(7_17_19_99, Version.LUCENE_8_11_3);
     public static final IndexVersion V_8_0_0 = def(8_00_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_1_0 = def(8_01_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_2_0 = def(8_02_00_99, Version.LUCENE_9_1_0);
     public static final IndexVersion V_8_3_0 = def(8_03_00_99, Version.LUCENE_9_2_0);
     public static final IndexVersion V_8_4_0 = def(8_04_00_99, Version.LUCENE_9_3_0);
     public static final IndexVersion V_8_5_0 = def(8_05_00_99, Version.LUCENE_9_4_1);
+    public static final IndexVersion V_8_5_3 = def(8_05_03_99, Version.LUCENE_9_4_2);
     public static final IndexVersion V_8_6_0 = def(8_06_00_99, Version.LUCENE_9_4_2);
     public static final IndexVersion V_8_7_0 = def(8_07_00_99, Version.LUCENE_9_5_0);
     public static final IndexVersion V_8_8_0 = def(8_08_00_99, Version.LUCENE_9_6_0);

@@ -29,15 +29,7 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         ListMultimap<Class<?>, String> map = ArrayListMultimap.create(1, 200);
         map.put(LegacyRestTestBasePlugin.class, ":docs");
         map.put(LegacyRestTestBasePlugin.class, ":distribution:docker");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:lang-expression");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:lang-mustache");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:mapper-extras");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:parent-join");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:percolator");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:rank-eval");
         map.put(LegacyRestTestBasePlugin.class, ":modules:reindex");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:repository-url");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:transport-netty4");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-icu");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-kuromoji");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-nori");
@@ -61,7 +53,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":qa:smoke-test-ingest-with-all-dependencies");
         map.put(LegacyRestTestBasePlugin.class, ":qa:smoke-test-plugins");
         map.put(LegacyRestTestBasePlugin.class, ":qa:system-indices");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:verify-version-constants");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-apm-integration");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-delayed-aggs");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-die-with-dignity");

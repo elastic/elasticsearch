@@ -25,12 +25,14 @@ import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Postal;
 import com.maxmind.geoip2.record.Subdivision;
+import com.maxmind.geoip2.record.Traits;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.ingest.geoip.IpDataLookup.Result;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -107,13 +109,18 @@ final class MaxmindIpDataLookups {
         };
     }
 
-    static class AnonymousIp extends AbstractBase<AnonymousIpResponse> {
+    static class AnonymousIp extends AbstractBase<AnonymousIpResponse, AnonymousIpResponse> {
         AnonymousIp(final Set<Database.Property> properties) {
             super(
                 properties,
                 AnonymousIpResponse.class,
                 (response, ipAddress, network, locales) -> new AnonymousIpResponse(response, ipAddress, network)
             );
+        }
+
+        @Override
+        protected AnonymousIpResponse cacheableRecord(AnonymousIpResponse response) {
+            return response;
         }
 
         @Override
@@ -153,9 +160,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Asn extends AbstractBase<AsnResponse> {
+    static class Asn extends AbstractBase<AsnResponse, AsnResponse> {
         Asn(Set<Database.Property> properties) {
             super(properties, AsnResponse.class, (response, ipAddress, network, locales) -> new AsnResponse(response, ipAddress, network));
+        }
+
+        @Override
+        protected AsnResponse cacheableRecord(AsnResponse response) {
+            return response;
         }
 
         @Override
@@ -189,9 +201,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class City extends AbstractBase<CityResponse> {
+    static class City extends AbstractBase<CityResponse, CityResponse> {
         City(final Set<Database.Property> properties) {
             super(properties, CityResponse.class, CityResponse::new);
+        }
+
+        @Override
+        protected CityResponse cacheableRecord(CityResponse response) {
+            return response;
         }
 
         @Override
@@ -279,7 +296,7 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case POSTAL_CODE -> {
-                        if (postal != null && postal.getCode() != null) {
+                        if (postal.getCode() != null) {
                             data.put("postal_code", postal.getCode());
                         }
                     }
@@ -305,13 +322,18 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class ConnectionType extends AbstractBase<ConnectionTypeResponse> {
+    static class ConnectionType extends AbstractBase<ConnectionTypeResponse, ConnectionTypeResponse> {
         ConnectionType(final Set<Database.Property> properties) {
             super(
                 properties,
                 ConnectionTypeResponse.class,
                 (response, ipAddress, network, locales) -> new ConnectionTypeResponse(response, ipAddress, network)
             );
+        }
+
+        @Override
+        protected ConnectionTypeResponse cacheableRecord(ConnectionTypeResponse response) {
+            return response;
         }
 
         @Override
@@ -333,65 +355,90 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Country extends AbstractBase<CountryResponse> {
+    record CacheableCountryResponse(
+        Boolean isInEuropeanUnion,
+        String countryIsoCode,
+        String countryName,
+        String continentCode,
+        String continentName,
+        Boolean registeredCountryIsInEuropeanUnion,
+        String registeredCountryIsoCode,
+        String registeredCountryName
+    ) {}
+
+    static class Country extends AbstractBase<CountryResponse, Result<CacheableCountryResponse>> {
         Country(final Set<Database.Property> properties) {
             super(properties, CountryResponse.class, CountryResponse::new);
         }
 
         @Override
-        protected Map<String, Object> transform(final CountryResponse response) {
-            com.maxmind.geoip2.record.Country country = response.getCountry();
-            com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
-            Continent continent = response.getContinent();
+        protected Result<CacheableCountryResponse> cacheableRecord(CountryResponse response) {
+            final com.maxmind.geoip2.record.Country country = response.getCountry();
+            final Continent continent = response.getContinent();
+            final com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
+            final Traits traits = response.getTraits();
+            return new Result<>(
+                new CacheableCountryResponse(
+                    isInEuropeanUnion(country),
+                    country.getIsoCode(),
+                    country.getName(),
+                    continent.getCode(),
+                    continent.getName(),
+                    isInEuropeanUnion(registeredCountry),
+                    registeredCountry.getIsoCode(),
+                    registeredCountry.getName()
+                ),
+                traits.getIpAddress(),
+                traits.getNetwork().toString()
+            );
+        }
+
+        @Override
+        protected Map<String, Object> transform(final Result<CacheableCountryResponse> result) {
+            CacheableCountryResponse response = result.result();
 
             Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", response.getTraits().getIpAddress());
+                    case IP -> data.put("ip", result.ip());
                     case COUNTRY_IN_EUROPEAN_UNION -> {
-                        Boolean isInEuropeanUnion = isInEuropeanUnion(country);
-                        if (isInEuropeanUnion != null) {
-                            data.put("country_in_european_union", isInEuropeanUnion);
+                        if (response.isInEuropeanUnion != null) {
+                            data.put("country_in_european_union", response.isInEuropeanUnion);
                         }
                     }
                     case COUNTRY_ISO_CODE -> {
-                        String countryIsoCode = country.getIsoCode();
-                        if (countryIsoCode != null) {
-                            data.put("country_iso_code", countryIsoCode);
+                        if (response.countryIsoCode != null) {
+                            data.put("country_iso_code", response.countryIsoCode);
                         }
                     }
                     case COUNTRY_NAME -> {
-                        String countryName = country.getName();
-                        if (countryName != null) {
-                            data.put("country_name", countryName);
+                        if (response.countryName != null) {
+                            data.put("country_name", response.countryName);
                         }
                     }
                     case CONTINENT_CODE -> {
-                        String continentCode = continent.getCode();
-                        if (continentCode != null) {
-                            data.put("continent_code", continentCode);
+                        if (response.continentCode != null) {
+                            data.put("continent_code", response.continentCode);
                         }
                     }
                     case CONTINENT_NAME -> {
-                        String continentName = continent.getName();
-                        if (continentName != null) {
-                            data.put("continent_name", continentName);
+                        if (response.continentName != null) {
+                            data.put("continent_name", response.continentName);
                         }
                     }
                     case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
-                        Boolean isInEuropeanUnion = isInEuropeanUnion(registeredCountry);
-                        if (isInEuropeanUnion != null) {
-                            data.put("registered_country_in_european_union", isInEuropeanUnion);
+                        if (response.registeredCountryIsInEuropeanUnion != null) {
+                            data.put("registered_country_in_european_union", response.registeredCountryIsInEuropeanUnion);
                         }
                     }
                     case REGISTERED_COUNTRY_ISO_CODE -> {
-                        if (registeredCountry.getIsoCode() != null) {
-                            data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        if (response.registeredCountryIsoCode != null) {
+                            data.put("registered_country_iso_code", response.registeredCountryIsoCode);
                         }
                     }
                     case REGISTERED_COUNTRY_NAME -> {
-                        if (registeredCountry.getName() != null) {
-                            data.put("registered_country_name", registeredCountry.getName());
+                        if (response.registeredCountryName != null) {
+                            data.put("registered_country_name", response.registeredCountryName);
                         }
                     }
                 }
@@ -400,13 +447,18 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Domain extends AbstractBase<DomainResponse> {
+    static class Domain extends AbstractBase<DomainResponse, DomainResponse> {
         Domain(final Set<Database.Property> properties) {
             super(
                 properties,
                 DomainResponse.class,
                 (response, ipAddress, network, locales) -> new DomainResponse(response, ipAddress, network)
             );
+        }
+
+        @Override
+        protected DomainResponse cacheableRecord(DomainResponse response) {
+            return response;
         }
 
         @Override
@@ -428,9 +480,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Enterprise extends AbstractBase<EnterpriseResponse> {
+    static class Enterprise extends AbstractBase<EnterpriseResponse, EnterpriseResponse> {
         Enterprise(final Set<Database.Property> properties) {
             super(properties, EnterpriseResponse.class, EnterpriseResponse::new);
+        }
+
+        @Override
+        protected EnterpriseResponse cacheableRecord(EnterpriseResponse response) {
+            return response;
         }
 
         @Override
@@ -552,14 +609,13 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case POSTAL_CODE -> {
-                        if (postal != null && postal.getCode() != null) {
+                        if (postal.getCode() != null) {
                             data.put("postal_code", postal.getCode());
                         }
                     }
                     case POSTAL_CONFIDENCE -> {
-                        Integer postalConfidence = postal.getConfidence();
-                        if (postalConfidence != null) {
-                            data.put("postal_confidence", postalConfidence);
+                        if (postal.getConfidence() != null) {
+                            data.put("postal_confidence", postal.getConfidence());
                         }
                     }
                     case ASN -> {
@@ -652,9 +708,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Isp extends AbstractBase<IspResponse> {
+    static class Isp extends AbstractBase<IspResponse, IspResponse> {
         Isp(final Set<Database.Property> properties) {
             super(properties, IspResponse.class, (response, ipAddress, network, locales) -> new IspResponse(response, ipAddress, network));
+        }
+
+        @Override
+        protected IspResponse cacheableRecord(IspResponse response) {
+            return response;
         }
 
         @Override
@@ -713,7 +774,7 @@ final class MaxmindIpDataLookups {
     }
 
     /**
-     * As an internal detail, the {@code com.maxmind.geoip2.model } classes that are populated by
+     * As an internal detail, the {@code com.maxmind.geoip2.model} classes that are populated by
      * {@link Reader#getRecord(InetAddress, Class)} are kinda half-populated and need to go through a second round of construction
      * with context from the querying caller. This method gives us a place do that additional binding. Cleverly, the signature
      * here matches the constructor for many of these model classes exactly, so an appropriate implementation can 'just' be a method
@@ -730,10 +791,11 @@ final class MaxmindIpDataLookups {
      *
      * @param <RESPONSE> the intermediate type of {@link AbstractResponse}
      */
-    private abstract static class AbstractBase<RESPONSE extends AbstractResponse> implements IpDataLookup {
+    private abstract static class AbstractBase<RESPONSE extends AbstractResponse, RECORD> implements IpDataLookup {
 
         protected final Set<Database.Property> properties;
         protected final Class<RESPONSE> clazz;
+        // see the docstring on ResponseBuilder to understand why this isn't yet another abstract method on this class
         protected final ResponseBuilder<RESPONSE> builder;
 
         AbstractBase(final Set<Database.Property> properties, final Class<RESPONSE> clazz, final ResponseBuilder<RESPONSE> builder) {
@@ -749,24 +811,33 @@ final class MaxmindIpDataLookups {
 
         @Override
         public final Map<String, Object> getData(final IpDatabase ipDatabase, final String ipAddress) {
-            final RESPONSE response = ipDatabase.getResponse(ipAddress, this::lookup);
+            final RECORD response = ipDatabase.getResponse(ipAddress, this::lookup);
             return (response == null) ? Map.of() : transform(response);
         }
 
         @Nullable
-        private RESPONSE lookup(final Reader reader, final String ipAddress) throws IOException {
+        private RECORD lookup(final Reader reader, final String ipAddress) throws IOException {
             final InetAddress ip = InetAddresses.forString(ipAddress);
-            final DatabaseRecord<RESPONSE> record = reader.getRecord(ip, clazz);
-            final RESPONSE data = record.getData();
-            return (data == null) ? null : builder.build(data, NetworkAddress.format(ip), record.getNetwork(), List.of("en"));
+            final DatabaseRecord<RESPONSE> entry = reader.getRecord(ip, clazz);
+            final RESPONSE data = entry.getData();
+            return (data == null)
+                ? null
+                : cacheableRecord(builder.build(data, NetworkAddress.format(ip), entry.getNetwork(), List.of("en")));
         }
 
         /**
-         * Extract the configured properties from the retrieved response
+         * Given a fully-populated response object, create a record that is suitable for caching. If the fully-populated response object
+         * itself is suitable for caching, then it is acceptable to simply return it.
+         */
+        protected abstract RECORD cacheableRecord(RESPONSE response);
+
+        /**
+         * Extract the configured properties from the retrieved response.
+         *
          * @param response the non-null response that was retrieved
          * @return a mapping of properties for the ip from the response
          */
-        protected abstract Map<String, Object> transform(RESPONSE response);
+        protected abstract Map<String, Object> transform(RECORD response);
     }
 
     @Nullable

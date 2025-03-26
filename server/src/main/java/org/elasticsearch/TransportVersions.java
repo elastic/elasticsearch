@@ -90,9 +90,11 @@ public class TransportVersions {
     public static final TransportVersion V_8_16_1 = def(8_772_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_5 = def(8_772_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_6 = def(8_772_0_06);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_7 = def(8_772_0_07);
     public static final TransportVersion V_8_17_0 = def(8_797_0_02);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_4 = def(8_797_0_04);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_5 = def(8_797_0_05);
     public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_0_00);
     public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_0_00);
     public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_0_00);
@@ -150,6 +152,10 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_DEEPSEEK_8_19 = def(8_841_0_09);
     public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE_8_19 = def(8_841_0_10);
     public static final TransportVersion ESQL_FAILURE_FROM_REMOTE_8_19 = def(8_841_0_11);
+    public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL_8_19 = def(8_841_0_12);
+    public static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA_8_19 = def(8_841_0_13);
+    public static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE_8_19 = def(8_841_0_14);
+    public static final TransportVersion RERANK_COMMON_OPTIONS_ADDED_8_19 = def(8_841_0_15);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
@@ -196,6 +202,8 @@ public class TransportVersions {
     public static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = def(9_034_0_00);
     public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL = def(9_035_0_00);
     public static final TransportVersion INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD = def(9_036_0_00);
+    public static final TransportVersion RERANK_COMMON_OPTIONS_ADDED = def(9_037_0_00);
+    public static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES = def(9_038_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

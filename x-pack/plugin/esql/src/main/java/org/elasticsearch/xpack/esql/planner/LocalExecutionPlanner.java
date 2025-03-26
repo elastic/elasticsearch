@@ -189,7 +189,8 @@ public class LocalExecutionPlanner {
             bigArrays,
             blockFactory,
             foldCtx,
-            settings
+            settings,
+            shardContexts
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -308,7 +309,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
         var source = plan(aggregate.child(), context);
-        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context, shardContexts);
+        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
@@ -895,7 +896,8 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         FoldContext foldCtx,
-        Settings settings
+        Settings settings,
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

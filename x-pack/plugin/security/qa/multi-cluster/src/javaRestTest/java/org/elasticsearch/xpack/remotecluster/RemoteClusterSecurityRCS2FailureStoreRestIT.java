@@ -89,7 +89,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
         final String backingDataIndexName = backingIndices.v1();
         final String backingFailureIndexName = backingIndices.v2();
         {
-            // query remote cluster using ::data selector should succeed
+            // query remote cluster without selectors should succeed
             final boolean alsoSearchLocally = randomBoolean();
             final Request dataSearchRequest = new Request(
                 "GET",
@@ -98,7 +98,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                     "/%s%s:%s/_search?ccs_minimize_roundtrips=%s&ignore_unavailable=false",
                     alsoSearchLocally ? "local_index," : "",
                     randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                    randomFrom("test1::data", "test1", "test*", "test*::data", "*", "*::data", backingDataIndexName),
+                    randomFrom("test1", "test*", "*", backingDataIndexName),
                     ccsMinimizeRoundtrips
                 )
             );
@@ -106,6 +106,25 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                 ? new String[] { "local_index", backingDataIndexName }
                 : new String[] { backingDataIndexName };
             assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(dataSearchRequest), expectedIndices);
+        }
+        {
+            // query remote cluster using ::data selector should fail
+            final boolean alsoSearchLocally = randomBoolean();
+            final Request dataSearchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/%s:%s/_search?ccs_minimize_roundtrips=%s&ignore_unavailable=false",
+                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
+                    randomFrom("test1::data", "test*::data", "*::data", "non-existing::data"),
+                    ccsMinimizeRoundtrips
+                )
+            );
+            final ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithRemoteSearchUser(dataSearchRequest)
+            );
+            assertSelectorsNotSupported(exception);
         }
         {
             // query remote cluster using ::failures selector should fail
@@ -117,13 +136,13 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                         String.format(
                             Locale.ROOT,
                             "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
-                            randomFrom("test1::failures", "test*::failures", "*::failures"),
+                            randomFrom("test1::failures", "test*::failures", "*::failures", "non-existing::failures"),
                             ccsMinimizeRoundtrips
                         )
                     )
                 )
             );
-            assertFailuresSelectorNotSupported(exception);
+            assertSelectorsNotSupported(exception);
         }
         {
             // direct access to backing failure index is not allowed - no explicit read privileges over .fs-* indices

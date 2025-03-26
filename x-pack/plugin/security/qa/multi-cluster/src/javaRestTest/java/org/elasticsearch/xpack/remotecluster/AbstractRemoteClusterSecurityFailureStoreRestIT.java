@@ -169,9 +169,9 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
         return new Tuple<>(indices.v1().get(0), indices.v2().get(0));
     }
 
-    protected static void assertFailuresSelectorNotSupported(ResponseException exception) {
+    protected static void assertSelectorsNotSupported(ResponseException exception) {
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(exception.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
+        assertThat(exception.getMessage(), containsString("selectors are not supported with cross-cluster expressions"));
     }
 
 }

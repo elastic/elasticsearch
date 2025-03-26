@@ -2368,7 +2368,7 @@ public class IndexNameExpressionResolver {
                 IndexComponentSelector selector = resolveAndValidateSelectorString(() -> expression, suffix);
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
-                ensureNoCrossClusterExpressionWithFailuresSelector(expressionBase, selector, expression);
+                ensureNoCrossClusterExpressionWithSelectorSeparator(expressionBase, selector, expression);
                 return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
@@ -2423,12 +2423,12 @@ public class IndexNameExpressionResolver {
          * Checks the expression for cross-cluster syntax and throws an exception if it is combined with ::failures selector.
          * @throws IllegalArgumentException if cross-cluster syntax is detected after parsing the selector expression
          */
-        private static void ensureNoCrossClusterExpressionWithFailuresSelector(
+        private static void ensureNoCrossClusterExpressionWithSelectorSeparator(
             String expressionWithoutSelector,
             IndexComponentSelector selector,
             String originalExpression
         ) {
-            if (selector == IndexComponentSelector.FAILURES) {
+            if (selector != null) {
                 if (RemoteClusterAware.isRemoteIndexName(expressionWithoutSelector)) {
                     throw new IllegalArgumentException(
                         "Invalid usage of ["
@@ -2436,7 +2436,7 @@ public class IndexNameExpressionResolver {
                             + selector.getKey()
                             + "] selector in ["
                             + originalExpression
-                            + "], failures selector is not supported with cross-cluster expressions"
+                            + "], selectors are not supported with cross-cluster expressions"
                     );
                 }
             }

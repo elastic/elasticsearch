@@ -83,9 +83,9 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
         final String otherBackingDataIndexName = otherBackingIndices.v1();
         final String otherBackingFailureIndexName = otherBackingIndices.v2();
 
-        testCcsWithDataSelectorSupported(backingDataIndexName, ccsMinimizeRoundtrips);
+        testCcsWithDataSelectorNotSupported(ccsMinimizeRoundtrips);
         testCcsWithFailuresSelectorNotSupported(ccsMinimizeRoundtrips);
-
+        testCcsWithoutSelectorsSupported(backingDataIndexName, ccsMinimizeRoundtrips);
         testSearchingUnauthorizedIndices(otherBackingFailureIndexName, otherBackingDataIndexName, ccsMinimizeRoundtrips);
         testSearchingWithAccessToAllIndices(ccsMinimizeRoundtrips, backingDataIndexName, otherBackingDataIndexName);
         testBackingFailureIndexAccess(ccsMinimizeRoundtrips, backingFailureIndexName);
@@ -264,10 +264,9 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
 
     }
 
-    private void testCcsWithDataSelectorSupported(String backingDataIndexName, boolean ccsMinimizeRoundtrips) throws IOException {
+    public void testCcsWithoutSelectorsSupported(String backingDataIndexName, boolean ccsMinimizeRoundtrips) throws IOException {
         final String[] users = { FAILURE_STORE_ACCESS, DATA_ACCESS };
         for (String user : users) {
-            // query remote cluster using ::data selector should succeed
             final boolean alsoSearchLocally = randomBoolean();
             final Request dataSearchRequest = new Request(
                 "GET",
@@ -276,7 +275,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                     "/%s%s:%s/_search?ccs_minimize_roundtrips=%s",
                     alsoSearchLocally ? "local_index," : "",
                     randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                    randomFrom("test1::data", "test1", "test*", "test*::data", "*", "*::data", backingDataIndexName),
+                    randomFrom("test1", "test*", "*", backingDataIndexName),
                     ccsMinimizeRoundtrips
                 )
             );
@@ -284,6 +283,29 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                 ? new String[] { "local_index", backingDataIndexName }
                 : new String[] { backingDataIndexName };
             assertSearchResponseContainsIndices(performRequestWithUser(user, dataSearchRequest), expectedIndices);
+        }
+    }
+
+    private void testCcsWithDataSelectorNotSupported(boolean ccsMinimizeRoundtrips) throws IOException {
+        final String[] users = { FAILURE_STORE_ACCESS, DATA_ACCESS, ALL_ACCESS };
+        for (String user : users) {
+            // query remote cluster using ::data selector should not succeed
+            final boolean alsoSearchLocally = randomBoolean();
+            final Request dataSearchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/%s:%s/_search?ccs_minimize_roundtrips=%s",
+                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
+                    randomFrom("test1::data", "test*::data", "*::data", "non-existing::data"),
+                    ccsMinimizeRoundtrips
+                )
+            );
+            final ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithUser(user, dataSearchRequest)
+            );
+            assertSelectorsNotSupported(exception);
         }
     }
 
@@ -313,7 +335,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                     )
                 )
             );
-            assertFailuresSelectorNotSupported(exception);
+            assertSelectorsNotSupported(exception);
         }
     }
 

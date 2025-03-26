@@ -336,12 +336,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testUpdateIndexTemplateFromILMtoBothILMAndDataStreamLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/124850
-- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
-  method: testExplainLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/124882
-- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
-  method: testSystemExplainLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/124885
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testIndexTemplateSwapsILMForDataStreamLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/124886
@@ -363,9 +357,6 @@ tests:
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test10Install
   issue: https://github.com/elastic/elasticsearch/issues/124957
-- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
-  method: testRolloverAction
-  issue: https://github.com/elastic/elasticsearch/issues/124987
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test011SecurityEnabledStatus
   issue: https://github.com/elastic/elasticsearch/issues/124990

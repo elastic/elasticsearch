@@ -402,6 +402,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
   method: testMergeSourceWithFollowUpMergesRunSequentially
   issue: https://github.com/elastic/elasticsearch/issues/125639
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header and column selection}
+  issue: https://github.com/elastic/elasticsearch/issues/125641
 
 # Examples:
 #

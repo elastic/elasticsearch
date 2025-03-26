@@ -317,11 +317,7 @@ setup:
 ---
 "Load index with non existent synonyms set":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ synonyms_set_lenient_on_non_existing ]
+      cluster_features: [ synonyms_set_lenient_on_non_existing ]
       reason: "requires synonyms_set_lenient_on_non_existing bug fix"
   - do:
       indices.create:

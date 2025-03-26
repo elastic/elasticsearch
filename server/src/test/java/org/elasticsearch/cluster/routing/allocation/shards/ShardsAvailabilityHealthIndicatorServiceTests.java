@@ -85,7 +85,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -2278,17 +2277,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(
-                        new Diagnosis(
-                            ACTION_CHECK_ALLOCATION_EXPLAIN_API,
-                            List.of(
-                                new Diagnosis.Resource(
-                                    INDEX,
-                                    indexDisplayNames
-                                )
-                            )
-                        )
-                    )
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, indexDisplayNames))))
                 )
             )
         );

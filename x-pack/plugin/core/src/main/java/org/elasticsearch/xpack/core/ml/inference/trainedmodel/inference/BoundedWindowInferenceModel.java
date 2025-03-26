@@ -21,15 +21,22 @@ public class BoundedWindowInferenceModel implements BoundedInferenceModel {
     private final BoundedInferenceModel model;
     private final double minPredictedValue;
     private final double maxPredictedValue;
+    private final double adjustmentValue;
 
     public BoundedWindowInferenceModel(BoundedInferenceModel model) {
-        this(model, DEFAULT_MIN_PREDICTED_VALUE, Double.MAX_VALUE);
+        this(model, model.getMinPredictedValue(), model.getMaxPredictedValue());
     }
 
     public BoundedWindowInferenceModel(BoundedInferenceModel model, double minPredictedValue, double maxPredictedValue) {
         this.model = model;
         this.minPredictedValue = minPredictedValue;
         this.maxPredictedValue = maxPredictedValue;
+
+        if (this.minPredictedValue < DEFAULT_MIN_PREDICTED_VALUE) {
+            this.adjustmentValue = DEFAULT_MIN_PREDICTED_VALUE - this.minPredictedValue;
+        } else {
+            this.adjustmentValue = 0.0;
+        }
     }
 
     @Override
@@ -83,16 +90,11 @@ public class BoundedWindowInferenceModel implements BoundedInferenceModel {
     }
 
     private InferenceResults boundInferenceResultScores(InferenceResults inferenceResult) {
-        // if the min value < the default minimum, slide the values up
-        double adjustmentValue = 0.0;
-        if (minPredictedValue < DEFAULT_MIN_PREDICTED_VALUE) {
-            adjustmentValue = -minPredictedValue;
-        }
-
+        // if the min value < the default minimum, slide the values up by the adjustment value
         if (inferenceResult instanceof RegressionInferenceResults regressionInferenceResults) {
             double predictedValue = ((Number) regressionInferenceResults.predictedValue()).doubleValue();
 
-            predictedValue += adjustmentValue;
+            predictedValue += this.adjustmentValue;
 
             return new RegressionInferenceResults(
                 predictedValue,

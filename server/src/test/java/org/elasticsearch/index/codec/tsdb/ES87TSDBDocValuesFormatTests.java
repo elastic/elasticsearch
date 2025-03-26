@@ -13,11 +13,13 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -27,6 +29,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
@@ -39,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -241,6 +247,150 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                             doc++;
                             doc += random().nextInt(3);
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testForceMergeSparseCase() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+
+        var config = new IndexWriterConfig();
+        config.setIndexSort(
+            new Sort(
+                new SortField(hostnameField, SortField.Type.STRING, false),
+                new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
+            )
+        );
+        config.setCodec(getCodec());
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            long counter1 = 0;
+            long counter2 = 10_000_000;
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
+
+            int numDocs = 256 + random().nextInt(1024);
+            int numHosts = numDocs / 20;
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+
+                int batchIndex = i / numHosts;
+                String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                long timestamp = baseTimestamp + (1000L * i);
+
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
+
+                if (random().nextBoolean()) {
+                    d.add(new NumericDocValuesField("counter_1", counter1++));
+                }
+                if (random().nextBoolean()) {
+                    d.add(new SortedNumericDocValuesField("counter_2", counter2++));
+                }
+                if (random().nextBoolean()) {
+                    d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
+                }
+                if (random().nextBoolean()) {
+                    d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[i % gauge1Values.length]));
+                }
+                if (random().nextBoolean()) {
+                    int numTags = 1 + random().nextInt(8);
+                    for (int j = 0; j < numTags; j++) {
+                        d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j])));
+                    }
+                }
+                if (random().nextBoolean()) {
+                    int randomIndex = random().nextInt(tags.length);
+                    d.add(new SortedDocValuesField("other_tag", new BytesRef(tags[randomIndex])));
+                }
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+
+            iw.forceMerge(1);
+
+            // For asserting using binary search later on:
+            Arrays.sort(gauge2Values);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var hostNameDV = leaf.getSortedDocValues(hostnameField);
+                assertNotNull(hostNameDV);
+                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
+                assertNotNull(timestampDV);
+                var counterOneDV = leaf.getNumericDocValues("counter_1");
+                assertNotNull(counterOneDV);
+                var counterTwoDV = leaf.getSortedNumericDocValues("counter_2");
+                assertNotNull(counterTwoDV);
+                var gaugeOneDV = leaf.getSortedNumericDocValues("gauge_1");
+                assertNotNull(gaugeOneDV);
+                var gaugeTwoDV = leaf.getSortedNumericDocValues("gauge_2");
+                assertNotNull(gaugeTwoDV);
+                var tagsDV = leaf.getSortedSetDocValues("tags");
+                assertNotNull(tagsDV);
+                var otherTagDV = leaf.getSortedDocValues("other_tag");
+                assertNotNull(otherTagDV);
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals(i, hostNameDV.nextDoc());
+                    int batchIndex = i / numHosts;
+                    assertEquals(batchIndex, hostNameDV.ordValue());
+                    String expectedHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    assertEquals(expectedHostName, hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString());
+
+                    assertEquals(i, timestampDV.nextDoc());
+                    long timestamp = timestampDV.longValue();
+                    long lowerBound = baseTimestamp;
+                    long upperBound = baseTimestamp + (1000L * numDocs);
+                    assertTrue(
+                        "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
+                        timestamp >= lowerBound && timestamp < upperBound
+                    );
+
+                    if (counterOneDV.advanceExact(i)) {
+                        long counterOneValue = counterOneDV.longValue();
+                        assertTrue("unexpected counter [" + counterOneValue + "]", counterOneValue >= 0 && counterOneValue < counter1);
+                    }
+
+                    if (counterTwoDV.advanceExact(i)) {
+                        assertEquals(1, counterTwoDV.docValueCount());
+                        long counterTwoValue = counterTwoDV.nextValue();
+                        assertTrue("unexpected counter [" + counterTwoValue + "]", counterTwoValue > 0 && counterTwoValue <= counter2);
+                    }
+
+                    if (gaugeOneDV.advanceExact(i)) {
+                        assertEquals(1, gaugeOneDV.docValueCount());
+                        long gaugeOneValue = gaugeOneDV.nextValue();
+                        assertTrue("unexpected gauge [" + gaugeOneValue + "]", Arrays.binarySearch(gauge1Values, gaugeOneValue) >= 0);
+                    }
+
+                    if (gaugeTwoDV.advanceExact(i)) {
+                        assertEquals(1, gaugeTwoDV.docValueCount());
+                        long gaugeTwoValue = gaugeTwoDV.nextValue();
+                        assertTrue("unexpected gauge [" + gaugeTwoValue + "]", Arrays.binarySearch(gauge2Values, gaugeTwoValue) >= 0);
+                    }
+
+                    if (tagsDV.advanceExact(i)) {
+                        for (int j = 0; j < tagsDV.docValueCount(); j++) {
+                            long ordinal = tagsDV.nextOrd();
+                            String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
+                            assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
+                        }
+                    }
+                    if (otherTagDV.advanceExact(i)) {
+                        int ordinal = otherTagDV.ordValue();
+                        String actualTag = otherTagDV.lookupOrd(ordinal).utf8ToString();
+                        assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
                     }
                 }
             }

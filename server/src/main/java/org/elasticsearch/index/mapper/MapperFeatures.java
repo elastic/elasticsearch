@@ -31,6 +31,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
     public static final NodeFeature SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX = new NodeFeature("mapper.nested.sorting_fields_check_fix");
     public static final NodeFeature DYNAMIC_HANDLING_IN_COPY_TO = new NodeFeature("mapper.copy_to.dynamic_handling");
+    static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -51,7 +52,8 @@ public class MapperFeatures implements FeatureSpecification {
             DYNAMIC_HANDLING_IN_COPY_TO,
             SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
             ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
-            DateFieldMapper.INVALID_DATE_FIX
+            DateFieldMapper.INVALID_DATE_FIX,
+            NPE_ON_DIMS_UPDATE_FIX
         );
     }
 }

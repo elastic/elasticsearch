@@ -32,16 +32,10 @@ public class ResolvedInferenceTests extends AbstractWireTestCase<ResolvedInferen
 
     @Override
     protected ResolvedInference copyInstance(ResolvedInference instance, TransportVersion version) throws IOException {
-        return copyInstance(
-            instance,
-            getNamedWriteableRegistry(),
-            (out, v) -> v.writeTo(out),
-            in -> new ResolvedInference(in),
-            version
-        );
+        return copyInstance(instance, getNamedWriteableRegistry(), (out, v) -> v.writeTo(out), in -> new ResolvedInference(in), version);
     }
 
     private TaskType randomTaskType() {
         return randomFrom(TaskType.values());
     }
-  }
+}

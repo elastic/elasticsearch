@@ -15,6 +15,7 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING;
 
 /**
  * Spec for mapper-related features.
@@ -64,7 +65,8 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_SKIPPER,
             RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
             DateFieldMapper.INVALID_DATE_FIX,
-            NPE_ON_DIMS_UPDATE_FIX
+            NPE_ON_DIMS_UPDATE_FIX,
+            RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING
         );
     }
 }

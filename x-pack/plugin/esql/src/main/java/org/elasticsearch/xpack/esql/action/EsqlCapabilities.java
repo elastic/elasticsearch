@@ -920,6 +920,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * The {@code _query} API now reports the original types.
+         */
+        REPORT_ORIGINAL_TYPES,
+
+        /**
          * The metrics command
          */
         METRICS_COMMAND(Build.current().isSnapshot()),

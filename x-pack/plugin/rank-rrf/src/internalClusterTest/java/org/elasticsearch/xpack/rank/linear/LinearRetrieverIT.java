@@ -985,7 +985,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 -1.0f
             )
         );
-        assertThat(e.getMessage(), equalTo("[min_score] must be non-negative"));
+        assertThat(e.getMessage(), equalTo("[min_score] must be greater than 0, was: -1.0"));
     }
 
     public void testLinearRetrieverRankWindowSize() {
@@ -1010,8 +1010,19 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
 
         try {
+            // Create a PIT context first
+            var pitResponse = client().prepareOpenPointInTime(INDEX).execute().actionGet();
+            var pit = new PointInTimeBuilder(new BytesArray(pitResponse.getPointInTimeId()));
+            
+            // Use the PIT context for rewriting
             RetrieverBuilder rewrittenRetriever = linearRetriever.rewrite(
-                new QueryRewriteContext(XContentParserConfiguration.EMPTY, client(), System::currentTimeMillis)
+                new QueryRewriteContext(
+                    XContentParserConfiguration.EMPTY,
+                    client(),
+                    System::currentTimeMillis,
+                    null,
+                    pit
+                )
             );
             rewrittenRetriever.extractToSearchSourceBuilder(searchSourceBuilder, false);
             searchRequestBuilder.setSource(searchSourceBuilder);

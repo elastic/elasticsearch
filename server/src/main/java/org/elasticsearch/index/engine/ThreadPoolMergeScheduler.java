@@ -201,7 +201,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 }
             }
         } else if (activeMerges <= configuredMaxMergeCount
-            && threadPoolMergeExecutorService.usingMaxTargetIORateBytesPerSec()
+            && threadPoolMergeExecutorService.usingMaxTargetIORateBytesPerSec() == false
             && shouldThrottleIncomingMerges.get()) {
                 // maybe disable merge task throttling
                 synchronized (shouldThrottleIncomingMerges) {

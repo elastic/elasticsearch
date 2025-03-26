@@ -1096,6 +1096,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -1133,6 +1135,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 ValidationException.class,
                 () -> service.infer(
                     mockModel,
+                    null,
+                    null,
                     null,
                     List.of(""),
                     false,
@@ -1295,6 +1299,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 false,
                 new HashMap<>(),
@@ -1345,6 +1351,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1401,6 +1409,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             var listener = new PlainActionFuture<InferenceServiceResults>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 true,

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockMockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -70,11 +71,11 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests.getAmazonBedrockSecretSettingsMap;
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.getProviderDefaultSimilarityMeasure;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettingsTests.getAmazonBedrockSecretSettingsMap;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettingsTests.createChatCompletionRequestSettingsMap;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettingsTests.createEmbeddingsRequestSettingsMap;
@@ -111,9 +112,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(settings.region(), is("region"));
                 assertThat(settings.modelId(), is("model"));
                 assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-                var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-                assertThat(secretSettings.accessKey.toString(), is("access"));
-                assertThat(secretSettings.secretKey.toString(), is("secret"));
+                var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+                assertThat(secretSettings.accessKey().toString(), is("access"));
+                assertThat(secretSettings.secretKey().toString(), is("secret"));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
@@ -393,9 +394,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(settings.region(), is("region"));
                 assertThat(settings.modelId(), is("model"));
                 assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-                var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-                assertThat(secretSettings.accessKey.toString(), is("access"));
-                assertThat(secretSettings.secretKey.toString(), is("secret"));
+                var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+                assertThat(secretSettings.accessKey().toString(), is("access"));
+                assertThat(secretSettings.secretKey().toString(), is("secret"));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
@@ -420,9 +421,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(settings.region(), is("region"));
                 assertThat(settings.modelId(), is("model"));
                 assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-                var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-                assertThat(secretSettings.accessKey.toString(), is("access"));
-                assertThat(secretSettings.secretKey.toString(), is("secret"));
+                var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+                assertThat(secretSettings.accessKey().toString(), is("access"));
+                assertThat(secretSettings.secretKey().toString(), is("secret"));
                 assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, exception -> fail("Unexpected exception: " + exception));
 
@@ -449,9 +450,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(settings.region(), is("region"));
                 assertThat(settings.modelId(), is("model"));
                 assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-                var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-                assertThat(secretSettings.accessKey.toString(), is("access"));
-                assertThat(secretSettings.secretKey.toString(), is("secret"));
+                var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+                assertThat(secretSettings.accessKey().toString(), is("access"));
+                assertThat(secretSettings.secretKey().toString(), is("secret"));
                 assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, exception -> fail("Unexpected exception: " + exception));
 
@@ -511,9 +512,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             assertThat(settings.region(), is("region"));
             assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-            var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey.toString(), is("access"));
-            assertThat(secretSettings.secretKey.toString(), is("secret"));
+            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            assertThat(secretSettings.accessKey().toString(), is("access"));
+            assertThat(secretSettings.secretKey().toString(), is("secret"));
         }
     }
 
@@ -543,9 +544,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
             assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey.toString(), is("access"));
-            assertThat(secretSettings.secretKey.toString(), is("secret"));
+            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            assertThat(secretSettings.accessKey().toString(), is("access"));
+            assertThat(secretSettings.secretKey().toString(), is("secret"));
         }
     }
 
@@ -571,9 +572,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
             assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey.toString(), is("access"));
-            assertThat(secretSettings.secretKey.toString(), is("secret"));
+            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            assertThat(secretSettings.accessKey().toString(), is("access"));
+            assertThat(secretSettings.secretKey().toString(), is("secret"));
         }
     }
 
@@ -622,9 +623,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             assertThat(settings.region(), is("region"));
             assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-            var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey.toString(), is("access"));
-            assertThat(secretSettings.secretKey.toString(), is("secret"));
+            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            assertThat(secretSettings.accessKey().toString(), is("access"));
+            assertThat(secretSettings.secretKey().toString(), is("secret"));
         }
     }
 
@@ -649,9 +650,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             assertThat(settings.region(), is("region"));
             assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-            var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey.toString(), is("access"));
-            assertThat(secretSettings.secretKey.toString(), is("secret"));
+            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            assertThat(secretSettings.accessKey().toString(), is("access"));
+            assertThat(secretSettings.secretKey().toString(), is("secret"));
         }
     }
 
@@ -676,9 +677,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             assertThat(settings.region(), is("region"));
             assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-            var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey.toString(), is("access"));
-            assertThat(secretSettings.secretKey.toString(), is("secret"));
+            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            assertThat(secretSettings.accessKey().toString(), is("access"));
+            assertThat(secretSettings.secretKey().toString(), is("secret"));
         }
     }
 
@@ -703,9 +704,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             assertThat(settings.region(), is("region"));
             assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
-            var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey.toString(), is("access"));
-            assertThat(secretSettings.secretKey.toString(), is("secret"));
+            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            assertThat(secretSettings.accessKey().toString(), is("access"));
+            assertThat(secretSettings.secretKey().toString(), is("secret"));
         }
     }
 
@@ -736,9 +737,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             assertThat(taskSettings.topP(), is(0.5));
             assertThat(taskSettings.topK(), is(0.2));
             assertThat(taskSettings.maxNewTokens(), is(128));
-            var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey.toString(), is("access"));
-            assertThat(secretSettings.secretKey.toString(), is("secret"));
+            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            assertThat(secretSettings.accessKey().toString(), is("access"));
+            assertThat(secretSettings.secretKey().toString(), is("secret"));
         }
     }
 
@@ -931,6 +932,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -977,6 +980,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 ValidationException.class,
                 () -> service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of(""),
                     false,
@@ -1028,6 +1033,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 service.infer(
                     model,
                     null,
+                    null,
+                    null,
                     List.of("abc"),
                     false,
                     new HashMap<>(),
@@ -1069,6 +1076,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
                 service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of("abc"),
                     false,
@@ -1412,6 +1421,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,

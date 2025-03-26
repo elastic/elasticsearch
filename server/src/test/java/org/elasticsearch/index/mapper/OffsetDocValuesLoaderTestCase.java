@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.HashSet;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.nullValue;
@@ -159,25 +160,32 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     }
 
     public void testOffsetArrayRandom() throws Exception {
-        StringBuilder values = new StringBuilder();
+        String values;
         int numValues = randomIntBetween(0, 256);
-        for (int i = 0; i < numValues; i++) {
-            if (randomInt(10) == 1) {
-                values.append("null");
-            } else {
-                String randomValue = randomValue();
-                values.append('"').append(randomValue).append('"');
+
+        var previousValues = new HashSet<>();
+        try (XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());) {
+            b.startArray();
+            for (int i = 0; i < numValues; i++) {
+                if (randomInt(10) == 1) {
+                    b.nullValue();
+                } else if (randomInt(10) == 1 && previousValues.size() > 0) {
+                    b.value(randomFrom(previousValues));
+                } else {
+                    Object value = randomValue();
+                    previousValues.add(value);
+                    b.value(value);
+                }
             }
-            if (i != (numValues - 1)) {
-                values.append(',');
-            }
+            b.endArray();
+            values = Strings.toString(b);
         }
-        verifyOffsets("{\"field\":[" + values + "]}");
+        verifyOffsets("{\"field\":" + values + "}");
     }
 
     protected abstract String getFieldTypeName();
 
-    protected abstract String randomValue();
+    protected abstract Object randomValue();
 
     protected void verifyOffsets(String source) throws IOException {
         verifyOffsets(source, source);

@@ -264,9 +264,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
             );
         }
-        if (numCandidates > NUM_CANDS_LIMIT) {
-            throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
-        }
         if (queryVector == null && queryVectorBuilder == null) {
             throw new IllegalArgumentException(
                 format(

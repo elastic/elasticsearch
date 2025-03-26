@@ -13,7 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 
 // TODO NOMERGE move these to unit test project
-public class RegionGuesserTests extends ESTestCase {
+public class RegionFromEndpointGuesserTests extends ESTestCase {
     public void testRegionGuessing() {
         assertRegionGuess("s3.amazonaws.com", "us-east-1");
         assertRegionGuess("s3.eu-west-1.amazonaws.com", "eu-west-1");

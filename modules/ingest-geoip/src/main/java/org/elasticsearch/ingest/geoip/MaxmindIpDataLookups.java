@@ -119,7 +119,7 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected AnonymousIpResponse record(AnonymousIpResponse response) {
+        protected AnonymousIpResponse cacheableRecord(AnonymousIpResponse response) {
             return response;
         }
 
@@ -166,7 +166,7 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected AsnResponse record(AsnResponse response) {
+        protected AsnResponse cacheableRecord(AsnResponse response) {
             return response;
         }
 
@@ -207,7 +207,7 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected CityResponse record(CityResponse response) {
+        protected CityResponse cacheableRecord(CityResponse response) {
             return response;
         }
 
@@ -332,7 +332,7 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected ConnectionTypeResponse record(ConnectionTypeResponse response) {
+        protected ConnectionTypeResponse cacheableRecord(ConnectionTypeResponse response) {
             return response;
         }
 
@@ -372,7 +372,7 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected Result<CacheableCountryResponse> record(CountryResponse response) {
+        protected Result<CacheableCountryResponse> cacheableRecord(CountryResponse response) {
             final com.maxmind.geoip2.record.Country country = response.getCountry();
             final Continent continent = response.getContinent();
             final com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
@@ -457,7 +457,7 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected DomainResponse record(DomainResponse response) {
+        protected DomainResponse cacheableRecord(DomainResponse response) {
             return response;
         }
 
@@ -486,7 +486,7 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected EnterpriseResponse record(EnterpriseResponse response) {
+        protected EnterpriseResponse cacheableRecord(EnterpriseResponse response) {
             return response;
         }
 
@@ -714,7 +714,7 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected IspResponse record(IspResponse response) {
+        protected IspResponse cacheableRecord(IspResponse response) {
             return response;
         }
 
@@ -820,14 +820,16 @@ final class MaxmindIpDataLookups {
             final InetAddress ip = InetAddresses.forString(ipAddress);
             final DatabaseRecord<RESPONSE> entry = reader.getRecord(ip, clazz);
             final RESPONSE data = entry.getData();
-            return (data == null) ? null : record(builder.build(data, NetworkAddress.format(ip), entry.getNetwork(), List.of("en")));
+            return (data == null)
+                ? null
+                : cacheableRecord(builder.build(data, NetworkAddress.format(ip), entry.getNetwork(), List.of("en")));
         }
 
         /**
          * Given a fully-populated response object, create a record that is suitable for caching. If the fully-populated response object
          * itself is suitable for caching, then it is acceptable to simply return it.
          */
-        protected abstract RECORD record(RESPONSE response);
+        protected abstract RECORD cacheableRecord(RESPONSE response);
 
         /**
          * Extract the configured properties from the retrieved response.

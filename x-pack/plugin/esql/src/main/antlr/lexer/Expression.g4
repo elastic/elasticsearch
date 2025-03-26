@@ -83,14 +83,12 @@ DECIMAL_LITERAL
     | DOT DIGIT+ EXPONENT
     ;
 
-BY : 'by';
-ON: 'on';
-WITH: 'with';
-AS: 'as';
 
 AND : 'and';
+AS: 'as';
 ASC : 'asc';
 ASSIGN : '=';
+BY : 'by';
 CAST_OP : '::';
 COLON : ':';
 COMMA : ',';
@@ -105,10 +103,12 @@ LIKE: 'like';
 NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';
+ON: 'on';
 OR : 'or';
 PARAM: '?';
 RLIKE: 'rlike';
 TRUE : 'true';
+WITH: 'with';
 
 EQ  : '==';
 CIEQ  : '=~';

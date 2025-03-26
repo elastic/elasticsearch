@@ -961,53 +961,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Iterate over the backing indices and return the ones that are managed by the data stream lifecycle and past the
-     * configured retention in their lifecycle.
+     * Iterate over the backing or failure indices depending on <code>failureStore</code> and return the ones that are managed by the
+     * data stream lifecycle and past the configured retention in their lifecycle.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getBackingIndicesPastRetention(
+    public List<Index> getIndicesPastRetention(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
-        DataStreamGlobalRetention globalRetention
+        TimeValue retention,
+        boolean failureStore
     ) {
-        if (getDataLifecycle() == null
-            || getDataLifecycle().enabled() == false
-            || getDataLifecycle().getEffectiveDataRetention(globalRetention, isInternal()) == null) {
+        if (retention == null || (failureStore && DataStream.isFailureStoreFeatureFlagEnabled() == false)) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            getIndices(),
-            getDataLifecycle().getEffectiveDataRetention(globalRetention, isInternal()),
-            indexMetadataSupplier,
-            this::isIndexManagedByDataStreamLifecycle,
-            nowSupplier
-        );
-        return indicesPastRetention;
-    }
-
-    /**
-     * Iterate over the failure indices and return the ones that are managed by the data stream lifecycle and past the
-     * configured retention in their lifecycle.
-     * NOTE that this specifically does not return the write index of the data stream as usually retention
-     * is treated differently for the write index (i.e. they first need to be rolled over)
-     */
-    public List<Index> getFailureIndicesPastRetention(
-        Function<String, IndexMetadata> indexMetadataSupplier,
-        LongSupplier nowSupplier,
-        DataStreamGlobalRetention globalRetention
-    ) {
-        if (DataStream.isFailureStoreFeatureFlagEnabled() == false
-            || getFailuresLifecycle() == null
-            || getFailuresLifecycle().enabled() == false
-            || getFailuresLifecycle().getEffectiveDataRetention(globalRetention, isInternal()) == null) {
-            return List.of();
-        }
-
-        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            getFailureIndices(),
-            getFailuresLifecycle().getEffectiveDataRetention(globalRetention, isInternal()),
+            getDataStreamIndices(failureStore).getIndices(),
+            retention,
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier

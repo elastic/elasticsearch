@@ -158,6 +158,35 @@ class S3BlobStore implements BlobStore {
 
         @Override
         public void publish(MetricCollection metricCollection) {
+            logger.info("--> MetricPublisher#publish called:\n{}", Strings.toString((builder, params) -> {
+                builder.startObject("publish");
+                builder.field("operation", operation.toString());
+                builder.startObject("attributes");
+                for (final var attributesEntry : attributes.entrySet()) {
+                    builder.field(attributesEntry.getKey(), attributesEntry.getValue().toString());
+                }
+                builder.endObject();
+                builder.field("name", metricCollection.name());
+                builder.field("creationTime", metricCollection.creationTime().toString());
+                builder.startArray("records");
+                for (final var metricRecord : metricCollection) {
+                    builder.startObject();
+                    builder.field("name", metricRecord.metric().name());
+                    builder.field("level", metricRecord.metric().level().toString());
+                    builder.startArray("categories");
+                    for (final var category : metricRecord.metric().categories()) {
+                        builder.value(category.toString());
+                    }
+                    builder.endArray();
+                    builder.field("valueClass", metricRecord.metric().valueClass().getCanonicalName());
+                    builder.field("value", metricRecord.value().toString());
+                    builder.endObject();
+                }
+                builder.endArray();
+                builder.field("stack trace", ExceptionsHelper.stackTrace(new ElasticsearchException("stack trace")));
+                builder.endObject();
+                return builder;
+            }, false, true));
             // TODO NOMERGE metrics collection
         }
 

@@ -563,7 +563,7 @@ public class LocalExecutionPlanner {
 
         for (var rerankField : rerank.rerankFields()) {
             rerankFieldsEvaluatorSuppliers.put(
-                new ColumnInfoImpl(rerankField.name(), rerankField.dataType()),
+                new ColumnInfoImpl(rerankField.name(), rerankField.dataType(), null),
                 EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
             );
         }

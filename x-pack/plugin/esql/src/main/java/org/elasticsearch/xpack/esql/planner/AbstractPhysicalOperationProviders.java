@@ -27,9 +27,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -176,8 +176,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             // time-series aggregation
             if (Expressions.anyMatch(aggregates, a -> a instanceof ToTimeSeriesAggregator)
                 && groupSpecs.size() == 2
-                && groupSpecs.get(0).attribute.dataType() == DataType.TSID_DATA_TYPE
-                && groupSpecs.get(1).attribute.dataType() == DataType.LONG) {
+                && groupSpecs.get(0).attribute.name().equals(MetadataAttribute.TSID_FIELD)) {
                 operatorFactory = new TimeSeriesAggregationOperator.Factory(
                     groupSpecs.get(0).toHashGroupSpec(),
                     groupSpecs.get(1).toHashGroupSpec(),

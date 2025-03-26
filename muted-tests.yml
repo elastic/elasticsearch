@@ -476,3 +476,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.history.ILMHistoryItemTests
   method: testTruncateLongError
   issue: https://github.com/elastic/elasticsearch/issues/125216
+- class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
+  method: testLuceneVersionConstant
+  issue: https://github.com/elastic/elasticsearch/issues/125638

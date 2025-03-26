@@ -132,6 +132,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T version(Version version);
 
     /**
+     * Sets the version of Elasticsearch. Defaults to {@link Version#CURRENT}.
+     */
+    T version(String version);
+
+    /**
      * Adds a system property to node JVM arguments.
      */
     T systemProperty(String property, String value);

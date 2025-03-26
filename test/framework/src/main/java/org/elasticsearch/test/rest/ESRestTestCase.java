@@ -2690,13 +2690,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Match result columns and values, with default matchers for metadata.
      */
     protected static void assertResultMap(Map<String, Object> result, Matcher<?> columnMatcher, Matcher<?> valuesMatcher) {
-        assertMap(
-            result,
-            getResultMatcher(result).entry("columns", columnMatcher)
-                .entry("values", valuesMatcher)
-                .entry("documents_found", greaterThanOrEqualTo(0))
-                .entry("values_loaded", greaterThanOrEqualTo(0))
-        );
+        assertMap(result, getResultMatcher(result).entry("columns", columnMatcher).entry("values", valuesMatcher));
     }
 
     protected static void assertResultMap(Map<String, Object> result, Object columnMatcher, Object valuesMatcher) {

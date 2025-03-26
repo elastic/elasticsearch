@@ -107,8 +107,16 @@ public interface Layout {
             Map<NameId, ChannelAndType> layout = new HashMap<>();
             int numberOfChannels = 0;
             for (ChannelSet set : channels) {
-                int channel = numberOfChannels++;
+                boolean createNewChannel = true;
+                int channel = 0;
                 for (NameId id : set.nameIds) {
+                    if (layout.containsKey(id)) {
+                        continue;
+                    }
+                    if (createNewChannel) {
+                        channel = numberOfChannels++;
+                        createNewChannel = false;
+                    }
                     ChannelAndType next = new ChannelAndType(channel, set.type);
                     ChannelAndType prev = layout.put(id, next);
                     // Do allow multiple name to point to the same channel - see https://github.com/elastic/elasticsearch/pull/100238

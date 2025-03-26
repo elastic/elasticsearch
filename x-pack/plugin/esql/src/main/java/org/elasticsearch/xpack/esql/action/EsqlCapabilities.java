@@ -927,7 +927,12 @@ public class EsqlCapabilities {
         /**
          * Index component selector syntax (my-data-stream-name::failures)
          */
-        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled());
+        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+
+        /**
+         * Create null alias with new id in ReplaceMissingFieldWithNull when there is lookup join with multiple batches.
+         */
+        REPLACE_MISSING_FIELD_WITH_NULL_NEW_ALIAS_ID_FOR_JOIN_AND_MULTIPLE_BATCHES;
 
         private final boolean enabled;
 

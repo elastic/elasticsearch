@@ -10,10 +10,15 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -22,6 +27,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
@@ -29,13 +36,13 @@ import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -47,16 +54,38 @@ import static org.hamcrest.Matchers.equalTo;
 public class SemanticTextIndexVersionIT extends ESIntegTestCase {
     private static final IndexVersion SEMANTIC_TEXT_INTRODUCED_VERSION = IndexVersion.fromId(8512000);
     private static final double PERCENTAGE_TO_TEST = 0.5;
-    private Set<IndexVersion> availableVersions;
+    private static final int MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST = 25;
+    private List<IndexVersion> selectedVersions;
 
     @Before
     public void setup() throws Exception {
         ModelRegistry modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
+        DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        // dot product means that we need normalized vectors; it's not worth doing that in this test
+        SimilarityMeasure similarity = randomValueOtherThan(
+            SimilarityMeasure.DOT_PRODUCT,
+            () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
+        );
+        int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
         Utils.storeSparseModel(modelRegistry);
-        availableVersions = IndexVersionUtils.allReleasedVersions()
+        Utils.storeDenseModel(modelRegistry, dimensions, similarity, elementType);
+
+        Set<IndexVersion> availableVersions = IndexVersionUtils.allReleasedVersions()
             .stream()
             .filter(indexVersion -> indexVersion.after(SEMANTIC_TEXT_INTRODUCED_VERSION))
             .collect(Collectors.toSet());
+
+        Function<Set<IndexVersion>, Integer> determineNumberOfVersionsToTest = versions -> {
+            int totalVersions = versions.size();
+            int percentageTestSize = (int) Math.ceil(totalVersions * PERCENTAGE_TO_TEST);
+
+            return totalVersions < MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST
+                ? totalVersions
+                : Math.min(percentageTestSize, MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST);
+        };
+
+        int versionsCount = determineNumberOfVersionsToTest.apply(availableVersions);
+        selectedVersions = randomSubsetOf(versionsCount, availableVersions);
     }
 
     @Override
@@ -71,34 +100,14 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateInferencePlugin.class);
+        return List.of(LocalStateInferencePlugin.class, FakeMlPlugin.class, FakeSemanticQueryBuilderPlugin.class);
     }
 
     /**
      * Generate settings for an index with a specific version.
      */
     private Settings getIndexSettingsWithVersion(IndexVersion version) {
-        return Settings.builder().put(indexSettings()).put("index.version.created", version).build();
-    }
-
-    /**
-     * Creates a subset of indices with different versions for testing.
-     *
-     * @return Map of created indices with their versions
-     */
-    protected Map<String, IndexVersion> createRandomVersionIndices() throws IOException {
-        int versionsCount = (int) Math.ceil(availableVersions.size() * PERCENTAGE_TO_TEST);
-        List<IndexVersion> selectedVersions = randomSubsetOf(versionsCount, availableVersions);
-        Map<String, IndexVersion> result = new HashMap<>();
-
-        for (int i = 0; i < selectedVersions.size(); i++) {
-            String indexName = "test_semantic" + "_" + i;
-            IndexVersion version = selectedVersions.get(i);
-            createIndex(indexName, getIndexSettingsWithVersion(version));
-            result.put(indexName, version);
-        }
-
-        return result;
+        return Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
     }
 
     /**
@@ -106,9 +115,9 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
      * for a selected subset of index versions.
      */
     public void testSemanticText() throws Exception {
-        Map<String, IndexVersion> indices = createRandomVersionIndices();
-        for (String indexName : indices.keySet()) {
-            IndexVersion version = indices.get(indexName);
+        for (IndexVersion version : selectedVersions) {
+            String indexName = "test_semantic_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+            createIndex(indexName, getIndexSettingsWithVersion(version));
 
             // Test index creation
             assertTrue("Index " + indexName + " should exist", indexExists(indexName));
@@ -164,17 +173,36 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 .getIndexToSettings()
                 .get(indexName);
 
-            // Semantic Search with highlighter only available from 8.18 and 9.0
-            if (InferenceMetadataFieldsMapper.isEnabled(settings)) {
-                SearchSourceBuilder sourceHighlighterBuilder = new SearchSourceBuilder().query(
-                    new SemanticQueryBuilder("semantic_field", "inference")
-                ).highlighter(new HighlightBuilder().field("semantic_field")).trackTotalHits(true);
+            // Semantic Search with highlighter
+            SearchSourceBuilder sourceHighlighterBuilder = new SearchSourceBuilder().query(
+                new SemanticQueryBuilder("semantic_field", "inference")
+            ).highlighter(new HighlightBuilder().field("semantic_field")).trackTotalHits(true);
 
-                assertResponse(client().search(new SearchRequest(indexName).source(sourceHighlighterBuilder)), response -> {
-                    assertHighlight(response, 0, "semantic_field", 0, 2, equalTo("inference test"));
-                    assertHighlight(response, 0, "semantic_field", 1, 2, equalTo("another inference test"));
-                });
-            }
+            assertResponse(client().search(new SearchRequest(indexName).source(sourceHighlighterBuilder)), response -> {
+                assertHighlight(response, 0, "semantic_field", 0, 2, equalTo("inference test"));
+                assertHighlight(response, 0, "semantic_field", 1, 2, equalTo("another inference test"));
+            });
+
+            beforeIndexDeletion();
+            assertAcked(client().admin().indices().prepareDelete(indexName));
+        }
+    }
+
+    public static class FakeMlPlugin extends Plugin {
+        @Override
+        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+            return new MlInferenceNamedXContentProvider().getNamedWriteables();
+        }
+    }
+
+    public static class FakeSemanticQueryBuilderPlugin extends Plugin {
+        @Override
+        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+            List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+            namedWriteables.add(
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, SparseVectorQueryBuilder.NAME, SparseVectorQueryBuilder::new)
+            );
+            return namedWriteables;
         }
     }
 }

@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 
 public class DiscoveryEc2InstanceProfileIT extends DiscoveryEc2ClusterFormationTestCase {
 
+    // Lazy-initialized so we can generate it randomly, which is not possible in static context.
     private static final Supplier<String> regionSupplier = new LazyInitializable<>(ESTestCase::randomIdentifier)::getOrCompute;
 
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "ec2");

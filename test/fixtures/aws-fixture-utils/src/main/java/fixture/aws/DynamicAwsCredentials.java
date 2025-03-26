@@ -23,8 +23,21 @@ import java.util.function.Supplier;
  */
 public class DynamicAwsCredentials {
 
+    /**
+     * Extra validation that requests are signed using the correct region. Lazy so it can be randomly generated after initialization, since
+     * randomness is not available in static context.
+     */
     private final Supplier<String> expectedRegionSupplier;
+
+    /**
+     * Extra validation that requests are directed to the correct service.
+     */
     private final String expectedServiceName;
+
+    /**
+     * The set of access keys for each session token registered with {@link #addValidCredentials}. It's this way round because the session
+     * token is a separate header so it's easier to extract.
+     */
     private final Map<String, Set<String>> validCredentialsMap = ConcurrentCollections.newConcurrentMap();
 
     /**

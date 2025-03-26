@@ -268,7 +268,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
      */
     static int parseIntFromObjectOrString(Object o, String fieldName) {
         if (o == null) {
-            return 0;
+            return -1;
         } else if (o instanceof Number number) {
             return number.intValue();
         } else if (o instanceof String string) {

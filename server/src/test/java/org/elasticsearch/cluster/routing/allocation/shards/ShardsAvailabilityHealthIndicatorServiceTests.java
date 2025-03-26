@@ -77,6 +77,7 @@ import org.mockito.stubbing.Answer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -84,6 +85,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toMap;
@@ -2249,6 +2252,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             testResolverSupportingMultipleProjects
         );
 
+        List<String> indexDisplayNames = Stream.of(
+            projectId1 + ProjectIndexName.DELIMITER + index1,
+            projectId1 + ProjectIndexName.DELIMITER + index2,
+            projectId2 + ProjectIndexName.DELIMITER + index1
+        ).sorted(Comparator.naturalOrder()).toList();
+
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
@@ -2263,10 +2272,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             1,
                             String.format(
                                 Locale.ROOT,
-                                "Cannot add data to 3 indices [%s, %s, %s]. Searches might return incomplete results.",
-                                projectId1 + ProjectIndexName.DELIMITER + index1,
-                                projectId1 + ProjectIndexName.DELIMITER + index2,
-                                projectId2 + ProjectIndexName.DELIMITER + index1
+                                "Cannot add data to 3 indices [%s]. Searches might return incomplete results.",
+                                String.join(", ", indexDisplayNames)
                             ),
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
@@ -2277,11 +2284,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(
                                 new Diagnosis.Resource(
                                     INDEX,
-                                    List.of(
-                                        projectId1 + ProjectIndexName.DELIMITER + index1,
-                                        projectId1 + ProjectIndexName.DELIMITER + index2,
-                                        projectId2 + ProjectIndexName.DELIMITER + index1
-                                    )
+                                    indexDisplayNames
                                 )
                             )
                         )

@@ -902,15 +902,22 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     Set<Index> maybeExecuteRetention(ProjectMetadata project, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
         DataStreamGlobalRetention globalRetention = dataStream.isSystem() ? null : globalRetentionSettings.get();
-        List<Index> backingIndicesOlderThanRetention = dataStream.getBackingIndicesPastRetention(
+        var dataRetention = getRetention(dataStream, globalRetention, false);
+        var failureRetention = getRetention(dataStream, globalRetention, true);
+        if (dataRetention == null && failureRetention == null) {
+            return Set.of();
+        }
+        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
             project::index,
             nowSupplier,
-            globalRetention
+            dataRetention,
+            false
         );
-        List<Index> failureIndicesOlderThanRetention = dataStream.getFailureIndicesPastRetention(
+        List<Index> failureIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
             project::index,
             nowSupplier,
-            globalRetention
+            failureRetention,
+            true
         );
         if (backingIndicesOlderThanRetention.isEmpty() && failureIndicesOlderThanRetention.isEmpty()) {
             return Set.of();
@@ -918,7 +925,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Set<Index> indicesToBeRemoved = new HashSet<>();
         if (backingIndicesOlderThanRetention.isEmpty() == false) {
             assert dataStream.getDataLifecycle() != null : "data stream should have failure lifecycle if we have 'old' indices";
-            TimeValue dataRetention = dataStream.getDataLifecycle().getEffectiveDataRetention(globalRetention, dataStream.isInternal());
             for (Index index : backingIndicesOlderThanRetention) {
                 if (indicesToExcludeForRemainingRun.contains(index) == false) {
                     IndexMetadata backingIndex = project.index(index);
@@ -952,7 +958,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
         if (failureIndicesOlderThanRetention.isEmpty() == false) {
             assert dataStream.getFailuresLifecycle() != null : "data stream should have failure lifecycle if we have 'old' indices";
-            var failureRetention = dataStream.getFailuresLifecycle().getEffectiveDataRetention(globalRetention, dataStream.isInternal());
             for (Index index : failureIndicesOlderThanRetention) {
                 if (indicesToExcludeForRemainingRun.contains(index) == false) {
                     IndexMetadata failureIndex = project.index(index);
@@ -1350,6 +1355,14 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private static boolean isForceMergeComplete(IndexMetadata backingIndex) {
         Map<String, String> customMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
+    }
+
+    @Nullable
+    private static TimeValue getRetention(DataStream dataStream, DataStreamGlobalRetention globalRetention, boolean failureStore) {
+        DataStreamLifecycle lifecycle = failureStore ? dataStream.getFailuresLifecycle() : dataStream.getDataLifecycle();
+        return lifecycle == null || lifecycle.enabled() == false
+            ? null
+            : lifecycle.getEffectiveDataRetention(globalRetention, dataStream.isInternal());
     }
 
     /**

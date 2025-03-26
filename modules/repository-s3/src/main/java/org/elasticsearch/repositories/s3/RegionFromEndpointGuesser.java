@@ -67,7 +67,7 @@ class RegionFromEndpointGuesser {
     // TODO NOMERGE needs tests
     // TODO NOMERGE check this does the right thing with existing ECH configs
     @Nullable
-    String guessRegion(@Nullable String endpoint) {
+    static String guessRegion(@Nullable String endpoint) {
         if (endpoint == null) {
             return null;
         }

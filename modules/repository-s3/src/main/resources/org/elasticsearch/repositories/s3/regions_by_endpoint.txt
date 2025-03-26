@@ -52,10 +52,6 @@ ap-southeast-7     s3.ap-southeast-7.amazonaws.com
 ap-southeast-7     s3.dualstack.ap-southeast-7.amazonaws.com
 aws-cn-global      s3.aws-cn-global.amazonaws.com.cn
 aws-cn-global      s3.dualstack.aws-cn-global.amazonaws.com.cn
-aws-global         s3-fips.dualstack.us-east-1.amazonaws.com
-aws-global         s3-fips.us-east-1.amazonaws.com
-aws-global         s3.amazonaws.com
-aws-global         s3.dualstack.us-east-1.amazonaws.com
 aws-iso-b-global   s3-fips.aws-iso-b-global.sc2s.sgov.gov
 aws-iso-b-global   s3-fips.dualstack.aws-iso-b-global.sc2s.sgov.gov
 aws-iso-b-global   s3.aws-iso-b-global.sc2s.sgov.gov
@@ -137,6 +133,10 @@ sa-east-1          s3-fips.sa-east-1.amazonaws.com
 sa-east-1          s3.dualstack.sa-east-1.amazonaws.com
 sa-east-1          s3.sa-east-1.amazonaws.com
 us-east-1          s3.us-east-1.amazonaws.com
+us-east-1          s3-fips.dualstack.us-east-1.amazonaws.com
+us-east-1          s3-fips.us-east-1.amazonaws.com
+us-east-1          s3.amazonaws.com
+us-east-1          s3.dualstack.us-east-1.amazonaws.com
 us-east-2          s3-fips.dualstack.us-east-2.amazonaws.com
 us-east-2          s3-fips.us-east-2.amazonaws.com
 us-east-2          s3.dualstack.us-east-2.amazonaws.com

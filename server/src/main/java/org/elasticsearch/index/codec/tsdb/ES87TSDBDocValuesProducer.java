@@ -89,7 +89,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     state.segmentSuffix
                 );
 
-                readFields(in, state.fieldInfos);
+                readFields(in, version, state.fieldInfos);
 
             } catch (Throwable exception) {
                 priorE = exception;
@@ -861,7 +861,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         data.close();
     }
 
-    private void readFields(IndexInput meta, FieldInfos infos) throws IOException {
+    private void readFields(IndexInput meta, int version, FieldInfos infos) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);
             if (info == null) {
@@ -872,24 +872,24 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 skippers.put(info.name, readDocValueSkipperMeta(meta));
             }
             if (type == ES87TSDBDocValuesFormat.NUMERIC) {
-                numerics.put(info.name, readNumeric(meta));
+                numerics.put(info.name, readNumeric(meta, version));
             } else if (type == ES87TSDBDocValuesFormat.BINARY) {
                 binaries.put(info.name, readBinary(meta));
             } else if (type == ES87TSDBDocValuesFormat.SORTED) {
-                sorted.put(info.name, readSorted(meta));
+                sorted.put(info.name, readSorted(meta, version));
             } else if (type == ES87TSDBDocValuesFormat.SORTED_SET) {
-                sortedSets.put(info.name, readSortedSet(meta));
+                sortedSets.put(info.name, readSortedSet(meta, version));
             } else if (type == ES87TSDBDocValuesFormat.SORTED_NUMERIC) {
-                sortedNumerics.put(info.name, readSortedNumeric(meta));
+                sortedNumerics.put(info.name, readSortedNumeric(meta, version));
             } else {
                 throw new CorruptIndexException("invalid type: " + type, meta);
             }
         }
     }
 
-    private static NumericEntry readNumeric(IndexInput meta) throws IOException {
+    private static NumericEntry readNumeric(IndexInput meta, int version) throws IOException {
         NumericEntry entry = new NumericEntry();
-        readNumeric(meta, entry);
+        readNumeric(meta, entry, version);
         return entry;
     }
 
@@ -904,8 +904,13 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID);
     }
 
-    private static void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
-        // TODO: deal with bwc
+    private static void readNumeric(IndexInput meta, NumericEntry entry, int version) throws IOException {
+        if (version == ES87TSDBDocValuesFormat.VERSION_START) {
+            entry.docsWithFieldOffset = meta.readLong();
+            entry.docsWithFieldLength = meta.readLong();
+            entry.jumpTableEntryCount = meta.readShort();
+            entry.denseRankPower = meta.readByte();
+        }
         entry.numValues = meta.readLong();
         if (entry.numValues > 0) {
             final int indexBlockShift = meta.readInt();
@@ -923,10 +928,12 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             entry.valuesOffset = meta.readLong();
             entry.valuesLength = meta.readLong();
         }
-        entry.docsWithFieldOffset = meta.readLong();
-        entry.docsWithFieldLength = meta.readLong();
-        entry.jumpTableEntryCount = meta.readShort();
-        entry.denseRankPower = meta.readByte();
+        if (version == ES87TSDBDocValuesFormat.VERSION_DISI_CHANGE) {
+            entry.docsWithFieldOffset = meta.readLong();
+            entry.docsWithFieldLength = meta.readLong();
+            entry.jumpTableEntryCount = meta.readShort();
+            entry.denseRankPower = meta.readByte();
+        }
     }
 
     private BinaryEntry readBinary(IndexInput meta) throws IOException {
@@ -953,14 +960,14 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         return entry;
     }
 
-    private static SortedNumericEntry readSortedNumeric(IndexInput meta) throws IOException {
+    private static SortedNumericEntry readSortedNumeric(IndexInput meta, int version) throws IOException {
         SortedNumericEntry entry = new SortedNumericEntry();
-        readSortedNumeric(meta, entry);
+        readSortedNumeric(meta, entry, version);
         return entry;
     }
 
-    private static SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry) throws IOException {
-        readNumeric(meta, entry);
+    private static SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry, int version) throws IOException {
+        readNumeric(meta, entry, version);
         entry.numDocsWithField = meta.readInt();
         if (entry.numDocsWithField != entry.numValues) {
             entry.addressesOffset = meta.readLong();
@@ -971,21 +978,21 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         return entry;
     }
 
-    private SortedEntry readSorted(IndexInput meta) throws IOException {
+    private static SortedEntry readSorted(IndexInput meta, int version) throws IOException {
         SortedEntry entry = new SortedEntry();
         entry.ordsEntry = new NumericEntry();
-        readNumeric(meta, entry.ordsEntry);
+        readNumeric(meta, entry.ordsEntry, version);
         entry.termsDictEntry = new TermsDictEntry();
         readTermDict(meta, entry.termsDictEntry);
         return entry;
     }
 
-    private SortedSetEntry readSortedSet(IndexInput meta) throws IOException {
+    private static SortedSetEntry readSortedSet(IndexInput meta, int version) throws IOException {
         SortedSetEntry entry = new SortedSetEntry();
         byte multiValued = meta.readByte();
         switch (multiValued) {
             case 0: // singlevalued
-                entry.singleValueEntry = readSorted(meta);
+                entry.singleValueEntry = readSorted(meta, version);
                 return entry;
             case 1: // multivalued
                 break;
@@ -993,7 +1000,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 throw new CorruptIndexException("Invalid multiValued flag: " + multiValued, meta);
         }
         entry.ordsEntry = new SortedNumericEntry();
-        readSortedNumeric(meta, entry.ordsEntry);
+        readSortedNumeric(meta, entry.ordsEntry, version);
         entry.termsDictEntry = new TermsDictEntry();
         readTermDict(meta, entry.termsDictEntry);
         return entry;

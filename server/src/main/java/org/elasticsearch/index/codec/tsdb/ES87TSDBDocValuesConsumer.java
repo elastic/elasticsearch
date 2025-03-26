@@ -127,7 +127,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         }
         meta.writeLong(numValues);
 
-        // TODO: deal with bwc
+        // TODO: write bwc tests
         // TODO: write DISI to temp file and append it later to data part:
         var docIdSetBuilder = new RoaringDocIdSet.Builder(maxDoc);
         if (numValues > 0) {

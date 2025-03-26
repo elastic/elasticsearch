@@ -349,7 +349,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         int affectedDataStreams = 0;
         for (DataStream dataStream : state.metadata().getProject().dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(dataStream);
-            if (dataStream.getDataLifecycle() == null) {
+            var dataLifecycleDisabled = dataStream.getDataLifecycle() == null || dataStream.getDataLifecycle().enabled() == false;
+            var failureLifecycleDisabled = dataStream.getFailureIndices().isEmpty()
+                || dataStream.getFailuresLifecycle() != null && dataStream.getFailuresLifecycle().enabled() == false;
+            if (dataLifecycleDisabled && failureLifecycleDisabled) {
                 continue;
             }
 
@@ -1313,7 +1316,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Nullable
     private static TimeValue getRetention(DataStream dataStream, DataStreamGlobalRetention globalRetention, boolean failureStore) {
-        if (failureStore && DataStream.isFailureStoreFeatureFlagEnabled()) {
+        if (failureStore && DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             return null;
         }
         DataStreamLifecycle lifecycle = failureStore ? dataStream.getFailuresLifecycle() : dataStream.getDataLifecycle();

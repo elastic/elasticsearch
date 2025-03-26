@@ -55,7 +55,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -359,10 +358,10 @@ public class CacheService extends AbstractLifecycleComponent {
         if (allowShardsEvictions.tryIncRef()) {
             try {
                 final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
-                final AtomicReference<AbstractRunnable> evictionToSchedule = new AtomicReference<>();
+                final AbstractRunnable[] evictionToSchedule = new AbstractRunnable[1];
                 pendingShardsEvictions.computeIfAbsent(shardEviction, shard -> {
                     final PlainActionFuture<?> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
-                    evictionToSchedule.set(new AbstractRunnable() {
+                    evictionToSchedule[0] = new AbstractRunnable() {
                         @Override
                         protected void doRun() {
                             processShardEviction(shard);
@@ -373,12 +372,12 @@ public class CacheService extends AbstractLifecycleComponent {
                             logger.warn(() -> format("failed to evict cache files associated with shard %s", shard), e);
                             assert false : e;
                         }
-                    });
+                    };
                     return future;
                 });
                 // Only schedule after we return to ensure the eviction is present before the eviction runs
-                if (evictionToSchedule.get() != null) {
-                    threadPool.generic().execute(evictionToSchedule.get());
+                if (evictionToSchedule[0] != null) {
+                    threadPool.generic().execute(evictionToSchedule[0]);
                 }
             } finally {
                 allowShardsEvictions.decRef();

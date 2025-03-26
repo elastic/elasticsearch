@@ -27,12 +27,12 @@ public class JinaAIRerankRequestTests extends ESTestCase {
 
     private static final String API_KEY = "foo";
 
-    public void testCreateRequest_WithoutModelSet_And_WithoutTopNSet() throws IOException {
+    public void testCreateRequest_WithMinimalFieldsSet() throws IOException {
         var input = "input";
         var query = "query";
         var modelId = "model";
 
-        var request = createRequest(query, input, modelId, null);
+        var request = createRequest(query, input, modelId, null, null, null);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -49,13 +49,14 @@ public class JinaAIRerankRequestTests extends ESTestCase {
         assertThat(requestMap.get("model"), is(modelId));
     }
 
-    public void testCreateRequest_WithTopNSet() throws IOException {
+    public void testCreateRequest_WithAllFieldsSet() throws IOException {
         var input = "input";
         var query = "query";
         var topN = 1;
+        var taskSettingsTopN = 2;
         var modelId = "model";
 
-        var request = createRequest(query, input, modelId, topN);
+        var request = createRequest(query, input, modelId, topN, Boolean.FALSE, taskSettingsTopN);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -66,10 +67,11 @@ public class JinaAIRerankRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
 
-        assertThat(requestMap, aMapWithSize(4));
+        assertThat(requestMap, aMapWithSize(5));
         assertThat(requestMap.get("documents"), is(List.of(input)));
         assertThat(requestMap.get("query"), is(query));
         assertThat(requestMap.get("top_n"), is(topN));
+        assertThat(requestMap.get("return_documents"), is(Boolean.FALSE));
         assertThat(requestMap.get("model"), is(modelId));
     }
 
@@ -78,7 +80,7 @@ public class JinaAIRerankRequestTests extends ESTestCase {
         var query = "query";
         var modelId = "model";
 
-        var request = createRequest(query, input, modelId, null);
+        var request = createRequest(query, input, modelId, null, null, null);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -96,15 +98,22 @@ public class JinaAIRerankRequestTests extends ESTestCase {
     }
 
     public void testTruncate_DoesNotTruncate() {
-        var request = createRequest("query", "input", "null", null);
+        var request = createRequest("query", "input", "null", null, null, null);
         var truncatedRequest = request.truncate();
 
         assertThat(truncatedRequest, sameInstance(request));
     }
 
-    private static JinaAIRerankRequest createRequest(String query, String input, @Nullable String modelId, @Nullable Integer topN) {
-        var rerankModel = JinaAIRerankModelTests.createModel(API_KEY, modelId, topN);
-        return new JinaAIRerankRequest(query, List.of(input), rerankModel);
+    private static JinaAIRerankRequest createRequest(
+        String query,
+        String input,
+        @Nullable String modelId,
+        @Nullable Integer topN,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer taskSettingsTopN
+    ) {
+        var rerankModel = JinaAIRerankModelTests.createModel(API_KEY, modelId, taskSettingsTopN);
+        return new JinaAIRerankRequest(query, List.of(input), returnDocuments, topN, rerankModel);
 
     }
 }

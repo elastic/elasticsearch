@@ -271,12 +271,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
-        assertMap(answer, matchesMap().entry("took", greaterThanOrEqualTo(0))
-            .entry("is_partial", any(Boolean.class))
-            .entry("documents_found", 0)
-            .entry("values_loaded", 0)
-            .entry("columns", List.of(colA, colB))
-            .entry("values", List.of(List.of(1, 2))));
+        assertMap(
+            answer,
+            matchesMap().entry("took", greaterThanOrEqualTo(0))
+                .entry("is_partial", any(Boolean.class))
+                .entry("documents_found", 0)
+                .entry("values_loaded", 0)
+                .entry("columns", List.of(colA, colB))
+                .entry("values", List.of(List.of(1, 2)))
+        );
     }
 
     public void testUseUnknownIndex() throws IOException {

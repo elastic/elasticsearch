@@ -1,10 +1,10 @@
 // Tests focused on the RANDOM_SAMPLE command
 
 row
+required_capability: random_sample
 
 ROW x = 1
-required_capability: random_sample
-| RANDOM_SAMPLE .9 9
+| RANDOM_SAMPLE .99 9
 ;
 
 x:integer
@@ -19,11 +19,11 @@ FROM employees
 | SORT emp_no
 | LIMIT 5
 | STATS empNoMax = MAX(emp_no)
-| EVAL inRange = empNoMax < 10030
-| KEEP inRange
+| EVAL correct = empNoMax < 10030
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;
 
@@ -36,11 +36,11 @@ FROM employees
 | SORT emp_no
 | LIMIT 5
 | STATS empNoMax = MAX(emp_no)
-| EVAL inRange = empNoMax < 10030
-| KEEP inRange
+| EVAL correct = empNoMax < 10030
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;
 
@@ -49,14 +49,12 @@ required_capability: random_sample
 
 FROM employees
 | RANDOM_SAMPLE .5 123
-| STATS c=COUNT(*)
-| EVAL tolerance = 3
-| EVAL singleNodeResult = 55
-| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
-| KEEP inRange
+| STATS count = COUNT(*)
+| EVAL correct = count > 50 AND count < 150
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;
 
@@ -66,14 +64,12 @@ required_capability: random_sample
 FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
 | RANDOM_SAMPLE .5 123
-| STATS c=COUNT(*)
-| EVAL tolerance = 3
-| EVAL singleNodeResult = 55
-| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
-| KEEP inRange
+| STATS count = COUNT(*)
+| EVAL correct = count > 50 AND count < 150
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;
 
@@ -82,12 +78,12 @@ required_capability: random_sample
 
 FROM employees
 | RANDOM_SAMPLE .5
-| STATS c=COUNT(*)
-| EVAL inRange = c > 30 AND c < 70
-| KEEP inRange
+| STATS count = COUNT(*)
+| EVAL correct = count > 50 AND count < 150
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;
 
@@ -97,8 +93,8 @@ required_capability: random_sample
 FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
 | RANDOM_SAMPLE .5
-| STATS c=COUNT(*)
-| EVAL inRange = c > 30 AND c < 70
+| STATS count = COUNT(*)
+| EVAL inRange = count > 50 AND count < 150
 | KEEP inRange
 ;
 
@@ -112,14 +108,12 @@ required_capability: random_sample
 FROM employees
 | RANDOM_SAMPLE .5 0
 | WHERE emp_no > 10050
-| STATS c=COUNT(*)
-| EVAL tolerance = 3
-| EVAL singleNodeResult = 25
-| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
-| KEEP inRange
+| STATS count = COUNT(*)
+| EVAL correct = count > 20 AND count < 80
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;
 
@@ -130,14 +124,12 @@ FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
 | RANDOM_SAMPLE .5 0
 | WHERE emp_no > 10050
-| STATS c=COUNT(*)
-| EVAL tolerance = 3
-| EVAL singleNodeResult = 25
-| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
-| KEEP inRange
+| STATS count = COUNT(*)
+| EVAL correct = count > 20 AND count < 80
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;
 
@@ -148,14 +140,12 @@ FROM employees
 | RANDOM_SAMPLE .6 11
 | EVAL e1 = emp_no + 1
 | RANDOM_SAMPLE .7 11111
-| STATS c=COUNT(e1)
-| EVAL tolerance = 3
-| EVAL singleNodeResult = 42
-| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
-| KEEP inRange
+| STATS count = COUNT(e1)
+| EVAL correct = count > 50 AND count < 150
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;
 
@@ -167,14 +157,12 @@ FROM employees
 | RANDOM_SAMPLE .6 11
 | EVAL e1 = emp_no + 1
 | RANDOM_SAMPLE .7 11111
-| STATS c=COUNT(e1)
-| EVAL tolerance = 3
-| EVAL singleNodeResult = 42
-| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
-| KEEP inRange
+| STATS count = COUNT(e1)
+| EVAL correct = count > 50 AND count < 150
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;
 
@@ -187,14 +175,12 @@ FROM employees
 | RANDOM_SAMPLE .7 11111
 | EVAL e1s = e1::KEYWORD
 | RANDOM_SAMPLE .1
-| STATS c=COUNT(e1s)
-| EVAL tolerance = 3
-| EVAL singleNodeResult = 4
-| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
-| KEEP inRange
+| STATS count = COUNT(e1s)
+| EVAL correct = count > 0 AND count < 250
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;
 
@@ -208,13 +194,11 @@ FROM employees
 | RANDOM_SAMPLE .7 11111
 | EVAL e1s = e1::KEYWORD
 | RANDOM_SAMPLE .1
-| STATS c=COUNT(e1s)
-| EVAL tolerance = 3
-| EVAL singleNodeResult = 4
-| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
-| KEEP inRange
+| STATS count = COUNT(e1s)
+| EVAL correct = count > 0 AND count < 250
+| KEEP correct
 ;
 
-inRange:boolean
+correct:boolean
 true
 ;

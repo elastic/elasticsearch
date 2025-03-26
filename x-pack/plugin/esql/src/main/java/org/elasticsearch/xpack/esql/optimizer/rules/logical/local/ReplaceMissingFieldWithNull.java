@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Look for any fields used in the plan that are missing locally and replace them with null.
@@ -79,8 +82,8 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
         else if (plan instanceof Project project) {
             var projections = project.projections();
             List<NamedExpression> newProjections = new ArrayList<>(projections.size());
+            Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
             AttributeSet joinAttributes = joinAttributes(project);
-            ArrayList<Alias> replacedFieldAttributesInProject = new ArrayList<>();
 
             for (NamedExpression projection : projections) {
                 if (projection instanceof FieldAttribute f
@@ -90,18 +93,28 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                     && f.field() instanceof PotentiallyUnmappedKeywordEsField == false) {
                     // TODO: Should do a searchStats lookup for join attributes instead of just ignoring them here
                     // See TransportSearchShardsAction
-                    Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), null);
-                    replacedFieldAttributesInProject.add(alias);
-                    fieldAttrReplacedBy.put(f, alias.toAttribute());
-                    projection = alias.toAttribute();
+                    DataType dt = f.dataType();
+                    Alias nullAlias = nullLiteral.get(f.dataType());
+                    // save the first field as null (per datatype)
+                    if (nullAlias == null) {
+                        Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), null);
+                        nullLiteral.put(dt, alias);
+                        projection = alias.toAttribute();
+                    }
+                    // otherwise point to it
+                    else {
+                        // since avoids creating field copies
+                        projection = new Alias(f.source(), f.name(), nullAlias.toAttribute(), null);
+                    }
+                    fieldAttrReplacedBy.put(f, projection.toAttribute());
                 }
 
                 newProjections.add(projection);
             }
 
             // Add an EVAL ahead of the Project to create null literals
-            if (replacedFieldAttributesInProject.size() > 0) {
-                plan = new Eval(project.source(), project.child(), replacedFieldAttributesInProject);
+            if (nullLiteral.size() > 0) {
+                plan = new Eval(project.source(), project.child(), new ArrayList<>(nullLiteral.values()));
                 plan = new Project(project.source(), plan, newProjections);
             }
         } else if (plan instanceof Eval

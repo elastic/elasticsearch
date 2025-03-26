@@ -43,7 +43,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Defines a kNN search to run in the search request.
  */
 public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewriteable<KnnSearchBuilder> {
-    public static final int NUM_CANDS_LIMIT = 10_000;
     public static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -263,9 +262,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             throw new IllegalArgumentException(
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
             );
-        }
-        if (numCandidates > NUM_CANDS_LIMIT) {
-            throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
         }
         if (queryVector == null && queryVectorBuilder == null) {
             throw new IllegalArgumentException(
@@ -667,9 +663,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         public KnnSearchBuilder build(int size) {
             int requestSize = size < 0 ? DEFAULT_SIZE : size;
             int adjustedK = k == null ? requestSize : k;
-            int adjustedNumCandidates = numCandidates == null
-                ? Math.round(Math.min(NUM_CANDS_LIMIT, NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK))
-                : numCandidates;
+            int adjustedNumCandidates = numCandidates == null ? Math.round(NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK) : numCandidates;
             return new KnnSearchBuilder(
                 field,
                 queryVectorBuilder,

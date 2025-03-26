@@ -284,6 +284,17 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * The maximum number of candidates to be considered for KNN search. The default value is 10_000.
+     */
+    public static final Setting<Integer> INDEX_MAX_KNN_NUM_CANDIDATES_SETTING = Setting.intSetting(
+        "index.max_knn_num_candidates",
+        10_000,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> NODE_DEFAULT_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "node._internal.default_refresh_interval",
@@ -930,6 +941,8 @@ public final class IndexSettings {
      */
     private volatile int maxRegexLength;
 
+    private volatile int maxKnnNumCandidates;
+
     private final IndexRouting indexRouting;
 
     /**
@@ -1083,6 +1096,7 @@ public final class IndexSettings {
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
+        maxKnnNumCandidates = scopedSettings.get(INDEX_MAX_KNN_NUM_CANDIDATES_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
@@ -1203,6 +1217,7 @@ public final class IndexSettings {
             this::setSkipIgnoredSourceWrite
         );
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAX_KNN_NUM_CANDIDATES_SETTING, this::setMaxKnnNumCandidates);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1820,5 +1835,13 @@ public final class IndexSettings {
      */
     public IndexRouting getIndexRouting() {
         return indexRouting;
+    }
+
+    public int getMaxKnnNumCandidates() {
+        return maxKnnNumCandidates;
+    }
+
+    public void setMaxKnnNumCandidates(int maxKnnNumCandidates) {
+        this.maxKnnNumCandidates = maxKnnNumCandidates;
     }
 }

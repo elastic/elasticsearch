@@ -24,9 +24,11 @@ import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -39,7 +41,6 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_DAY;
 
 final class CefParser {
-
     private final IngestDocument ingestDocument;
     private final boolean removeEmptyValue;
     private final ZoneId timezone;
@@ -61,8 +62,20 @@ final class CefParser {
     private static final Pattern EXTENSION_NEXT_KEY_VALUE_PATTERN = Pattern.compile(
         "(" + EXTENSION_KEY_PATTERN + ")=(" + EXTENSION_VALUE_PATTERN + ")(?:\\s+|$)"
     );
-    private static final Map<String, String> EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING = new HashMap<>();
+    private static final Map<String, String> EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING = Map.of(
+        "\\\\",
+        "\\",
+        "\\=",
+        "=",
+        "\\\n",
+        "\n",
+        "\\\r",
+        "\r"
+    );
     private static final Map<String, String> FIELD_MAPPING = new HashMap<>();
+    private static final Map<String, Class<?>> FIELDS = new HashMap<>();
+    private static final Set<String> FILED_MAPPINGS_AND_VALUES = new HashSet<>();
+
     private static final String ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = "incomplete CEF header";
     private static final List<String> TIME_LAYOUTS = Arrays.asList(
         // MMM dd HH:mm:ss.SSS zzz
@@ -91,7 +104,7 @@ final class CefParser {
         "MMM dd yyyy HH:mm:ss"
     );
 
-    private final List<ChronoField> FIELDS = Arrays.asList(
+    private final List<ChronoField> CHRONO_FIELDS = Arrays.asList(
         NANO_OF_SECOND,
         SECOND_OF_DAY,
         MINUTE_OF_DAY,
@@ -101,11 +114,6 @@ final class CefParser {
     );
 
     static {
-        EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\\\", "\\");
-        EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\=", "=");
-        EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\\n", "\n");
-        EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\\r", "\r");
-
         FIELD_MAPPING.put("app", "network.protocol");
         FIELD_MAPPING.put("in", "source.bytes");
         FIELD_MAPPING.put("out", "destination.bytes");
@@ -177,6 +185,80 @@ final class CefParser {
         FIELD_MAPPING.put("start", "event.start");
         FIELD_MAPPING.put("proto", "network.transport");
         // Add more mappings as needed
+
+        FIELDS.put("@timestamp", ZonedDateTime.class);
+        FIELDS.put("destination.bytes", Long.class);
+        FIELDS.put("destination.domain", String.class);
+        FIELDS.put("destination.geo.location.lat", Double.class);
+        FIELDS.put("destination.geo.location.lon", Double.class);
+        FIELDS.put("destination.ip", String.class);
+        FIELDS.put("destination.mac", String.class);
+        FIELDS.put("destination.port", Long.class);
+        FIELDS.put("destination.process.name", String.class);
+        FIELDS.put("destination.process.pid", Long.class);
+        FIELDS.put("destination.registered_domain", String.class);
+        FIELDS.put("destination.user.group.name", String.class);
+        FIELDS.put("destination.user.id", String.class);
+        FIELDS.put("destination.user.name", String.class);
+        FIELDS.put("device.event_class_id", String.class);
+        FIELDS.put("device.product", String.class);
+        FIELDS.put("device.vendor", String.class);
+        FIELDS.put("device.version", String.class);
+        FIELDS.put("event.action", String.class);
+        FIELDS.put("event.code", String.class);
+        FIELDS.put("event.end", ZonedDateTime.class);
+        FIELDS.put("event.id", String.class);
+        FIELDS.put("event.ingested", ZonedDateTime.class);
+        FIELDS.put("event.outcome", String.class);
+        FIELDS.put("event.reason", String.class);
+        FIELDS.put("event.start", ZonedDateTime.class);
+        FIELDS.put("event.timezone", String.class);
+        FIELDS.put("file.created", ZonedDateTime.class);
+        FIELDS.put("file.extension", String.class);
+        FIELDS.put("file.group", String.class);
+        FIELDS.put("file.hash", String.class);
+        FIELDS.put("file.inode", String.class);
+        FIELDS.put("file.mtime", ZonedDateTime.class);
+        FIELDS.put("file.name", String.class);
+        FIELDS.put("file.path", String.class);
+        FIELDS.put("file.size", Long.class);
+        FIELDS.put("host.nat.ip", String.class);
+        FIELDS.put("http.request.method", String.class);
+        FIELDS.put("http.request.referrer", String.class);
+        FIELDS.put("log.syslog.facility.code", Long.class);
+        FIELDS.put("message", String.class);
+        FIELDS.put("network.direction", String.class);
+        FIELDS.put("network.protocol", String.class);
+        FIELDS.put("network.transport", String.class);
+        FIELDS.put("observer.egress.interface.name", String.class);
+        FIELDS.put("observer.hostname", String.class);
+        FIELDS.put("observer.ingress.interface.name", String.class);
+        FIELDS.put("observer.ip", String.class);
+        FIELDS.put("observer.mac", String.class);
+        FIELDS.put("observer.name", String.class);
+        FIELDS.put("observer.registered_domain", String.class);
+        FIELDS.put("observer.version", String.class);
+        FIELDS.put("observer.vendor", String.class);
+        FIELDS.put("observer.product", String.class);
+        FIELDS.put("process.name", String.class);
+        FIELDS.put("process.pid", Long.class);
+        FIELDS.put("source.bytes", Long.class);
+        FIELDS.put("source.domain", String.class);
+        FIELDS.put("source.geo.location.lat", Double.class);
+        FIELDS.put("source.geo.location.lon", Double.class);
+        FIELDS.put("source.ip", String.class);
+        FIELDS.put("source.mac", String.class);
+        FIELDS.put("source.port", Long.class);
+        FIELDS.put("source.process.name", String.class);
+        FIELDS.put("source.process.pid", Long.class);
+        FIELDS.put("source.registered_domain", String.class);
+        FIELDS.put("source.service.name", String.class);
+        FIELDS.put("source.user.name", String.class);
+        FIELDS.put("url.original", String.class);
+        FIELDS.put("user_agent.original", String.class);
+
+        FILED_MAPPINGS_AND_VALUES.addAll(FIELD_MAPPING.keySet());
+        FILED_MAPPINGS_AND_VALUES.addAll(FIELD_MAPPING.values());
     }
 
     void process(String cefString, String targetField) {
@@ -199,31 +281,25 @@ final class CefParser {
             }
             for (int i = 0; i < headerFields.size(); i++) {
                 switch (i) {
-                    case 0:
-                        event.setVersion(headerFields.get(0).substring(4));
-                        break;
-                    case 1:
+                    case 0 -> event.setVersion(headerFields.get(0).substring(4));
+                    case 1 -> {
                         event.setDeviceVendor(headerFields.get(1));
                         ingestDocument.setFieldValue("observer.vendor", headerFields.get(1));
-                        break;
-                    case 2:
+                    }
+                    case 2 -> {
                         event.setDeviceProduct(headerFields.get(2));
                         ingestDocument.setFieldValue("observer.product", headerFields.get(2));
-                        break;
-                    case 3:
+                    }
+                    case 3 -> {
                         event.setDeviceVersion(headerFields.get(3));
                         ingestDocument.setFieldValue("observer.version", headerFields.get(3));
-                        break;
-                    case 4:
+                    }
+                    case 4 -> {
                         event.setDeviceEventClassId(headerFields.get(4));
                         ingestDocument.setFieldValue("event.code", headerFields.get(4));
-                        break;
-                    case 5:
-                        event.setName(headerFields.get(5));
-                        break;
-                    case 6:
-                        event.setSeverity(headerFields.get(6));
-                        break;
+                    }
+                    case 5 -> event.setName(headerFields.get(5));
+                    case 6 -> event.setSeverity(headerFields.get(6));
                 }
             }
             String extensionString = cefString.substring(extensionStart);
@@ -239,7 +315,7 @@ final class CefParser {
                 .stream()
                 .filter(entry -> FIELD_MAPPING.containsKey(entry.getKey()))
                 .collect(Collectors.toMap(entry -> FIELD_MAPPING.get(entry.getKey()), entry -> {
-                    Class<?> fieldType = ECSFieldWithType.getFieldType(FIELD_MAPPING.get(entry.getKey()));
+                    Class<?> fieldType = FIELDS.get(FIELD_MAPPING.get(entry.getKey()));
                     return convertValueToType(entry.getValue(), fieldType);
                 }));
 
@@ -270,6 +346,7 @@ final class CefParser {
         }
     }
 
+    // visible for testing
     ZonedDateTime toTimestamp(String value) {
         // First, try parsing as milliseconds
         try {
@@ -293,7 +370,7 @@ final class CefParser {
                     && accessor.isSupported(ChronoField.INSTANT_SECONDS) == false) {
                     int year = LocalDate.now(ZoneOffset.UTC).getYear();
                     ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
-                    for (ChronoField field : FIELDS) {
+                    for (ChronoField field : CHRONO_FIELDS) {
                         if (accessor.isSupported(field)) {
                             newTime = newTime.with(field, accessor.get(field));
                         }
@@ -305,12 +382,11 @@ final class CefParser {
                 // Try next layout
             }
         }
-
         // If no layout matches, throw an exception
         throw new IllegalArgumentException("Value is not a valid timestamp: " + value);
     }
 
-    private Map<String, String> parseExtensions(String extensionString) {
+    private static Map<String, String> parseExtensions(String extensionString) {
         Map<String, String> extensions = new HashMap<>();
         Matcher matcher = EXTENSION_NEXT_KEY_VALUE_PATTERN.matcher(extensionString);
         int lastEnd = 0;
@@ -333,11 +409,11 @@ final class CefParser {
         return extensions;
     }
 
-    private void removeEmptyValue(Map<String, String> map) {
+    private static void removeEmptyValue(Map<String, String> map) {
         map.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
     }
 
-    private String convertArrayLikeKey(String key) {
+    private static String convertArrayLikeKey(String key) {
         Matcher matcher = EXTENSION_KEY_ARRAY_CAPTURE.matcher(key);
         if (matcher.matches()) {
             return "[" + matcher.group(1) + "]" + matcher.group(2);
@@ -345,7 +421,7 @@ final class CefParser {
         return key;
     }
 
-    public static String desanitizeExtensionVal(String value) {
+    private static String desanitizeExtensionVal(String value) {
         String desanitized = value;
         for (Map.Entry<String, String> entry : EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.entrySet()) {
             desanitized = desanitized.replace(entry.getKey(), entry.getValue());
@@ -434,8 +510,7 @@ final class CefParser {
         }
 
         public void removeMappedExtensions() {
-            this.extensions.entrySet().removeIf(entry -> FIELD_MAPPING.containsKey(entry.getKey()));
-            this.extensions.entrySet().removeIf(entry -> FIELD_MAPPING.containsValue(entry.getKey()));
+            extensions.entrySet().removeIf(entry -> FILED_MAPPINGS_AND_VALUES.contains(entry.getKey()));
         }
 
         public Map<String, String> getTranslatedFields() {
@@ -459,87 +534,6 @@ final class CefParser {
                 event.put("extensions." + entry.getKey(), entry.getValue());
             }
             return event;
-        }
-    }
-
-    private static class ECSFieldWithType {
-        private static final Map<String, Class<?>> FIELDS = new HashMap<>();
-
-        public static Class<?> getFieldType(String key) {
-            return FIELDS.get(key);
-        }
-
-        static {
-            FIELDS.put("@timestamp", ZonedDateTime.class);
-            FIELDS.put("destination.bytes", Long.class);
-            FIELDS.put("destination.domain", String.class);
-            FIELDS.put("destination.geo.location.lat", Double.class);
-            FIELDS.put("destination.geo.location.lon", Double.class);
-            FIELDS.put("destination.ip", String.class);
-            FIELDS.put("destination.mac", String.class);
-            FIELDS.put("destination.port", Long.class);
-            FIELDS.put("destination.process.name", String.class);
-            FIELDS.put("destination.process.pid", Long.class);
-            FIELDS.put("destination.registered_domain", String.class);
-            FIELDS.put("destination.user.group.name", String.class);
-            FIELDS.put("destination.user.id", String.class);
-            FIELDS.put("destination.user.name", String.class);
-            FIELDS.put("device.event_class_id", String.class);
-            FIELDS.put("device.product", String.class);
-            FIELDS.put("device.vendor", String.class);
-            FIELDS.put("device.version", String.class);
-            FIELDS.put("event.action", String.class);
-            FIELDS.put("event.code", String.class);
-            FIELDS.put("event.end", ZonedDateTime.class);
-            FIELDS.put("event.id", String.class);
-            FIELDS.put("event.ingested", ZonedDateTime.class);
-            FIELDS.put("event.outcome", String.class);
-            FIELDS.put("event.reason", String.class);
-            FIELDS.put("event.start", ZonedDateTime.class);
-            FIELDS.put("event.timezone", String.class);
-            FIELDS.put("file.created", ZonedDateTime.class);
-            FIELDS.put("file.extension", String.class);
-            FIELDS.put("file.group", String.class);
-            FIELDS.put("file.hash", String.class);
-            FIELDS.put("file.inode", String.class);
-            FIELDS.put("file.mtime", ZonedDateTime.class);
-            FIELDS.put("file.name", String.class);
-            FIELDS.put("file.path", String.class);
-            FIELDS.put("file.size", Long.class);
-            FIELDS.put("host.nat.ip", String.class);
-            FIELDS.put("http.request.method", String.class);
-            FIELDS.put("http.request.referrer", String.class);
-            FIELDS.put("log.syslog.facility.code", Long.class);
-            FIELDS.put("message", String.class);
-            FIELDS.put("network.direction", String.class);
-            FIELDS.put("network.protocol", String.class);
-            FIELDS.put("network.transport", String.class);
-            FIELDS.put("observer.egress.interface.name", String.class);
-            FIELDS.put("observer.hostname", String.class);
-            FIELDS.put("observer.ingress.interface.name", String.class);
-            FIELDS.put("observer.ip", String.class);
-            FIELDS.put("observer.mac", String.class);
-            FIELDS.put("observer.name", String.class);
-            FIELDS.put("observer.registered_domain", String.class);
-            FIELDS.put("observer.version", String.class);
-            FIELDS.put("observer.vendor", String.class);
-            FIELDS.put("observer.product", String.class);
-            FIELDS.put("process.name", String.class);
-            FIELDS.put("process.pid", Long.class);
-            FIELDS.put("source.bytes", Long.class);
-            FIELDS.put("source.domain", String.class);
-            FIELDS.put("source.geo.location.lat", Double.class);
-            FIELDS.put("source.geo.location.lon", Double.class);
-            FIELDS.put("source.ip", String.class);
-            FIELDS.put("source.mac", String.class);
-            FIELDS.put("source.port", Long.class);
-            FIELDS.put("source.process.name", String.class);
-            FIELDS.put("source.process.pid", Long.class);
-            FIELDS.put("source.registered_domain", String.class);
-            FIELDS.put("source.service.name", String.class);
-            FIELDS.put("source.user.name", String.class);
-            FIELDS.put("url.original", String.class);
-            FIELDS.put("user_agent.original", String.class);
         }
     }
 }

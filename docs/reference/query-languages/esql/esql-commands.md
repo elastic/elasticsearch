@@ -677,15 +677,9 @@ This functionality is in technical preview and may be changed or removed in a fu
 
 **Syntax**
 
-```
+```esql
 FROM <source_index>
 | LOOKUP JOIN <lookup_index> ON <field_name>
-```
-
-```esql
-FROM firewall_logs
-| LOOKUP JOIN threat_list ON source.IP
-| WHERE threat_level IS NOT NULL
 ```
 
 **Parameters**
@@ -715,6 +709,14 @@ In case of name collisions, the newly created columns will override existing col
 ```esql
 FROM firewall_logs
 | LOOKUP JOIN threat_list ON source.IP
+```
+
+To filter only for those rows that have a matching `threat_list` entry, use `WHERE ... IS NOT NULL` with a field from the lookup index:
+
+```esql
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+| WHERE threat_level IS NOT NULL
 ```
 
 **Host metadata correlation**: This query pulls in environment or ownership details for each host to correlate with your metrics data.

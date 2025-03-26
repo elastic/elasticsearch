@@ -83,7 +83,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toMap;
@@ -2236,9 +2235,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     index(index2, new ShardAllocation(randomNodeId(), UNAVAILABLE))
                 ),
                 projectId2,
-                List.of(
-                    index(index1, new ShardAllocation(randomNodeId(), UNAVAILABLE))
-                )
+                List.of(index(index1, new ShardAllocation(randomNodeId(), UNAVAILABLE)))
             ),
             List.of()
         );
@@ -2263,20 +2260,29 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             NAME,
                             ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
                             1,
-                            String.format("Cannot add data to 3 indices [%s, %s, %s]. Searches might return incomplete results.",
+                            String.format(
+                                "Cannot add data to 3 indices [%s, %s, %s]. Searches might return incomplete results.",
                                 projectId1 + ProjectIndexName.DELIMITER + index1,
                                 projectId1 + ProjectIndexName.DELIMITER + index2,
                                 projectId2 + ProjectIndexName.DELIMITER + index1
-                                ),
+                            ),
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
                     List.of(
-                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(
-                            projectId1 + ProjectIndexName.DELIMITER + index1,
-                            projectId1 + ProjectIndexName.DELIMITER + index2,
-                            projectId2 + ProjectIndexName.DELIMITER + index1
-                        ))))
+                        new Diagnosis(
+                            ACTION_CHECK_ALLOCATION_EXPLAIN_API,
+                            List.of(
+                                new Diagnosis.Resource(
+                                    INDEX,
+                                    List.of(
+                                        projectId1 + ProjectIndexName.DELIMITER + index1,
+                                        projectId1 + ProjectIndexName.DELIMITER + index2,
+                                        projectId2 + ProjectIndexName.DELIMITER + index1
+                                    )
+                                )
+                            )
+                        )
                     )
                 )
             )

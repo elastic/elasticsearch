@@ -41,7 +41,6 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     private final Expression field;
     private final List<? extends Expression> parameters;
     private final Expression filter;
-    private final boolean isCorrectedForSampling;
 
     protected AggregateFunction(Source source, Expression field) {
         this(source, field, Literal.TRUE, emptyList());
@@ -52,21 +51,10 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     }
 
     protected AggregateFunction(Source source, Expression field, Expression filter, List<? extends Expression> parameters) {
-        this(source, field, filter, parameters, false);
-    }
-
-    protected AggregateFunction(
-        Source source,
-        Expression field,
-        Expression filter,
-        List<? extends Expression> parameters,
-        boolean isCorrectedForSampling
-    ) {
         super(source, CollectionUtils.combine(asList(field, filter), parameters));
         this.field = field;
         this.filter = filter;
         this.parameters = parameters;
-        this.isCorrectedForSampling = isCorrectedForSampling;
     }
 
     protected AggregateFunction(StreamInput in) throws IOException {
@@ -131,19 +119,6 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter), parameters));
     }
 
-    public boolean isCorrectedForSampling() {
-        return isCorrectedForSampling;
-    }
-
-    /**
-     * Corrects the aggregation in the context of random sampling. By default,
-     * nothing is done, but subclasses can override this method if some correction
-     * is needed. See {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Sum} for an example.
-     */
-    public Expression correctForSampling(Expression samplingProbability) {
-        return this;
-    }
-
     @Override
     public int hashCode() {
         // NB: the hashcode is currently used for key generation so
@@ -157,8 +132,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             AggregateFunction other = (AggregateFunction) obj;
             return Objects.equals(other.field(), field())
                 && Objects.equals(other.filter(), filter())
-                && Objects.equals(other.parameters(), parameters())
-                && other.isCorrectedForSampling() == isCorrectedForSampling();
+                && Objects.equals(other.parameters(), parameters());
         }
         return false;
     }

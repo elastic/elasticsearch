@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 
 import java.io.IOException;
@@ -44,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements SurrogateExpression {
+public class Sum extends NumericAggregate implements SurrogateExpression, HasSampleCorrection {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
 
     @FunctionInfo(
@@ -66,11 +65,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     }
 
     public Sum(Source source, Expression field, Expression filter) {
-        this(source, field, filter, false);
-    }
-
-    public Sum(Source source, Expression field, Expression filter, boolean isCorrectedForSampling) {
-        super(source, field, filter, emptyList(), isCorrectedForSampling);
+        super(source, field, filter, emptyList());
     }
 
     private Sum(StreamInput in) throws IOException {
@@ -154,7 +149,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     }
 
     @Override
-    public Expression correctForSampling(Expression samplingProbability) {
-        return isCorrectedForSampling() ? this : new Div(source(), new Sum(source(), field(), filter(), true), samplingProbability);
+    public Expression sampleCorrection(Expression sampleProbability) {
+        return new SumSampleCorrection(source(), field(), filter(), sampleProbability);
     }
 }

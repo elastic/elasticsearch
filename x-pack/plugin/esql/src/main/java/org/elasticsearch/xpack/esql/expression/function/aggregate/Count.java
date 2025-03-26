@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -38,7 +37,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression {
+public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, HasSampleCorrection {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
 
     @FunctionInfo(
@@ -96,10 +95,6 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     public Count(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
-    }
-
-    public Count(Source source, Expression field, Expression filter, boolean isCorrectedForSampling) {
-        super(source, field, filter, emptyList(), isCorrectedForSampling);
     }
 
     private Count(StreamInput in) throws IOException {
@@ -176,7 +171,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     }
 
     @Override
-    public Expression correctForSampling(Expression samplingProbability) {
-        return isCorrectedForSampling() ? this : new Div(source(), new Count(source(), field(), filter(), true), samplingProbability);
+    public Expression sampleCorrection(Expression sampleProbability) {
+        return new CountSampleCorrection(source(), field(), filter(), sampleProbability);
     }
 }

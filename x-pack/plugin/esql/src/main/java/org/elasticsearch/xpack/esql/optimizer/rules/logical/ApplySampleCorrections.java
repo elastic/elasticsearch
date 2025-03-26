@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.HasSampleCorrection;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
-public class PropagateSampleFrequencyToAggs extends Rule<LogicalPlan, LogicalPlan> {
+public class ApplySampleCorrections extends Rule<LogicalPlan, LogicalPlan> {
+
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {
         Holder<Expression> sampleProbability = new Holder<>(null);
@@ -24,7 +25,9 @@ public class PropagateSampleFrequencyToAggs extends Rule<LogicalPlan, LogicalPla
                 sampleProbability.set(randomSample.probability());
             }
             if (plan instanceof Aggregate && sampleProbability.get() != null) {
-                plan = plan.transformExpressionsOnly(AggregateFunction.class, af -> af.correctForSampling(sampleProbability.get()));
+                plan = plan.transformExpressionsOnly(
+                    e -> e instanceof HasSampleCorrection hsc ? hsc.sampleCorrection(sampleProbability.get()) : e
+                );
                 sampleProbability.set(null);
             }
             return plan;

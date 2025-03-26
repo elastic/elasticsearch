@@ -53,10 +53,6 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         super(source, field, filter, parameters);
     }
 
-    NumericAggregate(Source source, Expression field, Expression filter, List<Expression> parameters, boolean isCorrectedForSampling) {
-        super(source, field, filter, parameters, isCorrectedForSampling);
-    }
-
     NumericAggregate(Source source, Expression field) {
         super(source, field);
     }

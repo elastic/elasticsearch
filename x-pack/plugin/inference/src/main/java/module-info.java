@@ -35,6 +35,9 @@ module org.elasticsearch.inference {
     requires org.reactivestreams;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.sslconfig;
+    requires org.apache.commons.text;
+    requires json.path;
+    requires json.smart;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

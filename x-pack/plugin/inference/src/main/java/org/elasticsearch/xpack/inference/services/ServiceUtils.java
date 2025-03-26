@@ -254,6 +254,10 @@ public final class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
+    public static String mustBeNonEmptyMap(String settingName, String scope) {
+        return Strings.format("[%s] Invalid value empty map. [%s] must be a non-empty map", scope, settingName);
+    }
+
     public static String invalidTimeValueMsg(String timeValueStr, String settingName, String scope, String exceptionMsg) {
         return Strings.format(
             "[%s] Invalid time value [%s]. [%s] must be a valid time value string: %s",
@@ -425,6 +429,58 @@ public final class ServiceUtils {
         }
 
         return field;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> extractRequiredMap(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        Map<String, Object> requiredField = ServiceUtils.removeAsType(map, settingName, Map.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (requiredField == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
+        } else if (requiredField.isEmpty()) {
+            validationException.addValidationError(ServiceUtils.mustBeNonEmptyMap(settingName, scope));
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return requiredField;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> extractOptionalMap(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        Map<String, Object> optionalField = ServiceUtils.removeAsType(map, settingName, Map.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (optionalField != null && optionalField.isEmpty()) {
+            validationException.addValidationError(ServiceUtils.mustBeNonEmptyMap(settingName, scope));
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return optionalField;
     }
 
     public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(

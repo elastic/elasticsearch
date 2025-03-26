@@ -116,6 +116,23 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertNull(e);
     }
 
+    public void testValidation_Custom() {
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.CUSTOM,
+            "model",
+            "query",
+            null,
+            null,
+            List.of("input"),
+            null,
+            null,
+            null,
+            false
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNull(e);
+    }
+
     public void testValidation_TextEmbedding_Null() {
         InferenceAction.Request inputNullRequest = new InferenceAction.Request(
             TaskType.TEXT_EMBEDDING,
@@ -307,6 +324,23 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             queryError.getMessage(),
             is("Validation Failed: 1: Field [top_n] cannot be specified for task type [sparse_embedding];")
         );
+    }
+
+    public void testValidation_Custom_Empty() {
+        InferenceAction.Request queryNullRequest = new InferenceAction.Request(
+            TaskType.CUSTOM,
+            "model",
+            "",
+            null,
+            null,
+            List.of("input"),
+            null,
+            null,
+            null,
+            false
+        );
+        ActionRequestValidationException e = queryNullRequest.validate();
+        assertNull(e);
     }
 
     public void testValidation_Completion_WithInputType() {

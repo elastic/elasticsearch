@@ -28,4 +28,11 @@ interface IpDataLookup {
      * @return the set of properties this lookup will provide
      */
     Set<Database.Property> getProperties();
+
+    /**
+     * A helper record that holds other records. Every ip data lookup will have an associated ip address that was looked up, as well
+     * as a network for which the  record applies. Having a helper record prevents each individual response record from needing to
+     * track these bits of information.
+     */
+    record Result<T>(T result, String ip, String network) {}
 }

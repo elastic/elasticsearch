@@ -90,16 +90,4 @@ Even though `RLIKE` is a valid option when searching or filtering in Elasticsear
 
 When using `LIKE`/`RLIKE`, do consider using [full-text search predicates](/reference/query-languages/sql/sql-functions-search.md) which are faster, much more powerful and offer the option of sorting by relevancy (results can be returned based on how well they matched).
 
-For example:
-
-|     |     |
-| --- | --- |
-| **LIKE/RLIKE** | **QUERY/MATCH** |
-| ``foo LIKE 'bar'`` | ``MATCH(foo, 'bar')`` |
-| ``foo LIKE 'bar' AND tar LIKE 'goo'`` | ``MATCH('foo^2, tar^5', 'bar goo', 'operator=and')`` |
-| ``foo LIKE 'barr'`` | ``QUERY('foo: bar~')`` |
-| ``foo LIKE 'bar' AND tar LIKE 'goo'`` | ``QUERY('foo: bar AND tar: goo')`` |
-| ``foo RLIKE 'ba.*'`` | ``MATCH(foo, 'ba', 'fuzziness=AUTO:1,5')`` |
-| ``foo RLIKE 'b.{{1}}r'`` | ``MATCH(foo, 'br', 'fuzziness=1')`` |
-
 

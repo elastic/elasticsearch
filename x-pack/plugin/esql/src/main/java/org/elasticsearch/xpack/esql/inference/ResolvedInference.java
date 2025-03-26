@@ -17,12 +17,12 @@ import java.io.IOException;
 public record ResolvedInference(String inferenceId, TaskType taskType) implements Writeable {
 
     public ResolvedInference(StreamInput in) throws IOException {
-        this(in.readString(), in.readEnum(TaskType.class));
+        this(in.readString(), TaskType.valueOf(in.readString()));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(inferenceId);
-        out.writeEnum(taskType);
+        out.writeString(taskType.name());
     }
 }

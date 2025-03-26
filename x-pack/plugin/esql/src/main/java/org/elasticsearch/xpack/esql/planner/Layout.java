@@ -111,6 +111,10 @@ public interface Layout {
                 int channel = 0;
                 for (NameId id : set.nameIds) {
                     if (layout.containsKey(id)) {
+                        // If a NameId already exists in the map, do not increase the numberOfChannels, it can cause inverse() to create
+                        // a null in the list of channels, and NullPointerException when build() is called.
+                        // TODO avoid adding duplicated attributes with the same id in the plan, ReplaceMissingFieldWithNull may add nulls
+                        // with the same ids as the missing field ids.
                         continue;
                     }
                     if (createNewChannel) {

@@ -930,9 +930,9 @@ public class EsqlCapabilities {
         INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
 
         /**
-         * Create null alias with new id in ReplaceMissingFieldWithNull when there is lookup join with multiple batches.
+         * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
          */
-        REPLACE_MISSING_FIELD_WITH_NULL_NEW_ALIAS_ID_FOR_JOIN_AND_MULTIPLE_BATCHES;
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT;
 
         private final boolean enabled;
 

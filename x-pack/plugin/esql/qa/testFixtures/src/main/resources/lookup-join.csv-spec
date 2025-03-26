@@ -1456,7 +1456,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 multipleBatchesWithSort
 required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
-required_capability: replace_missing_field_with_null_new_alias_id_for_join_and_multiple_batches
+required_capability: make_number_of_channels_consistent_with_layout
 
 from *
 | rename city.country.continent.planet.name as message
@@ -1473,7 +1473,7 @@ language_code:integer
 multipleBatchesWithMvExpand
 required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
-required_capability: replace_missing_field_with_null_new_alias_id_for_join_and_multiple_batches
+required_capability: make_number_of_channels_consistent_with_layout
 
 from *
 | rename city.country.continent.planet.name as message
@@ -1491,7 +1491,7 @@ birth_date:datetime      |language_code:integer
 multipleBatchesWithAggregate1
 required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
-required_capability: replace_missing_field_with_null_new_alias_id_for_join_and_multiple_batches
+required_capability: make_number_of_channels_consistent_with_layout
 
 from *
 | rename city.country.continent.planet.name as message
@@ -1507,7 +1507,7 @@ x:datetime               |y:integer
 multipleBatchesWithAggregate2
 required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
-required_capability: replace_missing_field_with_null_new_alias_id_for_join_and_multiple_batches
+required_capability: make_number_of_channels_consistent_with_layout
 
 from *
 | rename city.country.continent.planet.name as message
@@ -1525,7 +1525,7 @@ null       |1
 multipleBatchesWithAggregate3
 required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
-required_capability: replace_missing_field_with_null_new_alias_id_for_join_and_multiple_batches
+required_capability: make_number_of_channels_consistent_with_layout
 
 from *
 | rename city.country.continent.planet.name as message

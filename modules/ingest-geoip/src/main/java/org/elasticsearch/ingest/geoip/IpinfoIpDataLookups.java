@@ -490,9 +490,9 @@ final class IpinfoIpDataLookups {
         @Nullable
         private Result<RESPONSE> lookup(final Reader reader, final String ipAddress) throws IOException {
             final InetAddress ip = InetAddresses.forString(ipAddress);
-            final DatabaseRecord<RESPONSE> record = reader.getRecord(ip, clazz);
-            final RESPONSE data = record.getData();
-            return (data == null) ? null : new Result<>(data, NetworkAddress.format(ip), record.getNetwork().toString());
+            final DatabaseRecord<RESPONSE> entry = reader.getRecord(ip, clazz);
+            final RESPONSE data = entry.getData();
+            return (data == null) ? null : new Result<>(data, NetworkAddress.format(ip), entry.getNetwork().toString());
         }
 
         /**

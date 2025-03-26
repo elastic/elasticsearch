@@ -818,9 +818,9 @@ final class MaxmindIpDataLookups {
         @Nullable
         private RECORD lookup(final Reader reader, final String ipAddress) throws IOException {
             final InetAddress ip = InetAddresses.forString(ipAddress);
-            final DatabaseRecord<RESPONSE> record = reader.getRecord(ip, clazz);
-            final RESPONSE data = record.getData();
-            return (data == null) ? null : record(builder.build(data, NetworkAddress.format(ip), record.getNetwork(), List.of("en")));
+            final DatabaseRecord<RESPONSE> entry = reader.getRecord(ip, clazz);
+            final RESPONSE data = entry.getData();
+            return (data == null) ? null : record(builder.build(data, NetworkAddress.format(ip), entry.getNetwork(), List.of("en")));
         }
 
         /**

@@ -30,20 +30,17 @@ public class LinearRankDoc extends RankDoc {
     final float[] weights;
     final String[] normalizers;
     public float[] normalizedScores;
-    public boolean hasValidScore;
 
     public LinearRankDoc(int doc, float score, int shardIndex) {
         super(doc, score, shardIndex);
         this.weights = null;
         this.normalizers = null;
-        this.hasValidScore = false;
     }
 
     public LinearRankDoc(int doc, float score, int shardIndex, float[] weights, String[] normalizers) {
         super(doc, score, shardIndex);
         this.weights = weights;
         this.normalizers = normalizers;
-        this.hasValidScore = false;
     }
 
     public LinearRankDoc(StreamInput in) throws IOException {
@@ -51,11 +48,6 @@ public class LinearRankDoc extends RankDoc {
         weights = in.readOptionalFloatArray();
         normalizedScores = in.readOptionalFloatArray();
         normalizers = in.readOptionalStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            hasValidScore = in.readBoolean();
-        } else {
-            hasValidScore = false;
-        }
     }
 
     @Override
@@ -110,9 +102,6 @@ public class LinearRankDoc extends RankDoc {
         out.writeOptionalFloatArray(weights);
         out.writeOptionalFloatArray(normalizedScores);
         out.writeOptionalStringArray(normalizers);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(hasValidScore);
-        }
     }
 
     @Override
@@ -133,13 +122,12 @@ public class LinearRankDoc extends RankDoc {
         LinearRankDoc lrd = (LinearRankDoc) rd;
         return Arrays.equals(weights, lrd.weights)
             && Arrays.equals(normalizedScores, lrd.normalizedScores)
-            && Arrays.equals(normalizers, lrd.normalizers)
-            && hasValidScore == lrd.hasValidScore;
+            && Arrays.equals(normalizers, lrd.normalizers);
     }
 
     @Override
     public int doHashCode() {
-        int result = Objects.hash(Arrays.hashCode(weights), Arrays.hashCode(normalizedScores), Arrays.hashCode(normalizers), hasValidScore);
+        int result = Objects.hash(Arrays.hashCode(weights), Arrays.hashCode(normalizedScores), Arrays.hashCode(normalizers));
         return 31 * result;
     }
 

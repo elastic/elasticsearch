@@ -1226,8 +1226,33 @@ setup:
               min_score: 0.0
           size: 10
 
-  - match: { hits.total.value: 4 }
-  - length: { hits.hits: 4 }
+---
+"linear retriever with min_score should filter documents even with filters":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers:
+                - standard:
+                    query:
+                      term:
+                        text: "term"
+                - standard:
+                    query:
+                      term:
+                        topic: "technology"
+                - standard:
+                    query:
+                      range:
+                        price: 
+                          gte: 100
+              weights: [1.0, 1.0, 0.5]
+              min_score: 0.5
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_4" }
 
 ---
 "linear retriever with missing min_score should use default value":

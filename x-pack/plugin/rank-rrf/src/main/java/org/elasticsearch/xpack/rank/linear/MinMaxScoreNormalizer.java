@@ -35,15 +35,14 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         float max = Float.MIN_VALUE;
         boolean atLeastOneValidScore = false;
         for (ScoreDoc rd : docs) {
-            if (Float.isNaN(rd.score)) {
-                continue;
-            }
-            atLeastOneValidScore = true;
-            if (rd.score > max) {
-                max = rd.score;
-            }
-            if (rd.score < min) {
-                min = rd.score;
+            if (Float.isNaN(rd.score) == false) {
+                atLeastOneValidScore = true;
+                if (rd.score > max) {
+                    max = rd.score;
+                }
+                if (rd.score < min) {
+                    min = rd.score;
+                }
             }
         }
 

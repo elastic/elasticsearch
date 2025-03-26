@@ -218,7 +218,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         var rankDocsQuery = new RankDocsQueryBuilder(
             rankDocs,
             new QueryBuilder[] { new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector.get()), field, similarity) },
-            false
+            true
         );
         if (preFilterQueryBuilders.isEmpty()) {
             return rankDocsQuery.queryName(retrieverName);

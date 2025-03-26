@@ -141,7 +141,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
         }
         if (minScore < 0) {
-            throw new IllegalArgumentException("[min_score] must be non-negative");
+            throw new IllegalArgumentException("[min_score] must be greater than 0, was: " + minScore);
         }
         this.weights = weights;
         this.normalizers = normalizers;
@@ -186,37 +186,26 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 if (isExplain) {
                     rankDoc.normalizedScores[result] = normalizedScoreDocs[scoreDocIndex].score;
                 }
-                final boolean isValidScore = false == Float.isNaN(normalizedScoreDocs[scoreDocIndex].score);
-                final float docScore = isValidScore ? normalizedScoreDocs[scoreDocIndex].score : DEFAULT_SCORE;
+                // if we do not have scores associated with this result set, just ignore its contribution to the final
+                // score computation by setting its score to 0.
+                final float docScore = false == Float.isNaN(normalizedScoreDocs[scoreDocIndex].score)
+                    ? normalizedScoreDocs[scoreDocIndex].score
+                    : DEFAULT_SCORE;
                 final float weight = Float.isNaN(weights[result]) ? DEFAULT_WEIGHT : weights[result];
                 rankDoc.score += weight * docScore;
-
-                if (isValidScore) {
-                    rankDoc.hasValidScore = true;
-                }
             }
         }
+        // sort the results based on the final score, tiebreaker based on smaller doc id
         LinearRankDoc[] sortedResults = docsToRankResults.values().toArray(LinearRankDoc[]::new);
         Arrays.sort(sortedResults);
-        List<LinearRankDoc> filteredResults = new ArrayList<>();
-        for (LinearRankDoc doc : sortedResults) {
-            if (doc.score >= minScore) {
-                filteredResults.add(doc);
-            }
-        }
 
-        if (filteredResults.isEmpty() && minScore > DEFAULT_MIN_SCORE) {
-            return new LinearRankDoc[0];
+        // trim the results if needed, otherwise each shard will always return `rank_window_size` results.
+        LinearRankDoc[] topResults = new LinearRankDoc[Math.min(rankWindowSize, sortedResults.length)];
+        for (int rank = 0; rank < topResults.length; ++rank) {
+            topResults[rank] = sortedResults[rank];
+            topResults[rank].rank = rank + 1;
         }
-
-        int resultSize = Math.min(rankWindowSize, filteredResults.size());
-        LinearRankDoc[] trimmedResults = new LinearRankDoc[resultSize];
-        for (int i = 0; i < resultSize; i++) {
-            trimmedResults[i] = filteredResults.get(i);
-            trimmedResults[i].rank = i + 1;
-        }
-
-        return trimmedResults;
+        return topResults;
     }
 
     @Override
@@ -239,6 +228,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.endArray();
         }
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
-        builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        if (minScore != DEFAULT_MIN_SCORE) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
     }
 }

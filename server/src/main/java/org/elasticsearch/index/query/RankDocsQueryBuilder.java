@@ -63,14 +63,13 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     public RankDocsQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
-        QueryBuilder[] queryBuilders = null;
-        boolean onlyRankDocs = false;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
-            onlyRankDocs = in.readBoolean();
+            this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
+            this.onlyRankDocs = in.readBoolean();
+        } else {
+            this.queryBuilders = null;
+            this.onlyRankDocs = false;
         }
-        this.queryBuilders = queryBuilders;
-        this.onlyRankDocs = onlyRankDocs;
         this.minScore = in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOCS_MIN_SCORE) ? in.readFloat() : DEFAULT_MIN_SCORE;
     }
 

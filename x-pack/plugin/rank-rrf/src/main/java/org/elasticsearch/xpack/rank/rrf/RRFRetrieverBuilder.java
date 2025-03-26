@@ -173,14 +173,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedResults[rank];
             topResults[rank].rank = rank + 1;
-            // Ensure scores are properly propagated for inner hits
-            if (topResults[rank].scores != null) {
-                float maxScore = 0f;
-                for (float score : topResults[rank].scores) {
-                    maxScore = Math.max(maxScore, score);
-                }
-                topResults[rank].score = maxScore * topResults[rank].score;
-            }
         }
         return topResults;
     }

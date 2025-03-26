@@ -2714,6 +2714,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Checks a specific exception class with matched message is thrown by the given runnable, and returns it.
+     */
+    public static <T extends Throwable> T expectThrows(
+        String reason,
+        Class<T> expectedType,
+        Matcher<String> messageMatcher,
+        ThrowingRunnable runnable
+    ) {
+        var e = expectThrows(expectedType, reason, runnable);
+        assertThat(reason, e.getMessage(), messageMatcher);
+        return e;
+    }
+
+    /**
      * Same as {@link #runInParallel(int, IntConsumer)} but also attempts to start all tasks at the same time by blocking execution on a
      * barrier until all threads are started and ready to execute their task.
      */

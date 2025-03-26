@@ -1,0 +1,5 @@
+pr: 125529
+summary: Store arrays offsets for boolean fields natively with synthetic source
+area: Mapping
+type: enhancement
+issues: []

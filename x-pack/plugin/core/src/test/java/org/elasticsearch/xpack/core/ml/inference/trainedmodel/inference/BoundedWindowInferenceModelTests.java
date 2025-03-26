@@ -40,18 +40,27 @@ public class BoundedWindowInferenceModelTests extends ESTestCase {
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        Double lowResultValue = ((SingleValueInferenceResults) testModel.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value();
+        Double lowResultValue = ((SingleValueInferenceResults) testModel.infer(
+            featureMap,
+            RegressionConfig.EMPTY_PARAMS,
+            Collections.emptyMap()
+        )).value();
         assertThat(lowResultValue, equalTo(1.0));
 
         featureVector = Arrays.asList(12.0, 0.0);
         featureMap = zipObjMap(featureNames, featureVector);
-        Double highResultValue = ((SingleValueInferenceResults) testModel.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value();
+        Double highResultValue = ((SingleValueInferenceResults) testModel.infer(
+            featureMap,
+            RegressionConfig.EMPTY_PARAMS,
+            Collections.emptyMap()
+        )).value();
         assertThat(highResultValue, equalTo(10.5));
 
         double[] featureArray = new double[2];
         featureArray[0] = 12.0;
         featureArray[1] = 0.0;
-        Double highResultValueFromFeatures = ((SingleValueInferenceResults) testModel.infer(featureArray, RegressionConfig.EMPTY_PARAMS)).value();
+        Double highResultValueFromFeatures = ((SingleValueInferenceResults) testModel.infer(featureArray, RegressionConfig.EMPTY_PARAMS))
+            .value();
         assertThat(highResultValueFromFeatures, equalTo(10.5));
     }
 
@@ -60,18 +69,27 @@ public class BoundedWindowInferenceModelTests extends ESTestCase {
 
         List<Double> featureVector = Arrays.asList(-10.0, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        Double lowResultValue = ((SingleValueInferenceResults) testModel.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value();
+        Double lowResultValue = ((SingleValueInferenceResults) testModel.infer(
+            featureMap,
+            RegressionConfig.EMPTY_PARAMS,
+            Collections.emptyMap()
+        )).value();
         assertThat(lowResultValue, equalTo(0.0));
 
         featureVector = Arrays.asList(12.0, 0.0);
         featureMap = zipObjMap(featureNames, featureVector);
-        Double highResultValue = ((SingleValueInferenceResults) testModel.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value();
+        Double highResultValue = ((SingleValueInferenceResults) testModel.infer(
+            featureMap,
+            RegressionConfig.EMPTY_PARAMS,
+            Collections.emptyMap()
+        )).value();
         assertThat(highResultValue, equalTo(11.5));
 
         double[] featureArray = new double[2];
         featureArray[0] = 12.0;
         featureArray[1] = 0.0;
-        Double highResultValueFromFeatures = ((SingleValueInferenceResults) testModel.infer(featureArray, RegressionConfig.EMPTY_PARAMS)).value();
+        Double highResultValueFromFeatures = ((SingleValueInferenceResults) testModel.infer(featureArray, RegressionConfig.EMPTY_PARAMS))
+            .value();
         assertThat(highResultValueFromFeatures, equalTo(11.5));
     }
 

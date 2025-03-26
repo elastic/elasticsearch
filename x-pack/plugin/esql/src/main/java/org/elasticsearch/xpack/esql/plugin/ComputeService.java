@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.RemoteComputeException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -339,6 +340,7 @@ public class ComputeService {
                         cancelQueryOnFailure,
                         execInfo,
                         computeListener.acquireCompute()
+                            .delegateResponse((l, ex) -> l.onFailure(new RemoteComputeException(cluster.clusterAlias(), ex)))
                     );
                 }
             }

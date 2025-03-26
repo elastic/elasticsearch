@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.RemoteComputeException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -61,6 +62,14 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
         return Map.of(REMOTE_CLUSTER_1, randomBoolean(), REMOTE_CLUSTER_2, randomBoolean());
+    }
+
+    private Exception unwrapIfWrappedInRemoteComputeException(Exception e) {
+        if (e instanceof RemoteComputeException rce) {
+            return (Exception) rce.getCause();
+        } else {
+            return e;
+        }
     }
 
     public void testSuccessfulPathways() throws Exception {
@@ -813,10 +822,13 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         Map<String, Object> testClusterInfo = setupFailClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remote1Index = (String) testClusterInfo.get("remote.index");
-        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         String q = Strings.format("FROM %s,cluster-a:%s*", localIndex, remote1Index);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> runQuery(q, false));
-        assertThat(e.getMessage(), containsString("Accessing failing field"));
+
+        Exception error = expectThrows(Exception.class, () -> runQuery(q, false));
+        error = unwrapIfWrappedInRemoteComputeException(error);
+
+        assertThat(error, instanceOf(IllegalStateException.class));
+        assertThat(error.getMessage(), containsString("Accessing failing field"));
     }
 
     private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {

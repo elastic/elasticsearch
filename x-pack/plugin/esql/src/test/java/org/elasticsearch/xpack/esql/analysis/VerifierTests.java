@@ -1206,7 +1206,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchInsideEval() throws Exception {
-        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
         assertEquals(
             "1:36: [:] operator is only supported in WHERE and STATS ... WHERE commands\n"
                 + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",

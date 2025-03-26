@@ -15,8 +15,7 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 % Release notes include only features, enhancements, and fixes. Add breaking changes, deprecations, and known issues to the applicable release notes sections.
 
-% ## version.next [felasticsearch-next-release-notes]
-% **Release date:** Month day, year
+% ## version.next [elasticsearch-next-release-notes]
 
 % ### Features and enhancements [elasticsearch-next-features-enhancements]
 % *
@@ -25,7 +24,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.0.0 [elasticsearch-900-release-notes]
-**Release date:** March 25, 2025
 
 ### Features and enhancements [elasticsearch-900-features-enhancements]
 Allocation

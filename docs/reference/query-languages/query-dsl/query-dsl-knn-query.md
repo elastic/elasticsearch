@@ -207,7 +207,7 @@ POST my-image-index/_search
 
 A sample query can look like below:
 
-```js
+```json
 {
   "query" : {
     "nested" : {
@@ -227,6 +227,7 @@ A sample query can look like below:
 }
 ```
 
+Note that nested `knn` only supports `score_mode=max`.
 
 ## Knn query with aggregations [knn-query-aggregations]
 

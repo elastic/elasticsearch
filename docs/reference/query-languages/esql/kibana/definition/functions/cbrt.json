@@ -54,7 +54,7 @@
     }
   ],
   "examples" : [
-    "ROW d = 1000.0\n| EVAL c = cbrt(d)"
+    "ROW d = 1000.0\n| EVAL c = CBRT(d)"
   ],
   "preview" : false,
   "snapshot_only" : false

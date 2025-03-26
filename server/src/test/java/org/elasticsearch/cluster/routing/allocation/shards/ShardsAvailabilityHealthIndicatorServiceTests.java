@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHea
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -59,6 +60,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.node.ProjectIndexName;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
@@ -81,6 +83,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toMap;
@@ -1083,7 +1086,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService(clusterState, decisionMap);
 
         // Get the list of user actions that are generated for this unassigned index shard
-        ShardRouting shardRouting = clusterState.getRoutingTable().index(indexMetadata.getIndex()).shard(0).primaryShard();
+        ShardRouting shardRouting = clusterState.routingTable(ProjectId.DEFAULT).index(indexMetadata.getIndex()).shard(0).primaryShard();
         List<Diagnosis.Definition> actions = service.diagnoseUnassignedShardRouting(shardRouting, clusterState);
 
         assertThat(actions, hasSize(1));
@@ -2218,6 +2221,68 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    public void testMultiProjectShouldDisplayProjectId() {
+        ProjectId projectId1 = randomUniqueProjectId();
+        ProjectId projectId2 = randomUniqueProjectId();
+        String index1 = "index-1";
+        String index2 = "index-2";
+
+        // 3 indices from 2 projects
+        var clusterState = createClusterStateWith(
+            Map.of(
+                projectId1,
+                List.of(
+                    index(index1, new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                    index(index2, new ShardAllocation(randomNodeId(), UNAVAILABLE))
+                ),
+                projectId2,
+                List.of(
+                    index(index1, new ShardAllocation(randomNodeId(), UNAVAILABLE))
+                )
+            ),
+            List.of()
+        );
+
+        var service = createAllocationHealthIndicatorService(
+            Settings.EMPTY,
+            clusterState,
+            Collections.emptyMap(),
+            new SystemIndices(List.of()),
+            testResolverSupportingMultipleProjects
+        );
+
+        assertThat(
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                createExpectedResult(
+                    RED,
+                    "This cluster has 3 unavailable primary shards.",
+                    Map.of("unassigned_primaries", 3),
+                    List.of(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
+                            1,
+                            String.format("Cannot add data to 3 indices [%s, %s, %s]. Searches might return incomplete results.",
+                                projectId1 + ProjectIndexName.DELIMITER + index1,
+                                projectId1 + ProjectIndexName.DELIMITER + index2,
+                                projectId2 + ProjectIndexName.DELIMITER + index1
+                                ),
+                            List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                        )
+                    ),
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(
+                            projectId1 + ProjectIndexName.DELIMITER + index1,
+                            projectId1 + ProjectIndexName.DELIMITER + index2,
+                            projectId2 + ProjectIndexName.DELIMITER + index1
+                        ))))
+                    )
+                )
+            )
+        );
+    }
+
     private HealthIndicatorResult createExpectedResult(
         HealthStatus status,
         String symptom,
@@ -2658,4 +2723,19 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
     }
+
+    private static ProjectResolver testResolverSupportingMultipleProjects = new ProjectResolver() {
+        @Override
+        public boolean supportsMultipleProjects() {
+            return true;
+        }
+
+        @Override
+        public ProjectId getProjectId() {
+            return null;
+        }
+
+        @Override
+        public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {}
+    };
 }

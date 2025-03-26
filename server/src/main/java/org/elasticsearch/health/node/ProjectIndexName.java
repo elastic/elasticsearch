@@ -12,7 +12,8 @@ package org.elasticsearch.health.node;
 import org.elasticsearch.cluster.metadata.ProjectId;
 
 public record ProjectIndexName(ProjectId projectId, String indexName) implements Comparable<ProjectIndexName> {
-    private static final String DELIMITER = "/";
+    // VisibleForTesting
+    public static final String DELIMITER = "/";
 
     public static ProjectIndexName defaultProjectIndex(String indexName) {
         return new ProjectIndexName(ProjectId.DEFAULT, indexName);

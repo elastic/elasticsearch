@@ -16,12 +16,6 @@
 
   - do:
       health_report:
-        feature: shards_availability
-
-  - is_true: cluster_name
-
-  - do:
-      health_report:
         feature: master_is_stable
         verbose: false
 

@@ -3396,10 +3396,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING, '?', NAMED_OR_POSITIONAL_PARAM}"
         );
 
-        expectError(
-            "FROM foo* | RERANK \"query text\" WITH inferenceId",
-            "line 1:33: mismatched input 'WITH' expecting 'on'"
-        );
+        expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
 
         expectError(
             "FROM foo* | RERANK \"query text\" ON title",

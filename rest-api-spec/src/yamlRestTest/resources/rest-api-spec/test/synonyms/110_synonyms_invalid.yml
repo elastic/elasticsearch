@@ -447,7 +447,8 @@ setup:
   - do:
       cluster.health:
         index: .synonyms
-        wait_for_status: green
+        # BWC tests won't be able to get green - synonyms index is 0-all, so some shards won't be recovered in older nodes
+        wait_for_status: yellow
 
   - do:
       # Warning issued in previous versions

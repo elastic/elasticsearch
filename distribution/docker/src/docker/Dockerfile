@@ -121,10 +121,10 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     # Add plugins infrastructure
     RUN mkdir -p /opt/plugins/archive
     RUN chmod -R 0555 /opt/plugins
-    
+
     RUN mkdir -p /fips/libs
     COPY fips/libs/*.jar /fips/libs/
-    
+
     COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
     RUN set -eux ; \\
         for beat in filebeat metricbeat ; do \\
@@ -139,17 +139,17 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
           mkdir -p /opt/\$beat ; \\
           tar xf /tmp/\$beat-${version}.tar.gz -C /opt/\$beat --strip-components=1 ; \\
         done
-    
+
     COPY plugins/*.zip /opt/plugins/archive/
-    
+
     RUN chown 1000:1000 /opt/plugins/archive/*
     RUN chmod 0444 /opt/plugins/archive/*
-    
+
     COPY fips/resources/fips_java.security /usr/share/elasticsearch/config/fips_java.security
     COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.policy
-    
+
     WORKDIR /usr/share/elasticsearch/config
-    
+
     ## Add fips specific JVM options
     RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
     -Djavax.net.ssl.keyStoreType=BCFKS
@@ -268,7 +268,6 @@ RUN chmod g=u /etc/passwd && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
-<<<<<<< HEAD
 <% if (docker_base == 'default') { %>
 # Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
 # stays up-to-date with changes to Ubuntu's store)

@@ -74,7 +74,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             long roundFloor(long utcMillis, int multiplier) {
-                return DateUtils.roundYearInterval(utcMillis, multiplier);
+                return multiplier == 1 ? DateUtils.roundYear(utcMillis) : DateUtils.roundYearInterval(utcMillis, multiplier);
             }
 
             @Override
@@ -102,10 +102,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             long roundFloor(long utcMillis, int multiplier) {
-                if (multiplier == 1) {
-                    return DateUtils.roundMonthOfYear(utcMillis);
-                }
-                return DateUtils.roundIntervalMonthOfYear(utcMillis, multiplier);
+                return multiplier == 1 ? DateUtils.roundMonthOfYear(utcMillis) : DateUtils.roundIntervalMonthOfYear(utcMillis, multiplier);
             }
 
             @Override

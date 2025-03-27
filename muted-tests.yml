@@ -492,3 +492,6 @@ tests:
 - class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
   method: testUpgradeModels {upgradedNodes=0}
   issue: https://github.com/elastic/elasticsearch/issues/125549
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date.Implicit casting strings to dates for IN operator ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/121490

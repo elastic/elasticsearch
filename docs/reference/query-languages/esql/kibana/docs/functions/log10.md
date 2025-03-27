@@ -7,7 +7,7 @@ Returns the logarithm of a value to base 10. The input can be any numeric value,
 
 Logs of 0 and negative numbers return `null` as well as a warning.
 
-```
+```esql
 ROW d = 1000.0
 | EVAL s = LOG10(d)
 ```

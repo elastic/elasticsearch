@@ -6711,7 +6711,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s max(rate(network.total_bytes_in))";
+        var query = "METRICS k8s | STATS max(rate(network.total_bytes_in))";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
@@ -6732,7 +6732,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMixedAggsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s max(rate(network.total_bytes_in)), max(network.cost)";
+        var query = "METRICS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
@@ -6757,7 +6757,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMixedAggsWithMathWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
+        var query = "METRICS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Project project = as(plan, Project.class);
         Eval mulEval = as(project.child(), Eval.class);
@@ -6794,7 +6794,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsGroupedByOneDimension() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
+        var query = "METRICS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         TopN topN = as(plan, TopN.class);
         Aggregate aggsByCluster = as(topN.child(), Aggregate.class);
@@ -6818,7 +6818,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsGroupedByTwoDimension() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s avg(rate(network.total_bytes_in)) BY cluster, pod";
+        var query = "METRICS k8s | STATS avg(rate(network.total_bytes_in)) BY cluster, pod";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
@@ -6857,7 +6857,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsGroupedByTimeBucket() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
+        var query = "METRICS k8s | STATS sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
@@ -6885,7 +6885,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testTranslateMetricsGroupedByTimeBucketAndDimensions() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = """
-            METRICS k8s avg(rate(network.total_bytes_in)) BY pod, bucket(@timestamp, 5 minute), cluster
+            METRICS k8s
+            | STATS avg(rate(network.total_bytes_in)) BY pod, bucket(@timestamp, 5 minute), cluster
             | SORT cluster
             | LIMIT 10
             """;
@@ -6924,7 +6925,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testTranslateMixedAggsGroupedByTimeBucketAndDimensions() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = """
-            METRICS k8s avg(rate(network.total_bytes_in)), avg(network.cost) BY bucket(@timestamp, 5 minute), cluster
+            METRICS k8s
+            | STATS avg(rate(network.total_bytes_in)), avg(network.cost) BY bucket(@timestamp, 5 minute), cluster
             | SORT cluster
             | LIMIT 10
             """;
@@ -6973,7 +6975,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testAdjustMetricsRateBeforeFinalAgg() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = """
-            METRICS k8s avg(round(1.05 * rate(network.total_bytes_in))) BY bucket(@timestamp, 1 minute), cluster
+            METRICS k8s
+            | STATS avg(round(1.05 * rate(network.total_bytes_in))) BY bucket(@timestamp, 1 minute), cluster
             | SORT cluster
             | LIMIT 10
             """;
@@ -7029,9 +7032,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testMetricsWithoutRate() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         List<String> queries = List.of("""
-            METRICS k8s count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
-            | LIMIT 10
-            """, """
             METRICS k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
             | LIMIT 10
             """, """
@@ -7056,26 +7056,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             EsRelation relation = as(eval.child(), EsRelation.class);
             assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
         }
-        // TODO: Unmute this part
-        // https://github.com/elastic/elasticsearch/issues/110827
-        // for (int i = 1; i < plans.size(); i++) {
-        // assertThat(plans.get(i), equalTo(plans.get(0)));
-        // }
-    }
-
-    public void testRateInStats() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = """
-            METRICS k8s | STATS max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
-            | LIMIT 10
-            """;
-        VerificationException error = expectThrows(
-            VerificationException.class,
-            () -> logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)))
-        );
-        assertThat(error.getMessage(), equalTo("""
-            Found 1 problem
-            line 1:25: the rate aggregate[rate(network.total_bytes_in)] can only be used within the metrics command"""));
+        for (int i = 1; i < plans.size(); i++) {
+            assertThat(plans.get(i), equalTo(plans.get(0)));
+        }
     }
 
     public void testMvSortInvalidOrder() {

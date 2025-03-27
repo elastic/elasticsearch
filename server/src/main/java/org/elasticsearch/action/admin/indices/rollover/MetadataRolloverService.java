@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
@@ -151,7 +152,7 @@ public class MetadataRolloverService {
         @Nullable AutoShardingResult autoShardingResult,
         boolean isFailureStoreRollover
     ) throws Exception {
-        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> rolloverAlias(
@@ -193,7 +194,7 @@ public class MetadataRolloverService {
         CreateIndexRequest createIndexRequest,
         boolean isFailureStoreRollover
     ) {
-        validate(project, rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
+        validate(project, rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = project.getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(project, indexAbstraction, newIndexName);
@@ -655,16 +656,10 @@ public class MetadataRolloverService {
         }
     }
 
-    static void validate(
-        ProjectMetadata project,
-        String rolloverTarget,
-        String newIndexName,
-        CreateIndexRequest request,
-        boolean isFailureStoreRollover
-    ) {
+    static void validate(ProjectMetadata project, String rolloverTarget, String newIndexName, CreateIndexRequest request) {
         final IndexAbstraction indexAbstraction = project.getIndicesLookup().get(rolloverTarget);
         if (indexAbstraction == null) {
-            throw new IllegalArgumentException("rollover target [" + rolloverTarget + "] does not exist");
+            throw new ResourceNotFoundException("rollover target [" + rolloverTarget + "] does not exist");
         }
         if (VALID_ROLLOVER_TARGETS.contains(indexAbstraction.getType()) == false) {
             throw new IllegalArgumentException(

@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.Mapping;
 import org.elasticsearch.logsdb.datageneration.MappingGenerator;
 import org.elasticsearch.logsdb.datageneration.Template;
@@ -35,6 +34,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,14 +59,18 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {}
 
-    private final FieldType fieldType;
+    private final String fieldType;
     protected final Params params;
 
     private final String fieldName;
     private final MappingGenerator mappingGenerator;
     private final DocumentGenerator documentGenerator;
 
-    protected BlockLoaderTestCase(FieldType fieldType, Params params) {
+    protected BlockLoaderTestCase(String fieldType, Params params) {
+        this(fieldType, List.of(), params);
+    }
+
+    protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customHandlers, Params params) {
         this.fieldType = fieldType;
         this.params = params;
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
@@ -87,6 +91,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                     return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
                 }
             }))
+            .withDataSourceHandlers(customHandlers)
             .build();
 
         this.mappingGenerator = new MappingGenerator(specification);

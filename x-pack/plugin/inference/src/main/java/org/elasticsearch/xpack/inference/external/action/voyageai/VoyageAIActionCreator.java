@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.action.voyageai;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -51,14 +50,18 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, taskSettings, inputType);
+    public ExecutableAction create(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = VoyageAIEmbeddingsModel.of(model, taskSettings);
         var manager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             overriddenModel,
             EMBEDDINGS_HANDLER,
-            (documentsOnlyInput) -> new VoyageAIEmbeddingsRequest(documentsOnlyInput.getInputs(), overriddenModel),
-            DocumentsOnlyInput.class
+            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(
+                embeddingsInput.getInputs(),
+                embeddingsInput.getInputType(),
+                overriddenModel
+            ),
+            EmbeddingsInput.class
         );
 
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("VoyageAI embeddings");
@@ -72,7 +75,13 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
             serviceComponents.threadPool(),
             overriddenModel,
             RERANK_HANDLER,
-            (rerankInput) -> new VoyageAIRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model),
+            (rerankInput) -> new VoyageAIRerankRequest(
+                rerankInput.getQuery(),
+                rerankInput.getChunks(),
+                rerankInput.getReturnDocuments(),
+                rerankInput.getTopN(),
+                model
+            ),
             QueryAndDocsInputs.class
         );
 

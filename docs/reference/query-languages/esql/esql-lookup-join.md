@@ -20,17 +20,17 @@ For example, you can use `LOOKUP JOIN` to:
 
 * Your enrichment data changes frequently
 * You want to avoid index-time processing
-* You're working with regular indices
-* You need to preserve distinct matches
+* You want SQL-like behavior, so that multiple matches result in multiple rows
 * You need to match on any field in a lookup index
 * You use document or field level security
-* You want to restrict users to a specific lookup indices that they can you
+* You want to restrict users to use only specific lookup indices
+* You do not need to match using ranges or spatial relations
 
 ## How the `LOOKUP JOIN` command works [esql-how-lookup-join-works]
 
 The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} indices.
 
-:::{image} ../../../images/esql-lookup-join.png
+:::{image} ../images/esql-lookup-join.png
 :alt: esql lookup join
 :::
 
@@ -108,7 +108,7 @@ FROM employees
 To use `LOOKUP JOIN`, the following requirements must be met:
 
 * **Compatible data types**: The join key and join field in the lookup index must have compatible data types. This means:
-  * The data types must either be identical or be internally represented as the same type in Elasticsearch's type system
+  * The data types must either be identical or be internally represented as the same type in {esql}
   * Numeric types follow these compatibility rules:
     * `short` and `byte` are compatible with `integer` (all represented as `int`)
     * `float`, `half_float`, and `scaled_float` are compatible with `double` (all represented as `double`)
@@ -120,9 +120,9 @@ For a complete list of supported data types and their internal representations, 
 
 The following are the current limitations with `LOOKUP JOIN`
 
-* `LOOKUP JOIN` will be successful if the join field in the lookup index is a `KEYWORD` type. If the main index's join field is `TEXT` type, it must have an exact `.keyword` subfield that can be matched with the lookup index's `KEYWORD` field.
 * Indices in [lookup](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
 * Cross cluster search is unsupported. Both source and lookup indices must be local.
+* Currently, only matching on equality is supported.
 * `LOOKUP JOIN` can only use a single match field and a single index. Wildcards, aliases, datemath, and datastreams are not supported.
-* The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require renames or evals to achieve.
+* The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
 * The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.

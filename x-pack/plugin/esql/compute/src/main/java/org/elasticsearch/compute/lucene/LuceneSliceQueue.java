@@ -13,6 +13,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -20,8 +23,12 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
 
@@ -34,10 +41,12 @@ public final class LuceneSliceQueue {
 
     private final int totalSlices;
     private final Queue<LuceneSlice> slices;
+    private final Map<String, PartitioningStrategy> partitioningStrategies;
 
-    private LuceneSliceQueue(List<LuceneSlice> slices) {
+    private LuceneSliceQueue(List<LuceneSlice> slices, Map<String, PartitioningStrategy> partitioningStrategies) {
         this.totalSlices = slices.size();
         this.slices = new ConcurrentLinkedQueue<>(slices);
+        this.partitioningStrategies = partitioningStrategies;
     }
 
     @Nullable
@@ -47,6 +56,13 @@ public final class LuceneSliceQueue {
 
     public int totalSlices() {
         return totalSlices;
+    }
+
+    /**
+     * Strategy used to partition each shard in this queue.
+     */
+    public Map<String, PartitioningStrategy> partitioningStrategies() {
+        return partitioningStrategies;
     }
 
     public Collection<String> remainingShardsIdentifiers() {
@@ -61,7 +77,8 @@ public final class LuceneSliceQueue {
         int taskConcurrency,
         ScoreMode scoreMode
     ) {
-        final List<LuceneSlice> slices = new ArrayList<>();
+        List<LuceneSlice> slices = new ArrayList<>();
+        Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>(contexts.size());
         for (ShardContext ctx : contexts) {
             Query query = queryFunction.apply(ctx);
             /*
@@ -74,6 +91,7 @@ public final class LuceneSliceQueue {
                 throw new UncheckedIOException(e);
             }
             PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
+            partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
             List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
             Weight weight = weight(ctx, query, scoreMode);
             for (List<PartialLeafReaderContext> group : groups) {
@@ -82,17 +100,27 @@ public final class LuceneSliceQueue {
                 }
             }
         }
-        return new LuceneSliceQueue(slices);
+        return new LuceneSliceQueue(slices, partitioningStrategies);
     }
 
-    public enum PartitioningStrategy {
-        SHARD {
+    /**
+     * Strategy used to partition each shard into slices. See {@link DataPartitioning}
+     * for descriptions on how each value works.
+     */
+    public enum PartitioningStrategy implements Writeable {
+        /**
+         * See {@link DataPartitioning#SHARD}.
+         */
+        SHARD(0) {
             @Override
             List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices) {
                 return List.of(searcher.getLeafContexts().stream().map(PartialLeafReaderContext::new).toList());
             }
         },
-        SEGMENT {
+        /**
+         * See {@link DataPartitioning#SEGMENT}.
+         */
+        SEGMENT(1) {
             @Override
             List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices) {
                 IndexSearcher.LeafSlice[] gs = IndexSearcher.slices(
@@ -104,7 +132,10 @@ public final class LuceneSliceQueue {
                 return Arrays.stream(gs).map(g -> Arrays.stream(g.partitions).map(PartialLeafReaderContext::new).toList()).toList();
             }
         },
-        DOC {
+        /**
+         * See {@link DataPartitioning#DOC}.
+         */
+        DOC(2) {
             @Override
             List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices) {
                 final int totalDocCount = searcher.getIndexReader().maxDoc();
@@ -154,6 +185,27 @@ public final class LuceneSliceQueue {
                 return slices;
             }
         };
+
+        private final byte id;
+
+        PartitioningStrategy(int id) {
+            this.id = (byte) id;
+        }
+
+        public static PartitioningStrategy readFrom(StreamInput in) throws IOException {
+            int id = in.readByte();
+            return switch (id) {
+                case 0 -> SHARD;
+                case 1 -> SEGMENT;
+                case 2 -> DOC;
+                default -> throw new IllegalArgumentException("invalid PartitioningStrategyId [" + id + "]");
+            };
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(id);
+        }
 
         abstract List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int requestedNumSlices);
 

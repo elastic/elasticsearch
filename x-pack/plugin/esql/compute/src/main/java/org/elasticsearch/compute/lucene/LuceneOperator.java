@@ -37,11 +37,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.TransportVersions.ESQL_REPORT_SHARD_PARTITIONING;
 
 public abstract class LuceneOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(LuceneOperator.class);
@@ -270,6 +275,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private final int sliceMax;
         private final int current;
         private final long rowsEmitted;
+        private final Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies;
 
         private Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
@@ -295,6 +301,7 @@ public abstract class LuceneOperator extends SourceOperator {
             }
             pagesEmitted = operator.pagesEmitted;
             rowsEmitted = operator.rowsEmitted;
+            partitioningStrategies = operator.sliceQueue.partitioningStrategies();
         }
 
         Status(
@@ -308,7 +315,8 @@ public abstract class LuceneOperator extends SourceOperator {
             int sliceMin,
             int sliceMax,
             int current,
-            long rowsEmitted
+            long rowsEmitted,
+            SortedMap<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies
         ) {
             this.processedSlices = processedSlices;
             this.processedQueries = processedQueries;
@@ -321,6 +329,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.sliceMax = sliceMax;
             this.current = current;
             this.rowsEmitted = rowsEmitted;
+            this.partitioningStrategies = partitioningStrategies;
         }
 
         Status(StreamInput in) throws IOException {
@@ -344,6 +353,9 @@ public abstract class LuceneOperator extends SourceOperator {
             } else {
                 rowsEmitted = 0;
             }
+            partitioningStrategies = in.getTransportVersion().onOrAfter(ESQL_REPORT_SHARD_PARTITIONING)
+                ? in.readMap(LuceneSliceQueue.PartitioningStrategy::readFrom)
+                : Map.of();
         }
 
         @Override
@@ -364,6 +376,9 @@ public abstract class LuceneOperator extends SourceOperator {
             out.writeVInt(current);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
                 out.writeVLong(rowsEmitted);
+            }
+            if (out.getTransportVersion().onOrAfter(ESQL_REPORT_SHARD_PARTITIONING)) {
+                out.writeMapValues(partitioningStrategies);
             }
         }
 
@@ -433,6 +448,7 @@ public abstract class LuceneOperator extends SourceOperator {
             builder.field("slice_max", sliceMax);
             builder.field("current", current);
             builder.field("rows_emitted", rowsEmitted);
+            builder.field("partitioning_strategies", new TreeMap<>(this.partitioningStrategies));
             return builder.endObject();
         }
 

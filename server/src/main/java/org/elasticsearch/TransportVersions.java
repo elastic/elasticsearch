@@ -204,6 +204,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD = def(9_036_0_00);
     public static final TransportVersion RERANK_COMMON_OPTIONS_ADDED = def(9_037_0_00);
     public static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES = def(9_038_00_0);
+    public static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = def(9_039_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -937,7 +937,12 @@ public class EsqlCapabilities {
         /**
          * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
          */
-        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT;
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT,
+
+        /**
+         * Listing queries and getting information on a specific query.
+         */
+        QUERY_MONITORING;
 
         private final boolean enabled;
 

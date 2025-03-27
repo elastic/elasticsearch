@@ -20,16 +20,16 @@ import static org.hamcrest.Matchers.isA;
 /**
  * A type-agnostic way of comparing integer values, not caring if it's a long or an integer.
  */
-public abstract sealed class IntegerMatcher<T> extends BaseMatcher<T> {
-    public static IntegerMatcher<Integer> matches(int expected) {
+public abstract sealed class IntOrLongMatcher<T> extends BaseMatcher<T> {
+    public static IntOrLongMatcher<Integer> matches(int expected) {
         return new IntMatcher(expected);
     }
 
-    public static IntegerMatcher<Long> matches(long expected) {
+    public static IntOrLongMatcher<Long> matches(long expected) {
         return new LongMatcher(expected);
     }
 
-    private static final class IntMatcher extends IntegerMatcher<Integer> {
+    private static final class IntMatcher extends IntOrLongMatcher<Integer> {
         private final int expected;
 
         private IntMatcher(int expected) {
@@ -51,7 +51,7 @@ public abstract sealed class IntegerMatcher<T> extends BaseMatcher<T> {
         }
     }
 
-    private static final class LongMatcher extends IntegerMatcher<Long> {
+    private static final class LongMatcher extends IntOrLongMatcher<Long> {
         private final long expected;
 
         LongMatcher(long expected) {

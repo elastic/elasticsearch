@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -20,7 +21,7 @@ public class EsqlListQueriesResponse extends ActionResponse implements ToXConten
 
     public record Query(org.elasticsearch.tasks.TaskId taskId, long startTimeMillis, long runningTimeNanos, String query)
         implements
-            ToXContentObject {
+            ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(taskId.toString());

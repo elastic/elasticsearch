@@ -21,6 +21,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 
 import java.util.List;
 
@@ -41,24 +42,24 @@ public class TransportEsqlListQueriesAction extends HandledTransportAction<EsqlL
 
     @Override
     protected void doExecute(Task task, EsqlListQueriesRequest request, ActionListener<EsqlListQueriesResponse> listener) {
-        // FIXME(gal, NOCOMMIT) The + [a] hack needs a better solution.
-        new ListTasksRequestBuilder(nodeClient).setActions(EsqlQueryAction.NAME, EsqlQueryAction.NAME + "[a]")
-            .setDetailed(true)
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(ListTasksResponse response) {
-                    List<EsqlListQueriesResponse.Query> queries = response.getTasks()
-                        .stream()
-                        .map(TransportEsqlListQueriesAction::toQuery)
-                        .toList();
-                    listener.onResponse(new EsqlListQueriesResponse(queries));
-                }
+        new ListTasksRequestBuilder(nodeClient).setActions(
+            EsqlQueryAction.NAME,
+            EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX
+        ).setDetailed(true).execute(new ActionListener<>() {
+            @Override
+            public void onResponse(ListTasksResponse response) {
+                List<EsqlListQueriesResponse.Query> queries = response.getTasks()
+                    .stream()
+                    .map(TransportEsqlListQueriesAction::toQuery)
+                    .toList();
+                listener.onResponse(new EsqlListQueriesResponse(queries));
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private static EsqlListQueriesResponse.Query toQuery(TaskInfo taskInfo) {

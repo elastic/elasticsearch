@@ -1,9 +1,13 @@
+---
 setup:
-  # FIXME (gal, NOCOMMIT) Wrong check
   - requires:
-      cluster_features: [ "gte_v8.11.0" ]
-      reason: "ESQL is available in 8.11+"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_monitoring ]
+      reason: "uses query monitoring"
   - do:
       indices.create:
         index: test
@@ -14,6 +18,8 @@ setup:
                 type: keyword
 
 ---
+# Since this feature requires queries in the background, the yaml tests only test edge cases with
+# no running queries. The rest are covered by integration tests (See EsqlListQueriesActionIT).
 List with no running queries:
   - do:
       esql.list_queries: { }

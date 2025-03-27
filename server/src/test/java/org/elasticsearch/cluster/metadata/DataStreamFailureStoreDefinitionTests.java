@@ -34,7 +34,6 @@ public class DataStreamFailureStoreDefinitionTests extends ESTestCase {
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-10")
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s")
-            .put(IndexMetadata.LIFECYCLE_NAME, "my-policy")
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "." + randomAlphaOfLength(4), randomAlphaOfLength(4))
             .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "." + randomAlphaOfLength(4), randomAlphaOfLength(4))
             .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "." + randomAlphaOfLength(4), randomAlphaOfLength(4));
@@ -51,17 +50,18 @@ public class DataStreamFailureStoreDefinitionTests extends ESTestCase {
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-10")
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s")
-            .put(IndexMetadata.LIFECYCLE_NAME, "my-policy")
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "." + randomAlphaOfLength(4), randomAlphaOfLength(4))
             .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "." + randomAlphaOfLength(4), randomAlphaOfLength(4))
             .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "." + randomAlphaOfLength(4), randomAlphaOfLength(4))
+            // Not supported settings
+            .put(IndexMetadata.LIFECYCLE_NAME, "my-policy")
             .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.values()))
             .put(randomSetting, randomAlphaOfLength(10));
         // We expect no changes
         expectedBuilder = Settings.builder().put(builder.build());
         assertThat(
             DataStreamFailureStoreDefinition.filterUserDefinedSettings(builder).keys().size(),
-            equalTo(expectedBuilder.keys().size() - 2)
+            equalTo(expectedBuilder.keys().size() - 3)
         );
         assertThat(
             DataStreamFailureStoreDefinition.filterUserDefinedSettings(builder).keys().contains(IndexSettings.MODE.getKey()),

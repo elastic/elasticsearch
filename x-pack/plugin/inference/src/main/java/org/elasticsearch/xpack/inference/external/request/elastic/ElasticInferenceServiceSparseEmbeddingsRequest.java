@@ -17,8 +17,8 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
 
@@ -40,10 +40,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
         Truncator.TruncationResult truncationResult,
         ElasticInferenceServiceSparseEmbeddingsModel model,
         TraceContext traceContext,
-        String productOrigin,
+        ElasticInferenceServiceRequestMetadata metadata,
         InputType inputType
     ) {
-        super(productOrigin);
+        super(metadata);
         this.truncator = truncator;
         this.truncationResult = truncationResult;
         this.model = Objects.requireNonNull(model);
@@ -95,7 +95,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
             truncatedInput,
             model,
             traceContextHandler.traceContext(),
-            getProductOrigin(),
+            getMetadata(),
             inputType
         );
     }

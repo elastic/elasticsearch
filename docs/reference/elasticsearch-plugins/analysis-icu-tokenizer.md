@@ -5,7 +5,7 @@ mapped_pages:
 
 # ICU tokenizer [analysis-icu-tokenizer]
 
-Tokenizes text into words on word boundaries, as defined in [UAX #29: Unicode Text Segmentation](https://www.unicode.org/reports/tr29/). It behaves much like the [`standard` tokenizer](/reference/data-analysis/text-analysis/analysis-standard-tokenizer.md), but adds better support for some Asian languages by using a dictionary-based approach to identify words in Thai, Lao, Chinese, Japanese, and Korean, and using custom rules to break Myanmar and Khmer text into syllables.
+Tokenizes text into words on word boundaries, as defined in [UAX #29: Unicode Text Segmentation](https://www.unicode.org/reports/tr29/). It behaves much like the [`standard` tokenizer](/reference/text-analysis/analysis-standard-tokenizer.md), but adds better support for some Asian languages by using a dictionary-based approach to identify words in Thai, Lao, Chinese, Japanese, and Korean, and using custom rules to break Myanmar and Khmer text into syllables.
 
 ```console
 PUT icu_sample
@@ -33,7 +33,7 @@ This functionality is marked as experimental in Lucene
 
 You can customize the `icu-tokenizer` behavior by specifying per-script rule files, see the [RBBI rules syntax reference](http://userguide.icu-project.org/boundaryanalysis#TOC-RBBI-Rules) for a more detailed explanation.
 
-To add icu tokenizer rules, set the `rule_files` settings, which should contain a comma-separated list of `code:rulefile` pairs in the following format: [four-letter ISO 15924 script code](https://unicode.org/iso15924/iso15924-codes.md), followed by a colon, then a rule file name. Rule files are placed `ES_HOME/config` directory.
+To add icu tokenizer rules, set the `rule_files` settings, which should contain a comma-separated list of `code:rulefile` pairs in the following format: [four-letter ISO 15924 script code](https://unicode.org/iso15924/iso15924-codes.html), followed by a colon, then a rule file name. Rule files are placed `ES_HOME/config` directory.
 
 As a demonstration of how the rule files can be used, save the following user file to `$ES_HOME/config/KeywordTokenizer.rbbi`:
 

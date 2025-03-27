@@ -495,9 +495,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
         }
 
-        public TestResponse(StreamInput in) throws IOException {
-            super(in);
-        }
+        public TestResponse(StreamInput in) {}
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
@@ -22,6 +23,7 @@ import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
@@ -100,6 +102,11 @@ public class EntitlementInitialization {
         manager = initChecker();
 
         var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
+        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
+
+        if (verifyBytecode) {
+            ensureClassesSensitiveToVerificationAreInitialized();
+        }
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
         Stream.of(
@@ -122,8 +129,23 @@ public class EntitlementInitialization {
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
         Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
-        inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
-        inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
+        var transformer = new Transformer(instrumenter, classesToTransform, verifyBytecode);
+        inst.addTransformer(transformer, true);
+
+        var classesToRetransform = findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform);
+        try {
+            inst.retransformClasses(classesToRetransform);
+        } catch (VerifyError e) {
+            // Turn on verification and try to retransform one class at the time to get detailed diagnostic
+            transformer.enableClassVerification();
+
+            for (var classToRetransform : classesToRetransform) {
+                inst.retransformClasses(classToRetransform);
+            }
+
+            // We should have failed already in the loop above, but just in case we did not, rethrow.
+            throw e;
+        }
     }
 
     private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {
@@ -154,8 +176,10 @@ public class EntitlementInitialization {
             serverModuleFileDatas,
             // Base ES directories
             FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
+            FileData.ofPath(bootstrapArgs.modulesDir(), READ),
             FileData.ofPath(bootstrapArgs.configDir(), READ),
             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+            FileData.ofPath(bootstrapArgs.libDir(), READ),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
 
@@ -210,6 +234,7 @@ public class EntitlementInitialization {
                     new FilesEntitlement(serverModuleFileDatas)
                 )
             ),
+            new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
             new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
             new Scope(
@@ -239,16 +264,22 @@ public class EntitlementInitialization {
             )
         );
 
-        Path trustStorePath = trustStorePath();
-        if (trustStorePath != null) {
+        // conditionally add FIPS entitlements if FIPS only functionality is enforced
+        if (Booleans.parseBoolean(System.getProperty("org.bouncycastle.fips.approved_only"), false)) {
+            // if custom trust store is set, grant read access to its location, otherwise use the default JDK trust store
+            String trustStore = System.getProperty("javax.net.ssl.trustStore");
+            Path trustStorePath = trustStore != null
+                ? Path.of(trustStore)
+                : Path.of(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
+
             Collections.addAll(
                 serverScopes,
                 new Scope(
                     "org.bouncycastle.fips.tls",
                     List.of(
                         new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))),
-                        new OutboundNetworkEntitlement(),
-                        new ManageThreadsEntitlement()
+                        new ManageThreadsEntitlement(),
+                        new OutboundNetworkEntitlement()
                     )
                 ),
                 new Scope(
@@ -259,8 +290,13 @@ public class EntitlementInitialization {
             );
         }
 
-        // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
-        var serverPolicy = new Policy("server", serverScopes);
+        var serverPolicy = new Policy(
+            "server",
+            bootstrapArgs.serverPolicyPatch() == null
+                ? serverScopes
+                : PolicyUtils.mergeScopes(serverScopes, bootstrapArgs.serverPolicyPatch().scopes())
+        );
+
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
         // See also modules/apm/src/main/plugin-metadata/entitlement-policy.yaml
@@ -279,12 +315,12 @@ public class EntitlementInitialization {
                 )
             )
         );
-        var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(
             serverPolicy,
             agentEntitlements,
             pluginPolicies,
-            resolver,
+            EntitlementBootstrap.bootstrapArgs().pluginResolver(),
+            EntitlementBootstrap.bootstrapArgs().sourcePaths(),
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
             pathLookup,
@@ -298,11 +334,6 @@ public class EntitlementInitialization {
             throw new IllegalStateException("user.home system property is required");
         }
         return PathUtils.get(userHome);
-    }
-
-    private static Path trustStorePath() {
-        String trustStore = System.getProperty("javax.net.ssl.trustStore");
-        return trustStore != null ? Path.of(trustStore) : null;
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,
@@ -418,6 +449,24 @@ public class EntitlementInitialization {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    /**
+     * If bytecode verification is enabled, ensure these classes get loaded before transforming/retransforming them.
+     * For these classes, the order in which we transform and verify them matters. Verification during class transformation is at least an
+     * unforeseen (if not unsupported) scenario: we are loading a class, and while we are still loading it (during transformation) we try
+     * to verify it. This in turn leads to more classes loading (for verification purposes), which could turn into those classes to be
+     * transformed and undergo verification. In order to avoid circularity errors as much as possible, we force a partial order.
+     */
+    private static void ensureClassesSensitiveToVerificationAreInitialized() {
+        var classesToInitialize = Set.of("sun.net.www.protocol.http.HttpURLConnection");
+        for (String className : classesToInitialize) {
+            try {
+                Class.forName(className);
+            } catch (ClassNotFoundException unexpected) {
+                throw new AssertionError(unexpected);
+            }
+        }
     }
 
     /**

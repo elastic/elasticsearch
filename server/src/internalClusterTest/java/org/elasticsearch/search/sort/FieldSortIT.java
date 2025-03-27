@@ -87,21 +87,21 @@ public class FieldSortIT extends ESIntegTestCase {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("doc['number'].value", vars -> sortDoubleScript(vars));
-            scripts.put("doc['keyword'].value", vars -> sortStringScript(vars));
+            scripts.put("doc['number'].value", CustomScriptPlugin::sortDoubleScript);
+            scripts.put("doc['keyword'].value", CustomScriptPlugin::sortStringScript);
             return scripts;
         }
 
-        static Double sortDoubleScript(Map<String, Object> vars) {
+        private static Double sortDoubleScript(Map<String, Object> vars) {
             Map<?, ?> doc = (Map) vars.get("doc");
-            Double index = ((Number) ((ScriptDocValues<?>) doc.get("number")).get(0)).doubleValue();
-            return index;
+            Double score = (Double) vars.get("_score");
+            return ((Number) ((ScriptDocValues<?>) doc.get("number")).get(0)).doubleValue() + score;
         }
 
-        static String sortStringScript(Map<String, Object> vars) {
+        private static String sortStringScript(Map<String, Object> vars) {
             Map<?, ?> doc = (Map) vars.get("doc");
-            String value = ((String) ((ScriptDocValues<?>) doc.get("keyword")).get(0));
-            return value;
+            Double score = (Double) vars.get("_score");
+            return ((ScriptDocValues<?>) doc.get("keyword")).get(0) + ",_score=" + score;
         }
     }
 
@@ -1665,14 +1665,14 @@ public class FieldSortIT extends ESIntegTestCase {
         );
     }
 
-    public void testScriptFieldSort() throws Exception {
+    public void testScriptFieldSort() {
         assertAcked(prepareCreate("test").setMapping("keyword", "type=keyword", "number", "type=integer"));
         ensureGreen();
         final int numDocs = randomIntBetween(10, 20);
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
         List<String> keywords = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
-            indexReqs[i] = prepareIndex("test").setSource("number", i, "keyword", Integer.toString(i));
+            indexReqs[i] = prepareIndex("test").setSource("number", i, "keyword", Integer.toString(i), "version", i + "." + i);
             keywords.add(Integer.toString(i));
         }
         Collections.sort(keywords);
@@ -1686,7 +1686,7 @@ public class FieldSortIT extends ESIntegTestCase {
                     .addSort(SortBuilders.scriptSort(script, ScriptSortBuilder.ScriptSortType.NUMBER))
                     .addSort(SortBuilders.scoreSort()),
                 response -> {
-                    double expectedValue = 0;
+                    double expectedValue = 1; // start from 1 because it includes _score, 1.0f for all docs
                     for (SearchHit hit : response.getHits()) {
                         assertThat(hit.getSortValues().length, equalTo(2));
                         assertThat(hit.getSortValues()[0], equalTo(expectedValue++));
@@ -1707,7 +1707,7 @@ public class FieldSortIT extends ESIntegTestCase {
                     int expectedValue = 0;
                     for (SearchHit hit : response.getHits()) {
                         assertThat(hit.getSortValues().length, equalTo(2));
-                        assertThat(hit.getSortValues()[0], equalTo(keywords.get(expectedValue++)));
+                        assertThat(hit.getSortValues()[0], equalTo(keywords.get(expectedValue++) + ",_score=1.0"));
                         assertThat(hit.getSortValues()[1], equalTo(1f));
                     }
                 }

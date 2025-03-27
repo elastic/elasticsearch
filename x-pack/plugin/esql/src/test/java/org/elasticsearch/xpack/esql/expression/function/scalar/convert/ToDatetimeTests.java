@@ -42,12 +42,12 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             read,
             TestCaseSupplier.dateCases(),
             DataType.DATETIME,
-            v -> ((Instant) v).toEpochMilli(),
+            v -> DateUtils.toLongMillis((Instant) v),
             emptyList()
         );
         TestCaseSupplier.unary(
             suppliers,
-            "ToDatetimeFromDateNanosEvaluator[field=" + read + "]",
+            "ToDatetimeFromDateNanosEvaluator[in=" + read + "]",
             TestCaseSupplier.dateNanosCases(),
             DataType.DATETIME,
             i -> DateUtils.toMilliSeconds(DateUtils.toLong((Instant) i)),
@@ -56,7 +56,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
 
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            "ToLongFromIntEvaluator[field=" + read + "]",
+            "ToLongFromIntEvaluator[i=" + read + "]",
             DataType.DATETIME,
             i -> ((Integer) i).longValue(),
             Integer.MIN_VALUE,
@@ -66,7 +66,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryLong(suppliers, read, DataType.DATETIME, l -> l, Long.MIN_VALUE, Long.MAX_VALUE, emptyList());
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            "ToLongFromUnsignedLongEvaluator[field=" + read + "]",
+            "ToLongFromUnsignedLongEvaluator[ul=" + read + "]",
             DataType.DATETIME,
             BigInteger::longValueExact,
             BigInteger.ZERO,
@@ -75,7 +75,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            "ToLongFromUnsignedLongEvaluator[field=" + read + "]",
+            "ToLongFromUnsignedLongEvaluator[ul=" + read + "]",
             DataType.DATETIME,
             bi -> null,
             BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.TWO),
@@ -87,7 +87,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            "ToLongFromDoubleEvaluator[field=" + read + "]",
+            "ToLongFromDoubleEvaluator[dbl=" + read + "]",
             DataType.DATETIME,
             d -> null,
             Double.NEGATIVE_INFINITY,
@@ -99,7 +99,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            "ToLongFromDoubleEvaluator[field=" + read + "]",
+            "ToLongFromDoubleEvaluator[dbl=" + read + "]",
             DataType.DATETIME,
             d -> null,
             9.223372036854777E18, // a "convenient" value larger than `(double) Long.MAX_VALUE` (== ...776E18)
@@ -111,7 +111,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryStrings(
             suppliers,
-            "ToDatetimeFromStringEvaluator[field=" + read + "]",
+            "ToDatetimeFromStringEvaluator[in=" + read + "]",
             DataType.DATETIME,
             bytesRef -> null,
             bytesRef -> List.of(
@@ -124,7 +124,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            "ToDatetimeFromStringEvaluator[field=" + read + "]",
+            "ToDatetimeFromStringEvaluator[in=" + read + "]",
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<date string>",
@@ -139,7 +139,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            "ToDatetimeFromStringEvaluator[field=" + read + "]",
+            "ToDatetimeFromStringEvaluator[in=" + read + "]",
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<date string before -9999-12-31T23:59:59.999Z>",
@@ -159,7 +159,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            "ToDatetimeFromStringEvaluator[field=" + read + "]",
+            "ToDatetimeFromStringEvaluator[in=" + read + "]",
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<date string after 9999-12-31T23:59:59.999Z>",

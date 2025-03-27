@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
@@ -111,6 +112,11 @@ public class EsqlCapabilities {
          * Support for the :: casting operator
          */
         CASTING_OPERATOR,
+
+        /**
+         * Support for the ::date casting operator
+         */
+        CASTING_OPERATOR_FOR_DATE,
 
         /**
          * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
@@ -403,6 +409,12 @@ public class EsqlCapabilities {
         UNION_TYPES_FIX_RENAME_RESOLUTION,
 
         /**
+         * Execute `RENAME` operations sequentially from left to right,
+         * see <a href="https://github.com/elastic/elasticsearch/issues/122250"> ESQL: Align RENAME behavior with EVAL for sequential processing #122250 </a>
+         */
+        RENAME_SEQUENTIAL_PROCESSING,
+
+        /**
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
          */
         UNION_TYPES_MISSING_FIELD,
@@ -538,6 +550,15 @@ public class EsqlCapabilities {
          * support date diff function on date nanos type, and mixed nanos/millis
          */
         DATE_NANOS_DATE_DIFF(),
+        /**
+         * Indicates that https://github.com/elastic/elasticsearch/issues/125439 (incorrect lucene push down for date nanos) is fixed
+         */
+        FIX_DATE_NANOS_LUCENE_PUSHDOWN_BUG(),
+        /**
+         * Fixes a bug where dates are incorrectly formatted if a where clause compares nanoseconds to both milliseconds and nanoseconds,
+         * e.g. {@code WHERE millis > to_datenanos("2023-10-23T12:15:03.360103847") AND millis < to_datetime("2023-10-23T13:53:55.832")}
+         */
+        FIX_DATE_NANOS_MIXED_RANGE_PUSHDOWN_BUG(),
         /**
          * DATE_PARSE supports reading timezones
          */
@@ -810,6 +831,11 @@ public class EsqlCapabilities {
         MATCH_FUNCTION_OPTIONS,
 
         /**
+         * Support options in the query string function.
+         */
+        QUERY_STRING_FUNCTION_OPTIONS,
+
+        /**
          * Support for aggregate_metric_double type
          */
         AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
@@ -835,7 +861,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V3(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V5(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -855,7 +881,63 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
-        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST;
+        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
+
+        /**
+         * Support for RRF command
+         */
+        RRF(Build.current().isSnapshot()),
+
+        /**
+         * Lucene query pushdown to StartsWith and EndsWith functions.
+         * This capability was created to avoid receiving wrong warnings from old nodes in mixed clusters
+         */
+        STARTS_WITH_ENDS_WITH_LUCENE_PUSHDOWN,
+
+        /**
+         * Full text functions can be scored when being part of a disjunction
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
+
+        /**
+         * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
+         */
+        TO_LOWER_MV,
+
+        /**
+         * Use double parameter markers to represent field or function names.
+         */
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot()),
+
+        /**
+         * Non full text functions do not contribute to score
+         */
+        NON_FULL_TEXT_FUNCTIONS_SCORING,
+
+        /**
+         * Support for to_aggregate_metric_double function
+         */
+        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * The {@code _query} API now reports the original types.
+         */
+        REPORT_ORIGINAL_TYPES,
+
+        /**
+         * The metrics command
+         */
+        METRICS_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Index component selector syntax (my-data-stream-name::failures)
+         */
+        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+
+        /**
+         * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
+         */
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT;
 
         private final boolean enabled;
 

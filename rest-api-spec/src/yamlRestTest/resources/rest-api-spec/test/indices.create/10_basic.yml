@@ -274,6 +274,44 @@
   - match: { error.type: "mapper_parsing_exception" }
   - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on field [raw] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
 ---
+"Poorly formatted request returns bad_request":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ poorly_formatted_bad_request ]
+      reason: "requires poorly_formatted_bad_request bug fix"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings: "bad mappings"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties: "bad properties"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          settings: "bad settings"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          aliases: "bad alias"
+---
 "Create index with hunspell missing dict":
   - requires:
       test_runner_features: [ capabilities ]

@@ -225,9 +225,11 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                             TaskType.RERANK,
                             inferenceId,
                             inferenceText,
+                            null,
+                            null,
                             docFeatures,
                             Map.of("throwing", true),
-                            InputType.SEARCH,
+                            InputType.INTERNAL_SEARCH,
                             InferenceAction.Request.DEFAULT_TIMEOUT,
                             false
                         );

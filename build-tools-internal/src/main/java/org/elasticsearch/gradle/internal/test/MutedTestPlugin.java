@@ -36,7 +36,7 @@ public class MutedTestPlugin implements Plugin<Project> {
             : "";
         List<RegularFile> additionalFiles = Arrays.stream(additionalFilePaths.split(","))
             .filter(p -> p.isEmpty() == false)
-            .map(p -> project.getRootProject().getLayout().getProjectDirectory().file(p))
+            .map(p -> project.getLayout().getSettingsDirectory().file(p))
             .toList();
 
         Provider<MutedTestsBuildService> mutedTestsProvider = project.getGradle()

@@ -150,7 +150,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
-            } else if (Regex.simpleMatch("PUT /" + path + "/*?uploadId=*&partNumber=*", request)) {
+            } else if (isUploadPartRequest(request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
 
@@ -213,7 +213,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add("ETag", blob.v1());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
-            } else if (Regex.simpleMatch("GET /" + bucket + "/?prefix=*", request)) {
+            } else if (isListObjectsRequest(request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
                 if (params.get("list-type") != null) {
@@ -315,7 +315,7 @@ public class S3HttpHandler implements HttpHandler {
                 }
                 exchange.sendResponseHeaders((deletions > 0 ? RestStatus.OK : RestStatus.NO_CONTENT).getStatus(), -1);
 
-            } else if (Regex.simpleMatch("POST /" + bucket + "/?delete", request)) {
+            } else if (isMultiObjectDeleteRequest(request)) {
                 final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
 
                 final StringBuilder deletes = new StringBuilder();
@@ -337,16 +337,36 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else {
+                logger.error("unknown request: {}", request);
                 exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
             }
+        } catch (Exception e) {
+            logger.error("exception in request " + request, e);
+            throw e;
         } finally {
             exchange.close();
         }
     }
 
+    private boolean isUploadPartRequest(String request) {
+        return Regex.simpleMatch("PUT /" + path + "/*?uploadId=*&partNumber=*", request)
+            || Regex.simpleMatch("PUT /" + path + "/*?partNumber=*&uploadId=*", request);
+    }
+
     private boolean isListMultipartUploadsRequest(String request) {
         return Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)
-            || Regex.simpleMatch("GET /" + bucket + "/?uploads&max-uploads=*&prefix=*", request);
+            || Regex.simpleMatch("GET /" + bucket + "/?uploads&max-uploads=*&prefix=*", request)
+            || Regex.simpleMatch("GET /" + bucket + "?uploads&prefix=*", request)
+            || Regex.simpleMatch("GET /" + bucket + "?uploads&max-uploads=*&prefix=*", request);
+    }
+
+    private boolean isListObjectsRequest(String request) {
+        return Regex.simpleMatch("GET /" + bucket + "/?prefix=*", request)
+            || Regex.simpleMatch("GET /" + bucket + "?list-type=2&*prefix=*", request);
+    }
+
+    private boolean isMultiObjectDeleteRequest(String request) {
+        return request.equals("POST /" + bucket + "/?delete") || request.equals("POST /" + bucket + "?delete");
     }
 
     public Map<String, BytesReference> blobs() {

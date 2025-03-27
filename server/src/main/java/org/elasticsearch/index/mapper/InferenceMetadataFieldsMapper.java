@@ -93,7 +93,9 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
         var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
         if ((version.before(IndexVersions.INFERENCE_METADATA_FIELDS)
             && version.between(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) == false)
-            || (version.before(USE_NEW_SEMANTIC_TEXT_FORMAT_BY_DEFAULT) && USE_LEGACY_SEMANTIC_TEXT_FORMAT.exists(settings) == false)) {
+            || (version.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+                && version.before(USE_NEW_SEMANTIC_TEXT_FORMAT_BY_DEFAULT)
+                && USE_LEGACY_SEMANTIC_TEXT_FORMAT.exists(settings) == false)) {
             return false;
         }
 

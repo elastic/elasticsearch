@@ -16,7 +16,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % Release notes include only features, enhancements, and fixes. Add breaking changes, deprecations, and known issues to the applicable release notes sections.
 
 % ## version.next [elasticsearch-next-release-notes]
-% **Release date:** Month day, year
 
 % ### Features and enhancements [elasticsearch-next-features-enhancements]
 % *

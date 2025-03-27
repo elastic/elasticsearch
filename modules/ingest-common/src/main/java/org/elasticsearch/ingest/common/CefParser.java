@@ -361,7 +361,9 @@ final class CefParser {
     }
 
     private Object convertValueToType(String value, Class<?> type) {
-        if (type == Long.class) {
+        if (type == String.class) {
+            return value;
+        } else if (type == Long.class) {
             return Long.parseLong(value);
         } else if (type == Double.class) {
             return Double.parseDouble(value);
@@ -370,7 +372,7 @@ final class CefParser {
         } else if (type == ZonedDateTime.class) {
             return toTimestamp(value);
         } else {
-            return value; // Default to String
+            throw new IllegalArgumentException("Unsupported type: " + type);
         }
     }
 

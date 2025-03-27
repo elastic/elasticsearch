@@ -396,6 +396,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
   method: testMergingFallsBehindAndThenCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/125744
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=cat.allocation/10_basic/Node forecasts}
+  issue: https://github.com/elastic/elasticsearch/issues/125661
 
 # Examples:
 #

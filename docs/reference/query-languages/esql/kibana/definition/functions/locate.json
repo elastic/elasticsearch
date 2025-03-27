@@ -174,7 +174,7 @@
     }
   ],
   "examples" : [
-    "row a = \"hello\"\n| eval a_ll = locate(a, \"ll\")"
+    "ROW a = \"hello\"\n| EVAL a_ll = LOCATE(a, \"ll\")"
   ],
   "preview" : false,
   "snapshot_only" : false

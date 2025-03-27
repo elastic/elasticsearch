@@ -143,7 +143,7 @@ GET /items/_search
 `origin`
 :   (Required, string) Date or point of origin used to calculate distances.
 
-If the `field` value is a [`date`](/reference/elasticsearch/mapping-reference/date.md) or [`date_nanos`](/reference/elasticsearch/mapping-reference/date_nanos.md) field, the `origin` value must be a [date](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern). [Date Math](/reference/elasticsearch/rest-apis/common-options.md#date-math), such as `now-1h`, is supported.
+If the `field` value is a [`date`](/reference/elasticsearch/mapping-reference/date.md) or [`date_nanos`](/reference/elasticsearch/mapping-reference/date_nanos.md) field, the `origin` value must be a [date](/reference/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern). [Date Math](/reference/elasticsearch/rest-apis/common-options.md#date-math), such as `now-1h`, is supported.
 
 If the `field` value is a [`geo_point`](/reference/elasticsearch/mapping-reference/geo-point.md) field, the `origin` value must be a geopoint.
 

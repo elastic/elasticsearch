@@ -140,11 +140,13 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         // preserving the type information is hacky and weird (a lot of context needs to be passed around and the lambda itself
         // has no type info so it's difficult to have automatic checking without having base classes).
 
-        if (arg instanceof Collection<?> c) {
+        if (arg instanceof List<?> c) {
             List<Object> transformed = null;
             boolean hasChanged = false;
-            int i = 0;
-            for (Object e : c) {
+            // please do not refactor it to a for-each loop to avoid
+            // allocating iterator that performs concurrent modification checks and extra stack frames
+            for (int i = 0, size = c.size(); i < size; i++) {
+                var e = c.get(i);
                 Object next = doTransformExpression(e, traversal);
                 if (e.equals(next) == false) {
                     if (hasChanged == false) {
@@ -153,9 +155,25 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
                     }
                     transformed.set(i, next);
                 }
+            }
+            return hasChanged ? transformed : arg;
+        } else if (arg instanceof Collection<?> c) {
+            List<Object> transformed = null;
+            boolean hasChanged = false;
+            int i = 0;
+            for (Object e : c) {
+                Object next = doTransformExpression(e, traversal);
+                if (e.equals(next) == false) {
+                    if (hasChanged == false) {
+                        hasChanged = true;
+                        // TODO if collection is a set then this silently changes its semantics by allowing duplicates
+                        // We should fix it or confirm this branch is never needed
+                        transformed = new ArrayList<>(c);
+                    }
+                    transformed.set(i, next);
+                }
                 i++;
             }
-
             return hasChanged ? transformed : arg;
         }
 

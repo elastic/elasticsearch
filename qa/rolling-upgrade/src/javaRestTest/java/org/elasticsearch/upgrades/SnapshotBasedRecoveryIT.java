@@ -233,7 +233,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingUpgradeTestCase {
         return responseAsMap;
     }
 
-    private void indexDocs(String indexName, int numDocs) throws IOException {
+    static void indexDocs(String indexName, int numDocs) throws IOException {
         final StringBuilder bulkBody = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
             bulkBody.append("{\"index\":{\"_id\":\"").append(i).append("\"}}\n");

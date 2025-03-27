@@ -469,7 +469,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         S3BlobStore.configureRequestForMetrics(putRequest, blobStore, Operation.PUT_OBJECT, purpose);
 
         try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
-            SocketAccess.doPrivilegedVoid(() -> { clientReference.client().putObject(putRequest); });
+            SocketAccess.doPrivilegedVoid(() -> clientReference.client().putObject(putRequest));
         } catch (final AmazonClientException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
         }

@@ -1,4 +1,5 @@
 project: 'Elasticsearch'
+max_toc_depth: 2
 exclude:
   - README.md
   - internal/*
@@ -21,6 +22,7 @@ cross_links:
   - go-elasticsearch
   - kibana
   - logstash
+  - logstash-docs-md
 toc:
   - toc: reference
   - toc: release-notes

@@ -10,10 +10,8 @@ package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpHandler;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 import com.amazonaws.AbortedException;
-import com.amazonaws.DnsResolver;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
 import com.amazonaws.services.s3.model.AmazonS3Exception;

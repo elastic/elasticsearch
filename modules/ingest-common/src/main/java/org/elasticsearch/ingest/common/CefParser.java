@@ -141,6 +141,10 @@ final class CefParser {
         entry("proto", "network.transport")
     );
 
+    private static final Set<String> FIELD_MAPPINGS_AND_VALUES = Set.copyOf(
+        Sets.union(FIELD_MAPPINGS.keySet(), Set.copyOf(FIELD_MAPPINGS.values()))
+    );
+
     private static final Map<String, Class<?>> FIELDS = Map.<String, Class<?>>ofEntries(
         entry("@timestamp", ZonedDateTime.class),
         entry("destination.bytes", Long.class),
@@ -212,10 +216,6 @@ final class CefParser {
         entry("source.user.name", String.class),
         entry("url.original", String.class),
         entry("user_agent.original", String.class)
-    );
-
-    private static final Set<String> FIELD_MAPPINGS_AND_VALUES = Set.copyOf(
-        Sets.union(FIELD_MAPPINGS.keySet(), Set.copyOf(FIELD_MAPPINGS.values()))
     );
 
     private static final String ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = "incomplete CEF header";

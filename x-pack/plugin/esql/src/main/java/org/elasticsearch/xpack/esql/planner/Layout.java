@@ -107,26 +107,13 @@ public interface Layout {
             Map<NameId, ChannelAndType> layout = new HashMap<>();
             int numberOfChannels = 0;
             for (ChannelSet set : channels) {
-                boolean createNewChannel = true;
-                int channel = 0;
+                int channel = numberOfChannels++;
                 for (NameId id : set.nameIds) {
-                    if (layout.containsKey(id)) {
-                        // If a NameId already exists in the map, do not increase the numberOfChannels, it can cause inverse() to create
-                        // a null in the list of channels, and NullPointerException when build() is called.
-                        // TODO avoid adding duplicated attributes with the same id in the plan, ReplaceMissingFieldWithNull may add nulls
-                        // with the same ids as the missing field ids.
-                        continue;
-                    }
-                    if (createNewChannel) {
-                        channel = numberOfChannels++;
-                        createNewChannel = false;
-                    }
+                    // Duplicate name ids would mean that have 2 channels that are declared under the same id. That makes no sense - which
+                    // channel should subsequent operators use, then, when they want to refer to this id?
+                    assert (layout.containsKey(id) == false) : "Duplicate name ids are not allowed in layouts";
                     ChannelAndType next = new ChannelAndType(channel, set.type);
-                    ChannelAndType prev = layout.put(id, next);
-                    // Do allow multiple name to point to the same channel - see https://github.com/elastic/elasticsearch/pull/100238
-                    // if (prev != null) {
-                    // throw new IllegalArgumentException("Name [" + id + "] is on two channels [" + prev + "] and [" + next + "]");
-                    // }
+                    layout.put(id, next);
                 }
             }
             return new DefaultLayout(Collections.unmodifiableMap(layout), numberOfChannels);

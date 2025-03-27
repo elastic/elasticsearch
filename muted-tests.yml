@@ -387,9 +387,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
   method: testSearchableSnapshotsInHotPhasePinnedToHotNodes
   issue: https://github.com/elastic/elasticsearch/issues/125683
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=deprecation/10_basic/Test Deprecations}
-  issue: https://github.com/elastic/elasticsearch/issues/123147
 
 # Examples:
 #

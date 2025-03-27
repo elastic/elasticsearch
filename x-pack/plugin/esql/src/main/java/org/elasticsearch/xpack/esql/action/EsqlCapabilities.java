@@ -694,7 +694,12 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
-        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST;
+        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
+
+        /**
+         * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
+         */
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT;
 
         private final boolean enabled;
 

@@ -389,6 +389,9 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=cat.allocation/10_basic/Node forecasts}
   issue: https://github.com/elastic/elasticsearch/issues/125661
+- class: org.elasticsearch.xpack.esql.spatial.SpatialExtentAggregationNoLicenseIT
+  method: testStExtentAggregationWithPoints
+  issue: https://github.com/elastic/elasticsearch/issues/125735
 
 # Examples:
 #

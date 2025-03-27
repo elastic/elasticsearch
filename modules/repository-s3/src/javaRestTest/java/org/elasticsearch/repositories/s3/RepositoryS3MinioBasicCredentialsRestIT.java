@@ -39,6 +39,7 @@ public class RepositoryS3MinioBasicCredentialsRestIT extends AbstractRepositoryS
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", minioFixture::getAddress)
+        .setting("s3.client." + CLIENT + ".region", "us-east-1" /* Default MinIO region */ )
         .build();
 
     @ClassRule

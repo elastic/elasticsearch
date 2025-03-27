@@ -294,4 +294,21 @@ public final class Page implements Writeable {
             }
         }
     }
+
+    public Page filter(int... positions) {
+        Block[] filteredBlocks = new Block[blocks.length];
+        boolean success = false;
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                filteredBlocks[i] = getBlock(i).filter(positions);
+            }
+            success = true;
+        } finally {
+            releaseBlocks();
+            if (success == false) {
+                Releasables.closeExpectNoException(filteredBlocks);
+            }
+        }
+        return new Page(filteredBlocks);
+    }
 }

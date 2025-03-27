@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
@@ -696,5 +697,25 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             return new OrderBy(source, dedup, order);
         };
+    }
+
+    @Override
+    public PlanFactory visitRandomSampleCommand(EsqlBaseParser.RandomSampleCommandContext ctx) {
+        var probability = visitDecimalValue(ctx.probability);
+        Literal seed;
+        if (ctx.seed != null) {
+            seed = visitIntegerValue(ctx.seed);
+            if (seed.dataType() != DataType.INTEGER) {
+                throw new ParsingException(
+                    seed.source(),
+                    "seed must be an integer, provided [{}] of type [{}]",
+                    ctx.seed.getText(),
+                    seed.dataType()
+                );
+            }
+        } else {
+            seed = null;
+        }
+        return plan -> new RandomSample(source(ctx), probability, seed, plan);
     }
 }

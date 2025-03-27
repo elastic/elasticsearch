@@ -1,0 +1,204 @@
+// Tests focused on the RANDOM_SAMPLE command
+
+row
+required_capability: random_sample
+
+ROW x = 1
+| RANDOM_SAMPLE .99 9
+;
+
+x:integer
+1
+;
+
+topN_PushedDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .5 0
+| SORT emp_no
+| LIMIT 5
+| STATS empNoMax = MAX(emp_no)
+| EVAL correct = empNoMax < 10030
+| KEEP correct
+;
+
+correct:boolean
+true
+;
+
+topN_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .5 0
+| SORT emp_no
+| LIMIT 5
+| STATS empNoMax = MAX(emp_no)
+| EVAL correct = empNoMax < 10030
+| KEEP correct
+;
+
+correct:boolean
+true
+;
+
+aggCount_PushedDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .5 123
+| STATS count = COUNT(*)
+| EVAL correct = count > 50 AND count < 150
+| KEEP correct
+;
+
+correct:boolean
+true
+;
+
+aggCount_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .5 123
+| STATS count = COUNT(*)
+| EVAL correct = count > 50 AND count < 150
+| KEEP correct
+;
+
+correct:boolean
+true
+;
+
+aggCountNoSeed_PushedDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .5
+| STATS count = COUNT(*)
+| EVAL correct = count > 50 AND count < 150
+| KEEP correct
+;
+
+correct:boolean
+true
+;
+
+aggCountNoSeed_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .5
+| STATS count = COUNT(*)
+| EVAL inRange = count > 50 AND count < 150
+| KEEP inRange
+;
+
+inRange:boolean
+true
+;
+
+withPostFilter_PushDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .5 0
+| WHERE emp_no > 10050
+| STATS count = COUNT(*)
+| EVAL correct = count > 20 AND count < 80
+| KEEP correct
+;
+
+correct:boolean
+true
+;
+
+withPostFilter_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .5 0
+| WHERE emp_no > 10050
+| STATS count = COUNT(*)
+| EVAL correct = count > 20 AND count < 80
+| KEEP correct
+;
+
+correct:boolean
+true
+;
+
+combined_PushDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .6 11
+| EVAL e1 = emp_no + 1
+| RANDOM_SAMPLE .7 11111
+| STATS count = COUNT(e1)
+| EVAL correct = count > 50 AND count < 150
+| KEEP correct
+;
+
+correct:boolean
+true
+;
+
+combined_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .6 11
+| EVAL e1 = emp_no + 1
+| RANDOM_SAMPLE .7 11111
+| STATS count = COUNT(e1)
+| EVAL correct = count > 50 AND count < 150
+| KEEP correct
+;
+
+correct:boolean
+true
+;
+
+combined2_PushDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .6 11
+| EVAL e1 = emp_no + 1
+| RANDOM_SAMPLE .7 11111
+| EVAL e1s = e1::KEYWORD
+| RANDOM_SAMPLE .1
+| STATS count = COUNT(e1s)
+| EVAL correct = count > 0 AND count < 250
+| KEEP correct
+;
+
+correct:boolean
+true
+;
+
+combined2_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .6 11
+| EVAL e1 = emp_no + 1
+| RANDOM_SAMPLE .7 11111
+| EVAL e1s = e1::KEYWORD
+| RANDOM_SAMPLE .1
+| STATS count = COUNT(e1s)
+| EVAL correct = count > 0 AND count < 250
+| KEEP correct
+;
+
+correct:boolean
+true
+;

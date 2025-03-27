@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -118,6 +119,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -7618,5 +7620,121 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var mvExpand = as(orderBy.child(), MvExpand.class);
         var mvExpand2 = as(mvExpand.child(), MvExpand.class);
         as(mvExpand2.child(), Row.class);
+    }
+
+    /**
+     * Eval[[1[INTEGER] AS irrelevant1, 2[INTEGER] AS irrelevant2]]
+     *    \_Limit[1000[INTEGER],false]
+     *      \_RandomSample[0.015[DOUBLE],15[INTEGER]]
+     *        \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testRandomSampleMerged() {
+        var query = """
+            FROM TEST
+            | RANDOM_SAMPLE .3 5
+            | EVAL irrelevant1 = 1
+            | RANDOM_SAMPLE .5 10
+            | EVAL irrelevant2 = 2
+            | RANDOM_SAMPLE .1
+            """;
+        var optimized = optimizedPlan(query);
+
+        var eval = as(optimized, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var randomSample = as(limit.child(), RandomSample.class);
+        var source = as(randomSample.child(), EsRelation.class);
+
+        assertThat(randomSample.probability().fold(FoldContext.small()), equalTo(0.015));
+        assertThat(randomSample.seed().fold(FoldContext.small()), equalTo(5 ^ 10));
+    }
+
+    public void testRandomSamplePushDown() {
+        for (var command : List.of(
+            "ENRICH languages_idx on first_name",
+            "EVAL x = 1",
+            // "INSIST emp_no", // TODO
+            "KEEP emp_no",
+            "DROP emp_no",
+            "RENAME emp_no AS x",
+            "GROK first_name \"%{WORD:bar}\"",
+            "DISSECT first_name \"%{z}\""
+        )) {
+            var query = "FROM TEST | " + command + " | RANDOM_SAMPLE .5";
+            var optimized = optimizedPlan(query);
+
+            var unary = as(optimized, UnaryPlan.class);
+            var limit = as(unary.child(), Limit.class);
+            var randomSample = as(limit.child(), RandomSample.class);
+            var source = as(randomSample.child(), EsRelation.class);
+
+            assertThat(randomSample.probability().fold(FoldContext.small()), equalTo(0.5));
+            assertNull(randomSample.seed());
+        }
+    }
+
+    public void testRandomSampleNoPushDown() {
+        for (var command : List.of(
+            "LIMIT 100",
+            "MV_EXPAND languages",
+            "SORT emp_no | LIMIT 100", // the limit avoids an unbounded sort
+            "STATS COUNT()",
+            "WHERE emp_no > 1"
+        )) {
+            var query = "FROM TEST | " + command + " | RANDOM_SAMPLE .5";
+            var optimized = optimizedPlan(query);
+
+            var limit = as(optimized, Limit.class);
+            var randomSample = as(limit.child(), RandomSample.class);
+            var unary = as(randomSample.child(), UnaryPlan.class);
+            var source = as(unary.child(), EsRelation.class);
+        }
+    }
+
+    /**
+     *    Limit[1000[INTEGER],false]
+     *    \_RandomSample[0.5[DOUBLE],null]
+     *      \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#17]]
+     *        |_Eval[[emp_no{f}#6 AS language_code]]
+     *        | \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *        \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
+     */
+    public void testRandomSampleNoPushDownLookupJoin() {
+        var query = """
+            FROM TEST
+            | EVAL language_code = emp_no
+            | LOOKUP JOIN languages_lookup ON language_code
+            | RANDOM_SAMPLE .5
+            """;
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var randomSample = as(limit.child(), RandomSample.class);
+        var join = as(randomSample.child(), Join.class);
+        var eval = as(join.left(), Eval.class);
+        var source = as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     *    Limit[1000[INTEGER],false]
+     *    \_RandomSample[0.5[DOUBLE],null]
+     *      \_Limit[1000[INTEGER],false]
+     *        \_ChangePoint[emp_no{f}#6,hire_date{f}#13,type{r}#4,pvalue{r}#5]
+     *          \_TopN[[Order[hire_date{f}#13,ASC,ANY]],1001[INTEGER]]
+     *            \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testRandomSampleNoPushDownChangePoint() {
+        var query = """
+            FROM TEST
+            | CHANGE_POINT emp_no ON hire_date
+            | RANDOM_SAMPLE .5 -55
+            """;
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var randomSample = as(limit.child(), RandomSample.class);
+        limit = as(randomSample.child(), Limit.class);
+        var changePoint = as(limit.child(), ChangePoint.class);
+        var topN = as(changePoint.child(), TopN.class);
+        var source = as(topN.child(), EsRelation.class);
     }
 }

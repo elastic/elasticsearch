@@ -21,7 +21,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -38,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
+import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -206,12 +206,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public boolean hasScoring() {
-        for (Attribute a : attrs()) {
-            if (a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE)) {
-                return true;
-            }
-        }
-        return false;
+        return hasScoreAttribute(attrs);
     }
 
     @Override
@@ -304,6 +299,12 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             throw new UnsupportedOperationException("time-series index mode doesn't support sorts");
         }
         return Objects.equals(this.sorts, sorts)
+            ? this
+            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
+    }
+
+    public EsQueryExec withQuery(QueryBuilder query) {
+        return Objects.equals(this.query, query)
             ? this
             : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
     }

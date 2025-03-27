@@ -181,6 +181,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
                 new RolloverRequest(alias, newIndexName),
                 ActionListener.wrap(response -> listener.onResponse(response.getNewIndex()), e -> {
                     if (e instanceof ResourceAlreadyExistsException alreadyExistsException) {
+                        // The destination index already exists possibly because it has been rolled over already.
                         listener.onResponse(alreadyExistsException.getIndex().getName());
                     } else {
                         listener.onFailure(e);
@@ -276,6 +277,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         );
 
         // This should never happen
+        assert matching.length > 0 : "No indices matching [" + baseIndexName + "*]";
         if (matching.length == 0) {
             return index;
         }

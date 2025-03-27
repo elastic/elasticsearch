@@ -67,7 +67,7 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
             // Project[field1, field2, field3] <- keeps the ordering intact
             // \_Eval[field1 = null, field3 = null]
             // \_EsRelation[field2]
-            // TODO: Test when there are 0 fields remaining
+            // TODO: Double check that we test when there are 0 fields remaining
             List<Attribute> initialOutput = relation.output();
             List<Attribute> remainingFields = new ArrayList<>(initialOutput.size());
             Map<DataType, Alias> nullLiterals = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());

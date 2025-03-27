@@ -18,8 +18,8 @@ teardown:
 "Test attributes namespacing":
   - do:
       index:
-        index: test
-        id: "1"
+        index: ecs_namespacing_test
+        id: "nested_and_flat_attributes"
         pipeline: "ecs_namespacing_pipeline"
         body: {
           "agent.name": "agentNameValue",
@@ -42,8 +42,8 @@ teardown:
 
   - do:
       get:
-        index: test
-        id: "1"
+        index: ecs_namespacing_test
+        id: "nested_and_flat_attributes"
   - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
   - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
   - match: { _source.resource.attributes.cloud\.provider: "cloudProviderValue" }
@@ -60,3 +60,103 @@ teardown:
   - match: { _source.host: null }
   - match: { _source.service.name: null }
   - match: { _source.service: null }
+
+---
+"Test rename special keys":
+  - do:
+      index:
+        index: ecs_namespacing_test
+        id: "rename_special_keys"
+        pipeline: "ecs_namespacing_pipeline"
+        body: {
+          "span": {
+            "id": "nestedSpanIdValue"
+          },
+          "span.id": "topLevelSpanIdValue",
+          "log.level": "topLevelLogLevelValue",
+          "trace": {
+            "id": "traceIdValue"
+          },
+          "trace.id": "topLevelTraceIdValue",
+          "message": "this is a message"
+        }
+
+  - do:
+      get:
+        index: ecs_namespacing_test
+        id: "rename_special_keys"
+  - match: { _source.span_id: "nestedSpanIdValue" }
+  - match: { _source.severity_text: "topLevelLogLevelValue" }
+  - match: { _source.trace_id: "traceIdValue" }
+  - match: { _source.body.text: "this is a message" }
+  - match: { _source.span: null }
+  - match: { _source.span\.id: null }
+  - match: { _source.log\.level: null }
+  - match: { _source.trace: null }
+  - match: { _source.trace\.id: null }
+  - match: { _source.message: null }
+
+---
+"Test valid OTel document":
+  - do:
+      index:
+        index: ecs_namespacing_test
+        id: "valid_otel_document"
+        pipeline: "ecs_namespacing_pipeline"
+        body: {
+          "resource": {
+            "attributes": {
+              "foo": "bar"
+            }
+          },
+          "scope": {},
+          "attributes": {
+            "foo": "bar"
+          },
+          "body": {
+            "text": "a string",
+            "structured": {}
+          },
+          "foo": "bar"
+        }
+
+  - do:
+      get:
+        index: ecs_namespacing_test
+        id: "valid_otel_document"
+  - match: { _source.resource.attributes.foo: "bar" }
+  - match: { _source.scope: {} }
+  - match: { _source.attributes.foo: "bar" }
+  - match: { _source.body.text: "a string" }
+  - match: { _source.body.structured: {} }
+  - match: { _source.foo: "bar" }
+
+---
+"Test invalid body field":
+  - do:
+      index:
+        index: ecs_namespacing_test
+        id: "invalid_scope_field"
+        pipeline: "ecs_namespacing_pipeline"
+        body: {
+          "resource": {},
+          "scope": "invalid scope",
+          "body": {
+            "text": "test message",
+            "structured": {
+              "foo": "bar"
+            }
+          },
+          "foo": "bar"
+        }
+
+  - do:
+      get:
+        index: ecs_namespacing_test
+        id: "invalid_scope_field"
+  - match: { _source.attributes.scope: "invalid scope" }
+  - match: { _source.attributes.body\.text: "test message" }
+  - match: { _source.attributes.body\.structured\.foo: "bar" }
+  - match: { _source.attributes.foo: "bar" }
+  - match: { _source.body: null }
+  - match: { _source.scope: null }

@@ -17,27 +17,13 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 public class EcsNamespacingProcessor extends AbstractProcessor {
 
     public static final String TYPE = "ecs_namespacing";
-
-    private static final Set<String> KEEP_KEYS = Set.of(
-        "@timestamp",
-        "observed_timestamp",
-        "trace_id",
-        "span_id",
-        "severity_text",
-        "body",
-        "severity_number",
-        "event_name",
-        "attributes",
-        "resource",
-        "dropped_attributes_count",
-        "scope"
-    );
 
     private static final Map<String, String> RENAME_KEYS = Map.of(
         "span.id",
@@ -49,6 +35,22 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
         "trace.id",
         "trace_id"
     );
+
+    private static final Set<String> KEEP_KEYS;
+    static {
+        Set<String> keepKeys = new HashSet<>(Set.of("@timestamp", "attributes", "resource"));
+        Set<String> renamedTopLevelFields = new HashSet<>();
+        for (String value : RENAME_KEYS.values()) {
+            int dotIndex = value.indexOf('.');
+            if (dotIndex != -1) {
+                renamedTopLevelFields.add(value.substring(0, dotIndex));
+            } else {
+                renamedTopLevelFields.add(value);
+            }
+        }
+        keepKeys.addAll(renamedTopLevelFields);
+        KEEP_KEYS = Set.copyOf(keepKeys);
+    }
 
     private static final String AGENT_PREFIX = "agent.";
     private static final String CLOUD_PREFIX = "cloud.";
@@ -82,19 +84,23 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
         // non-OTel document
 
         Map<String, Object> newAttributes = new HashMap<>();
-        Object oldAttributes = source.remove(ATTRIBUTES_KEY);
-        if (oldAttributes != null) {
-            newAttributes.put(ATTRIBUTES_KEY, oldAttributes);
+        // The keep keys indicate the fields that should be kept at the top level later on when applying the namespacing.
+        // However, at this point we need to move their original values to the new attributes namespace, except for the @timestamp field.
+        for (String keepKey : KEEP_KEYS) {
+            if (keepKey.equals("@timestamp")) {
+                continue;
+            }
+            Object value = source.remove(keepKey);
+            if (value != null) {
+                newAttributes.put(keepKey, value);
+            }
         }
-        source.put(ATTRIBUTES_KEY, newAttributes);
 
         Map<String, Object> newResource = new HashMap<>();
         Map<String, Object> newResourceAttributes = new HashMap<>();
         newResource.put(ATTRIBUTES_KEY, newResourceAttributes);
-        Object oldResource = source.remove(RESOURCE_KEY);
-        if (oldResource != null) {
-            newAttributes.put(RESOURCE_KEY, oldResource);
-        }
+
+        source.put(ATTRIBUTES_KEY, newAttributes);
         source.put(RESOURCE_KEY, newResource);
 
         renameSpecialKeys(document);
@@ -159,15 +165,23 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
 
     private void renameSpecialKeys(IngestDocument document) {
         RENAME_KEYS.forEach((nonOtelName, otelName) -> {
-            // first look assuming dot notation
+            // first look assuming dot notation for nested fields
             Object value = document.getFieldValue(nonOtelName, Object.class, true);
             if (value != null) {
                 document.removeField(nonOtelName);
-                // remove the parent field if it is empty
+                // recursively remove empty parent fields
                 int lastDot = nonOtelName.lastIndexOf('.');
-                if (lastDot > 0) {
-                    String parent = nonOtelName.substring(0, lastDot);
-                    document.removeField(parent, true);
+                while (lastDot > 0) {
+                    String parentName = nonOtelName.substring(0, lastDot);
+                    // parent should never be null and must be a map if we are here
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> parent = (Map<String, Object>) document.getFieldValue(parentName, Map.class);
+                    if (parent.isEmpty()) {
+                        document.removeField(parentName);
+                    } else {
+                        break;
+                    }
+                    lastDot = parentName.lastIndexOf('.');
                 }
             } else if (nonOtelName.contains(".")) {
                 // look for dotted field names

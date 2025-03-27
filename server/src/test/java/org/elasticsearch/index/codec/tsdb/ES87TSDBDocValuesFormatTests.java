@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -38,6 +39,7 @@ import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataStream;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -258,14 +260,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
 
-        var config = new IndexWriterConfig();
-        config.setIndexSort(
-            new Sort(
-                new SortField(hostnameField, SortField.Type.STRING, false),
-                new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
-            )
-        );
-        config.setCodec(getCodec());
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             long counter1 = 0;
             long counter2 = 10_000_000;
@@ -368,5 +363,100 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                 }
             }
         }
+    }
+
+    public void testWithNoValueMultiValue() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numRounds = 4 + random().nextInt(28);
+            int numDocsPerRound = 8 + random().nextInt(56);
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
+            {
+                long timestamp = baseTimestamp;
+                for (int i = 0; i < numRounds; i++) {
+                    int r = random().nextInt(10);
+                    for (int j = 0; j < numDocsPerRound; j++) {
+                        var d = new Document();
+                        String hostName = String.format(Locale.ROOT, "host-%03d", i);
+                        d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
+                        // Index sorting doesn't work with NumericDocValuesField:
+                        d.add(new SortedNumericDocValuesField(timestampField, timestamp++));
+
+                        if (r % 10 == 5) {
+                            // sometimes no values
+                        } else if (r % 10 > 5) {
+                            // often multiple values:
+                            int numValues = 2 + random().nextInt(4);
+                            for (int k = 0; k < numValues; k++) {
+                                d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[(j + k) % gauge1Values.length]));
+                                d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[(j + k) % tags.length])));
+                            }
+                        } else {
+                            // otherwise single value:
+                            d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[j % gauge1Values.length]));
+                            d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j % tags.length])));
+                        }
+
+                        iw.addDocument(d);
+                    }
+                    iw.commit();
+                }
+                iw.forceMerge(1);
+            }
+
+            int numDocs = numRounds * numDocsPerRound;
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var hostNameDV = leaf.getSortedDocValues(hostnameField);
+                assertNotNull(hostNameDV);
+                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
+                assertNotNull(timestampDV);
+                var gaugeOneDV = leaf.getSortedNumericDocValues("gauge_1");
+                assertNotNull(gaugeOneDV);
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals(i, hostNameDV.nextDoc());
+                    int round = i / numDocsPerRound;
+                    String expectedHostName = String.format(Locale.ROOT, "host-%03d", round);
+                    String actualHostName = hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString();
+                    assertEquals(expectedHostName, actualHostName);
+
+                    assertEquals(i, timestampDV.nextDoc());
+                    long timestamp = timestampDV.longValue();
+                    long lowerBound = baseTimestamp;
+                    long upperBound = baseTimestamp + numDocs;
+                    assertTrue(
+                        "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
+                        timestamp >= lowerBound && timestamp < upperBound
+                    );
+                    if (gaugeOneDV.advanceExact(i)) {
+                        for (int j = 0; j < gaugeOneDV.docValueCount(); j++) {
+                            long value = gaugeOneDV.nextValue();
+                            assertTrue("unexpected gauge [" + value + "]", Arrays.binarySearch(gauge1Values, value) >= 0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {
+        var config = new IndexWriterConfig();
+        config.setIndexSort(
+            new Sort(
+                new SortField(hostnameField, SortField.Type.STRING, false),
+                new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
+            )
+        );
+        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(getCodec());
+        return config;
     }
 }

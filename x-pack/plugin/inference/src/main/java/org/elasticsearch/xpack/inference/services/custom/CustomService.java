@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.custom.CustomUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -56,7 +55,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
 
 public class CustomService extends SenderService {
     private static final Logger logger = LogManager.getLogger(CustomService.class);
-    public static final String NAME = CustomUtils.SERVICE_NAME;
+    public static final String NAME = "custom";
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,

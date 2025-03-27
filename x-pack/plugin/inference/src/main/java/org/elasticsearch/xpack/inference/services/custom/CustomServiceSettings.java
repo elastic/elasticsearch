@@ -33,7 +33,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.custom.CustomUtils.SERVICE_NAME;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -539,7 +538,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public String modelId() {
-        return SERVICE_NAME;
+        return CustomService.NAME; // TODO, what is required here?
     }
 
     private static ResponseJsonParser extractResponseParser(

@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.request.custom.CustomUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 
@@ -53,7 +52,7 @@ public class CustomModelTests extends ESTestCase {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets
     ) {
-        return new CustomModel(modelId, taskType, CustomUtils.SERVICE_NAME, serviceSettings, taskSettings, secrets, null);
+        return new CustomModel(modelId, taskType, CustomService.NAME, serviceSettings, taskSettings, secrets, null);
     }
 
     public static CustomModel createModel(
@@ -63,7 +62,7 @@ public class CustomModelTests extends ESTestCase {
         CustomTaskSettings taskSettings,
         @Nullable CustomSecretSettings secretSettings
     ) {
-        return new CustomModel(modelId, taskType, CustomUtils.SERVICE_NAME, serviceSettings, taskSettings, secretSettings);
+        return new CustomModel(modelId, taskType, CustomService.NAME, serviceSettings, taskSettings, secretSettings);
     }
 
     public static CustomModel getTestModel() {

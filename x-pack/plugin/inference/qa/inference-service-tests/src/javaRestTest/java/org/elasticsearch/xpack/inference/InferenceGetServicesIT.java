@@ -25,7 +25,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
-        assertThat(services.size(), equalTo(21));
+        assertThat(services.size(), equalTo(22));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -41,6 +41,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 "azureaistudio",
                 "azureopenai",
                 "cohere",
+                "custom",
                 "deepseek",
                 "elastic",
                 "elasticsearch",
@@ -64,7 +65,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(15));
+        assertThat(services.size(), equalTo(16));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -79,6 +80,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 "azureaistudio",
                 "azureopenai",
                 "cohere",
+                "custom",
                 "elasticsearch",
                 "googleaistudio",
                 "googlevertexai",
@@ -97,7 +99,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithRerankTaskType() throws IOException {
         List<Object> services = getServices(TaskType.RERANK);
-        assertThat(services.size(), equalTo(7));
+        assertThat(services.size(), equalTo(8));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -106,8 +108,16 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
         }
 
         assertArrayEquals(
-            List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai", "jinaai", "test_reranking_service", "voyageai")
-                .toArray(),
+            List.of(
+                "alibabacloud-ai-search",
+                "cohere",
+                "custom",
+                "elasticsearch",
+                "googlevertexai",
+                "jinaai",
+                "test_reranking_service",
+                "voyageai"
+            ).toArray(),
             providers
         );
     }
@@ -115,7 +125,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(10));
+        assertThat(services.size(), equalTo(11));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -131,6 +141,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 "azureaistudio",
                 "azureopenai",
                 "cohere",
+                "custom",
                 "deepseek",
                 "googleaistudio",
                 "openai",
@@ -157,7 +168,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
-        assertThat(services.size(), equalTo(5));
+        assertThat(services.size(), equalTo(6));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -166,7 +177,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
         }
 
         assertArrayEquals(
-            List.of("alibabacloud-ai-search", "elastic", "elasticsearch", "hugging_face", "test_service").toArray(),
+            List.of("alibabacloud-ai-search", "custom", "elastic", "elasticsearch", "hugging_face", "test_service").toArray(),
             providers
         );
     }

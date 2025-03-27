@@ -17,7 +17,6 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -207,7 +206,7 @@ public class CustomRequest implements Request {
         } catch (URISyntaxException e) {
             // using bad request here so that potentially sensitive URL information does not get logged
             throw new ElasticsearchStatusException(
-                Strings.format("Failed to construct %s URL", CustomUtils.SERVICE_NAME),
+                "Failed to construct custom service URL [" + url + path + "]",
                 RestStatus.BAD_REQUEST,
                 e
             );

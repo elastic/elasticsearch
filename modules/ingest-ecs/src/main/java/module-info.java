@@ -10,7 +10,4 @@
 module org.elasticsearch.ingest.ecs {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
-    requires org.elasticsearch.xcontent;
-    requires org.apache.logging.log4j;
-    requires org.elasticsearch.logging;
 }

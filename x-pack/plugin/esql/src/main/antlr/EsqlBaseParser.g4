@@ -62,6 +62,7 @@ processingCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
     | {this.isDevVersion()}? rrfCommand
+    | {this.isDevVersion()}? sampleCommand
     ;
 
 whereCommand
@@ -288,3 +289,7 @@ forkSubQueryProcessingCommand
 rrfCommand
    : DEV_RRF
    ;
+
+sampleCommand
+    : DEV_SAMPLE probability=decimalValue seed=integerValue?
+    ;

@@ -937,7 +937,12 @@ public class EsqlCapabilities {
         /**
          * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
          */
-        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT;
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT,
+
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

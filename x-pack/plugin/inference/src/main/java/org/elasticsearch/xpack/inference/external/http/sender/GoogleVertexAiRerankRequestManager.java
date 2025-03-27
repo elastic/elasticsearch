@@ -62,7 +62,13 @@ public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestMan
         ActionListener<InferenceServiceResults> listener
     ) {
         var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
-        GoogleVertexAiRerankRequest request = new GoogleVertexAiRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
+        GoogleVertexAiRerankRequest request = new GoogleVertexAiRerankRequest(
+            rerankInput.getQuery(),
+            rerankInput.getChunks(),
+            rerankInput.getReturnDocuments(),
+            rerankInput.getTopN(),
+            model
+        );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

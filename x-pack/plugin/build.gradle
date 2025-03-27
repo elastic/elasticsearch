@@ -224,3 +224,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
 })
+
+tasks.named('yamlRestTestV7CompatTest').configure {
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
+}

@@ -85,7 +85,7 @@ public class VerifierTests extends ESTestCase {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";
 
-        EsField unsupportedField = new UnsupportedEsField(unsupported, "flattened");
+        EsField unsupportedField = new UnsupportedEsField(unsupported, List.of("flattened"));
         // Use linked maps/sets to fix the order in the error message.
         LinkedHashSet<String> ipIndices = new LinkedHashSet<>();
         ipIndices.add("test1");

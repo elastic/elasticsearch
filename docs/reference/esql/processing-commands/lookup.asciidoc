@@ -3,28 +3,22 @@
 === `LOOKUP JOIN`
 
 [WARNING]
-==== 
+====
 This functionality is in technical preview and may be
 changed or removed in a future release. Elastic will work to fix any
 issues, but features in technical preview are not subject to the support
-SLA of official GA features. ::::
+SLA of official GA features.
 ====
 `LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup'
-index, to your ++{{++esql}} query results, simplifying data enrichment
+index, to your {esql} query results, simplifying data enrichment
 and analysis workflows.
 
 *Syntax*
 
-....
-FROM <source_index>
-| LOOKUP JOIN <lookup_index> ON <field_name>
-....
-
 [source,esql]
 ----
-FROM firewall_logs
-| LOOKUP JOIN threat_list ON source.IP
-| WHERE threat_level IS NOT NULL
+FROM <source_index>
+| LOOKUP JOIN <lookup_index> ON <field_name>
 ----
 
 *Parameters*
@@ -33,7 +27,7 @@ FROM firewall_logs
 The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster
 references are not supported.
 
-`field_name`:: 
+`field_name`::
 The field to join on. This field must exist
 in both your current query results and in the lookup index. If the field
 contains multi-valued entries, those entries will not match anything
@@ -41,7 +35,7 @@ contains multi-valued entries, those entries will not match anything
 
 *Description*
 
-The `LOOKUP JOIN` command adds new columns to your ++{++esql} query
+The `LOOKUP JOIN` command adds new columns to your {esql} query
 results table by finding documents in a lookup index that share the same
 join field value as your result rows.
 
@@ -66,6 +60,15 @@ IPs match known malicious addresses.
 ----
 FROM firewall_logs
 | LOOKUP JOIN threat_list ON source.IP
+----
+
+To filter only for those rows that have a matching `threat_list` entry, use `WHERE ... IS NOT NULL` with a field from the lookup index:
+
+[source,esql]
+----
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+| WHERE threat_level IS NOT NULL
 ----
 
 *Host metadata correlation*: This query pulls in environment or
@@ -107,5 +110,5 @@ FROM Left
 ----
 FROM Left
 | LOOKUP JOIN Right ON Key
-| WHERE Language IS NOT NULL 
+| WHERE Language IS NOT NULL
 ----

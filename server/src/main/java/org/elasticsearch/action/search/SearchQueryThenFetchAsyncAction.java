@@ -23,8 +23,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -548,8 +546,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     private static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
-    private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("request");
-
     static void registerNodeSearchAction(
         SearchTransportService searchTransportService,
         SearchService searchService,
@@ -573,7 +569,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     new QueryPhaseResultConsumer(
                         request.searchRequest,
                         dependencies.executor,
-                        NOOP_CIRCUIT_BREAKER, // noop cb for now since we do not have a breaker in this situation in un-batched execution
+                        searchService.getCircuitBreaker(),
                         searchPhaseController,
                         cancellableTask::isCancelled,
                         SearchProgressListener.NOOP,

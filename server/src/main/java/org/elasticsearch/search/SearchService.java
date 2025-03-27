@@ -421,6 +421,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
     }
 
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
+    }
+
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
         if (enableSearchWorkerThreads) {
             searchExecutor = threadPool.executor(Names.SEARCH);

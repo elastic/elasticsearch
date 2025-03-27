@@ -4717,8 +4717,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param listener the listener to be notified when the shard is mutable
      */
-    public void ensureMutable(ActionListener<Void> listener) {
-        indexEventListener.beforeIndexShardMutableOperation(this, listener.delegateFailure((l, unused) -> {
+    public void ensureMutable(ActionListener<Void> listener, boolean permitAcquired) {
+        indexEventListener.beforeIndexShardMutableOperation(this, permitAcquired, listener.delegateFailure((l, unused) -> {
             // TODO ES-10826: Acquire ref to engine and retry if it's immutable again?
             l.onResponse(null);
         }));

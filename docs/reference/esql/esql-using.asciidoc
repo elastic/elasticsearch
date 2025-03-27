@@ -1,27 +1,33 @@
 [[esql-using]]
 == Using {esql}
 
+This page is an overview of the various ways you can use {esql} across different Elastic interfaces and use cases.
+
 <<esql-rest>>::
-Information about using the <<esql-apis,{esql} query APIs>>.
+Learn how to use the <<esql-apis,{esql} query APIs>>.
+
+<<esql-for-search>>::
+Learn how to use {esql} for search use cases.
 
 <<esql-kibana>>::
-Using {esql} in {kib} to query and aggregate your data, create visualizations,
+Learn how to use {esql} in {kib} to query and aggregate your data, create visualizations,
 and set up alerts.
 
 <<esql-elastic-security>>::
-Using {esql} in {elastic-sec} to investigate events in Timeline, create
+Learn how to use {esql} in {elastic-sec} to investigate events in Timeline, create
 detection rules, and build {esql} queries using Elastic AI Assistant.
 
 <<esql-multi-index>>::
-Using {esql} to query multiple indexes and resolve field type mismatches.
+Learn how to use {esql} to query multiple indexes and resolve field type mismatches.
 
 <<esql-cross-clusters>>::
-Using {esql} to query across multiple clusters.
+Learn how to use {esql} to query across multiple clusters.
 
 <<esql-task-management>>::
-Using the <<tasks,task management API>> to list and cancel {esql} queries.
+Learn how to use the <<tasks,task management API>> to list and cancel {esql} queries.
 
 include::esql-rest.asciidoc[]
+include::esql-for-search.asciidoc[] 
 include::esql-kibana.asciidoc[]
 include::esql-security-solution.asciidoc[]
 include::esql-multi-index.asciidoc[]

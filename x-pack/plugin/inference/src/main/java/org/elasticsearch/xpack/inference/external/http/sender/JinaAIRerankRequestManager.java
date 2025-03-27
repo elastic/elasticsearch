@@ -49,7 +49,13 @@ public class JinaAIRerankRequestManager extends JinaAIRequestManager {
         ActionListener<InferenceServiceResults> listener
     ) {
         var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
-        JinaAIRerankRequest request = new JinaAIRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
+        JinaAIRerankRequest request = new JinaAIRerankRequest(
+            rerankInput.getQuery(),
+            rerankInput.getChunks(),
+            rerankInput.getReturnDocuments(),
+            rerankInput.getTopN(),
+            model
+        );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

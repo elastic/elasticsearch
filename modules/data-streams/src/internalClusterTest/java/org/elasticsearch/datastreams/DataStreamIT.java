@@ -1388,7 +1388,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(metricsFooDataStream.getDataStreamStatus(), is(ClusterHealthStatus.YELLOW));
         assertThat(metricsFooDataStream.getIndexTemplate(), is("template_for_foo"));
         assertThat(metricsFooDataStream.getIlmPolicy(), is(nullValue()));
-        assertThat(dataStream.getLifecycle(), is(lifecycle.toDataStreamLifecycle()));
+        assertThat(dataStream.getDataLifecycle(), is(lifecycle.toDataStreamLifecycle()));
         assertThat(metricsFooDataStream.templatePreferIlmValue(), is(true));
         GetDataStreamAction.Response.IndexProperties indexProperties = metricsFooDataStream.getIndexSettingsValues()
             .get(dataStream.getWriteIndex());

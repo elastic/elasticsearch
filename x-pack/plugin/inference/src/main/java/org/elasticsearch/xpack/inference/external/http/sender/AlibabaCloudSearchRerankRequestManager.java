@@ -69,6 +69,8 @@ public class AlibabaCloudSearchRerankRequestManager extends AlibabaCloudSearchRe
             account,
             rerankInput.getQuery(),
             rerankInput.getChunks(),
+            rerankInput.getReturnDocuments(),
+            rerankInput.getTopN(),
             model
         );
 

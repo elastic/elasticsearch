@@ -82,7 +82,7 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         if (shardsRecentWriteLoad != null && shardsRecentWriteLoad.size() != shardsUptimeInMillis.size()) {
             assert false : "IndexWriteLoad.create() was called with non-matched lengths for shardsRecentWriteLoad and shardUptimeInMillis";
             throw new IllegalArgumentException(
-                "The same number of shard write loads and shard uptimes should be provided, but "
+                "The same number of shard recent write loads and shard uptimes should be provided, but "
                     + shardsRecentWriteLoad
                     + " "
                     + shardsUptimeInMillis
@@ -93,7 +93,7 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         if (shardsPeakWriteLoad != null && shardsPeakWriteLoad.size() != shardsUptimeInMillis.size()) {
             assert false : "IndexWriteLoad.create() was called with non-matched lengths for shardsPeakWriteLoad and shardUptimeInMillis";
             throw new IllegalArgumentException(
-                "The same number of shard write loads and shard uptimes should be provided, but "
+                "The same number of shard peak write loads and shard uptimes should be provided, but "
                     + shardsPeakWriteLoad
                     + " "
                     + shardsUptimeInMillis

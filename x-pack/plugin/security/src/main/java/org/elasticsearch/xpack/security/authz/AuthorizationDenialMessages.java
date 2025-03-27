@@ -100,22 +100,29 @@ public interface AuthorizationDenialMessages {
                 }
             } else if (isIndexAction(action)) {
                 String[] indices = AuthorizationEngine.RequestInfo.indices(request);
+                if (indices == null || indices.length == 0) {
+                    final Collection<String> privileges = findIndexPrivilegesThatGrant(action, IndexComponentSelector.DATA);
+                    if (privileges != null && false == privileges.isEmpty()) {
+                        message = message
+                            + ", this action is granted by the index privileges ["
+                            + collectionToCommaDelimitedString(privileges)
+                            + "]";
+                    }
+                    return message;
+                }
                 boolean hasFailuresSelector = false;
                 boolean hasNullOrDataSelector = false;
-                if (indices != null) {
-                    for (String index : indices) {
-                        if (IndexNameExpressionResolver.hasSelector(index, IndexComponentSelector.FAILURES)) {
-                            hasFailuresSelector = true;
-                        } else {
-                            hasNullOrDataSelector = true;
-                        }
-                        // we found both selectors, we can stop
-                        if (hasNullOrDataSelector && hasFailuresSelector) {
-                            break;
-                        }
+                for (String index : indices) {
+                    if (IndexNameExpressionResolver.hasSelector(index, IndexComponentSelector.FAILURES)) {
+                        hasFailuresSelector = true;
+                    } else {
+                        hasNullOrDataSelector = true;
+                    }
+                    // we found both selectors, we can stop
+                    if (hasNullOrDataSelector && hasFailuresSelector) {
+                        break;
                     }
                 }
-
                 if (hasNullOrDataSelector) {
                     final Collection<String> privileges = findIndexPrivilegesThatGrant(action, IndexComponentSelector.DATA);
                     if (privileges != null && false == privileges.isEmpty()) {
@@ -132,7 +139,7 @@ public interface AuthorizationDenialMessages {
                             message = message
                                 + " for data access, or ["
                                 + collectionToCommaDelimitedString(privileges)
-                                + "] for access with the failures selector";
+                                + "] for access via the failures selector";
                         } else {
                             message = message
                                 + ", this action is granted by the index privileges ["
@@ -141,7 +148,6 @@ public interface AuthorizationDenialMessages {
                         }
                     }
                 }
-
             }
 
             return message;

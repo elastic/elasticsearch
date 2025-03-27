@@ -1,0 +1,62 @@
+---
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "ecs_namespacing_pipeline"
+        body:
+          processors:
+            - ecs_namespacing: {}
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "ecs_namespacing_pipeline"
+        ignore: 404
+
+---
+"Test attributes namespacing":
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "ecs_namespacing_pipeline"
+        body: {
+          "agent.name": "agentNameValue",
+          "agent": {
+              "type": "agentTypeValue"
+          },
+          "cloud.provider": "cloudProviderValue",
+          "cloud": {
+              "type": "cloudTypeValue"
+          },
+          "host.name": "hostNameValue",
+          "host": {
+              "type": "hostTypeValue"
+          },
+          "service.name": "serviceNameValue",
+          "service": {
+              "type": "serviceTypeValue"
+          }
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
+  - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
+  - match: { _source.resource.attributes.cloud\.provider: "cloudProviderValue" }
+  - match: { _source.resource.attributes.cloud\.type: "cloudTypeValue" }
+  - match: { _source.resource.attributes.host\.name: "hostNameValue" }
+  - match: { _source.resource.attributes.host\.type: "hostTypeValue" }
+  - match: { _source.attributes.service\.name: "serviceNameValue" }
+  - match: { _source.attributes.service\.type: "serviceTypeValue" }
+  - match: { _source.agent.name: null }
+  - match: { _source.agent: null }
+  - match: { _source.cloud.provider: null }
+  - match: { _source.cloud: null }
+  - match: { _source.host.name: null }
+  - match: { _source.host: null }
+  - match: { _source.service.name: null }
+  - match: { _source.service: null }

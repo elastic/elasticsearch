@@ -34,6 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestStatus;
@@ -99,8 +101,19 @@ class S3Service implements Closeable {
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
     final boolean isStateless;
+    private final PerProjectClientManager perProjectClientManager;
 
+    @Deprecated(forRemoval = true)
     S3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+        this(environment, nodeSettings, resourceWatcherService, null);
+    }
+
+    S3Service(
+        Environment environment,
+        Settings nodeSettings,
+        ResourceWatcherService resourceWatcherService,
+        @Nullable PerProjectClientManager perProjectClientManager
+    ) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             System::getenv,
@@ -111,6 +124,7 @@ class S3Service implements Closeable {
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
         isStateless = DiscoveryNode.isStateless(nodeSettings);
+        this.perProjectClientManager = perProjectClientManager;
     }
 
     /**
@@ -150,6 +164,21 @@ class S3Service implements Closeable {
             clientReference.mustIncRef();
             clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
             return clientReference;
+        }
+    }
+
+    /**
+     * Delegates to {@link #client(RepositoryMetadata)} if per-project client is disabled.
+     * Otherwise, attempts to retrieve a per-project client by the project-id and repository metadata from the
+     * per-project client manager.
+     * Throws if project-id or the client does not exist. The client maybe initialized lazily.
+     */
+    public AmazonS3Reference client(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+        if (perProjectClientManager == null) {
+            assert ProjectId.DEFAULT.equals(projectId) : projectId;
+            return client(repositoryMetadata);
+        } else {
+            return perProjectClientManager.client(projectId, repositoryMetadata);
         }
     }
 
@@ -303,13 +332,20 @@ class S3Service implements Closeable {
         IdleConnectionReaper.shutdown();
     }
 
-    public void onBlobStoreClose() {
-        releaseCachedClients();
+    public void onBlobStoreClose(ProjectId projectId) {
+        if (perProjectClientManager == null) {
+            releaseCachedClients();
+        } else {
+            perProjectClientManager.clearCacheForProject(projectId);
+        }
     }
 
     @Override
     public void close() throws IOException {
         releaseCachedClients();
+        if (perProjectClientManager != null) {
+            perProjectClientManager.close();
+        }
         webIdentityTokenCredentialsProvider.shutdown();
     }
 

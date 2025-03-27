@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -86,13 +87,36 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
+        PerProjectClientManager perProjectClientManager = null;
+        if (services.projectResolver().supportsMultipleProjects()) {
+            perProjectClientManager = new PerProjectClientManager(settings, this.service.get()::buildClient);
+            services.clusterService().addListener(perProjectClientManager);
+        }
+        service.set(
+            s3Service(
+                services.environment(),
+                services.clusterService().getSettings(),
+                services.resourceWatcherService(),
+                perProjectClientManager
+            )
+        );
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
+
         return List.of(service);
     }
 
+    @Deprecated(forRemoval = true)
     S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
         return new S3Service(environment, nodeSettings, resourceWatcherService);
+    }
+
+    S3Service s3Service(
+        Environment environment,
+        Settings nodeSettings,
+        ResourceWatcherService resourceWatcherService,
+        @Nullable PerProjectClientManager perProjectClientManager
+    ) {
+        return new S3Service(environment, nodeSettings, resourceWatcherService, perProjectClientManager);
     }
 
     @Override

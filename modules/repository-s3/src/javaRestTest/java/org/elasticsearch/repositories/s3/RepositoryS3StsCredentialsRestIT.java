@@ -45,6 +45,7 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
 
     private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
 
+    // TODO NOMERGE also add an end-to-end test to check if this file is changed then it's reloaded and we get new creds
     private static final String WEB_IDENTITY_TOKEN_FILE_CONTENTS = """
         Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDans\
         FBmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHhFO\

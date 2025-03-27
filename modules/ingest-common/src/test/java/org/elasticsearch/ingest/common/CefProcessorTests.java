@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -719,5 +720,68 @@ public class CefProcessorTests extends ESTestCase {
         CefParser parser = new CefParser(ZoneId.of("UTC"), false);
         String invalidDate = "invalid date";
         assertThrows(IllegalArgumentException.class, () -> parser.toTimestamp(invalidDate));
+    }
+
+    public void testToMacAddressWithSeparators() {
+        CefParser parser = new CefParser(ZoneId.of("UTC"), false);
+        List<String> macAddresses = List.of(
+            // EUI-48 (with separators).
+            "00:0D:60:AF:1B:61",
+            "00-0D-60-AF-1B-61",
+            "000D.60AF.1B61",
+
+            // EUI-64 (with separators).
+            "00:0D:60:FF:FE:AF:1B:61",
+            "00-0D-60-FF-FE-AF-1B-61",
+            "000D.60FF.FEAF.1B61"
+        );
+        macAddresses.forEach(macAddress -> {
+            String result = parser.toMACAddress(macAddress);
+            assertEquals(macAddress, result);
+        });
+    }
+
+    public void testEUI48ToMacAddressWithOutSeparators() {
+        CefParser parser = new CefParser(ZoneId.of("UTC"), false);
+        String macAddress = "000D60AF1B61";
+        String result = parser.toMACAddress(macAddress);
+        assertEquals("00:0D:60:AF:1B:61", result);
+    }
+
+    public void testEUI64ToMacAddressWithOutSeparators() {
+        CefParser parser = new CefParser(ZoneId.of("UTC"), false);
+        String macAddress = "000D60FFFEAF1B61";
+        String result = parser.toMACAddress(macAddress);
+        assertEquals("00:0D:60:FF:FE:AF:1B:61", result);
+    }
+
+    public void toIP_validIPv4Address() {
+        CefParser parser = new CefParser(ZoneId.of("UTC"), true);
+        String result = parser.toIP("192.168.1.1");
+        assertEquals("192.168.1.1", result);
+    }
+
+    public void toIP_validIPv6Address() {
+        CefParser parser = new CefParser(ZoneId.of("UTC"), true);
+        String result = parser.toIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334");
+        assertEquals("2001:db8:85a3::8a2e:370:7334", result);
+    }
+
+    public void toIP_invalidIPAddress() {
+        CefParser parser = new CefParser(ZoneId.of("UTC"), true);
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> { parser.toIP("invalid_ip"); });
+        assertEquals("Invalid IP address format", exception.getMessage());
+    }
+
+    public void toIP_emptyString() {
+        CefParser parser = new CefParser(ZoneId.of("UTC"), true);
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> { parser.toIP(""); });
+        assertEquals("Invalid IP address format", exception.getMessage());
+    }
+
+    public void toIP_nullString() {
+        CefParser parser = new CefParser(ZoneId.of("UTC"), true);
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> { parser.toIP(null); });
+        assertEquals("Invalid IP address format", exception.getMessage());
     }
 }

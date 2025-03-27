@@ -8,9 +8,12 @@
  */
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -62,6 +65,20 @@ final class CefParser {
     private static final Pattern EXTENSION_NEXT_KEY_VALUE_PATTERN = Pattern.compile(
         "(" + EXTENSION_KEY_PATTERN + ")=(" + EXTENSION_VALUE_PATTERN + ")(?:\\s+|$)"
     );
+
+    // Comprehensive regex pattern to match various MAC address formats
+    public static final String MAC_ADDRESS_REGEX = "^(" +
+    // Combined colon and hyphen separated 6-group patterns
+        "(([0-9A-Fa-f]{2}[:|-]){5}[0-9A-Fa-f]{2})|" +
+        // Dot-separated 6-group pattern
+        "([0-9A-Fa-f]{4}\\.){2}[0-9A-Fa-f]{4}|" +
+        // Combined colon and hyphen separated 8-group patterns
+        "([0-9A-Fa-f]{2}[:|-]){7}[0-9A-Fa-f]{2}|" +
+        // Dot-separated EUI-64
+        "([0-9A-Fa-f]{4}\\.){3}[0-9A-Fa-f]{4}" + ")$";
+    private static final int EUI48_HEX_LENGTH = 48 / 4;
+    private static final int EUI64_HEX_LENGTH = 64 / 4;
+    private static final int EUI64_HEX_WITH_SEPARATOR_MAX_LENGTH = EUI64_HEX_LENGTH + EUI64_HEX_LENGTH / 2 - 1;
     private static final Map<String, String> EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING = Map.ofEntries(
         entry("\\\\", "\\"),
         entry("\\=", "="),
@@ -146,77 +163,77 @@ final class CefParser {
         Sets.union(FIELD_MAPPINGS.keySet(), Set.copyOf(FIELD_MAPPINGS.values()))
     );
 
-    private static final Map<String, Class<?>> FIELDS = Map.<String, Class<?>>ofEntries(
-        entry("@timestamp", ZonedDateTime.class),
-        entry("destination.bytes", Long.class),
-        entry("destination.domain", String.class),
-        entry("destination.geo.location.lat", Double.class),
-        entry("destination.geo.location.lon", Double.class),
-        entry("destination.ip", String.class),
-        entry("destination.mac", String.class),
-        entry("destination.port", Long.class),
-        entry("destination.process.name", String.class),
-        entry("destination.process.pid", Long.class),
-        entry("destination.registered_domain", String.class),
-        entry("destination.user.group.name", String.class),
-        entry("destination.user.id", String.class),
-        entry("destination.user.name", String.class),
-        entry("device.event_class_id", String.class),
-        entry("device.product", String.class),
-        entry("device.vendor", String.class),
-        entry("device.version", String.class),
-        entry("event.action", String.class),
-        entry("event.code", String.class),
-        entry("event.end", ZonedDateTime.class),
-        entry("event.id", String.class),
-        entry("event.ingested", ZonedDateTime.class),
-        entry("event.outcome", String.class),
-        entry("event.reason", String.class),
-        entry("event.start", ZonedDateTime.class),
-        entry("event.timezone", String.class),
-        entry("file.created", ZonedDateTime.class),
-        entry("file.extension", String.class),
-        entry("file.group", String.class),
-        entry("file.hash", String.class),
-        entry("file.inode", String.class),
-        entry("file.mtime", ZonedDateTime.class),
-        entry("file.name", String.class),
-        entry("file.path", String.class),
-        entry("file.size", Long.class),
-        entry("host.nat.ip", String.class),
-        entry("http.request.method", String.class),
-        entry("http.request.referrer", String.class),
-        entry("log.syslog.facility.code", Long.class),
-        entry("message", String.class),
-        entry("network.direction", String.class),
-        entry("network.protocol", String.class),
-        entry("network.transport", String.class),
-        entry("observer.egress.interface.name", String.class),
-        entry("observer.hostname", String.class),
-        entry("observer.ingress.interface.name", String.class),
-        entry("observer.ip", String.class),
-        entry("observer.mac", String.class),
-        entry("observer.name", String.class),
-        entry("observer.registered_domain", String.class),
-        entry("observer.version", String.class),
-        entry("observer.vendor", String.class),
-        entry("observer.product", String.class),
-        entry("process.name", String.class),
-        entry("process.pid", Long.class),
-        entry("source.bytes", Long.class),
-        entry("source.domain", String.class),
-        entry("source.geo.location.lat", Double.class),
-        entry("source.geo.location.lon", Double.class),
-        entry("source.ip", String.class),
-        entry("source.mac", String.class),
-        entry("source.port", Long.class),
-        entry("source.process.name", String.class),
-        entry("source.process.pid", Long.class),
-        entry("source.registered_domain", String.class),
-        entry("source.service.name", String.class),
-        entry("source.user.name", String.class),
-        entry("url.original", String.class),
-        entry("user_agent.original", String.class)
+    private static final Map<String, DataType> FIELDS = Map.<String, DataType>ofEntries(
+        entry("@timestamp", DataType.TimestampType),
+        entry("destination.bytes", DataType.LongType),
+        entry("destination.domain", DataType.StringType),
+        entry("destination.geo.location.lat", DataType.DoubleType),
+        entry("destination.geo.location.lon", DataType.DoubleType),
+        entry("destination.ip", DataType.IPType),
+        entry("destination.mac", DataType.MACAddressType),
+        entry("destination.port", DataType.LongType),
+        entry("destination.process.name", DataType.StringType),
+        entry("destination.process.pid", DataType.LongType),
+        entry("destination.registered_domain", DataType.StringType),
+        entry("destination.user.group.name", DataType.StringType),
+        entry("destination.user.id", DataType.StringType),
+        entry("destination.user.name", DataType.StringType),
+        entry("device.event_class_id", DataType.StringType),
+        entry("device.product", DataType.StringType),
+        entry("device.vendor", DataType.StringType),
+        entry("device.version", DataType.StringType),
+        entry("event.action", DataType.StringType),
+        entry("event.code", DataType.StringType),
+        entry("event.end", DataType.TimestampType),
+        entry("event.id", DataType.StringType),
+        entry("event.ingested", DataType.TimestampType),
+        entry("event.outcome", DataType.StringType),
+        entry("event.reason", DataType.StringType),
+        entry("event.start", DataType.TimestampType),
+        entry("event.timezone", DataType.StringType),
+        entry("file.created", DataType.TimestampType),
+        entry("file.extension", DataType.StringType),
+        entry("file.group", DataType.StringType),
+        entry("file.hash", DataType.StringType),
+        entry("file.inode", DataType.StringType),
+        entry("file.mtime", DataType.TimestampType),
+        entry("file.name", DataType.StringType),
+        entry("file.path", DataType.StringType),
+        entry("file.size", DataType.LongType),
+        entry("host.nat.ip", DataType.IPType),
+        entry("http.request.method", DataType.StringType),
+        entry("http.request.referrer", DataType.StringType),
+        entry("log.syslog.facility.code", DataType.LongType),
+        entry("message", DataType.StringType),
+        entry("network.direction", DataType.StringType),
+        entry("network.protocol", DataType.StringType),
+        entry("network.transport", DataType.StringType),
+        entry("observer.egress.interface.name", DataType.StringType),
+        entry("observer.hostname", DataType.StringType),
+        entry("observer.ingress.interface.name", DataType.StringType),
+        entry("observer.ip", DataType.IPType),
+        entry("observer.mac", DataType.MACAddressType),
+        entry("observer.name", DataType.StringType),
+        entry("observer.registered_domain", DataType.StringType),
+        entry("observer.version", DataType.StringType),
+        entry("observer.vendor", DataType.StringType),
+        entry("observer.product", DataType.StringType),
+        entry("process.name", DataType.StringType),
+        entry("process.pid", DataType.LongType),
+        entry("source.bytes", DataType.LongType),
+        entry("source.domain", DataType.StringType),
+        entry("source.geo.location.lat", DataType.DoubleType),
+        entry("source.geo.location.lon", DataType.DoubleType),
+        entry("source.ip", DataType.IPType),
+        entry("source.mac", DataType.MACAddressType),
+        entry("source.port", DataType.LongType),
+        entry("source.process.name", DataType.StringType),
+        entry("source.process.pid", DataType.LongType),
+        entry("source.registered_domain", DataType.StringType),
+        entry("source.service.name", DataType.StringType),
+        entry("source.user.name", DataType.StringType),
+        entry("url.original", DataType.StringType),
+        entry("user_agent.original", DataType.StringType)
     );
 
     private static final Set<String> ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = Set.of("incomplete CEF header");
@@ -255,6 +272,18 @@ final class CefParser {
         DAY_OF_MONTH,
         MONTH_OF_YEAR
     );
+
+    private enum DataType {
+        IntegerType,
+        LongType,
+        FloatType,
+        DoubleType,
+        StringType,
+        BooleanType,
+        IPType,
+        MACAddressType,
+        TimestampType;
+    }
 
     CEFEvent process(String cefString) {
         List<String> headers = new ArrayList<>();
@@ -323,7 +352,7 @@ final class CefParser {
             .stream()
             .filter(entry -> FIELD_MAPPINGS.containsKey(entry.getKey()))
             .collect(Collectors.toMap(entry -> FIELD_MAPPINGS.get(entry.getKey()), entry -> {
-                Class<?> fieldType = FIELDS.get(FIELD_MAPPINGS.get(entry.getKey()));
+                DataType fieldType = FIELDS.get(FIELD_MAPPINGS.get(entry.getKey()));
                 return convertValueToType(entry.getValue(), fieldType);
             }));
         // Add ECS translations to the root of the document
@@ -361,17 +390,21 @@ final class CefParser {
         return extensions;
     }
 
-    private Object convertValueToType(String value, Class<?> type) {
-        if (type == String.class) {
+    private Object convertValueToType(String value, DataType type) {
+        if (type == DataType.StringType) {
             return value;
-        } else if (type == Long.class) {
+        } else if (type == DataType.LongType) {
             return Long.parseLong(value);
-        } else if (type == Double.class) {
+        } else if (type == DataType.DoubleType) {
             return Double.parseDouble(value);
-        } else if (type == Integer.class) {
+        } else if (type == DataType.IntegerType) {
             return Integer.parseInt(value);
-        } else if (type == ZonedDateTime.class) {
+        } else if (type == DataType.TimestampType) {
             return toTimestamp(value);
+        } else if (type == DataType.MACAddressType) {
+            return toMACAddress(value);
+        } else if (type == DataType.IPType) {
+            return toIP(value);
         } else {
             throw new IllegalArgumentException("Unsupported type: " + type);
         }
@@ -414,6 +447,50 @@ final class CefParser {
         }
         // If no layout matches, throw an exception
         throw new IllegalArgumentException("Value is not a valid timestamp: " + value);
+    }
+
+    String toMACAddress(String v) throws IllegalArgumentException {
+        // Insert separators if necessary
+        String macWithSeparators = insertMACSeparators(v);
+
+        // Validate MAC address format
+        // Compiled pattern for efficient matching
+        Pattern macAddressPattern = Pattern.compile(MAC_ADDRESS_REGEX);
+        Matcher matcher = macAddressPattern.matcher(macWithSeparators);
+        if (matcher.matches() == false) {
+            throw new IllegalArgumentException("Invalid MAC address format");
+        }
+        // Convert to lowercase and return
+        return macWithSeparators;
+    }
+
+    String toIP(String v) {
+        InetAddress address;
+        try {
+            address = InetAddress.getByName(v);
+        } catch (UnknownHostException e) {
+            throw new IllegalArgumentException("Invalid IP address format");
+        }
+        return NetworkAddress.format(address);
+    }
+
+    static String insertMACSeparators(String v) {
+        // Check that the length is correct for a MAC address without separators.
+        // And check that there isn't already a separator in the string.
+        if ((v.length() != EUI48_HEX_LENGTH && v.length() != EUI64_HEX_LENGTH)
+            || v.charAt(2) == ':'
+            || v.charAt(2) == '-'
+            || v.charAt(4) == '.') {
+            return v;
+        }
+        StringBuilder sb = new StringBuilder(EUI64_HEX_WITH_SEPARATOR_MAX_LENGTH);
+        for (int i = 0; i < v.length(); i++) {
+            sb.append(v.charAt(i));
+            if (i < v.length() - 1 && i % 2 != 0) {
+                sb.append(':');
+            }
+        }
+        return sb.toString();
     }
 
     private static void removeEmptyValue(Map<String, String> map) {

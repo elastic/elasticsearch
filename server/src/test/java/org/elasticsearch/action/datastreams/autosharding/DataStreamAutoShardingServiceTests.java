@@ -640,12 +640,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         }
 
         final String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size());
-        final IndexMetadata writeIndexMetadata = createIndexMetadata(
-            writeIndexName,
-            3,
-            null,
-            System.currentTimeMillis()
-        );
+        final IndexMetadata writeIndexMetadata = createIndexMetadata(writeIndexName, 3, null, System.currentTimeMillis());
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 
@@ -702,12 +697,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         }
 
         final String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size());
-        final IndexMetadata writeIndexMetadata = createIndexMetadata(
-            writeIndexName,
-            3,
-            null,
-            System.currentTimeMillis()
-        );
+        final IndexMetadata writeIndexMetadata = createIndexMetadata(writeIndexName, 3, null, System.currentTimeMillis());
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 
@@ -749,12 +739,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         metadataBuilder.put(indexMetadata, false);
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        IndexMetadata writeIndexMetadata = createIndexMetadata(
-            writeIndexName,
-            3,
-            null,
-            System.currentTimeMillis()
-        );
+        IndexMetadata writeIndexMetadata = createIndexMetadata(writeIndexName, 3, null, System.currentTimeMillis());
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 
@@ -796,12 +781,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         metadataBuilder.put(indexMetadata, false);
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        IndexMetadata writeIndexMetadata = createIndexMetadata(
-            writeIndexName,
-            3,
-            null,
-            System.currentTimeMillis()
-        );
+        IndexMetadata writeIndexMetadata = createIndexMetadata(writeIndexName, 3, null, System.currentTimeMillis());
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 
@@ -843,12 +823,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         metadataBuilder.put(indexMetadata, false);
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        IndexMetadata writeIndexMetadata = createIndexMetadata(
-            writeIndexName,
-            3,
-            null,
-            System.currentTimeMillis()
-        );
+        IndexMetadata writeIndexMetadata = createIndexMetadata(writeIndexName, 3, null, System.currentTimeMillis());
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 

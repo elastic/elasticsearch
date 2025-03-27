@@ -6,30 +6,31 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.cloud.gce;
+package org.elasticsearch.discovery.gce;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.path.PathTrie;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -43,24 +44,23 @@ public class GCEFixture extends AbstractHttpFixture {
     public static final String ZONE = "test-zone";
     public static final String TOKEN = "1/fFAGRNJru1FTz70BzhT3Zg";
     public static final String TOKEN_TYPE = "Bearer";
-
+    private final Supplier<Path> nodes;
     private final PathTrie<RequestHandler> handlers;
 
-    private final Path nodes;
-
-    private GCEFixture(final String workingDir, final String nodesUriPath) {
-        super(workingDir);
-        this.nodes = toPath(Objects.requireNonNull(nodesUriPath));
+    public GCEFixture(Supplier<Path> nodesUriPath) {
         this.handlers = defaultHandlers();
+        this.nodes = nodesUriPath;
     }
 
-    public static void main(String[] args) throws Exception {
-        if (args == null || args.length != 2) {
-            throw new IllegalArgumentException("GCEFixture <working directory> <nodes transport uri file>");
-        }
+    @Override
+    protected void before() throws Throwable {
+        InetSocketAddress inetSocketAddress = resolveAddress("0.0.0.0", 0);
+        listen(inetSocketAddress, false);
+    }
 
-        final GCEFixture fixture = new GCEFixture(args[0], args[1]);
-        fixture.listen();
+    @Override
+    protected void after() {
+        stop();
     }
 
     private static String nonAuthPath(Request request) {
@@ -128,30 +128,32 @@ public class GCEFixture extends AbstractHttpFixture {
         handlers.insert(authPath(HttpGet.METHOD_NAME, "/compute/v1/projects/{project}/zones/{zone}/instances"), request -> {
             final var items = new ArrayList<Map<String, Object>>();
             int count = 0;
-            for (String address : Files.readAllLines(nodes)) {
-                count++;
-                items.add(
-                    Map.of(
-                        "id",
-                        Long.toString(9309873766405L + count),
-                        "description",
-                        "ES node" + count,
-                        "name",
-                        "test" + count,
-                        "kind",
-                        "compute#instance",
-                        "machineType",
-                        "n1-standard-1",
-                        "networkInterfaces",
-                        List.of(
-                            Map.of("accessConfigs", Collections.emptyList(), "name", "nic0", "network", "default", "networkIP", address)
-                        ),
-                        "status",
-                        "RUNNING",
-                        "zone",
-                        ZONE
-                    )
-                );
+            if (Files.exists(nodes.get())) {
+                for (String address : Files.readAllLines(nodes.get())) {
+                    count++;
+                    items.add(
+                        Map.of(
+                            "id",
+                            Long.toString(9309873766405L + count),
+                            "description",
+                            "ES node" + count,
+                            "name",
+                            "test" + count,
+                            "kind",
+                            "compute#instance",
+                            "machineType",
+                            "n1-standard-1",
+                            "networkInterfaces",
+                            List.of(
+                                Map.of("accessConfigs", Collections.emptyList(), "name", "nic0", "network", "default", "networkIP", address)
+                            ),
+                            "status",
+                            "RUNNING",
+                            "zone",
+                            ZONE
+                        )
+                    );
+                }
             }
 
             final String json = Strings.toString(
@@ -215,8 +217,11 @@ public class GCEFixture extends AbstractHttpFixture {
         return new Response(status.getStatus(), JSON_CONTENT_TYPE, response.getBytes(UTF_8));
     }
 
-    @SuppressForbidden(reason = "Paths#get is fine - we don't have environment here")
-    private static Path toPath(final String dir) {
-        return Paths.get(dir);
+    private static InetSocketAddress resolveAddress(String address, int port) {
+        try {
+            return new InetSocketAddress(InetAddress.getByName(address), port);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

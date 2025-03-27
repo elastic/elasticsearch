@@ -241,7 +241,7 @@ public class RestoreServiceTests extends ESTestCase {
         );
         assertThat(
             exception.getMessage(),
-            equalTo("[name:name/uuid] cannot restore global state since the snapshot was created without global state")
+            equalTo("[default:name:name/uuid] cannot restore global state since the snapshot was created without global state")
         );
     }
 

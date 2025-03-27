@@ -202,13 +202,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 }
             }
         } else if (activeMerges <= configuredMaxMergeCount && shouldThrottleIncomingMerges.get()) {
-                // maybe disable merge task throttling
-                synchronized (shouldThrottleIncomingMerges) {
-                    if (shouldThrottleIncomingMerges.getAndSet(false)) {
-                        disableIndexingThrottling(runningMergesCount, activeMerges - runningMergesCount, configuredMaxMergeCount);
-                    }
+            // maybe disable merge task throttling
+            synchronized (shouldThrottleIncomingMerges) {
+                if (shouldThrottleIncomingMerges.getAndSet(false)) {
+                    disableIndexingThrottling(runningMergesCount, activeMerges - runningMergesCount, configuredMaxMergeCount);
                 }
             }
+        }
     }
 
     // exposed for tests

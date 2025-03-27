@@ -610,7 +610,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         private BiConsumer<Integer, Integer> enableIndexingThrottlingHook;
         private BiConsumer<Integer, Integer> disableIndexingThrottlingHook;
 
-        public TestThreadPoolMergeScheduler(
+        TestThreadPoolMergeScheduler(
             ShardId shardId,
             IndexSettings indexSettings,
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService,

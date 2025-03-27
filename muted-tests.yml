@@ -311,9 +311,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.vectors/41_knn_search_byte_quantized/kNN search plus query}
   issue: https://github.com/elastic/elasticsearch/issues/124687
-- class: org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRateTests
-  method: testEwmr_threadSafe
-  issue: https://github.com/elastic/elasticsearch/issues/124692
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/124940

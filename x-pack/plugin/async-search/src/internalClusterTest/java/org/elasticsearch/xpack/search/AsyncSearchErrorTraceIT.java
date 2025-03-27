@@ -167,17 +167,18 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         searchRequest.addParameter("error_trace", "true");
         searchRequest.addParameter("keep_on_completion", "true");
         searchRequest.addParameter("wait_for_completion_timeout", "0ms");
-        Map<String, Object> responseEntity = performRequestAndGetResponseEntityAfterDelay(searchRequest, TimeValue.ZERO);
-        String asyncExecutionId = (String) responseEntity.get("id");
-        Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
-        request.addParameter("error_trace", "true");
-        while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
-            responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
-        }
 
         String errorTriggeringIndex = "test2";
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addUnseenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
+
+            Map<String, Object> responseEntity = performRequestAndGetResponseEntityAfterDelay(searchRequest, TimeValue.ZERO);
+            String asyncExecutionId = (String) responseEntity.get("id");
+            Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
+            request.addParameter("error_trace", "true");
+            while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
+                responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
+            }
 
             getRestClient().performRequest(searchRequest);
             mockLog.assertAllExpectationsMatched();
@@ -205,19 +206,20 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         }
         searchRequest.addParameter("keep_on_completion", "true");
         searchRequest.addParameter("wait_for_completion_timeout", "0ms");
-        Map<String, Object> responseEntity = performRequestAndGetResponseEntityAfterDelay(searchRequest, TimeValue.ZERO);
-        String asyncExecutionId = (String) responseEntity.get("id");
-        Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
-        if (defineErrorTraceFalse) {
-            request.addParameter("error_trace", "false");
-        }
-        while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
-            responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
-        }
 
         String errorTriggeringIndex = "test2";
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addSeenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
+
+            Map<String, Object> responseEntity = performRequestAndGetResponseEntityAfterDelay(searchRequest, TimeValue.ZERO);
+            String asyncExecutionId = (String) responseEntity.get("id");
+            Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
+            if (defineErrorTraceFalse) {
+                request.addParameter("error_trace", "false");
+            }
+            while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
+                responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
+            }
 
             getRestClient().performRequest(searchRequest);
             mockLog.assertAllExpectationsMatched();

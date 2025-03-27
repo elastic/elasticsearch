@@ -426,29 +426,17 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/10_basic/Create a source only snapshot and then restore it}
   issue: https://github.com/elastic/elasticsearch/issues/122755
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=data_stream/80_resolve_index_data_streams/Resolve index with hidden and closed indices}
-  issue: https://github.com/elastic/elasticsearch/issues/123081
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias}
-  issue: https://github.com/elastic/elasticsearch/issues/122226
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/120148
 - class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
   issue: https://github.com/elastic/elasticsearch/issues/120575
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=deprecation/10_basic/Test Deprecations}
-  issue: https://github.com/elastic/elasticsearch/issues/123147
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=data_stream/140_data_stream_aliases/Fix IndexNotFoundException error when handling remove alias action}
-  issue: https://github.com/elastic/elasticsearch/issues/121501
 - class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
   method: testSnapshotRecovery {p0=false p1=false}
   issue: https://github.com/elastic/elasticsearch/issues/124385
@@ -483,3 +471,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.history.ILMHistoryItemTests
   method: testTruncateLongError
   issue: https://github.com/elastic/elasticsearch/issues/125216
+- class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
+  method: testLuceneVersionConstant
+  issue: https://github.com/elastic/elasticsearch/issues/125638

@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRespon
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -118,7 +116,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(new AuthorizedIndices() {
                 public Set<String> all(IndexComponentSelector selector) {
-                    return () -> indicesLookup.keySet();
+                    return indicesLookup.keySet();
                 }
                 public boolean check(String name, IndexComponentSelector selector) {
                     return indicesLookup.containsKey(name);
@@ -127,7 +125,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         } else {
             listener.onResponse(new AuthorizedIndices() {
                 public Set<String> all(IndexComponentSelector selector) {
-                    return () -> Set.of();
+                    return Set.of();
                 }
                 public boolean check(String name, IndexComponentSelector selector) {
                     return false;

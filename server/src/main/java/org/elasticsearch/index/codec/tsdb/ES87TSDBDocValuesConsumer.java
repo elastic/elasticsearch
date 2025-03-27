@@ -176,7 +176,13 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 values = valuesProducer.getSortedNumeric(field);
                 final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
+
+                // Reset and recompute. The value gathered from TsdbDocValuesProducer may not be accurate if one of the leaves was singleton
+                // This could cause failures when writing addresses in writeSortedNumericField(...)
+                numDocsWithValue = 0;
+
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    numDocsWithValue++;
                     final int count = values.docValueCount();
                     for (int i = 0; i < count; ++i) {
                         buffer[bufferSize++] = values.nextValue();

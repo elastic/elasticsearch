@@ -369,11 +369,11 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         String timestampField = "@timestamp";
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
+        int numRounds = 32 + random().nextInt(32);
+        int numDocsPerRound = 64 + random().nextInt(64);
 
         var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            int numRounds = 4 + random().nextInt(28);
-            int numDocsPerRound = 8 + random().nextInt(56);
             long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
             String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
             {
@@ -382,7 +382,9 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                     int r = random().nextInt(10);
                     for (int j = 0; j < numDocsPerRound; j++) {
                         var d = new Document();
-                        String hostName = String.format(Locale.ROOT, "host-%03d", i);
+                        // host in reverse, otherwise merging will detect that segments are already ordered and will use sequential docid
+                        // merger:
+                        String hostName = String.format(Locale.ROOT, "host-%03d", numRounds - i);
                         d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
                         // Index sorting doesn't work with NumericDocValuesField:
                         d.add(new SortedNumericDocValuesField(timestampField, timestamp++));
@@ -390,18 +392,17 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                         if (r % 10 == 5) {
                             // sometimes no values
                         } else if (r % 10 > 5) {
-                            // often multiple values:
+                            // often single value:
+                            d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[j % gauge1Values.length]));
+                            d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j % tags.length])));
+                        } else {
+                            // otherwise multiple values:
                             int numValues = 2 + random().nextInt(4);
                             for (int k = 0; k < numValues; k++) {
                                 d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[(j + k) % gauge1Values.length]));
                                 d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[(j + k) % tags.length])));
                             }
-                        } else {
-                            // otherwise single value:
-                            d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[j % gauge1Values.length]));
-                            d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j % tags.length])));
                         }
-
                         iw.addDocument(d);
                     }
                     iw.commit();
@@ -424,10 +425,8 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                 assertNotNull(tagsDV);
                 for (int i = 0; i < numDocs; i++) {
                     assertEquals(i, hostNameDV.nextDoc());
-                    int round = i / numDocsPerRound;
-                    String expectedHostName = String.format(Locale.ROOT, "host-%03d", round);
                     String actualHostName = hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString();
-                    assertEquals(expectedHostName, actualHostName);
+                    assertTrue("unexpected host name:" + actualHostName, actualHostName.startsWith("host-"));
 
                     assertEquals(i, timestampDV.nextDoc());
                     long timestamp = timestampDV.longValue();

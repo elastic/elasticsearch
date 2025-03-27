@@ -235,7 +235,6 @@ class DocValuesConsumerUtil {
     static class NumericDocValuesSub extends DocIDMerger.Sub {
 
         final NumericDocValues values;
-        int docID = -1;
 
         NumericDocValuesSub(MergeState.DocMap docMap, NumericDocValues values) {
             super(docMap);
@@ -245,7 +244,7 @@ class DocValuesConsumerUtil {
 
         @Override
         public int nextDoc() throws IOException {
-            return docID = values.nextDoc();
+            return values.nextDoc();
         }
     }
 
@@ -334,7 +333,6 @@ class DocValuesConsumerUtil {
     static class SortedNumericDocValuesSub extends DocIDMerger.Sub {
 
         final SortedNumericDocValues values;
-        int docID = -1;
 
         SortedNumericDocValuesSub(MergeState.DocMap docMap, SortedNumericDocValues values) {
             super(docMap);
@@ -344,7 +342,7 @@ class DocValuesConsumerUtil {
 
         @Override
         public int nextDoc() throws IOException {
-            return docID = values.nextDoc();
+            return values.nextDoc();
         }
     }
 

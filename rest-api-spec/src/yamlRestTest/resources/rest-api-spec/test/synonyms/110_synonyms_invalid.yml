@@ -396,6 +396,8 @@ setup:
 
 ---
 "Load index with non existent synonyms set and lenient set to false":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
 
   - do:
       indices.create:
@@ -446,6 +448,9 @@ setup:
         wait_for_status: green
 
   - do:
+      # Warning issued in previous versions
+      allowed_warnings:
+        - "The [state] field in the response to the reroute API is deprecated and will be removed in a future version. Specify ?metric=none to adopt the future behaviour."
       cluster.reroute:
         retry_failed: true
 

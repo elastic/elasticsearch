@@ -298,7 +298,7 @@ public class NumberFieldMapper extends FieldMapper {
                 stored.getValue(),
                 this,
                 indexCreatedVersion,
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY
             );
             return new NumberFieldMapper(leafName(), ft, builderParams(this, context), context.isSourceSynthetic(), this, offsetsFieldName);
         }
@@ -2275,7 +2275,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
         if (offsetsFieldName != null) {
-            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, type::writeValue));
             if (ignoreMalformed.value()) {
                 layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));

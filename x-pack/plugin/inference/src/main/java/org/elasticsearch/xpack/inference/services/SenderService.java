@@ -60,6 +60,8 @@ public abstract class SenderService implements InferenceService {
     public void infer(
         Model model,
         @Nullable String query,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
         List<String> input,
         boolean stream,
         Map<String, Object> taskSettings,
@@ -68,7 +70,7 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     ) {
         init();
-        var inferenceInput = createInput(this, model, input, inputType, query, stream);
+        var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
         doInfer(model, inferenceInput, taskSettings, timeout, listener);
     }
 
@@ -78,11 +80,20 @@ public abstract class SenderService implements InferenceService {
         List<String> input,
         InputType inputType,
         @Nullable String query,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
         boolean stream
     ) {
         return switch (model.getTaskType()) {
             case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
-            case RERANK -> new QueryAndDocsInputs(query, input, stream);
+            case RERANK -> {
+                ValidationException validationException = new ValidationException();
+                service.validateRerankParameters(returnDocuments, topN, validationException);
+                if (validationException.validationErrors().isEmpty() == false) {
+                    throw validationException;
+                }
+                yield new QueryAndDocsInputs(query, input, returnDocuments, topN, stream);
+            }
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
@@ -152,6 +163,8 @@ public abstract class SenderService implements InferenceService {
     );
 
     protected abstract void validateInputType(InputType inputType, Model model, ValidationException validationException);
+
+    protected void validateRerankParameters(Boolean returnDocuments, Integer topN, ValidationException validationException) {}
 
     protected abstract void doUnifiedCompletionInfer(
         Model model,

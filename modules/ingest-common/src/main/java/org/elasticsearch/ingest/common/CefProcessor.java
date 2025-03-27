@@ -58,7 +58,10 @@ public final class CefProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
         ZoneId timezone = getTimezone(ingestDocument);
-        new CefParser(ingestDocument, timezone, removeEmptyValue).process(line, targetField);
+        CefParser.CEFEvent cefEvent = new CefParser(timezone, removeEmptyValue).process(line);
+        // Update ingestDocument with the CEF mappings
+        ingestDocument.setFieldValue(targetField, cefEvent.getCefMappings());
+        cefEvent.getRootMappings().forEach(ingestDocument::setFieldValue);
         return ingestDocument;
     }
 

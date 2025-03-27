@@ -10,7 +10,6 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.ingest.IngestDocument;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -25,9 +24,11 @@ import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,12 +43,10 @@ import static java.time.temporal.ChronoField.SECOND_OF_DAY;
 import static java.util.Map.entry;
 
 final class CefParser {
-    private final IngestDocument ingestDocument;
     private final boolean removeEmptyValue;
     private final ZoneId timezone;
 
-    CefParser(IngestDocument ingestDocument, ZoneId timezone, boolean removeEmptyValue) {
-        this.ingestDocument = ingestDocument;
+    CefParser(ZoneId timezone, boolean removeEmptyValue) {
         this.removeEmptyValue = removeEmptyValue;
         this.timezone = timezone;
     }
@@ -257,7 +256,7 @@ final class CefParser {
         MONTH_OF_YEAR
     );
 
-    void process(String cefString, String targetField) {
+    CEFEvent process(String cefString) {
         List<String> headerFields = new ArrayList<>();
         Matcher headerMatcher = HEADER_NEXT_FIELD_PATTERN.matcher(cefString);
         int extensionStart = 0;
@@ -273,59 +272,92 @@ final class CefParser {
             CEFEvent event = new CEFEvent();
             // Add error message if there are not enough header fields
             if (headerFields.size() != 7) {
-                ingestDocument.appendFieldValue("error.message", ERROR_MESSAGE_INCOMPLETE_CEF_HEADER);
+                event.addRootMapping("error.message", new HashSet<>(Set.of(ERROR_MESSAGE_INCOMPLETE_CEF_HEADER)));
             }
-            for (int i = 0; i < headerFields.size(); i++) {
-                switch (i) {
-                    case 0 -> event.setVersion(headerFields.get(0).substring(4));
-                    case 1 -> {
-                        event.setDeviceVendor(headerFields.get(1));
-                        ingestDocument.setFieldValue("observer.vendor", headerFields.get(1));
-                    }
-                    case 2 -> {
-                        event.setDeviceProduct(headerFields.get(2));
-                        ingestDocument.setFieldValue("observer.product", headerFields.get(2));
-                    }
-                    case 3 -> {
-                        event.setDeviceVersion(headerFields.get(3));
-                        ingestDocument.setFieldValue("observer.version", headerFields.get(3));
-                    }
-                    case 4 -> {
-                        event.setDeviceEventClassId(headerFields.get(4));
-                        ingestDocument.setFieldValue("event.code", headerFields.get(4));
-                    }
-                    case 5 -> event.setName(headerFields.get(5));
-                    case 6 -> event.setSeverity(headerFields.get(6));
-                }
-            }
-            String extensionString = cefString.substring(extensionStart);
-            Map<String, String> extensions = parseExtensions(extensionString);
-
-            if (removeEmptyValue) {
-                removeEmptyValue(extensions);
-            }
-            event.setExtensions(extensions);
-
-            // Translate possible ECS fields and remove them from extensions
-            Map<String, Object> translatedFields = extensions.entrySet()
-                .stream()
-                .filter(entry -> FIELD_MAPPING.containsKey(entry.getKey()))
-                .collect(Collectors.toMap(entry -> FIELD_MAPPING.get(entry.getKey()), entry -> {
-                    Class<?> fieldType = FIELDS.get(FIELD_MAPPING.get(entry.getKey()));
-                    return convertValueToType(entry.getValue(), fieldType);
-                }));
-
-            // Remove the translated entries from extensions
-            event.removeMappedExtensions();
-
-            ingestDocument.setFieldValue(targetField, event.toObject());
-            // Add ECS translations to the root of the document
-            if (translatedFields.isEmpty() == false) {
-                translatedFields.forEach(ingestDocument::setFieldValue);
-            }
+            processHeaderFields(headerFields, event);
+            processExtensions(cefString, extensionStart, event);
+            return event;
         } else {
             throw new IllegalArgumentException("Invalid CEF format");
         }
+    }
+
+    private static void processHeaderFields(List<String> headerFields, CEFEvent event) {
+        for (int i = 0; i < headerFields.size(); i++) {
+            switch (i) {
+                case 0 -> event.addCefMapping("version", headerFields.get(0).substring(4));
+                case 1 -> {
+                    event.addCefMapping("device.vendor", headerFields.get(1));
+                    event.addRootMapping("observer.vendor", headerFields.get(1));
+                }
+                case 2 -> {
+                    event.addCefMapping("device.product", headerFields.get(2));
+                    event.addRootMapping("observer.product", headerFields.get(2));
+                }
+                case 3 -> {
+                    event.addCefMapping("device.version", headerFields.get(3));
+                    event.addRootMapping("observer.version", headerFields.get(3));
+                }
+                case 4 -> {
+                    event.addCefMapping("device.event_class_id", headerFields.get(4));
+                    event.addRootMapping("event.code", headerFields.get(4));
+                }
+                case 5 -> event.addCefMapping("name", headerFields.get(5));
+                case 6 -> event.addCefMapping("severity", headerFields.get(6));
+            }
+        }
+    }
+
+    private void processExtensions(String cefString, int extensionStart, CEFEvent event) {
+        String extensionString = cefString.substring(extensionStart);
+        Map<String, String> extensions = parseExtensions(extensionString);
+
+        // Cleanup empty values in extensions
+        if (removeEmptyValue) {
+            removeEmptyValue(extensions);
+        }
+
+        // Translate extensions to possible ECS fields
+        Map<String, Object> translatedFields = extensions.entrySet()
+            .stream()
+            .filter(entry -> FIELD_MAPPING.containsKey(entry.getKey()))
+            .collect(Collectors.toMap(entry -> FIELD_MAPPING.get(entry.getKey()), entry -> {
+                Class<?> fieldType = FIELDS.get(FIELD_MAPPING.get(entry.getKey()));
+                return convertValueToType(entry.getValue(), fieldType);
+            }));
+        // Add ECS translations to the root of the document
+        if (translatedFields.isEmpty() == false) {
+            translatedFields.forEach(event::addRootMapping);
+        }
+
+        // Remove the translated entries from extensions
+        extensions.keySet().removeAll(FIELD_MAPPINGS_AND_VALUES);
+
+        // Add remaining extensions to the event
+        for (Map.Entry<String, String> entry : extensions.entrySet()) {
+            event.addCefMapping("extensions." + entry.getKey(), entry.getValue());
+        }
+    }
+
+    private static Map<String, String> parseExtensions(String extensionString) {
+        Map<String, String> extensions = new HashMap<>();
+        Matcher matcher = EXTENSION_NEXT_KEY_VALUE_PATTERN.matcher(extensionString);
+        int lastEnd = 0;
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            String value = matcher.group(2);
+            // Convert extension field name to strict legal field_reference
+            if (key.endsWith("]")) {
+                key = convertArrayLikeKey(key);
+            }
+            extensions.put(key, desanitizeExtensionVal(value.trim()));
+            lastEnd = matcher.end();
+        }
+        // If there's any remaining unparsed content, throw an exception
+        if (lastEnd < extensionString.length()) {
+            throw new IllegalArgumentException("Invalid extensions; keyless value present: " + extensionString.substring(lastEnd));
+        }
+        return extensions;
     }
 
     private Object convertValueToType(String value, Class<?> type) {
@@ -351,7 +383,6 @@ final class CefParser {
         } catch (NumberFormatException ignored) {
             // Not a millisecond timestamp, continue to format parsing
         }
-
         // Try parsing with different layouts
         for (String layout : TIME_LAYOUTS) {
             try {
@@ -382,31 +413,8 @@ final class CefParser {
         throw new IllegalArgumentException("Value is not a valid timestamp: " + value);
     }
 
-    private static Map<String, String> parseExtensions(String extensionString) {
-        Map<String, String> extensions = new HashMap<>();
-        Matcher matcher = EXTENSION_NEXT_KEY_VALUE_PATTERN.matcher(extensionString);
-        int lastEnd = 0;
-        while (matcher.find()) {
-            String key = matcher.group(1);
-            String value = matcher.group(2);
-
-            // Convert extension field name to strict legal field_reference
-            if (key.endsWith("]")) {
-                key = convertArrayLikeKey(key);
-            }
-
-            extensions.put(key, desanitizeExtensionVal(value.trim()));
-            lastEnd = matcher.end();
-        }
-        // If there's any remaining unparsed content, throw an exception
-        if (lastEnd < extensionString.length()) {
-            throw new IllegalArgumentException("Invalid extensions; keyless value present: " + extensionString.substring(lastEnd));
-        }
-        return extensions;
-    }
-
     private static void removeEmptyValue(Map<String, String> map) {
-        map.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
+        map.entrySet().removeIf(entry -> Objects.isNull(entry.getValue()) || entry.getValue().isEmpty());
     }
 
     private static String convertArrayLikeKey(String key) {
@@ -426,110 +434,23 @@ final class CefParser {
     }
 
     public static class CEFEvent {
-        private String version;
-        private String deviceVendor;
-        private String deviceProduct;
-        private String deviceVersion;
-        private String deviceEventClassId;
-        private String name;
-        private String severity;
-        private final Map<String, String> extensions = new HashMap<>();
-        private Map<String, String> translatedFields;
+        private final Map<String, Object> rootMappings = new HashMap<>();
+        private final Map<String, String> cefMappings = new HashMap<>();
 
-        // Getters and setters for all fields
-        public String getVersion() {
-            return version;
+        public void addRootMapping(String key, Object value) {
+            this.rootMappings.put(key, value);
         }
 
-        public void setVersion(String version) {
-            this.version = version;
+        public void addCefMapping(String key, String value) {
+            this.cefMappings.put(key, value);
         }
 
-        public String getDeviceVendor() {
-            return deviceVendor;
+        public Map<String, Object> getRootMappings() {
+            return Map.copyOf(rootMappings);
         }
 
-        public void setDeviceVendor(String deviceVendor) {
-            this.deviceVendor = deviceVendor;
-        }
-
-        public String getDeviceProduct() {
-            return deviceProduct;
-        }
-
-        public void setDeviceProduct(String deviceProduct) {
-            this.deviceProduct = deviceProduct;
-        }
-
-        public String getDeviceVersion() {
-            return deviceVersion;
-        }
-
-        public void setDeviceVersion(String deviceVersion) {
-            this.deviceVersion = deviceVersion;
-        }
-
-        public String getDeviceEventClassId() {
-            return deviceEventClassId;
-        }
-
-        public void setDeviceEventClassId(String deviceEventClassId) {
-            this.deviceEventClassId = deviceEventClassId;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
-        public String getSeverity() {
-            return severity;
-        }
-
-        public void setSeverity(String severity) {
-            this.severity = severity;
-        }
-
-        public Map<String, String> getExtensions() {
-            return extensions;
-        }
-
-        public void setExtensions(Map<String, String> extensions) {
-            this.extensions.putAll(extensions);
-        }
-
-        public void addExtension(String key, String extension) {
-            this.extensions.put(key, extension);
-        }
-
-        public void removeMappedExtensions() {
-            this.extensions.keySet().removeAll(FIELD_MAPPINGS_AND_VALUES);
-        }
-
-        public Map<String, String> getTranslatedFields() {
-            return translatedFields;
-        }
-
-        public void setTranslatedFields(Map<String, String> translatedFields) {
-            this.translatedFields = translatedFields;
-        }
-
-        public Object toObject() {
-            Map<String, Object> event = new HashMap<>();
-            event.put("version", version);
-            event.put("device.vendor", deviceVendor);
-            event.put("device.product", deviceProduct);
-            event.put("device.version", deviceVersion);
-            event.put("device.event_class_id", deviceEventClassId);
-            event.put("name", name);
-            event.put("severity", severity);
-            for (Map.Entry<String, String> entry : extensions.entrySet()) {
-                event.put("extensions." + entry.getKey(), entry.getValue());
-            }
-            return event;
+        public Map<String, String> getCefMappings() {
+            return Map.copyOf(cefMappings);
         }
     }
 }

@@ -16,10 +16,10 @@ import org.junit.Before;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -536,10 +536,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("extensions.notificationScope"), equalTo("ACCOUNT"));
 
         // Incomplete Header yields an error message too
-        assertThat(
-            ingestDocument.getFieldValue("error.message", ArrayList.class),
-            equalTo(Collections.singletonList("incomplete CEF header"))
-        );
+        assertThat(ingestDocument.getFieldValue("error.message", HashSet.class), equalTo(new HashSet<>(Set.of("incomplete CEF header"))));
     }
 
     @SuppressWarnings("unchecked")
@@ -686,7 +683,7 @@ public class CefProcessorTests extends ESTestCase {
 
     // Date parsing tests
     public void testToTimestampWithUnixTimestamp() {
-        CefParser parser = new CefParser(null, ZoneId.of("UTC"), false);
+        CefParser parser = new CefParser(ZoneId.of("UTC"), false);
         String unixTimestamp = "1633072800000"; // Example Unix timestamp in milliseconds
         ZonedDateTime expected = ZonedDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(unixTimestamp)), ZoneId.of("UTC"));
         ZonedDateTime result = parser.toTimestamp(unixTimestamp);
@@ -694,7 +691,7 @@ public class CefProcessorTests extends ESTestCase {
     }
 
     public void testToTimestampWithFormattedDate() {
-        CefParser parser = new CefParser(null, ZoneId.of("Europe/Stockholm"), false);
+        CefParser parser = new CefParser(ZoneId.of("Europe/Stockholm"), false);
         String formattedDate = "Oct 01 2021 12:00:00 UTC"; // Example formatted date
         ZonedDateTime expected = ZonedDateTime.parse("2021-10-01T14:00+02:00[Europe/Stockholm]");
         ZonedDateTime result = parser.toTimestamp(formattedDate);
@@ -702,7 +699,7 @@ public class CefProcessorTests extends ESTestCase {
     }
 
     public void testToTimestampWithFormattedDateWithoutYear() {
-        CefParser parser = new CefParser(null, ZoneId.of("UTC"), false);
+        CefParser parser = new CefParser(ZoneId.of("UTC"), false);
         String formattedDate = "Oct 01 12:00:00 UTC"; // Example formatted date without year
         int currentYear = ZonedDateTime.now(ZoneId.of("UTC")).getYear();
         ZonedDateTime expected = ZonedDateTime.parse(currentYear + "-10-01T12:00:00Z[UTC]");
@@ -711,7 +708,7 @@ public class CefProcessorTests extends ESTestCase {
     }
 
     public void testToTimestampWithFormattedDateWithoutTimezone() {
-        CefParser parser = new CefParser(null, ZoneId.of("UTC"), false);
+        CefParser parser = new CefParser(ZoneId.of("UTC"), false);
         String formattedDate = "Sep 07 2018 14:50:39"; // Example formatted date without year
         ZonedDateTime expected = ZonedDateTime.parse("2018-09-07T14:50:39Z[UTC]");
         ZonedDateTime result = parser.toTimestamp(formattedDate);
@@ -719,7 +716,7 @@ public class CefProcessorTests extends ESTestCase {
     }
 
     public void testToTimestampWithInvalidDate() {
-        CefParser parser = new CefParser(null, ZoneId.of("UTC"), false);
+        CefParser parser = new CefParser(ZoneId.of("UTC"), false);
         String invalidDate = "invalid date";
         assertThrows(IllegalArgumentException.class, () -> parser.toTimestamp(invalidDate));
     }

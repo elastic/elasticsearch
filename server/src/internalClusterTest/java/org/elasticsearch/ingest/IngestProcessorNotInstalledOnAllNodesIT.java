@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.plugins.Plugin;
@@ -99,12 +100,16 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         String node1 = internalCluster().startNode();
 
         putJsonPipeline("_id", pipelineSource);
-        Pipeline pipeline = internalCluster().getInstance(NodeService.class, node1).getIngestService().getPipeline("_id");
+        Pipeline pipeline = internalCluster().getInstance(NodeService.class, node1)
+            .getIngestService()
+            .getPipeline(Metadata.DEFAULT_PROJECT_ID, "_id");
         assertThat(pipeline, notNullValue());
 
         installPlugin = false;
         String node2 = internalCluster().startNode();
-        pipeline = internalCluster().getInstance(NodeService.class, node2).getIngestService().getPipeline("_id");
+        pipeline = internalCluster().getInstance(NodeService.class, node2)
+            .getIngestService()
+            .getPipeline(Metadata.DEFAULT_PROJECT_ID, "_id");
 
         assertNotNull(pipeline);
         assertThat(pipeline.getId(), equalTo("_id"));

@@ -202,6 +202,47 @@ non-default sort settings:
   - match: { test-sort.settings.index.sort.mode.1: "max" }
 
 ---
+non-default sort settings with presence of nested:
+  - requires:
+      cluster_features: [ "mapper.nested.sorting_fields_check_fix" ]
+      reason: "Fixed behavior"
+
+  - do:
+      indices.create:
+        index: test-sort
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_shards: 2
+              number_of_replicas: 0
+              sort:
+                field: [ "agent_id", "@timestamp" ]
+                order: [ "asc", "desc" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              agent_id:
+                type: keyword
+              agent:
+                type: nested
+                properties:
+                  id:
+                    type: keyword
+
+  - do:
+      indices.get_settings:
+        index: test-sort
+
+  - is_true: test-sort
+  - match: { test-sort.settings.index.mode: "logsdb" }
+  - match: { test-sort.settings.index.sort.field.0: "agent_id" }
+  - match: { test-sort.settings.index.sort.field.1: "@timestamp" }
+  - match: { test-sort.settings.index.sort.order.0: "asc" }
+  - match: { test-sort.settings.index.sort.order.1: "desc" }
+
+---
 override sort order settings:
   - requires:
       cluster_features: [ "index.logsdb_no_host_name_field" ]

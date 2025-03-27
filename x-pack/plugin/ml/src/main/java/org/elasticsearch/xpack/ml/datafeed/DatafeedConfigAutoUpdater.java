@@ -58,13 +58,11 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
             MlConfigIndex.indexName()
         );
         for (String index : indices) {
-            if (latestState.metadata().hasIndex(index) == false) {
+            if (latestState.metadata().getProject().hasIndex(index) == false) {
                 continue;
             }
             IndexRoutingTable routingTable = latestState.getRoutingTable().index(index);
-            if (routingTable == null
-                || routingTable.allPrimaryShardsActive() == false
-                || routingTable.readyForSearch(latestState) == false) {
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false || routingTable.readyForSearch() == false) {
                 return false;
             }
         }

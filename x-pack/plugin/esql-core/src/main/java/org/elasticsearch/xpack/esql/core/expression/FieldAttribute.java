@@ -148,7 +148,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private void writeParentName(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
         } else {
             // Previous versions only used the parent field attribute to retrieve the parent's name, so we can use just any
@@ -159,7 +159,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private static String readParentName(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             return ((PlanStreamInput) in).readOptionalCachedString();
         }
 

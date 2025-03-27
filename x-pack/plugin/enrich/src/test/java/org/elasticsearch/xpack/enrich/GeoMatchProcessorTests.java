@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -100,7 +101,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
             1L,
             "_routing",
             VersionType.INTERNAL,
-            Map.of("location", fieldValue)
+            new HashMap<>(Map.of("location", fieldValue))
         );
         // Run
         IngestDocument[] holder = new IngestDocument[1];

@@ -36,6 +36,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamAction;
 import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamTransportAction;
+import org.elasticsearch.xpack.migrate.action.CopyLifecycleIndexMetadataAction;
+import org.elasticsearch.xpack.migrate.action.CopyLifecycleIndexMetadataTransportAction;
 import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceAction;
 import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceTransportAction;
 import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusAction;
@@ -55,6 +57,7 @@ import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTaskParams;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -64,6 +67,18 @@ import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexTrans
 import static org.elasticsearch.xpack.migrate.task.ReindexDataStreamPersistentTaskExecutor.MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING;
 
 public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        var registry = new MigrateTemplateRegistry(
+            services.environment().settings(),
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry()
+        );
+        registry.initialize();
+        return List.of(registry);
+    }
 
     @Override
     public List<RestHandler> getRestHandlers(
@@ -93,6 +108,7 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         actions.add(new ActionHandler<>(CancelReindexDataStreamAction.INSTANCE, CancelReindexDataStreamTransportAction.class));
         actions.add(new ActionHandler<>(ReindexDataStreamIndexAction.INSTANCE, ReindexDataStreamIndexTransportAction.class));
         actions.add(new ActionHandler<>(CreateIndexFromSourceAction.INSTANCE, CreateIndexFromSourceTransportAction.class));
+        actions.add(new ActionHandler<>(CopyLifecycleIndexMetadataAction.INSTANCE, CopyLifecycleIndexMetadataTransportAction.class));
         return actions;
     }
 

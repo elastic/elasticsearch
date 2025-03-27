@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 
@@ -60,8 +61,15 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
             || newStateVersion.equals(NO_VERSION));
     }
 
+    static ReservedStateMetadata getMetadata(ClusterState state, ErrorState errorState) {
+        return errorState.projectId()
+            .map(p -> ReservedClusterStateService.getPotentiallyNewProject(state, p).reservedStateMetadata())
+            .orElseGet(() -> state.metadata().reservedStateMetadata())
+            .get(errorState.namespace());
+    }
+
     static boolean checkErrorVersion(ClusterState currentState, ErrorState errorState) {
-        ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
+        ReservedStateMetadata existingMetadata = getMetadata(currentState, errorState);
         // check for noop here
         if (isNewError(existingMetadata, errorState.version(), errorState.versionCheck()) == false) {
             logger.info(
@@ -82,13 +90,27 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
 
     ClusterState execute(ClusterState currentState) {
         ClusterState.Builder stateBuilder = new ClusterState.Builder(currentState);
-        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-        ReservedStateMetadata reservedMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
-        ReservedStateMetadata.Builder resMetadataBuilder = ReservedStateMetadata.builder(errorState.namespace(), reservedMetadata);
-        resMetadataBuilder.errorMetadata(new ReservedStateErrorMetadata(errorState.version(), errorState.errorKind(), errorState.errors()));
-        metadataBuilder.put(resMetadataBuilder.build());
-        ClusterState newState = stateBuilder.metadata(metadataBuilder).build();
+        var errorMetadata = new ReservedStateErrorMetadata(errorState.version(), errorState.errorKind(), errorState.errors());
 
-        return newState;
+        if (errorState.projectId().isPresent()) {
+            ProjectMetadata project = currentState.metadata().getProject(errorState.projectId().get());
+
+            ReservedStateMetadata reservedMetadata = project.reservedStateMetadata().get(errorState.namespace());
+            ReservedStateMetadata.Builder resBuilder = ReservedStateMetadata.builder(errorState.namespace(), reservedMetadata);
+            resBuilder.errorMetadata(errorMetadata);
+
+            stateBuilder.putProjectMetadata(ProjectMetadata.builder(project).put(resBuilder.build()));
+        } else {
+            Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+
+            ReservedStateMetadata reservedMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
+            ReservedStateMetadata.Builder resBuilder = ReservedStateMetadata.builder(errorState.namespace(), reservedMetadata);
+            resBuilder.errorMetadata(errorMetadata);
+
+            metadataBuilder.put(resBuilder.build());
+            stateBuilder.metadata(metadataBuilder);
+        }
+
+        return stateBuilder.build();
     }
 }

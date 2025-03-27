@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,7 +97,9 @@ public class MlIndexAndAliasTests extends ESTestCase {
             new CreateIndexRequestBuilder(client, FIRST_CONCRETE_INDEX)
         );
         doAnswer(withResponse(new CreateIndexResponse(true, true, FIRST_CONCRETE_INDEX))).when(indicesAdminClient).create(any(), any());
-        when(indicesAdminClient.prepareAliases()).thenReturn(new IndicesAliasesRequestBuilder(client));
+        when(indicesAdminClient.prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).thenReturn(
+            new IndicesAliasesRequestBuilder(client, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+        );
         doAnswer(withResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS)).when(indicesAdminClient).aliases(any(), any());
         doAnswer(withResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS)).when(indicesAdminClient).putTemplate(any(), any());
 
@@ -186,7 +189,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 NotificationsIndex.NOTIFICATIONS_INDEX,
                 createComposableIndexTemplateMetaData(
                     NotificationsIndex.NOTIFICATIONS_INDEX,
-                    Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX)
+                    Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX),
+                    TEST_TEMPLATE_VERSION
                 )
             )
         );
@@ -286,7 +290,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         InOrder inOrder = inOrder(indicesAdminClient, listener);
         inOrder.verify(indicesAdminClient).prepareCreate(FIRST_CONCRETE_INDEX);
         inOrder.verify(indicesAdminClient).create(createRequestCaptor.capture(), any());
-        inOrder.verify(indicesAdminClient).prepareAliases();
+        inOrder.verify(indicesAdminClient).prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         inOrder.verify(indicesAdminClient).aliases(aliasesRequestCaptor.capture(), any());
         inOrder.verify(listener).onResponse(true);
 
@@ -311,7 +315,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         createIndexAndAliasIfNecessary(clusterState);
 
         InOrder inOrder = inOrder(indicesAdminClient, listener);
-        inOrder.verify(indicesAdminClient).prepareAliases();
+        inOrder.verify(indicesAdminClient).prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         inOrder.verify(indicesAdminClient).aliases(aliasesRequestCaptor.capture(), any());
         inOrder.verify(listener).onResponse(true);
 
@@ -365,8 +369,27 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     public void testLatestIndex() {
-        var names = new String[] { "index-000001", "index-000002", "index-000003" };
-        assertThat(MlIndexAndAlias.latestIndex(names), equalTo("index-000003"));
+        {
+            var names = new String[] { "index-000001", "index-000002", "index-000003" };
+            assertThat(MlIndexAndAlias.latestIndex(names), equalTo("index-000003"));
+        }
+        {
+            var names = new String[] { "index", "index-000001", "index-000002" };
+            assertThat(MlIndexAndAlias.latestIndex(names), equalTo("index-000002"));
+        }
+    }
+
+    public void testIndexIsReadWriteCompatibleInV9() {
+        assertTrue(MlIndexAndAlias.indexIsReadWriteCompatibleInV9(IndexVersion.current()));
+        assertTrue(MlIndexAndAlias.indexIsReadWriteCompatibleInV9(IndexVersions.V_8_0_0));
+        assertFalse(MlIndexAndAlias.indexIsReadWriteCompatibleInV9(IndexVersions.V_7_17_0));
+    }
+
+    public void testHas6DigitSuffix() {
+        assertTrue(MlIndexAndAlias.has6DigitSuffix("index-000001"));
+        assertFalse(MlIndexAndAlias.has6DigitSuffix("index1"));
+        assertFalse(MlIndexAndAlias.has6DigitSuffix("index-foo"));
+        assertFalse(MlIndexAndAlias.has6DigitSuffix("index000001"));
     }
 
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
@@ -417,8 +440,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         return IndexTemplateMetadata.builder(templateName).patterns(patterns).build();
     }
 
-    private static ComposableIndexTemplate createComposableIndexTemplateMetaData(String templateName, List<String> patterns) {
-        return ComposableIndexTemplate.builder().indexPatterns(patterns).build();
+    private static ComposableIndexTemplate createComposableIndexTemplateMetaData(String templateName, List<String> patterns, long version) {
+        return ComposableIndexTemplate.builder().indexPatterns(patterns).version(version).build();
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, boolean withAlias) {

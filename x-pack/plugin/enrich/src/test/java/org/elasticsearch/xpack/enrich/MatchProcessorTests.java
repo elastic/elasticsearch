@@ -56,7 +56,7 @@ public class MatchProcessorTests extends ESTestCase {
             1L,
             "_routing",
             VersionType.INTERNAL,
-            Map.of("domain", "elastic.co")
+            new HashMap<>(Map.of("domain", "elastic.co"))
         );
         // Run
         IngestDocument[] holder = new IngestDocument[1];
@@ -158,7 +158,7 @@ public class MatchProcessorTests extends ESTestCase {
             1L,
             "_routing",
             VersionType.INTERNAL,
-            Map.of("domain", "elastic.com")
+            new HashMap<>(Map.of("domain", "elastic.com"))
         );
         // Run
         IngestDocument[] resultHolder = new IngestDocument[1];
@@ -308,7 +308,14 @@ public class MatchProcessorTests extends ESTestCase {
             "domain",
             1
         );
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of("domain", 2));
+        IngestDocument ingestDocument = new IngestDocument(
+            "_index",
+            "_id",
+            1L,
+            "_routing",
+            VersionType.INTERNAL,
+            new HashMap<>(Map.of("domain", 2))
+        );
 
         // Execute
         IngestDocument[] holder = new IngestDocument[1];
@@ -351,7 +358,7 @@ public class MatchProcessorTests extends ESTestCase {
             1L,
             "_routing",
             VersionType.INTERNAL,
-            Map.of("domain", List.of("1", "2"))
+            new HashMap<>(Map.of("domain", List.of("1", "2")))
         );
 
         // Execute

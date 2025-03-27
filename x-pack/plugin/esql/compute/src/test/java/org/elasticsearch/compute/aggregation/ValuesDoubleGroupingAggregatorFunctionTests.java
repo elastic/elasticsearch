@@ -27,8 +27,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ValuesDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesDoubleAggregatorFunctionSupplier();
     }
 
     @Override

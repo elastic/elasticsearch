@@ -11,11 +11,15 @@ package org.elasticsearch.nativeaccess;
 
 public class NativeAccessUtil {
     /**
-     * Enables native access for the provided module. No-op for JDK 21 or before.
+     * Enables native access for the provided module.
+     * We need to have this adapter even if the method is available in JDK 21, as it was in preview.
+     * Available to JDK 22+, required for JDK 24+ when using --illegal-native-access=deny
      */
-    public static void enableNativeAccess(ModuleLayer.Controller controller, Module module) {}
+    public static void enableNativeAccess(ModuleLayer.Controller controller, Module module) {
+        controller.enableNativeAccess(module);
+    }
 
     public static boolean isNativeAccessEnabled(Module module) {
-        return true;
+        return module.isNativeAccessEnabled();
     }
 }

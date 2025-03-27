@@ -31,6 +31,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -64,27 +66,24 @@ public final class MlIndexAndAlias {
      */
     public static final String BWC_MAPPINGS_VERSION = "8.11.0";
 
+    public static final String FIRST_INDEX_SIX_DIGIT_SUFFIX = "-000001";
+
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
+    private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
 
-    static final Comparator<String> INDEX_NAME_COMPARATOR = new Comparator<>() {
-
-        private final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
-
-        @Override
-        public int compare(String index1, String index2) {
-            String[] index1Parts = index1.split("-");
-            String index1Suffix = index1Parts[index1Parts.length - 1];
-            boolean index1HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index1Suffix);
-            String[] index2Parts = index2.split("-");
-            String index2Suffix = index2Parts[index2Parts.length - 1];
-            boolean index2HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index2Suffix);
-            if (index1HasSixDigitsSuffix && index2HasSixDigitsSuffix) {
-                return index1Suffix.compareTo(index2Suffix);
-            } else if (index1HasSixDigitsSuffix != index2HasSixDigitsSuffix) {
-                return Boolean.compare(index1HasSixDigitsSuffix, index2HasSixDigitsSuffix);
-            } else {
-                return index1.compareTo(index2);
-            }
+    static final Comparator<String> INDEX_NAME_COMPARATOR = (index1, index2) -> {
+        String[] index1Parts = index1.split("-");
+        String index1Suffix = index1Parts[index1Parts.length - 1];
+        boolean index1HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index1Suffix);
+        String[] index2Parts = index2.split("-");
+        String index2Suffix = index2Parts[index2Parts.length - 1];
+        boolean index2HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index2Suffix);
+        if (index1HasSixDigitsSuffix && index2HasSixDigitsSuffix) {
+            return index1Suffix.compareTo(index2Suffix);
+        } else if (index1HasSixDigitsSuffix != index2HasSixDigitsSuffix) {
+            return Boolean.compare(index1HasSixDigitsSuffix, index2HasSixDigitsSuffix);
+        } else {
+            return index1.compareTo(index2);
         }
     };
 
@@ -108,6 +107,34 @@ public final class MlIndexAndAlias {
         ActiveShardCount waitForShardCount,
         ActionListener<Boolean> finalListener
     ) {
+        createIndexAndAliasIfNecessary(
+            client,
+            clusterState,
+            resolver,
+            indexPatternPrefix,
+            FIRST_INDEX_SIX_DIGIT_SUFFIX,
+            alias,
+            masterNodeTimeout,
+            waitForShardCount,
+            finalListener
+        );
+    }
+
+    /**
+     * Same as createIndexAndAliasIfNecessary but with the first concrete
+     * index number specified.
+     */
+    public static void createIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState clusterState,
+        IndexNameExpressionResolver resolver,
+        String indexPatternPrefix,
+        String indexNumber,
+        String alias,
+        TimeValue masterNodeTimeout,
+        ActiveShardCount waitForShardCount,
+        ActionListener<Boolean> finalListener
+    ) {
 
         final ActionListener<Boolean> loggingListener = ActionListener.wrap(finalListener::onResponse, e -> {
             logger.error(() -> format("Failed to create alias and index with pattern [%s] and alias [%s]", indexPatternPrefix, alias), e);
@@ -126,15 +153,23 @@ public final class MlIndexAndAlias {
         String legacyIndexWithoutSuffix = indexPatternPrefix;
         String indexPattern = indexPatternPrefix + "*";
         // The initial index name must be suitable for rollover functionality.
-        String firstConcreteIndex = indexPatternPrefix + "-000001";
+        String firstConcreteIndex = indexPatternPrefix + indexNumber;
         String[] concreteIndexNames = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
-        Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
-            ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
+        Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().getProject().hasAlias(alias)
+            ? clusterState.getMetadata().getProject().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardCount, indexCreatedListener);
+                createFirstConcreteIndex(
+                    client,
+                    firstConcreteIndex,
+                    alias,
+                    true,
+                    waitForShardCount,
+                    masterNodeTimeout,
+                    indexCreatedListener
+                );
                 return;
             }
             logger.error(
@@ -145,7 +180,15 @@ public final class MlIndexAndAlias {
             );
         } else if (concreteIndexNames.length == 1 && concreteIndexNames[0].equals(legacyIndexWithoutSuffix)) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardCount, indexCreatedListener);
+                createFirstConcreteIndex(
+                    client,
+                    firstConcreteIndex,
+                    alias,
+                    true,
+                    waitForShardCount,
+                    masterNodeTimeout,
+                    indexCreatedListener
+                );
                 return;
             }
             if (indexPointedByCurrentWriteAlias.get().equals(legacyIndexWithoutSuffix)) {
@@ -155,8 +198,9 @@ public final class MlIndexAndAlias {
                     alias,
                     false,
                     waitForShardCount,
+                    masterNodeTimeout,
                     indexCreatedListener.delegateFailureAndWrap(
-                        (l, unused) -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, l)
+                        (l, unused) -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, masterNodeTimeout, l)
                     )
                 );
                 return;
@@ -172,7 +216,7 @@ public final class MlIndexAndAlias {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
                 assert concreteIndexNames.length > 0;
                 String latestConcreteIndexName = latestIndex(concreteIndexNames);
-                updateWriteAlias(client, alias, null, latestConcreteIndexName, loggingListener);
+                updateWriteAlias(client, alias, null, latestConcreteIndexName, masterNodeTimeout, loggingListener);
                 return;
             }
         }
@@ -191,7 +235,7 @@ public final class MlIndexAndAlias {
         final String primaryIndex = descriptor.getPrimaryIndex();
 
         // The check for existence of the index is against the cluster state, so very cheap
-        if (clusterState.getMetadata().hasIndexAbstraction(primaryIndex)) {
+        if (clusterState.getMetadata().getProject().hasIndexAbstraction(primaryIndex)) {
             finalListener.onResponse(true);
             return;
         }
@@ -244,6 +288,7 @@ public final class MlIndexAndAlias {
         String alias,
         boolean addAlias,
         ActiveShardCount waitForShardCount,
+        TimeValue masterNodeTimeout,
         ActionListener<Boolean> listener
     ) {
         logger.info("About to create first concrete index [{}] with alias [{}]", index, alias);
@@ -266,7 +311,7 @@ public final class MlIndexAndAlias {
                     // on creation then we should leave it up to the caller to decide what to do next (some call sites
                     // already have more advanced alias update logic in their success handlers).
                     if (addAlias) {
-                        updateWriteAlias(client, alias, null, index, listener);
+                        updateWriteAlias(client, alias, null, index, masterNodeTimeout, listener);
                     } else {
                         listener.onResponse(true);
                     }
@@ -283,6 +328,7 @@ public final class MlIndexAndAlias {
         String alias,
         @Nullable String currentIndex,
         String newIndex,
+        TimeValue masterNodeTimeout,
         ActionListener<Boolean> listener
     ) {
         if (currentIndex != null) {
@@ -292,7 +338,7 @@ public final class MlIndexAndAlias {
         }
         IndicesAliasesRequestBuilder requestBuilder = client.admin()
             .indices()
-            .prepareAliases()
+            .prepareAliases(masterNodeTimeout, masterNodeTimeout)
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias).isHidden(true).writeIndex(true));
         if (currentIndex != null) {
             requestBuilder.removeAlias(currentIndex, alias);
@@ -331,7 +377,7 @@ public final class MlIndexAndAlias {
         String templateName = templateConfig.getTemplateName();
 
         // The check for existence of the template is against the cluster state, so very cheap
-        if (hasIndexTemplate(clusterState, templateName)) {
+        if (hasIndexTemplate(clusterState, templateName, templateConfig.getVersion())) {
             listener.onResponse(true);
             return;
         }
@@ -345,7 +391,7 @@ public final class MlIndexAndAlias {
             throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
         }
 
-        installIndexTemplateIfRequired(clusterState, client, request, listener);
+        installIndexTemplateIfRequired(clusterState, client, templateConfig.getVersion(), request, listener);
     }
 
     /**
@@ -361,11 +407,12 @@ public final class MlIndexAndAlias {
     public static void installIndexTemplateIfRequired(
         ClusterState clusterState,
         Client client,
+        int templateVersion,
         TransportPutComposableIndexTemplateAction.Request templateRequest,
         ActionListener<Boolean> listener
     ) {
         // The check for existence of the template is against the cluster state, so very cheap
-        if (hasIndexTemplate(clusterState, templateRequest.name())) {
+        if (hasIndexTemplate(clusterState, templateRequest.name(), templateVersion)) {
             listener.onResponse(true);
             return;
         }
@@ -380,8 +427,15 @@ public final class MlIndexAndAlias {
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportPutComposableIndexTemplateAction.TYPE, templateRequest, innerListener);
     }
 
-    public static boolean hasIndexTemplate(ClusterState state, String templateName) {
-        return state.getMetadata().templatesV2().containsKey(templateName);
+    public static boolean hasIndexTemplate(ClusterState state, String templateName, long version) {
+        var template = state.getMetadata().getProject().templatesV2().get(templateName);
+        return template != null && Long.valueOf(version).equals(template.version());
+    }
+
+    public static boolean has6DigitSuffix(String indexName) {
+        String[] indexParts = indexName.split("-");
+        String suffix = indexParts[indexParts.length - 1];
+        return HAS_SIX_DIGIT_SUFFIX.test(suffix);
     }
 
     /**
@@ -394,5 +448,12 @@ public final class MlIndexAndAlias {
         return concreteIndices.length == 1
             ? concreteIndices[0]
             : Arrays.stream(concreteIndices).max(MlIndexAndAlias.INDEX_NAME_COMPARATOR).get();
+    }
+
+    /**
+     * True if the version is read *and* write compatible not just read only compatible
+     */
+    public static boolean indexIsReadWriteCompatibleInV9(IndexVersion version) {
+        return version.onOrAfter(IndexVersions.V_8_0_0);
     }
 }

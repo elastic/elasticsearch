@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.inference.telemetry;
 
-import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.tasks.Task;
 
 public record TraceContextHandler(TraceContext traceContext) {
 
-    public void propagateTraceContext(HttpPost httpPost) {
+    public void propagateTraceContext(HttpRequestBase httpRequest) {
         if (traceContext == null) {
             return;
         }
@@ -21,11 +21,11 @@ public record TraceContextHandler(TraceContext traceContext) {
         var traceState = traceContext.traceState();
 
         if (traceParent != null) {
-            httpPost.setHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParent);
+            httpRequest.setHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParent);
         }
 
         if (traceState != null) {
-            httpPost.setHeader(Task.TRACE_STATE, traceState);
+            httpRequest.setHeader(Task.TRACE_STATE, traceState);
         }
     }
 }

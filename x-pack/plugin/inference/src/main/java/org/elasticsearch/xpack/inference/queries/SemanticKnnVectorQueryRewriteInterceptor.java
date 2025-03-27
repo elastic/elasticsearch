@@ -28,6 +28,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
     public static final NodeFeature SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
         "search.semantic_knn_vector_query_rewrite_interception_supported"
     );
+    public static final NodeFeature SEMANTIC_KNN_FILTER_FIX = new NodeFeature("search.semantic_knn_filter_fix");
 
     public SemanticKnnVectorQueryRewriteInterceptor() {}
 
@@ -147,6 +148,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
             );
         }
 
+        copy.addFilterQueries(original.filterQueries());
         copy.addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return copy;
     }
@@ -165,8 +167,9 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         KnnVectorQueryBuilder original,
         QueryVectorBuilder queryVectorBuilder
     ) {
+        KnnVectorQueryBuilder newQueryBuilder;
         if (original.queryVectorBuilder() != null) {
-            return new KnnVectorQueryBuilder(
+            newQueryBuilder = new KnnVectorQueryBuilder(
                 fieldName,
                 queryVectorBuilder,
                 original.k(),
@@ -174,7 +177,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
                 original.getVectorSimilarity()
             );
         } else {
-            return new KnnVectorQueryBuilder(
+            newQueryBuilder = new KnnVectorQueryBuilder(
                 fieldName,
                 original.queryVector(),
                 original.k(),
@@ -183,6 +186,9 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
                 original.getVectorSimilarity()
             );
         }
+
+        newQueryBuilder.addFilterQueries(original.filterQueries());
+        return newQueryBuilder;
     }
 
     @Override

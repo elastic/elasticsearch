@@ -46,7 +46,6 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
@@ -189,12 +188,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         while (source.hasNext()) {
             List<Page> in = source.next();
             try (
-                Driver d = new Driver(
+                Driver d = TestDriverFactory.create(
                     driverContext(),
                     new CannedSourceOperator(in.iterator()),
                     operators.get(),
-                    new PageConsumerOperator(result::add),
-                    () -> {}
+                    new PageConsumerOperator(result::add)
                 )
             ) {
                 runDriver(d);
@@ -241,16 +239,16 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * Tests that finish then close without calling {@link Operator#getOutput} to
      * retrieve a potential last page, releases all memory.
      */
-    public void testSimpleFinishClose() throws Exception {
+    public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
-        assert input.size() == 1 : "Expected single page, got: " + input;
         // eventually, when driverContext always returns a tracking factory, we can enable this assertion
         // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
-        Page page = input.get(0);
         try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
-            operator.addInput(page);
+            for (Page page : input) {
+                operator.addInput(page);
+            }
             operator.finish();
         }
     }
@@ -263,12 +261,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         boolean success = false;
         try (
-            Driver d = new Driver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);
@@ -290,21 +287,15 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         int dummyDrivers = between(0, 10);
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
-                new Driver(
-                    "dummy-session",
-                    0,
-                    0,
+                TestDriverFactory.create(
                     new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
-                    () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(
                         TestBlockFactory.getNonBreakingInstance(),
                         LongStream.range(0, between(1, 100)),
                         between(1, 100)
                     ),
                     List.of(),
-                    new PageConsumerOperator(page -> page.releaseBlocks()),
-                    Driver.DEFAULT_STATUS_INTERVAL,
-                    () -> {}
+                    new PageConsumerOperator(Page::releaseBlocks)
                 )
             );
         }

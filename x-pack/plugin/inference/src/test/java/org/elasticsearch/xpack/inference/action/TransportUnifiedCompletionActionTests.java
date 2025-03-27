@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
+import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
@@ -45,7 +48,10 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
-        StreamingTaskManager streamingTaskManager
+        StreamingTaskManager streamingTaskManager,
+        InferenceServiceRateLimitCalculator inferenceServiceRateLimitCalculator,
+        NodeClient nodeClient,
+        ThreadPool threadPool
     ) {
         return new TransportUnifiedCompletionInferenceAction(
             transportService,
@@ -54,13 +60,16 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
             modelRegistry,
             serviceRegistry,
             inferenceStats,
-            streamingTaskManager
+            streamingTaskManager,
+            inferenceServiceRateLimitCalculator,
+            nodeClient,
+            threadPool
         );
     }
 
     @Override
     protected UnifiedCompletionAction.Request createRequest() {
-        return mock();
+        return mock(UnifiedCompletionAction.Request.class);
     }
 
     public void testThrows_IncompatibleTaskTypeException_WhenUsingATextEmbeddingInferenceEndpoint() {
@@ -72,12 +81,12 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
         var listener = doExecute(requestTaskType);
 
         verify(listener).onFailure(assertArg(e -> {
-            assertThat(e, isA(ElasticsearchStatusException.class));
+            assertThat(e, isA(UnifiedChatCompletionException.class));
             assertThat(
                 e.getMessage(),
                 is("Incompatible task_type for unified API, the requested type [" + requestTaskType + "] must be one of [chat_completion]")
             );
-            assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
+            assertThat(((UnifiedChatCompletionException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
@@ -97,12 +106,12 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
         var listener = doExecute(requestTaskType);
 
         verify(listener).onFailure(assertArg(e -> {
-            assertThat(e, isA(ElasticsearchStatusException.class));
+            assertThat(e, isA(UnifiedChatCompletionException.class));
             assertThat(
                 e.getMessage(),
                 is("Incompatible task_type for unified API, the requested type [" + requestTaskType + "] must be one of [chat_completion]")
             );
-            assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
+            assertThat(((UnifiedChatCompletionException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));

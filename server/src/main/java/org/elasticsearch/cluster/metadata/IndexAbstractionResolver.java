@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
@@ -21,8 +22,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
 
 public class IndexAbstractionResolver {
 
@@ -35,9 +36,9 @@ public class IndexAbstractionResolver {
     public List<String> resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
-        Metadata metadata,
-        Supplier<Set<String>> allAuthorizedAndAvailable,
-        Predicate<String> isAuthorized,
+        ProjectMetadata projectMetadata,
+        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
         boolean includeDataStreams
     ) {
         List<String> finalIndices = new ArrayList<>();
@@ -63,6 +64,7 @@ public class IndexAbstractionResolver {
                 );
             }
             indexAbstraction = expressionAndSelector.v1();
+            IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
 
             // we always need to check for date math expressions
             indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
@@ -70,19 +72,18 @@ public class IndexAbstractionResolver {
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : allAuthorizedAndAvailable.get()) {
+                for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
                             selectorString,
                             authorizedIndex,
                             indicesOptions,
-                            metadata,
+                            projectMetadata,
                             indexNameExpressionResolver,
                             includeDataStreams
                         )) {
-                        // Resolve any ::* suffixes on the expression. We need to resolve them all to their final valid selectors
-                        resolveSelectorsAndCombine(authorizedIndex, selectorString, indicesOptions, resolvedIndices, metadata);
+                        resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                     }
                 }
                 if (resolvedIndices.isEmpty()) {
@@ -98,12 +99,11 @@ public class IndexAbstractionResolver {
                     }
                 }
             } else {
-                // Resolve any ::* suffixes on the expression. We need to resolve them all to their final valid selectors
                 Set<String> resolvedIndices = new HashSet<>();
-                resolveSelectorsAndCombine(indexAbstraction, selectorString, indicesOptions, resolvedIndices, metadata);
+                resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
                     finalIndices.removeAll(resolvedIndices);
-                } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
+                } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction, selector)) {
                     // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
                     // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
                     // handler, see: https://github.com/elastic/elasticsearch/issues/90215
@@ -114,15 +114,15 @@ public class IndexAbstractionResolver {
         return finalIndices;
     }
 
-    private static void resolveSelectorsAndCombine(
+    private static void resolveSelectorsAndCollect(
         String indexAbstraction,
         String selectorString,
         IndicesOptions indicesOptions,
         Set<String> collect,
-        Metadata metadata
+        ProjectMetadata projectMetadata
     ) {
         if (indicesOptions.allowSelectors()) {
-            IndexAbstraction abstraction = metadata.getIndicesLookup().get(indexAbstraction);
+            IndexAbstraction abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
             // We can't determine which selectors are valid for a nonexistent abstraction, so simply propagate them as if they supported
             // all of them so we don't drop anything.
             boolean acceptsAllSelectors = abstraction == null || abstraction.isDataStreamRelated();
@@ -132,19 +132,8 @@ public class IndexAbstractionResolver {
                 selectorString = IndexComponentSelector.DATA.getKey();
             }
 
-            if (Regex.isMatchAllPattern(selectorString)) {
-                // Always accept data
-                collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, IndexComponentSelector.DATA.getKey()));
-                // Only put failures on the expression if the abstraction supports it.
-                if (acceptsAllSelectors) {
-                    collect.add(
-                        IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, IndexComponentSelector.FAILURES.getKey())
-                    );
-                }
-            } else {
-                // A non-wildcard selector is always passed along as-is, it's validity for this kind of abstraction is tested later
-                collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString));
-            }
+            // A selector is always passed along as-is, it's validity for this kind of abstraction is tested later
+            collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString));
         } else {
             assert selectorString == null
                 : "A selector string [" + selectorString + "] is present but selectors are disabled in this context";
@@ -157,11 +146,11 @@ public class IndexAbstractionResolver {
         @Nullable String selectorString,
         String index,
         IndicesOptions indicesOptions,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }
@@ -169,8 +158,35 @@ public class IndexAbstractionResolver {
         boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
-            // complicated to support those options with aliases pointing to multiple indices...
+            // it's complicated to support those options with aliases pointing to multiple indices...
             isVisible = isVisible && indicesOptions.ignoreAliases() == false;
+
+            if (isVisible && indexAbstraction.isSystem()) {
+                // check if it is net new
+                if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
+                    // don't give this code any particular credit for being *correct*. it's just trying to resolve a combination of
+                    // issues in a way that happens to *work*. there's probably a better way of writing things such that this won't
+                    // be necessary, but for the moment, it happens to be expedient to write things this way.
+
+                    // unwrap the alias and re-run the function on the write index of the alias -- that is, the alias is visible if
+                    // the concrete index that it refers to is visible
+                    Index writeIndex = indexAbstraction.getWriteIndex();
+                    if (writeIndex == null) {
+                        return false;
+                    } else {
+                        return isIndexVisible(
+                            expression,
+                            selectorString,
+                            writeIndex.getName(),
+                            indicesOptions,
+                            projectMetadata,
+                            resolver,
+                            includeDataStreams
+                        );
+                    }
+                }
+            }
+
             if (isVisible && selectorString != null) {
                 // Check if a selector was present, and if it is, check if this alias is applicable to it
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
@@ -217,7 +233,7 @@ public class IndexAbstractionResolver {
             }
         }
 
-        IndexMetadata indexMetadata = metadata.index(indexAbstraction.getIndices().get(0));
+        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().get(0));
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
             return true;
         }

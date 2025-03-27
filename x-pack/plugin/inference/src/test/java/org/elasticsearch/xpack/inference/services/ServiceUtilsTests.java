@@ -19,11 +19,11 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResultsTests;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
-import org.elasticsearch.xpack.inference.results.InferenceTextEmbeddingByteResultsTests;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -910,11 +910,11 @@ public class ServiceUtilsTests extends ESTestCase {
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
-            listener.onResponse(new InferenceTextEmbeddingFloatResults(List.of()));
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
+            listener.onResponse(new TextEmbeddingFloatResults(List.of()));
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -932,11 +932,11 @@ public class ServiceUtilsTests extends ESTestCase {
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
-            listener.onResponse(new InferenceTextEmbeddingByteResults(List.of()));
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
+            listener.onResponse(new TextEmbeddingByteResults(List.of()));
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -953,21 +953,21 @@ public class ServiceUtilsTests extends ESTestCase {
         var model = mock(Model.class);
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
-        var textEmbedding = TextEmbeddingResultsTests.createRandomResults();
+        var textEmbedding = TextEmbeddingFloatResultsTests.createRandomResults();
 
         doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
             listener.onResponse(textEmbedding);
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
 
         var size = listener.actionGet(TIMEOUT);
 
-        assertThat(size, is(textEmbedding.embeddings().get(0).getSize()));
+        assertThat(size, is(textEmbedding.embeddings().get(0).values().length));
     }
 
     public void testGetEmbeddingSize_ReturnsSize_ForTextEmbeddingByteResults() {
@@ -976,21 +976,57 @@ public class ServiceUtilsTests extends ESTestCase {
         var model = mock(Model.class);
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
-        var textEmbedding = InferenceTextEmbeddingByteResultsTests.createRandomResults();
+        var textEmbedding = TextEmbeddingByteResultsTests.createRandomResults();
 
         doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
             listener.onResponse(textEmbedding);
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
 
         var size = listener.actionGet(TIMEOUT);
 
-        assertThat(size, is(textEmbedding.embeddings().get(0).getSize()));
+        assertThat(size, is(textEmbedding.embeddings().get(0).values().length));
+    }
+
+    public void testValidateInputType_NoValidationErrorsWhenInternalType() {
+        ValidationException validationException = new ValidationException();
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INTERNAL_SEARCH, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INTERNAL_INGEST, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testValidateInputType_NoValidationErrorsWhenInputTypeIsNullOrUnspecified() {
+        ValidationException validationException = new ValidationException();
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.UNSPECIFIED, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(null, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testValidateInputType_ValidationErrorsWhenInputTypeIsSpecified() {
+        ValidationException validationException = new ValidationException();
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.SEARCH, validationException);
+        assertThat(validationException.validationErrors().size(), is(1));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INGEST, validationException);
+        assertThat(validationException.validationErrors().size(), is(2));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.CLASSIFICATION, validationException);
+        assertThat(validationException.validationErrors().size(), is(3));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.CLUSTERING, validationException);
+        assertThat(validationException.validationErrors().size(), is(4));
     }
 
     private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {

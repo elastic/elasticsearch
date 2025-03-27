@@ -65,7 +65,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
         Files.createDirectory(configDirectory.resolve("repository-s3"));
         Files.writeString(configDirectory.resolve("repository-s3/aws-web-identity-token-file"), "YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl");
         Environment environment = Mockito.mock(Environment.class);
-        Mockito.when(environment.configFile()).thenReturn(configDirectory);
+        Mockito.when(environment.configDir()).thenReturn(configDirectory);
         return environment;
     }
 
@@ -212,7 +212,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                     latch.countDown();
                 }
             });
-            Files.writeString(environment.configFile().resolve("repository-s3/aws-web-identity-token-file"), newWebIdentityToken);
+            Files.writeString(environment.configDir().resolve("repository-s3/aws-web-identity-token-file"), newWebIdentityToken);
 
             safeAwait(latch);
             assertCredentials(awsCredentialsProvider.getCredentials());

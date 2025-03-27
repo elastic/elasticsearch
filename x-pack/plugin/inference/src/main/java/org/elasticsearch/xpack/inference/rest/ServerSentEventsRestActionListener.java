@@ -35,14 +35,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.xpack.core.inference.results.XContentFormattedException.X_CONTENT_PARAM;
 
 /**
  * A version of {@link org.elasticsearch.rest.action.RestChunkedToXContentListener} that reads from a {@link Flow.Publisher} and encodes
@@ -72,7 +76,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
 
     public ServerSentEventsRestActionListener(RestChannel channel, ToXContent.Params params, SetOnce<ThreadPool> threadPool) {
         this.channel = channel;
-        this.params = params;
+        this.params = new ToXContent.DelegatingMapParams(Map.of(X_CONTENT_PARAM, String.valueOf(channel.detailedErrorsEnabled())), params);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
@@ -150,6 +154,12 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     }
 
     private ChunkedToXContent errorChunk(Throwable t) {
+        // if we've already formatted it, just return that format
+        if (ExceptionsHelper.unwrapCause(t) instanceof XContentFormattedException xContentFormattedException) {
+            return xContentFormattedException;
+        }
+
+        // else, try to parse the format and return something that the ES client knows how to interpret
         var status = ExceptionsHelper.status(t);
 
         Exception e;
@@ -158,7 +168,8 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
         } else {
             // if not exception, then error, and we should not let it escape. rethrow on another thread, and inform the user we're stopping.
             ExceptionsHelper.maybeDieOnAnotherThread(t);
-            e = new RuntimeException("Fatal error while streaming response", t);
+            e = new RuntimeException("Fatal error while streaming response. Please retry the request.");
+            logger.error(e.getMessage(), t);
         }
         return params -> Iterators.concat(
             ChunkedToXContentHelper.startObject(),

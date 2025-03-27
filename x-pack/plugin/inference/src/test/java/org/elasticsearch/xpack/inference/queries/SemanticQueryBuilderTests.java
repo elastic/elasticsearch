@@ -34,12 +34,14 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
@@ -49,8 +51,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -81,7 +83,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static final String SEMANTIC_TEXT_FIELD = "semantic";
     private static final float TOKEN_WEIGHT = 0.5f;
     private static final int QUERY_TOKEN_LENGTH = 4;
-    private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 10;
+    private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 16; // Must be a multiple of 8 to be a valid bit embedding
     private static final String INFERENCE_ID = "test_service";
     private static final String SEARCH_INFERENCE_ID = "search_test_service";
 
@@ -112,10 +114,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
         // AbstractBuilderTestCase#beforeTest as part of service holder creation.
         inferenceResultType = randomFrom(InferenceResultType.values());
-        denseVectorElementType = randomValueOtherThan(
-            DenseVectorFieldMapper.ElementType.BIT,
-            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
-        ); // TODO: Support bit elements once KNN bit vector queries are available
+        denseVectorElementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
         useSearchInferenceId = randomBoolean();
     }
 
@@ -228,8 +227,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
         Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
             case FLOAT -> KnnFloatVectorQuery.class;
-            case BYTE -> KnnByteVectorQuery.class;
-            default -> throw new IllegalStateException("Unhandled element type [" + denseVectorElementType + "]");
+            case BYTE, BIT -> KnnByteVectorQuery.class;
         };
         assertThat(innerQuery, instanceOf(expectedKnnQueryClass));
     }
@@ -267,7 +265,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     protected Object simulateMethod(Method method, Object[] args) {
         InferenceAction.Request request = (InferenceAction.Request) args[1];
         assertThat(request.getTaskType(), equalTo(TaskType.ANY));
-        assertThat(request.getInputType(), equalTo(InputType.SEARCH));
+        assertThat(request.getInputType(), equalTo(InputType.INTERNAL_SEARCH));
         assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
 
         List<String> input = request.getInput();
@@ -295,11 +293,12 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private InferenceAction.Response generateTextEmbeddingInferenceResponse() {
-        double[] inference = new double[TEXT_EMBEDDING_DIMENSION_COUNT];
+        int inferenceLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(denseVectorElementType, TEXT_EMBEDDING_DIMENSION_COUNT);
+        double[] inference = new double[inferenceLength];
         Arrays.fill(inference, 1.0);
         MlTextEmbeddingResults textEmbeddingResults = new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
 
-        return new InferenceAction.Response(InferenceTextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
+        return new InferenceAction.Response(TextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
     }
 
     @Override
@@ -351,13 +350,15 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         DenseVectorFieldMapper.ElementType denseVectorElementType,
         boolean useLegacyFormat
     ) throws IOException {
-        SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
+        var modelSettings = switch (inferenceResultType) {
             case NONE -> null;
-            case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
-            case TEXT_EMBEDDING -> new SemanticTextField.ModelSettings(
+            case SPARSE_EMBEDDING -> new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
+            case TEXT_EMBEDDING -> new MinimalServiceSettings(
+                "my-service",
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
-                SimilarityMeasure.COSINE,
+                // l2_norm similarity is required for bit embeddings
+                denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT ? SimilarityMeasure.L2_NORM : SimilarityMeasure.COSINE,
                 denseVectorElementType
             );
         };

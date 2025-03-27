@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -71,6 +72,12 @@ public class RestResolveClusterAction extends BaseRestHandler {
             clusterInfoOnly,
             true
         );
+
+        String timeout = request.param("timeout");
+        if (timeout != null) {
+            resolveRequest.setTimeout(TimeValue.parseTimeValue(timeout, "timeout"));
+        }
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .execute(TransportResolveClusterAction.TYPE, resolveRequest, new RestToXContentListener<>(channel));

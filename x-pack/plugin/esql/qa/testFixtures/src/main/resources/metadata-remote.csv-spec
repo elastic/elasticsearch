@@ -39,7 +39,7 @@ max:integer |_index:keyword
 ;
 
 metaIndexAliasedInAggs
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: metadata_fields_remote_test
 from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i | SORT _i;
 

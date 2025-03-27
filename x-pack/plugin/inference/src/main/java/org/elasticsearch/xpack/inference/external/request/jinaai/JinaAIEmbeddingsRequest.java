@@ -11,9 +11,11 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.jinaai.JinaAIAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 
@@ -27,17 +29,21 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
 
     private final JinaAIAccount account;
     private final List<String> input;
+    private final InputType inputType;
     private final JinaAIEmbeddingsTaskSettings taskSettings;
     private final String model;
     private final String inferenceEntityId;
+    private final JinaAIEmbeddingType embeddingType;
 
-    public JinaAIEmbeddingsRequest(List<String> input, JinaAIEmbeddingsModel embeddingsModel) {
+    public JinaAIEmbeddingsRequest(List<String> input, InputType inputType, JinaAIEmbeddingsModel embeddingsModel) {
         Objects.requireNonNull(embeddingsModel);
 
         account = JinaAIAccount.of(embeddingsModel, JinaAIEmbeddingsRequest::buildDefaultUri);
         this.input = Objects.requireNonNull(input);
+        this.inputType = inputType;
         taskSettings = embeddingsModel.getTaskSettings();
         model = embeddingsModel.getServiceSettings().getCommonSettings().modelId();
+        embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
         inferenceEntityId = embeddingsModel.getInferenceEntityId();
     }
 
@@ -46,7 +52,8 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new JinaAIEmbeddingsRequestEntity(input, taskSettings, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new JinaAIEmbeddingsRequestEntity(input, inputType, taskSettings, model, embeddingType))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
@@ -73,6 +80,10 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
     @Override
     public boolean[] getTruncationInfo() {
         return null;
+    }
+
+    public JinaAIEmbeddingType getEmbeddingType() {
+        return embeddingType;
     }
 
     public static URI buildDefaultUri() throws URISyntaxException {

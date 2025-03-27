@@ -1,6 +1,0 @@
-pr: 120809
-summary: LTR sometines throw `NullPointerException:` Cannot read field "approximation"
-  because "top" is null
-area: Ranking
-type: bug
-issues: []

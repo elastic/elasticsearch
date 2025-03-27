@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -217,6 +218,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         @Override
         public void cleanUpFeature(
             ClusterService clusterService,
+            ProjectResolver projectResolver,
             Client client,
             ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
         ) {

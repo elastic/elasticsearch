@@ -113,7 +113,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         List<NamedExpression> loadFields,
         Source source
     ) {
-        super(driverContext, maxOutstandingRequests);
+        super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.inputChannel = inputChannel;
@@ -217,8 +217,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     }
 
     @Override
-    protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms, emittedPages);
+    protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalTerms, emittedPages);
     }
 
     public static class Status extends AsyncOperator.Status {

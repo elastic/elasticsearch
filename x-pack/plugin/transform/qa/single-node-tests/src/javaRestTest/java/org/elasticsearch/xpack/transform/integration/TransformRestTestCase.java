@@ -412,7 +412,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         }
         updateTransformRequest.setJsonEntity(update);
 
-        client().performRequest(updateTransformRequest);
+        assertOKAndConsume(client().performRequest(updateTransformRequest));
     }
 
     protected void startTransform(String transformId) throws IOException {

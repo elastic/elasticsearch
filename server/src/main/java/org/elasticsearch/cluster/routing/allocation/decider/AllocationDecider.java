@@ -75,9 +75,9 @@ public abstract class AllocationDecider {
     }
 
     /**
-     * Returns a {@link Decision} whether the cluster can execute
-     * re-balanced operations at all.
-     * {@link Decision#ALWAYS}.
+     * Returns a {@link Decision} on whether the cluster is allowed to rebalance shards to improve relative node shard weights and
+     * performance.
+     * @return {@link Decision#ALWAYS} is returned by default if not overridden.
      */
     public Decision canRebalance(RoutingAllocation allocation) {
         return Decision.ALWAYS;

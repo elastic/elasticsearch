@@ -1,6 +1,0 @@
-pr: 118704
-summary: Avoid updating settings version in `MetadataMigrateToDataStreamService` when
-  settings have not changed
-area: Data streams
-type: bug
-issues: []

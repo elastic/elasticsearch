@@ -172,10 +172,14 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public GeoShapeWithDocValuesFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
+                /*
+                 * We have no plans to fail on multifields because it isn't worth breaking
+                 * even the tiny fraction of users.
+                 */
                 DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "geo_shape_multifields",
-                    "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"
+                    "Adding multifields to [geo_shape] mappers has no effect"
                 );
             }
             GeometryParser geometryParser = new GeometryParser(
@@ -193,6 +197,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 parser,
                 scriptValues(),
                 geoFormatterFactory,
+                context.isSourceSynthetic(),
                 meta.get()
             );
             hasScript = script.get() != null;
@@ -212,6 +217,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
         private final FieldValues<Geometry> scriptValues;
+        private final boolean isSyntheticSource;
 
         public GeoShapeWithDocValuesFieldType(
             String name,
@@ -222,11 +228,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeoShapeParser parser,
             FieldValues<Geometry> scriptValues,
             GeoFormatterFactory<Geometry> geoFormatterFactory,
+            boolean isSyntheticSource,
             Map<String, String> meta
         ) {
             super(name, indexed, isStored, hasDocValues, parser, orientation, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -302,9 +310,14 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS
-                ? new GeoBoundsBlockLoader(name())
-                : blockLoaderFromSource(blContext);
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
+                return new GeoBoundsBlockLoader(name());
+            }
+            if (isSyntheticSource) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
         }
 
         static class GeoBoundsBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader {

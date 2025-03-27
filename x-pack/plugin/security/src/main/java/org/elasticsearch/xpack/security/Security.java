@@ -31,8 +31,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -60,12 +63,12 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
@@ -313,9 +316,9 @@ import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenSt
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
-import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMapper;
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
@@ -726,9 +729,9 @@ public class Security extends Plugin
      * ES has already checked the file is actually in the config directory
      */
     public static Path resolveSecuredConfigFile(Environment env, String file) {
-        Path config = env.configFile().resolve(file);
+        Path config = env.configDir().resolve(file);
         if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(config)) == false) {
-            Path legacyConfig = env.configFile().resolve("x-pack").resolve(file);
+            Path legacyConfig = env.configDir().resolve("x-pack").resolve(file);
             if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(legacyConfig))) {
                 DeprecationLogger.getLogger(XPackPlugin.class)
                     .warn(
@@ -754,10 +757,10 @@ public class Security extends Plugin
                 services.scriptService(),
                 services.xContentRegistry(),
                 services.environment(),
-                services.nodeEnvironment().nodeMetadata(),
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
-                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client())
+                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
+                services.projectResolver()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -774,10 +777,10 @@ public class Security extends Plugin
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
         Environment environment,
-        NodeMetadata nodeMetadata,
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
-        PersistentTasksService persistentTasksService
+        PersistentTasksService persistentTasksService,
+        ProjectResolver projectResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -790,7 +793,7 @@ public class Security extends Plugin
         // See Plugin#additionalSettings()
         this.settings = environment.settings();
 
-        systemIndices.init(client, featureService, clusterService);
+        systemIndices.init(client, featureService, clusterService, projectResolver);
 
         this.securityMigrationExecutor.set(
             new SecurityMigrationExecutor(
@@ -803,10 +806,10 @@ public class Security extends Plugin
         );
         this.persistentTasksService.set(persistentTasksService);
 
-        systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
+        systemIndices.getMainIndexManager().addStateListener((projectId, oldState, newState) -> {
             // Only consider applying migrations if it's the master node and the security index exists
             if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
-                applyPendingSecurityMigrations(newState);
+                applyPendingSecurityMigrations(projectId, newState);
             }
         });
 
@@ -859,8 +862,13 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             scriptService
         );
-        final ClusterStateRoleMapper clusterStateRoleMapper = new ClusterStateRoleMapper(settings, scriptService, clusterService);
-        final UserRoleMapper userRoleMapper = new CompositeRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper);
+        final ProjectStateRoleMapper projectStateRoleMapper = new ProjectStateRoleMapper(
+            settings,
+            scriptService,
+            clusterService,
+            projectResolver
+        );
+        final UserRoleMapper userRoleMapper = new CompositeRoleMapper(nativeRoleMappingStore, projectStateRoleMapper);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
         final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore, anonymousUser, threadPool);
@@ -869,7 +877,8 @@ public class Security extends Plugin
             client,
             clusterService,
             resourceWatcherService,
-            userRoleMapper
+            userRoleMapper,
+            projectResolver
         );
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
@@ -901,7 +910,7 @@ public class Security extends Plugin
         components.add(nativeUsersStore);
         components.add(new PluginComponentBinding<>(NativeRoleMappingStore.class, nativeRoleMappingStore));
         components.add(new PluginComponentBinding<>(UserRoleMapper.class, userRoleMapper));
-        components.add(clusterStateRoleMapper);
+        components.add(projectStateRoleMapper);
         components.add(reservedRealm);
         components.add(realms);
         this.realms.set(realms);
@@ -980,7 +989,6 @@ public class Security extends Plugin
             getLicenseState(),
             systemIndices.getMainIndexManager(),
             clusterService,
-            featureService,
             reservedRoleNameChecker,
             xContentRegistry
         );
@@ -1040,10 +1048,11 @@ public class Security extends Plugin
             fieldPermissionsCache,
             apiKeyService,
             serviceAccountService,
+            projectResolver,
             dlsBitsetCache.get(),
             restrictedIndices,
             buildRoleBuildingExecutor(threadPool, settings),
-            new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
+            new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
@@ -1151,7 +1160,8 @@ public class Security extends Plugin
             expressionResolver,
             operatorPrivilegesService.get(),
             restrictedIndices,
-            authorizationDenialMessages.get()
+            authorizationDenialMessages.get(),
+            projectResolver
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1241,7 +1251,9 @@ public class Security extends Plugin
         return components;
     }
 
-    private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {
+    @FixForMultiProject
+    // TODO : The migration task needs to be project aware
+    private void applyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState newState) {
         // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
         if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
             submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
@@ -1253,12 +1265,13 @@ public class Security extends Plugin
         );
 
         // Check if next migration that has not been applied is eligible to run on the current cluster
-        if (nextMigration == null || systemIndices.getMainIndexManager().isEligibleSecurityMigration(nextMigration.getValue()) == false) {
+        if (nextMigration == null
+            || systemIndices.getMainIndexManager().getProject(projectId).isEligibleSecurityMigration(nextMigration.getValue()) == false) {
             // Reset retry counter if all eligible migrations have been applied successfully
             nodeLocalMigrationRetryCount.set(0);
         } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
             logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
-        } else if (systemIndices.getMainIndexManager().isReadyForSecurityMigration(nextMigration.getValue())) {
+        } else if (systemIndices.getMainIndexManager().getProject(projectId).isReadyForSecurityMigration(nextMigration.getValue())) {
             submitPersistentMigrationTask(newState.migrationsVersion);
         }
     }
@@ -1472,7 +1485,7 @@ public class Security extends Plugin
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
-        settingsList.add(ApiKeyService.PASSWORD_HASHING_ALGORITHM);
+        settingsList.add(ApiKeyService.STORED_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
         settingsList.add(ApiKeyService.DELETE_INTERVAL);
         settingsList.add(ApiKeyService.DELETE_RETENTION_PERIOD);
@@ -1818,17 +1831,30 @@ public class Security extends Plugin
                     + " ] setting."
             );
         }
-        Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
-            final var storedHashAlgo = setting.get(settings);
-            if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
-                // log instead of validation error for backwards compatibility
-                logger.warn(
-                    "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
-                        + "Please set the appropriate value for [{}] setting.",
-                    setting.getKey()
-                );
-            }
-        });
+
+        final var serviceTokenStoredHashSettings = XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM;
+        final var serviceTokenStoredHashAlgo = serviceTokenStoredHashSettings.get(settings);
+        if (serviceTokenStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+            // log instead of validation error for backwards compatibility
+            logger.warn(
+                "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                    + "Please set the appropriate value for [{}] setting.",
+                serviceTokenStoredHashSettings.getKey()
+            );
+        }
+
+        final var apiKeyStoredHashSettings = ApiKeyService.STORED_HASH_ALGO_SETTING;
+        final var apiKeyStoredHashAlgo = apiKeyStoredHashSettings.get(settings);
+        if (apiKeyStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("ssha256") == false
+            && apiKeyStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+            // log instead of validation error for backwards compatibility
+            logger.warn(
+                "[{}] is not recommended for stored API key hashing in a FIPS 140 JVM. The recommended hasher for [{}] is SSHA256.",
+                apiKeyStoredHashSettings,
+                apiKeyStoredHashSettings.getKey()
+            );
+        }
+
         final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
         cacheHashAlgoSettings.keySet().forEach((key) -> {
             final var setting = cacheHashAlgoSettings.get(key);
@@ -2185,6 +2211,7 @@ public class Security extends Plugin
                     return FieldPredicate.ACCEPT_ALL;
                 }
                 assert indicesAccessControl.isGranted();
+                IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(index);
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
                     return FieldPredicate.ACCEPT_ALL;
@@ -2398,7 +2425,7 @@ public class Security extends Plugin
         return this.securityMigrationExecutor.get() != null ? List.of(this.securityMigrationExecutor.get()) : List.of();
     }
 
-    List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
+    List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedProjectStateHandlers() {
         // If security is disabled we never call the plugin createComponents
         if (enabled == false) {
             return Collections.emptyList();

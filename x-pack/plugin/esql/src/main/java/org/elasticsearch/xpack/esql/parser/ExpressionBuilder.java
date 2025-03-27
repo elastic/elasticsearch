@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
@@ -86,6 +87,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
@@ -115,10 +117,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      */
     public static final int MAX_EXPRESSION_DEPTH = 400;
 
-    protected final QueryParams params;
+    protected final ParsingContext context;
 
-    ExpressionBuilder(QueryParams params) {
-        this.params = params;
+    public record ParsingContext(QueryParams params, PlanTelemetry telemetry) {}
+
+    ExpressionBuilder(ParsingContext context) {
+        this.context = context;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -317,8 +321,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             if (idCtx.ID_PATTERN() != null && idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
                 unresolvedStar = true;
             }
-            if (idCtx.parameter() != null) {
-                Expression exp = expression(idCtx.parameter());
+            if (idCtx.parameter() != null || idCtx.doubleParameter() != null) {
+                ParseTree paramCtx = idCtx.parameter();
+                ParseTree doubleParamsCtx = idCtx.doubleParameter();
+                Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
                 if (exp instanceof Literal lit) {
                     if (lit.value() != null) {
                         throw new ParsingException(
@@ -353,8 +359,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             EsqlBaseParser.IdentifierPatternContext pattern = patterns.get(i);
             if (pattern.ID_PATTERN() != null) {
                 patternContext = pattern.ID_PATTERN().getText();
-            } else if (pattern.parameter() != null) {
-                Expression exp = expression(pattern.parameter());
+            } else if (pattern.parameter() != null || pattern.doubleParameter() != null) {
+                ParseTree paramCtx = pattern.parameter();
+                ParseTree doubleParamsCtx = pattern.doubleParameter();
+                Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
                 if (exp instanceof Literal lit) {
                     // only Literal.NULL can happen with missing params, params for constants are not allowed
                     if (lit.value() != null) {
@@ -621,7 +629,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        return visitIdentifierOrParameter(ctx.identifierOrParameter());
+        var name = visitIdentifierOrParameter(ctx.identifierOrParameter());
+        context.telemetry().function(name);
+        return name;
     }
 
     @Override
@@ -667,8 +677,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx.identifier() != null) {
             return visitIdentifier(ctx.identifier());
         }
-
-        return unresolvedAttributeNameInParam(ctx.parameter(), expression(ctx.parameter()));
+        if (ctx.parameter() != null) {
+            return unresolvedAttributeNameInParam(ctx.parameter(), expression(ctx.parameter()));
+        }
+        return unresolvedAttributeNameInParam(ctx.doubleParameter(), expression(ctx.doubleParameter()));
     }
 
     @Override
@@ -683,7 +695,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
         Expression expr = expression(parseTree);
-        return converterToFactory.apply(source, expr);
+        var convertFunction = converterToFactory.apply(source, expr);
+        context.telemetry().function(convertFunction.getClass());
+        return convertFunction;
     }
 
     @Override
@@ -788,9 +802,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
         return visitQualifiedNamePattern(ctx, ne -> {
-            if (ne instanceof UnresolvedNamePattern up) {
+            if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
                 var src = ne.source();
-                throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
+                throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed, found [{}]", src.text());
             }
         });
     }
@@ -915,40 +929,43 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             return null;
         }
         Token token = node.getSymbol();
-        if (params.contains(token) == false) {
+        if (context.params().contains(token) == false) {
             throw new ParsingException(source(node), "Unexpected parameter");
         }
-        return params.get(token);
+        return context.params().get(token);
     }
 
     QueryParam paramByNameOrPosition(TerminalNode node) {
         if (node == null) {
             return null;
         }
+        // The token could be a single parameter marker or double parameter markers
         Token token = node.getSymbol();
-        String nameOrPosition = token.getText().substring(1);
+        String nameOrPosition = nameOrPosition(token);
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
-            if (params.get(index) == null) {
+            if (context.params().get(index) == null) {
                 String message = "";
-                int np = params.size();
+                int np = context.params().size();
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }
-                params.addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
+                context.params()
+                    .addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
             }
-            return params.get(index);
+            return context.params().get(index);
         } else {
-            if (params.contains(nameOrPosition) == false) {
+            if (context.params().contains(nameOrPosition) == false) {
                 String message = "";
-                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, params.namedParams().keySet());
+                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, context.params().namedParams().keySet());
                 if (potentialMatches.size() > 0) {
                     message = ", did you mean "
                         + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]?" : "any of " + potentialMatches + "?");
                 }
-                params.addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
+                context.params()
+                    .addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
             }
-            return params.get(nameOrPosition);
+            return context.params().get(nameOrPosition);
         }
     }
 
@@ -976,6 +993,42 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
             default -> throw new ParsingException(source(ctx), invalidParam, ctx.getText(), "[null]");
         }
+    }
+
+    @Override
+    public Expression visitInputDoubleParams(EsqlBaseParser.InputDoubleParamsContext ctx) {
+        QueryParam param = paramByToken(ctx.DOUBLE_PARAMS());
+        return visitDoubleParam(ctx, param);
+    }
+
+    @Override
+    public Expression visitInputNamedOrPositionalDoubleParams(EsqlBaseParser.InputNamedOrPositionalDoubleParamsContext ctx) {
+        QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_DOUBLE_PARAMS());
+        if (param == null) {
+            // We could come here when a named or positional double param is undefined
+            // return an UnresolvedAttribute with name=null instead of null,
+            // so that ParsingException will be collected and thrown at the end of EsqlParser
+            return new UnresolvedAttribute(source(ctx), "null");
+        }
+        return visitDoubleParam(ctx, param);
+    }
+
+    /**
+      * Double parameter markers represent identifiers, e.g. field or function names. An {@code UnresolvedAttribute}
+      * is returned regardless how the param is specified in the request.
+      */
+    private Expression visitDoubleParam(EsqlBaseParser.DoubleParameterContext ctx, QueryParam param) {
+        if (param.classification() == PATTERN) {
+            context.params.addParsingError(
+                new ParsingException(
+                    source(ctx),
+                    "Query parameter [{}]{}, cannot be used as an identifier",
+                    ctx.getText(),
+                    "[" + param.name() + "] declared as a pattern"
+                )
+            );
+        }
+        return new UnresolvedAttribute(source(ctx), param.value().toString());
     }
 
     @Override

@@ -57,7 +57,7 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
 
     @Override
     protected ClusterState doExecute(ClusterState currentState) throws Exception {
-        IndexMetadata idxMeta = currentState.getMetadata().index(index);
+        IndexMetadata idxMeta = currentState.getMetadata().getProject().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;

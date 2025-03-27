@@ -1,6 +1,0 @@
-pr: 120062
-summary: Update Text Similarity Reranker to Properly Handle Aliases
-area: Ranking
-type: bug
-issues:
- - 119617

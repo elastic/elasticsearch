@@ -119,7 +119,7 @@ public class QueryBuilderResolver {
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
             indexNames.toArray(String[]::new),
             IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
-            clusterService.state(),
+            clusterService.state().getMetadata().getProject(),
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             System.currentTimeMillis()
@@ -140,7 +140,7 @@ public class QueryBuilderResolver {
             this.queryBuilderMap = new HashMap<>();
 
             for (FullTextFunction func : functions) {
-                queryBuilderMap.put(func, TRANSLATOR_HANDLER.asQuery(func).asBuilder());
+                queryBuilderMap.put(func, TRANSLATOR_HANDLER.asQuery(func).toQueryBuilder());
             }
         }
 

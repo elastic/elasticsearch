@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -473,7 +474,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         final Snapshot snapshot = new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID()));
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsRestore(
-                metadata.index(shardId.getIndex()),
+                metadata.getProject().index(shardId.getIndex()),
                 new SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
                     snapshot,
@@ -511,9 +512,9 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         switch (reason) {
-            case INDEX_CREATED -> routingTableBuilder.addAsNew(metadata.index(shardId.getIndex()));
-            case CLUSTER_RECOVERED -> routingTableBuilder.addAsRecovery(metadata.index(shardId.getIndex()));
-            case INDEX_REOPENED -> routingTableBuilder.addAsFromCloseToOpen(metadata.index(shardId.getIndex()));
+            case INDEX_CREATED -> routingTableBuilder.addAsNew(metadata.getProject().index(shardId.getIndex()));
+            case CLUSTER_RECOVERED -> routingTableBuilder.addAsRecovery(metadata.getProject().index(shardId.getIndex()));
+            case INDEX_REOPENED -> routingTableBuilder.addAsFromCloseToOpen(metadata.getProject().index(shardId.getIndex()));
             default -> throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
         }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
@@ -532,11 +533,15 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     }
 
     private void assertClusterHealthStatus(RoutingAllocation allocation, ClusterHealthStatus expectedStatus) {
-        RoutingTable oldRoutingTable = allocation.routingTable();
-        RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final RoutingTable newRoutingTable = RoutingTable.of(newRoutingNodes);
+        GlobalRoutingTable oldRoutingTable = allocation.globalRoutingTable();
+        final GlobalRoutingTable newRoutingTable = oldRoutingTable.rebuild(allocation.routingNodes(), allocation.metadata());
+
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster")).routingTable(newRoutingTable).build();
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
+        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        );
         assertThat(clusterStateHealth.getStatus().ordinal(), lessThanOrEqualTo(expectedStatus.ordinal()));
     }
 

@@ -273,6 +273,58 @@ emp_no:integer
 10001
 ;
 
+
+lookupIndexInFromRepeatedRowBug
+// Test for https://github.com/elastic/elasticsearch/issues/118852
+required_capability: join_lookup_v12
+FROM languages_lookup_non_unique_key
+| WHERE language_code == 1
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP language_code, language_name, country
+| SORT language_code, language_name, country
+;
+
+language_code:integer | language_name:keyword       | country:text
+1                     | English                     | Canada
+1                     | English                     | United Kingdom
+1                     | English                     | United States of America
+1                     | English                     | null
+;
+
+nonUniqueRightKeyOnTheCoordinatorLateLimit
+required_capability: join_lookup_v12
+required_capability: join_lookup_fix_limit_pushdown
+
+FROM employees
+| SORT emp_no
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| KEEP emp_no, language_code, language_name, country
+| LIMIT 4
+| SORT country
+;
+
+emp_no:integer | language_code:integer | language_name:keyword | country:text
+10001          | 1                     | English               | Canada
+10001          | 1                     | null                  | United Kingdom
+10001          | 1                     | English               | United States of America
+10001          | 1                     | English               | null
+;
+
+nonUniqueRightKeyLateLimitWithEmptyRelation
+required_capability: join_lookup_v12
+required_capability: join_lookup_fix_limit_pushdown
+
+ROW language_code = 1
+| WHERE language_code != 1
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| LIMIT 1
+| KEEP language_code, language_name
+;
+
+language_code:integer | language_name:keyword
+;
+
 ###########################################################################
 # null and multi-value behavior with languages_lookup_non_unique_key index
 ###########################################################################
@@ -301,6 +353,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 mvJoinKeyOnTheLookupIndex
 required_capability: join_lookup_v12
+required_capability: join_lookup_skip_mv_warnings
 
 FROM employees
 | WHERE 10003 < emp_no AND emp_no < 10008
@@ -310,17 +363,19 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 ;
 
+warning:Line 4:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_code] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
 emp_no:integer | language_code:integer | language_name:keyword
 10004          | 4                     | Quenya
 10005          | 5                     | null
-10006          | 6                     | Mv-Lang
-10007          | 7                     | Mv-Lang
-10007          | 7                     | Mv-Lang2
+10006          | 6                     | null
+10007          | 7                     | null
 ;
 
 mvJoinKeyOnFrom
 required_capability: join_lookup_v12
-required_capability: join_lookup_skip_mv
+required_capability: join_lookup_skip_mv_warnings
 
 FROM employees
 | WHERE emp_no < 10006
@@ -329,6 +384,56 @@ FROM employees
 | SORT emp_no
 | KEEP emp_no, language_code, language_name
 ;
+
+warning:Line 4:3: evaluation of [LOOKUP JOIN languages_lookup ON language_code] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 1                     | English              
+10002          | [-7, 11]              | null                 
+10003          | [12, 14]              | null                 
+10004          | [0, 1, 3, 13]         | null                 
+10005          | [-2, 13]              | null
+;
+
+mvJoinKeyOnTheLookupIndexAfterStats
+required_capability: join_lookup_v12
+required_capability: join_lookup_skip_mv_warnings
+
+FROM employees
+| WHERE 10003 < emp_no AND emp_no < 10008
+| EVAL language_code = emp_no % 10
+| STATS BY emp_no, language_code
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no, language_name
+| KEEP emp_no, language_code, language_name
+;
+
+warning:Line 5:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_code] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+emp_no:integer | language_code:integer | language_name:keyword
+10004          | 4                     | Quenya
+10005          | 5                     | null
+10006          | 6                     | null
+10007          | 7                     | null
+;
+
+mvJoinKeyOnFromAfterStats
+required_capability: join_lookup_v12
+required_capability: join_lookup_skip_mv_warnings
+
+FROM employees
+| WHERE emp_no < 10006
+| EVAL language_code = salary_change.int
+| STATS language_code = VALUES(language_code) BY emp_no
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+warning:Line 5:3: evaluation of [LOOKUP JOIN languages_lookup ON language_code] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
 
 emp_no:integer | language_code:integer | language_name:keyword
 10001          | 1                     | English              
@@ -340,7 +445,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 mvJoinKeyFromRow
 required_capability: join_lookup_v12
-required_capability: join_lookup_skip_mv
+required_capability: join_lookup_skip_mv_warnings
 
 ROW language_code = [4, 5, 6, 7]
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
@@ -348,12 +453,16 @@ ROW language_code = [4, 5, 6, 7]
 | SORT language_code, language_name, country
 ;
 
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_code] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
 language_code:integer | language_name:keyword | country:text
 [4, 5, 6, 7]          | null                  | null
 ;
 
 mvJoinKeyFromRowExpanded
 required_capability: join_lookup_v12
+required_capability: join_lookup_skip_mv_warnings
 
 ROW language_code = [4, 5, 6, 7, 8]
 | MV_EXPAND language_code
@@ -362,13 +471,15 @@ ROW language_code = [4, 5, 6, 7, 8]
 | SORT language_code, language_name, country
 ;
 
+warning:Line 3:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_code] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
 language_code:integer | language_name:keyword | country:text
 4                     | Quenya                | null
 5                     | null                  | Atlantis
-6                     | Mv-Lang               | Mv-Land
-7                     | Mv-Lang               | Mv-Land
-7                     | Mv-Lang2              | Mv-Land2
-8                     | Mv-Lang2              | Mv-Land2
+6                     | null                  | null
+7                     | null                  | null
+8                     | null                  | null
 ;
 
 ###############################################
@@ -1278,23 +1389,6 @@ ignoreOrder:true
 2023-10-23T12:15:03.360Z | 172.21.2.162      | 3450233             | QA              | null
 ;
 
-lookupIndexInFromRepeatedRowBug
-// Test for https://github.com/elastic/elasticsearch/issues/118852
-required_capability: join_lookup_v12
-FROM languages_lookup_non_unique_key
-| WHERE language_code == 1
-| LOOKUP JOIN languages_lookup ON language_code
-| KEEP language_code, language_name, country
-| SORT language_code, language_name, country
-;
-
-language_code:integer | language_name:keyword       | country:text
-1                     | English                     | Canada
-1                     | English                     | United Kingdom
-1                     | English                     | United States of America
-1                     | English                     | null
-;
-
 lookupIndexQuoting
 required_capability: join_lookup_v12
 FROM languages_lookup_non_unique_key
@@ -1310,4 +1404,138 @@ language_code:integer | language_name:keyword       | country:text
 1                     | English                     | United Kingdom
 1                     | English                     | United States of America
 1                     | English                     | null
+;
+
+
+sortBeforeAndAfterJoin
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+
+FROM employees
+| sort first_name
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;
+
+
+
+sortBeforeAndAfterMultipleJoinAndMvExpand
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+
+FROM employees
+| sort first_name
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT language_name
+| MV_EXPAND first_name
+| SORT first_name
+| MV_EXPAND last_name
+| SORT last_name
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;
+
+multipleBatchesWithSort
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+required_capability: make_number_of_channels_consistent_with_layout
+
+from *
+| rename city.country.continent.planet.name as message
+| lookup join message_types_lookup on message
+| sort language_code, birth_date
+| keep language_code
+| limit 1
+;
+
+language_code:integer
+1
+;
+
+multipleBatchesWithMvExpand
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+required_capability: make_number_of_channels_consistent_with_layout
+
+from *
+| rename city.country.continent.planet.name as message
+| lookup join message_types_lookup on message
+| keep birth_date, language_code
+| mv_expand birth_date
+| sort birth_date, language_code
+| limit 1
+;
+
+birth_date:datetime      |language_code:integer
+1952-02-27T00:00:00.000Z |null
+;
+
+multipleBatchesWithAggregate1
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+required_capability: make_number_of_channels_consistent_with_layout
+
+from *
+| rename city.country.continent.planet.name as message
+| lookup join message_types_lookup on message
+| keep birth_date, language_code
+| stats x=max(birth_date), y=min(language_code)
+;
+
+x:datetime               |y:integer
+1965-01-03T00:00:00.000Z |1
+;
+
+multipleBatchesWithAggregate2
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+required_capability: make_number_of_channels_consistent_with_layout
+
+from *
+| rename city.country.continent.planet.name as message
+| lookup join message_types_lookup on message
+| keep birth_date, language_code
+| stats m=min(birth_date) by language_code
+| sort language_code
+| limit 1
+;
+
+m:datetime |language_code:integer
+null       |1
+;
+
+multipleBatchesWithAggregate3
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+required_capability: make_number_of_channels_consistent_with_layout
+
+from *
+| rename city.country.continent.planet.name as message
+| lookup join message_types_lookup on message
+| keep birth_date, language_code
+| stats m=min(language_code) by birth_date
+| sort birth_date
+| limit 1
+;
+
+m:integer |birth_date:datetime
+null      |1952-02-27T00:00:00.000Z
 ;

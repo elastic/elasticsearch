@@ -13,16 +13,14 @@ import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
@@ -53,11 +51,12 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
-import org.elasticsearch.xpack.esql.session.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -81,10 +80,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
-    private final QueryBuilderResolver queryBuilderResolver;
     private final UsageService usageService;
-    // Listeners for active async queries, key being the async task execution ID
-    private final Map<String, EsqlQueryListener> asyncListeners = ConcurrentCollections.newConcurrentMap();
+    private final TransportActionServices services;
+    private volatile boolean defaultAllowPartialResults;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -97,7 +95,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        BlockFactory blockFactory,
+        BlockFactoryProvider blockFactoryProvider,
         Client client,
         NamedWriteableRegistry registry,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -119,14 +117,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             lookupLookupShardContextFactory,
             transportService,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory()
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
             lookupLookupShardContextFactory,
             transportService,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory()
         );
         this.computeService = new ComputeService(
             searchService,
@@ -137,7 +135,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterService,
             threadPool,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory()
         );
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
@@ -153,8 +151,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays
         );
         this.remoteClusterService = transportService.getRemoteClusterService();
-        this.queryBuilderResolver = new QueryBuilderResolver(searchService, clusterService, transportService, indexNameExpressionResolver);
         this.usageService = usageService;
+
+        this.services = new TransportActionServices(
+            transportService,
+            searchService,
+            exchangeService,
+            clusterService,
+            indexNameExpressionResolver,
+            usageService
+        );
+        defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS, v -> defaultAllowPartialResults = v);
     }
 
     @Override
@@ -183,44 +192,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
     }
 
-    // Subscribable listener that can keep track of the EsqlExecutionInfo
-    // Used to mark an async query as partial if it is stopped
-    public static class EsqlQueryListener extends SubscribableListener<EsqlQueryResponse> {
-        private EsqlExecutionInfo executionInfo;
-
-        public EsqlQueryListener(EsqlExecutionInfo executionInfo) {
-            this.executionInfo = executionInfo;
-        }
-
-        public EsqlExecutionInfo getExecutionInfo() {
-            return executionInfo;
-        }
-
-        public void markAsPartial() {
-            if (executionInfo != null) {
-                executionInfo.markAsPartial();
-            }
-        }
-    }
-
     @Override
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
         task.setExecutionInfo(createEsqlExecutionInfo(request));
-        // Since the request is async here, we need to wrap the listener in a SubscribableListener so that we can collect the results from
-        // other endpoints, such as _query/async/stop
-        EsqlQueryListener subListener = new EsqlQueryListener(task.executionInfo());
-        String asyncExecutionId = task.getExecutionId().getEncoded();
-        subListener.addListener(ActionListener.runAfter(listener, () -> asyncListeners.remove(asyncExecutionId)));
-        asyncListeners.put(asyncExecutionId, subListener);
-        ActionListener.run(subListener, l -> innerExecute(task, request, l));
-    }
-
-    public EsqlQueryListener getAsyncListener(String executionId) {
-        return asyncListeners.get(executionId);
+        ActionListener.run(listener, l -> innerExecute(task, request, l));
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        if (request.allowPartialResults() == null) {
+            request.allowPartialResults(defaultAllowPartialResults);
+        }
         Configuration configuration = new Configuration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -233,7 +215,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.query(),
             request.profile(),
             request.tables(),
-            System.nanoTime()
+            System.nanoTime(),
+            request.allowPartialResults()
         );
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
@@ -258,7 +241,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             executionInfo,
             remoteClusterService,
             planRunner,
-            queryBuilderResolver,
+            services,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
                 listener.onResponse(toResponse(task, request, configuration, result));
@@ -333,7 +316,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
-        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> new ColumnInfoImpl(c.name(), c.dataType().outputType())).toList();
+        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
+            List<String> originalTypes;
+            if (c.originalTypes() == null) {
+                originalTypes = null;
+            } else {
+                // Sort the original types so they are easier to test against and prettier.
+                originalTypes = new ArrayList<>(c.originalTypes());
+                Collections.sort(originalTypes);
+            }
+            return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
+        }).toList();
         EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
         threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {

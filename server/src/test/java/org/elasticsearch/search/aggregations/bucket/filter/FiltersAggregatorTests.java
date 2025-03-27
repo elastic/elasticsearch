@@ -1494,7 +1494,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             null,
             false,
             null,
-            null
+            null,
+            false
         );
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             final LuceneDocument document = new LuceneDocument();
@@ -1517,7 +1518,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 null,
                 false,
                 null,
-                null
+                null,
+                false
             )
         );
     }

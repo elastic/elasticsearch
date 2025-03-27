@@ -17,6 +17,8 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.junit.Before;
 import org.junit.ClassRule;
 
+import java.util.Objects;
+
 public class XPackRestIT extends AbstractXPackRestTest {
 
     @ClassRule
@@ -47,6 +49,10 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
         .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
+        .systemProperty("es.queryable_built_in_roles_enabled", () -> {
+            final String enabled = System.getProperty("es.queryable_built_in_roles_enabled");
+            return Objects.requireNonNullElse(enabled, "");
+        })
         .build();
 
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {

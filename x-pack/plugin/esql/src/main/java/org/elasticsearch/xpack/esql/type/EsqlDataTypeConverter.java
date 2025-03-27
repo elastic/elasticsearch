@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -15,7 +16,14 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
+import org.elasticsearch.compute.data.CompositeBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -464,11 +472,34 @@ public class EsqlDataTypeConverter {
 
     public static long chronoToLong(long dateTime, BytesRef chronoField, ZoneId zone) {
         ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
-        return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chrono);
+        return chronoToLong(dateTime, chrono, zone);
     }
 
     public static long chronoToLong(long dateTime, ChronoField chronoField, ZoneId zone) {
         return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chronoField);
+    }
+
+    /**
+     * Extract the given {@link ChronoField} value from a date specified as a long number of nanoseconds since epoch
+     * @param dateNanos - long nanoseconds since epoch
+     * @param chronoField - The field to extract
+     * @param zone - Timezone for the given date
+     * @return - long representing the given ChronoField value
+     */
+    public static long chronoToLongNanos(long dateNanos, BytesRef chronoField, ZoneId zone) {
+        ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
+        return chronoToLongNanos(dateNanos, chrono, zone);
+    }
+
+    /**
+     * Extract the given {@link ChronoField} value from a date specified as a long number of nanoseconds since epoch
+     * @param dateNanos - long nanoseconds since epoch
+     * @param chronoField - The field to extract
+     * @param zone - Timezone for the given date
+     * @return - long representing the given ChronoField value
+     */
+    public static long chronoToLongNanos(long dateNanos, ChronoField chronoField, ZoneId zone) {
+        return DateUtils.toInstant(dateNanos).atZone(zone).getLong(chronoField);
     }
 
     /**
@@ -525,6 +556,16 @@ public class EsqlDataTypeConverter {
     public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
         Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
         return DateUtils.toLong(parsed);
+    }
+
+    public static String dateWithTypeToString(long dateTime, DataType type) {
+        if (type == DATETIME) {
+            return dateTimeToString(dateTime);
+        }
+        if (type == DATE_NANOS) {
+            return nanoTimeToString(dateTime);
+        }
+        throw new IllegalArgumentException("Unsupported data type [" + type + "]");
     }
 
     public static String dateTimeToString(long dateTime) {
@@ -639,6 +680,80 @@ public class EsqlDataTypeConverter {
 
     public static long booleanToUnsignedLong(boolean number) {
         return number ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
+    }
+
+    public static String aggregateMetricDoubleBlockToString(CompositeBlock compositeBlock, int index) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            for (Metric metric : List.of(Metric.MIN, Metric.MAX, Metric.SUM)) {
+                var block = compositeBlock.getBlock(metric.getIndex());
+                if (block.isNull(index) == false) {
+                    builder.field(metric.getLabel(), ((DoubleBlock) block).getDouble(index));
+                }
+            }
+            var countBlock = compositeBlock.getBlock(Metric.COUNT.getIndex());
+            if (countBlock.isNull(index) == false) {
+                builder.field(Metric.COUNT.getLabel(), ((IntBlock) countBlock).getInt(index));
+            }
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering aggregate metric double", e);
+        }
+    }
+
+    public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            if (aggMetric.min() != null) {
+                builder.field(Metric.MIN.getLabel(), aggMetric.min());
+            }
+            if (aggMetric.max() != null) {
+                builder.field(Metric.MAX.getLabel(), aggMetric.max());
+            }
+            if (aggMetric.sum() != null) {
+                builder.field(Metric.SUM.getLabel(), aggMetric.sum());
+            }
+            if (aggMetric.count() != null) {
+                builder.field(Metric.COUNT.getLabel(), aggMetric.count());
+            }
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering aggregate metric double", e);
+        }
+    }
+
+    public static AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral stringToAggregateMetricDoubleLiteral(String s) {
+        Double min = null;
+        Double max = null;
+        Double sum = null;
+        Integer count = null;
+        String[] values = s.substring(1, s.length() - 1).split(",");
+        for (String v : values) {
+            var pair = v.split(":");
+            String type = pair[0];
+            String number = pair[1];
+            switch (type) {
+                case "min":
+                    min = Double.parseDouble(number);
+                    break;
+                case "max":
+                    max = Double.parseDouble(number);
+                    break;
+                case "sum":
+                    sum = Double.parseDouble(number);
+                    break;
+                case "value_count":
+                    count = Integer.parseInt(number);
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                        "Received a metric that wasn't min, max, sum, or value_count: " + type + " with value: " + number
+                    );
+            }
+        }
+        return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count);
     }
 
     public enum EsqlConverter implements Converter {

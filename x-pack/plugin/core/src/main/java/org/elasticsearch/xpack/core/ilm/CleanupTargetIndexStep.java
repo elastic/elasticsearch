@@ -63,7 +63,7 @@ public class CleanupTargetIndexStep extends AsyncRetryDuringSnapshotActionStep {
         final String sourceIndexName = sourceIndexNameSupplier.apply(indexMetadata);
         if (Strings.isNullOrEmpty(sourceIndexName) == false) {
             // the current managed index is the target index
-            if (currentClusterState.metadata().index(sourceIndexName) == null) {
+            if (currentClusterState.metadata().getProject().index(sourceIndexName) == null) {
                 // if the source index does not exist, we'll skip deleting the
                 // (managed) target index as that will cause data loss
                 String policyName = indexMetadata.getLifecyclePolicyName();

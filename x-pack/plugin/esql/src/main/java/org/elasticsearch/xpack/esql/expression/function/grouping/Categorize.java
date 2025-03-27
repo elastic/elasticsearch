@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -51,16 +52,17 @@ public class Categorize extends GroupingFunction {
         detailedDescription = """
             `CATEGORIZE` has the following limitations:
 
-            * can't be used within other expressions
-            * can't be used with multiple groupings
-            * can't be used or referenced within aggregate functions""",
+            * can’t be used within other expressions
+            * can’t be used with multiple groupings
+            * can’t be used or referenced within aggregate functions""",
         examples = {
             @Example(
                 file = "docs",
                 tag = "docsCategorize",
                 description = "This example categorizes server logs messages into categories and aggregates their counts. "
             ) },
-        preview = true
+        preview = true,
+        type = FunctionType.GROUPING
     )
     public Categorize(
         Source source,
@@ -94,7 +96,7 @@ public class Categorize extends GroupingFunction {
 
     @Override
     public Nullability nullable() {
-        // Null strings and strings that don't produce tokens after analysis lead to null values.
+        // Null strings and strings that don’t produce tokens after analysis lead to null values.
         // This includes empty strings, only whitespace, (hexa)decimal numbers and stopwords.
         return Nullability.TRUE;
     }

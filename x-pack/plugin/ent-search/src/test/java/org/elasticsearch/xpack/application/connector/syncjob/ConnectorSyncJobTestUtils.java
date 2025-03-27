@@ -36,7 +36,7 @@ import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomMap;
-import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 
 public class ConnectorSyncJobTestUtils {
 
@@ -51,11 +51,11 @@ public class ConnectorSyncJobTestUtils {
             .setCompletedAt(randomFrom(new Instant[] { null, randomInstantBetween(lowerBoundInstant, upperBoundInstant) }))
             .setConnector(ConnectorTestUtils.getRandomSyncJobConnectorInfo())
             .setCreatedAt(randomInstantBetween(lowerBoundInstant, upperBoundInstant))
-            .setDeletedDocumentCount(randomNonNegativeInt())
+            .setDeletedDocumentCount(randomLong())
             .setError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setId(randomAlphaOfLength(10))
-            .setIndexedDocumentCount(randomNonNegativeInt())
-            .setIndexedDocumentVolume(randomNonNegativeInt())
+            .setIndexedDocumentCount(randomLong())
+            .setIndexedDocumentVolume(randomLong())
             .setJobType(getRandomConnectorJobType())
             .setLastSeen(randomFrom(new Instant[] { null, randomInstantBetween(lowerBoundInstant, upperBoundInstant) }))
             .setMetadata(
@@ -67,7 +67,7 @@ public class ConnectorSyncJobTestUtils {
             )
             .setStartedAt(randomFrom(new Instant[] { null, randomInstantBetween(lowerBoundInstant, upperBoundInstant) }))
             .setStatus(ConnectorTestUtils.getRandomSyncStatus())
-            .setTotalDocumentCount(randomNonNegativeInt())
+            .setTotalDocumentCount(randomLong())
             .setTriggerMethod(getRandomConnectorSyncJobTriggerMethod())
             .setWorkerHostname(randomAlphaOfLength(10))
             .build();
@@ -156,10 +156,10 @@ public class ConnectorSyncJobTestUtils {
 
         return new UpdateConnectorSyncJobIngestionStatsAction.Request(
             randomAlphaOfLength(10),
-            (long) randomNonNegativeInt(),
-            (long) randomNonNegativeInt(),
-            (long) randomNonNegativeInt(),
-            (long) randomNonNegativeInt(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomInstantBetween(lowerBoundInstant, upperBoundInstant),
             randomMap(2, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)))
         );
@@ -173,10 +173,10 @@ public class ConnectorSyncJobTestUtils {
 
         return new UpdateConnectorSyncJobIngestionStatsAction.Request(
             syncJobId,
-            (long) randomNonNegativeInt(),
-            (long) randomNonNegativeInt(),
-            (long) randomNonNegativeInt(),
-            (long) randomNonNegativeInt(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomInstantBetween(lowerBoundInstant, upperBoundInstant),
             randomMap(2, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)))
         );

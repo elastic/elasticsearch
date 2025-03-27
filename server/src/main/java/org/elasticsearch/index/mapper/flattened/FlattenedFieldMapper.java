@@ -911,14 +911,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            var loader = new FlattenedSortedSetDocValuesSyntheticFieldLoader(
-                fullPath(),
-                fullPath() + KEYED_FIELD_SUFFIX,
-                ignoreAbove() < Integer.MAX_VALUE ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
-                leafName()
+            return new SyntheticSourceSupport.Native(
+                () -> new FlattenedSortedSetDocValuesSyntheticFieldLoader(
+                    fullPath(),
+                    fullPath() + KEYED_FIELD_SUFFIX,
+                    ignoreAbove() < Integer.MAX_VALUE ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                    leafName()
+                )
             );
-
-            return new SyntheticSourceSupport.Native(loader);
         }
 
         return super.syntheticSourceSupport();

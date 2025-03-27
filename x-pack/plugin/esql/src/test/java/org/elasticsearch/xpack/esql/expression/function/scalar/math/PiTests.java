@@ -29,7 +29,7 @@ public class PiTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
             true,
             List.of(
                 new TestCaseSupplier(
@@ -42,8 +42,7 @@ public class PiTests extends AbstractScalarFunctionTestCase {
                         equalTo(Math.PI)
                     )
                 )
-            ),
-            (v, p) -> "numeric"
+            )
         );
     }
 

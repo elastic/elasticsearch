@@ -20,6 +20,8 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -70,7 +72,6 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -89,10 +90,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.apache.lucene.util.Version.LUCENE_10_0_0;
-
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene100";
+
+    public static final String LATEST_CODEC = "Lucene101";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -156,25 +156,7 @@ public class Lucene {
      * Reads the segments infos from the given segments file name, failing if it fails to load
      */
     private static SegmentInfos readSegmentInfos(String segmentsFileName, Directory directory) throws IOException {
-        // TODO Use readCommit(Directory directory, String segmentFileName, int minSupportedMajorVersion) once Lucene 10.1 is available
-        // and remove the try-catch block for IndexFormatTooOldException
-        assert IndexVersion.current().luceneVersion().equals(LUCENE_10_0_0) : "remove the try-catch block below";
-        try {
-            return SegmentInfos.readCommit(directory, segmentsFileName);
-        } catch (IndexFormatTooOldException e) {
-            try {
-                // Temporary workaround until Lucene 10.1 is available: try to leverage min. read-only compatibility to read the last commit
-                // and then check if this is the commit we want. This should always work for the case we are interested in (archive and
-                // searchable snapshots indices in N-2 version) as no newer commit should be ever written.
-                var segmentInfos = readSegmentInfos(directory);
-                if (segmentsFileName.equals(segmentInfos.getSegmentsFileName())) {
-                    return segmentInfos;
-                }
-            } catch (Exception suppressed) {
-                e.addSuppressed(suppressed);
-            }
-            throw e;
-        }
+        return SegmentInfos.readCommit(directory, segmentsFileName, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
     }
 
     /**
@@ -210,7 +192,18 @@ public class Lucene {
                 throw new IllegalStateException("no commit found in the directory");
             }
         }
+        // Need to figure out what the parent field is that, so that validation in IndexWriter doesn't fail
+        // if no parent field is configured, but FieldInfo says there is a parent field.
+        String parentField = null;
         final IndexCommit cp = getIndexCommit(si, directory);
+        try (var reader = DirectoryReader.open(cp)) {
+            var topLevelFieldInfos = FieldInfos.getMergedFieldInfos(reader);
+            for (FieldInfo fieldInfo : topLevelFieldInfos) {
+                if (fieldInfo.isParentField()) {
+                    parentField = fieldInfo.getName();
+                }
+            }
+        }
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
@@ -218,6 +211,7 @@ public class Lucene {
                     .setIndexCommit(cp)
                     .setCommitOnClose(false)
                     .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
+                    .setParentField(parentField)
             )
         ) {
             // do nothing and close this will kick off IndexFileDeleter which will remove all pending files

@@ -21,6 +21,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestCtxMapTests extends ESTestCase {
 
@@ -339,6 +340,17 @@ public class IngestCtxMapTests extends ESTestCase {
         // it does the expected thing for fields that are not present
         assertThat(map.getOrDefault("_version_type", "something"), equalTo("something"));
         assertThat(map.getOrDefault("baz", "quux"), equalTo("quux"));
+    }
+
+    public void testSourceHashMapIsNotCopied() {
+        // a ctxMap will, as an optimization, just use the passed-in map reference
+        Map<String, Object> source = Map.of("index", "id");
+
+        map = new IngestCtxMap(source, new IngestDocMetadata(Map.of("_version", 5L), null));
+        assertThat(map.getSource(), sameInstance(source));
+
+        map = new IngestCtxMap(null, null, 10L, null, null, null, source);
+        assertThat(map.getSource(), sameInstance(source));
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

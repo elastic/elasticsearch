@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -2182,7 +2181,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             // ensure each snapshot has really started before moving on to the next one
             safeAwait(
                 ClusterServiceUtils.addTemporaryStateListener(
-                    internalCluster().getInstance(ClusterService.class),
                     cs -> SnapshotsInProgress.get(cs)
                         .forRepo(repoName)
                         .stream()
@@ -2202,7 +2200,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final var indexRecreatedListener = ClusterServiceUtils
             // wait until the snapshot has entered finalization
             .addTemporaryStateListener(
-                internalCluster().getInstance(ClusterService.class),
                 cs -> SnapshotsInProgress.get(cs)
                     .forRepo(repoName)
                     .stream()
@@ -2213,7 +2210,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 l -> masterDeleteIndexService.deleteIndices(
                     TEST_REQUEST_TIMEOUT,
                     TEST_REQUEST_TIMEOUT,
-                    Set.of(internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex()),
+                    Set.of(internalCluster().clusterService().state().metadata().getProject().index(indexToDelete).getIndex()),
                     l.map(r -> {
                         assertTrue(r.isAcknowledged());
                         return null;

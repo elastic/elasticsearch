@@ -25,11 +25,11 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -114,13 +114,15 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        var s = scoring ? "COMPLETE" : "TOP_DOCS";
-        return matchesRegex("LuceneTopNSourceOperator\\[maxPageSize = \\d+, limit = 100, scoreMode = " + s + ", sorts = \\[\\{.+}]]");
+        var s = scoring ? "TOP_DOCS_WITH_SCORES" : "TOP_DOCS";
+        return matchesRegex(
+            "LuceneTopNSourceOperator\\[shards = \\[test], maxPageSize = \\d+, limit = 100, scoreMode = " + s + ", sorts = \\[\\{.+}]]"
+        );
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        var s = scoring ? "COMPLETE" : "TOP_DOCS";
+        var s = scoring ? "TOP_DOCS_WITH_SCORES" : "TOP_DOCS";
         return matchesRegex(
             "LuceneTopNSourceOperator"
                 + "\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, scoreMode = "
@@ -187,7 +189,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
 
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(
-            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
+            TestDriverFactory.create(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add))
         );
         OperatorTestCase.assertDriverContext(ctx);
 

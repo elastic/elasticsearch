@@ -21,7 +21,7 @@ import java.util.Map;
 public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
     private final double[] percents;
-    private boolean keyed = true;
+    private final boolean keyed;
     private List<Double> data;
 
     PercentilesBucketPipelineAggregator(

@@ -11,23 +11,24 @@ import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 
 public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCase {
 
-    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url) {
-        return createModel(url, null);
+    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url, String modelId) {
+        return createModel(url, modelId, null);
     }
 
-    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url, Integer maxInputTokens) {
+    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url, String modelId, Integer maxInputTokens) {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             "id",
             TaskType.SPARSE_EMBEDDING,
             "service",
-            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ElserModels.ELSER_V2_MODEL, maxInputTokens, null),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            new ElasticInferenceServiceComponents(url)
+            ElasticInferenceServiceComponents.of(url)
         );
     }
 }

@@ -27,6 +27,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -66,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -183,6 +185,7 @@ import static org.elasticsearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHO
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -3334,6 +3337,21 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listener should have been called", called.get(), equalTo(true));
     }
 
+    public void testWaitForPrimaryTermAndGenerationFailsForClosedShard() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard initializingShard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        var future = new PlainActionFuture<Long>();
+        initializingShard.waitForPrimaryTermAndGeneration(0L, 0L, future);
+
+        assertFalse("waitForPrimaryTermAndGeneration should be waiting", future.isDone());
+        closeShards(initializingShard);
+        // Should bail out earlier without calling the engine
+        assertNotNull(ExceptionsHelper.unwrap(expectThrows(Exception.class, future::get), IndexShardClosedException.class));
+    }
+
     public void testRecoverFromLocalShard() throws IOException {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("source")
@@ -4563,11 +4581,9 @@ public class IndexShardTests extends IndexShardTestCase {
         var newEngineCreated = new CountDownLatch(2);
         var indexShard = newStartedShard(true, Settings.EMPTY, config -> {
             try {
-                return new ReadOnlyEngine(config, null, null, true, Function.identity(), true, true) {
+                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true) {
                     @Override
-                    public void prepareForEngineReset() throws IOException {
-                        ;
-                    }
+                    public void prepareForEngineReset() throws IOException {}
                 };
             } finally {
                 newEngineCreated.countDown();
@@ -4579,7 +4595,7 @@ public class IndexShardTests extends IndexShardTestCase {
         var onAcquired = new PlainActionFuture<Releasable>();
         indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
         try (var permits = safeGet(onAcquired)) {
-            indexShard.resetEngine();
+            indexShard.resetEngine(newEngine -> {});
         }
         safeAwait(newEngineCreated);
         safeAwait(newEngineNotification);
@@ -5019,6 +5035,7 @@ public class IndexShardTests extends IndexShardTestCase {
             EngineConfig configWithWarmer = new EngineConfig(
                 config.getShardId(),
                 config.getThreadPool(),
+                config.getThreadPoolMergeExecutorService(),
                 config.getIndexSettings(),
                 warmer,
                 config.getStore(),
@@ -5078,6 +5095,67 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testCloseShardWhileRetainingEngine() throws Exception {
+        final var primary = newStartedShard(true);
+        try {
+            final var release = new CountDownLatch(1);
+            final var hold = new PlainActionFuture<Engine>();
+            final var holdEngineThread = new Thread(() -> {
+                primary.withEngine(engine -> {
+                    assertThat(engine, notNullValue());
+                    EngineTestCase.ensureOpen(engine);
+                    hold.onResponse(engine);
+                    safeAwait(release);
+                    return null;
+                });
+            });
+            holdEngineThread.start();
+
+            final var secondReaderExecuting = new CountDownLatch(1);
+            final var closed = new CountDownLatch(1);
+            final var closeEngineThread = new Thread(() -> {
+                try {
+                    safeGet(hold);
+                    // Unfair ReentrantReadWriteLock would prioritize writers over readers to avoid starving writers,
+                    // hence we need to wait to close the engine until the second reader has acquired the read lock before
+                    // closing, otherwise the test would deadlock.
+                    safeAwait(secondReaderExecuting);
+                    closeShardNoCheck(primary);
+                    assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
+                    closed.countDown();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closeEngineThread.start();
+
+            final var retainedInstance = asInstanceOf(InternalEngine.class, safeGet(hold));
+            assertSame(retainedInstance, primary.getEngineOrNull());
+            assertThat(primary.state(), equalTo(IndexShardState.STARTED));
+            primary.withEngineOrNull(engine -> {
+                secondReaderExecuting.countDown();
+                assertSame(retainedInstance, engine);
+                EngineTestCase.ensureOpen(engine);
+                return null;
+            });
+
+            release.countDown();
+            safeAwait(closed);
+
+            assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
+            assertThat(primary.getEngineOrNull(), nullValue());
+            primary.withEngineOrNull(engine -> {
+                assertThat(engine, nullValue());
+                return null;
+            });
+
+            holdEngineThread.join();
+            closeEngineThread.join();
+        } finally {
+            IOUtils.close(primary.store());
+        }
+    }
+
     public void testShardExposesWriteLoadStats() throws Exception {
         final IndexShard primary = newStartedShard(
             true,
@@ -5107,12 +5185,20 @@ public class IndexShardTests extends IndexShardTestCase {
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
-            fakeClock
+            fakeClock,
+            // Use a listener to advance the fake clock once per indexing operation:
+            new IndexingOperationListener() {
+                @Override
+                public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+                    fakeClock.advance(1);
+                    return IndexingOperationListener.super.preIndex(shardId, operation);
+                }
+            }
         );
 
         // Now simulate that each operation takes 1 minute to complete.
         // This applies both for replaying translog ops and new indexing ops
-        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.timeValueMinutes(1));
+        fakeClock.setTickLength(TimeValue.timeValueMinutes(1));
 
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final CountDownLatch concurrentIndexingFinished = new CountDownLatch(1);
@@ -5187,12 +5273,14 @@ public class IndexShardTests extends IndexShardTestCase {
         }, true, true);
         recoveryFinishedLatch.await();
 
-        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
+        fakeClock.setTickLength(TimeValue.ZERO);
         final IndexingStats indexingStatsBeforeIndexingDocs = replicaShard.indexingStats();
         assertThat(indexingStatsBeforeIndexingDocs.getTotal().getWriteLoad(), is(equalTo(0.0)));
+        assertThat(indexingStatsBeforeIndexingDocs.getTotal().getRecentWriteLoad(), is(equalTo(0.0)));
+        assertThat(indexingStatsBeforeIndexingDocs.getTotal().getPeakWriteLoad(), is(equalTo(0.0)));
 
         // Now simulate that each operation takes 1 second to complete.
-        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.timeValueSeconds(1));
+        fakeClock.setTickLength(TimeValue.timeValueSeconds(1));
         final int numberOfDocs = randomIntBetween(5, 10);
         for (int i = 0; i < numberOfDocs; i++) {
             long seqNo = replicaShard.seqNoStats().getMaxSeqNo() + 1;
@@ -5206,33 +5294,118 @@ public class IndexShardTests extends IndexShardTestCase {
             );
         }
 
-        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
+        fakeClock.setTickLength(TimeValue.ZERO);
         final IndexingStats indexingStatsAfterIndexingDocs = replicaShard.indexingStats();
+        // We advanced the clock only during the index operation, so all elapsed time was spent indexing, and the write load is exactly 1.0:
         assertThat(indexingStatsAfterIndexingDocs.getTotal().getWriteLoad(), is(equalTo(1.0)));
+        // The EWMR should give approximately the same value, but with only a few increments there will be some difference:
+        double recentWriteLoad = indexingStatsAfterIndexingDocs.getTotal().getRecentWriteLoad();
+        assertThat(recentWriteLoad, is(closeTo(1.0, 0.002)));
+        // This will also be the peak value:
+        assertThat(indexingStatsAfterIndexingDocs.getTotal().getPeakWriteLoad(), equalTo(recentWriteLoad));
 
         closeShards(primary, replicaShard);
     }
 
+    public void testShardExposesWriteLoadStats_variableRates() throws IOException {
+        long recentLoadHalfLifeNanos = IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_DEFAULT.nanos();
+        long clockTickNanos = recentLoadHalfLifeNanos / 100; // Take exactly 1000 ticks to make one half life
+        FakeClock fakeClock = new FakeClock();
+        fakeClock.setTickLength(TimeValue.timeValueNanos(clockTickNanos));
+
+        ShardId shardId = new ShardId("index", "_na_", 0);
+        NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        IndexShard shard = newShard(
+            shardRoutingBuilder(shardId, randomAlphaOfLength(10), true, ShardRoutingState.INITIALIZING).withRecoverySource(
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE
+            ).build(),
+            new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId),
+            IndexMetadata.builder("index")
+                .settings(indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+                .primaryTerm(0, primaryTerm)
+                .build(),
+            null,
+            null,
+            new InternalEngineFactory(),
+            NOOP_GCP_SYNCER,
+            RetentionLeaseSyncer.EMPTY,
+            EMPTY_EVENT_LISTENER,
+            fakeClock,
+            // Use a listener to advance the fake clock once per indexing operation:
+            new IndexingOperationListener() {
+                @Override
+                public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+                    fakeClock.advance(1);
+                    return IndexingOperationListener.super.preIndex(shardId, operation);
+                }
+            }
+        );
+        recoverShardFromStore(shard);
+
+        // PHASE ONE: Do 450 index operations. Advance clock one tick during each operation and one tick between each operation.
+        // Elapsed time in phase: 900 ticks.
+        // Load during phase: 0.5.
+        for (int i = 0; i < 450; i++) {
+            indexDoc(shard, "_doc", "phase-1-" + i);
+            fakeClock.advance(1);
+        }
+        IndexingStats stats1 = shard.indexingStats();
+        // We have had a consistent load of 0.5 so far, so all load stats should give this, although the EWMR will only be approximate.
+        assertThat(stats1.getTotal().getWriteLoad(), equalTo(0.5));
+        double recentWriteLoad1 = stats1.getTotal().getRecentWriteLoad();
+        assertThat(recentWriteLoad1, closeTo(0.5, 0.002));
+        // The peak should be equal to this:
+        assertThat(stats1.getTotal().getPeakWriteLoad(), equalTo(recentWriteLoad1));
+
+        // PHASE TWO: Do 25 operations. Advance clock one tick during each operation and three ticks between each operation.
+        // Elapsed time in phase: 100 ticks.
+        // Load during phase: 0.25.
+        for (int i = 0; i < 25; i++) {
+            indexDoc(shard, "_doc", "phase-2-" + i);
+            fakeClock.advance(3);
+        }
+        IndexingStats stats2 = shard.indexingStats();
+        // We had a load of 0.5 for 900 ticks and 0.25 for 100 ticks, so the all-time load is 0.5 * 0.9 + 0.25 * 0.1 = 0.475:
+        assertThat(stats2.getTotal().getWriteLoad(), equalTo(0.475));
+        // That is 0.5 for 9 half-lives (a long time) and 0.25 for one half-life, so the EWMR is halfway between the two, 0.375
+        assertThat(stats2.getTotal().getRecentWriteLoad(), closeTo(0.375, 0.002));
+        // The new EWMR is lower than the previous one, so the peak should be equal to the previous peak:
+        assertThat(stats2.getTotal().getPeakWriteLoad(), equalTo(recentWriteLoad1));
+
+        // PHASE THREE: Do 1000 operations. Advance clock one tick during each operation only.
+        // Elapsed time in phase: 10-0 ticks.
+        // Load during phase: 1.0.
+        for (int i = 0; i < 1000; i++) {
+            indexDoc(shard, "_doc", "phase-3-" + i);
+        }
+        IndexingStats stats3 = shard.indexingStats();
+        // We had a load of 0.5 for 900 ticks, 0.25 for 100 ticks, and 1.0 for 1000 ticks...
+        // ...so the all-time load is 0.5 * 0.45 + 0.25 * 0.05 + 1.0 * 0.5 = 0.7375:
+        assertThat(stats3.getTotal().getWriteLoad(), equalTo(0.7375));
+        // That load of 1.0 lasted 10 half-lives (a long time), to the EWMR is approximately 1.0:
+        double recentWriteLoad3 = stats3.getTotal().getRecentWriteLoad();
+        assertThat(recentWriteLoad3, closeTo(1.0, 0.003));
+        // This EWMR is the highest we've seen so far, so should be the new peak:
+        assertThat(stats3.getTotal().getPeakWriteLoad(), equalTo(recentWriteLoad3));
+
+        closeShards(shard);
+    }
+
     static class FakeClock implements LongSupplier {
         private final AtomicLong currentRelativeTime = new AtomicLong();
-        private final AtomicInteger tick = new AtomicInteger();
-        private volatile TimeValue elapsedTimePerPairOfQueries = TimeValue.ZERO;
+        private volatile TimeValue tickLength = TimeValue.ZERO;
 
         @Override
         public long getAsLong() {
-            // Since the clock is checked at the beginning and at the end of
-            // the indexing op, just increase the current relative time at the
-            // end.
-            if (tick.getAndIncrement() % 2 == 0) {
-                return currentRelativeTime.get();
-            } else {
-                return currentRelativeTime.addAndGet(elapsedTimePerPairOfQueries.nanos());
-            }
+            return currentRelativeTime.get();
         }
 
-        void setSimulatedElapsedRelativeTime(TimeValue elapsedTimePerPairOfQueries) {
-            tick.set(0);
-            this.elapsedTimePerPairOfQueries = elapsedTimePerPairOfQueries;
+        void setTickLength(TimeValue tickLength) {
+            this.tickLength = tickLength;
+        }
+
+        public void advance(int ticks) {
+            currentRelativeTime.addAndGet(ticks * tickLength.nanos());
         }
     }
 

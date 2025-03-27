@@ -24,12 +24,14 @@ import java.util.Set;
 
 public class FailingFieldPlugin extends Plugin implements ScriptPlugin {
 
+    public static final String FAILING_FIELD_LANG = "failing_field";
+
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         return new ScriptEngine() {
             @Override
             public String getType() {
-                return "failing_field";
+                return FAILING_FIELD_LANG;
             }
 
             @Override

@@ -1,5 +1,0 @@
-pr: 120231
-summary: Add sanity check to `ReindexDatastreamIndexAction`
-area: Data streams
-type: enhancement
-issues: []

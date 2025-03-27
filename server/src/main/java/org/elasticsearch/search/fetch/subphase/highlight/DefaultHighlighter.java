@@ -50,6 +50,8 @@ import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighte
 
 public class DefaultHighlighter implements Highlighter {
 
+    public static final String NAME = "unified";
+
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
         return true;

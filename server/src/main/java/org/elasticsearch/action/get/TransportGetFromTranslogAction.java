@@ -81,7 +81,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 if (engine == null) {
                     throw new AlreadyClosedException("engine closed");
                 }
-                segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
+                segmentGeneration = engine.getLastUnsafeSegmentGenerationForGets();
             }
             return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });
@@ -152,7 +152,6 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             segmentGeneration = in.readZLong();
             getResult = in.readOptionalWriteable(GetResult::new);
             primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;

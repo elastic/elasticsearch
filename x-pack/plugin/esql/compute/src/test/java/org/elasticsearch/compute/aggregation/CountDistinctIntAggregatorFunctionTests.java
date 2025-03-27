@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -34,8 +35,8 @@ public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new CountDistinctIntAggregatorFunctionSupplier(inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctIntAggregatorFunctionSupplier(40000);
     }
 
     @Override
@@ -64,12 +65,11 @@ public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionT
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         try (
-            Driver d = new Driver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple().get(driverContext)),
-                new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
-                () -> {}
+                new PageConsumerOperator(page -> fail("shouldn't have made it this far"))
             )
         ) {
             expectThrows(Exception.class, () -> runDriver(d));  // ### find a more specific exception type

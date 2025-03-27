@@ -14,6 +14,9 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING;
+
 /**
  * Spec for mapper-related features.
  */
@@ -27,8 +30,16 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.counted_keyword.synthetic_source_native_support"
     );
 
+    public static final NodeFeature TSDB_NESTED_FIELD_SUPPORT = new NodeFeature("mapper.tsdb_nested_field_support");
     public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
     public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
+    public static final NodeFeature SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX = new NodeFeature("mapper.nested.sorting_fields_check_fix");
+    public static final NodeFeature DYNAMIC_HANDLING_IN_COPY_TO = new NodeFeature("mapper.copy_to.dynamic_handling");
+    public static final NodeFeature DOC_VALUES_SKIPPER = new NodeFeature("mapper.doc_values_skipper");
+    static final NodeFeature UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE = new NodeFeature(
+        "mapper.unknown_field_mapping_update_error_message"
+    );
+    static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -45,8 +56,17 @@ public class MapperFeatures implements FeatureSpecification {
             META_FETCH_FIELDS_ERROR_CODE_CHANGED,
             SPARSE_VECTOR_STORE_SUPPORT,
             COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
+            SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
+            DYNAMIC_HANDLING_IN_COPY_TO,
+            TSDB_NESTED_FIELD_SUPPORT,
             SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
-            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
+            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
+            UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
+            DOC_VALUES_SKIPPER,
+            RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
+            DateFieldMapper.INVALID_DATE_FIX,
+            NPE_ON_DIMS_UPDATE_FIX,
+            RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING
         );
     }
 }

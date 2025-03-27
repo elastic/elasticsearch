@@ -8,8 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -19,7 +17,7 @@ import java.io.IOException;
 
 /**
  * Block that stores long values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock, LongBigArrayBlock {
 
@@ -48,17 +46,6 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
 
     @Override
     LongBlock expand();
-
-    @Override
-    default String getWriteableName() {
-        return "LongBlock";
-    }
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "LongBlock", LongBlock::readFrom);
-
-    private static LongBlock readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
 
     static LongBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

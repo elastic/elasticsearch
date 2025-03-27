@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
@@ -50,22 +49,9 @@ public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
             putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING));
             putComponentTemplateRequest.setJsonEntity(storedSourceMapping);
             assertOK(client().performRequest(putComponentTemplateRequest));
-
-            var request = new Request("GET", "/_migration/deprecations");
-            var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client().performRequest(request)).get("node_settings")).getFirst();
-            assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-            assertThat(
-                (String) nodeSettings.get("details"),
-                containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [" + templateName + "]")
-            );
+            assertDeprecationWarningForTemplate(templateName);
         } else if (isUpgradedCluster()) {
-            var request = new Request("GET", "/_migration/deprecations");
-            var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client().performRequest(request)).get("node_settings")).getFirst();
-            assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-            assertThat(
-                (String) nodeSettings.get("details"),
-                containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [" + templateName + "]")
-            );
+            assertDeprecationWarningForTemplate(templateName);
         }
     }
 
@@ -87,22 +73,25 @@ public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
             putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING));
             putComponentTemplateRequest.setJsonEntity(storedSourceMapping);
             assertOK(client().performRequest(putComponentTemplateRequest));
-
-            var request = new Request("GET", "/_migration/deprecations");
-            var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client().performRequest(request)).get("node_settings")).getFirst();
-            assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-            assertThat(
-                (String) nodeSettings.get("details"),
-                containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [" + templateName + "]")
-            );
+            assertDeprecationWarningForTemplate(templateName);
         } else if (isUpgradedCluster()) {
-            var request = new Request("GET", "/_migration/deprecations");
-            var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client().performRequest(request)).get("node_settings")).getFirst();
-            assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-            assertThat(
-                (String) nodeSettings.get("details"),
-                containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [" + templateName + "]")
-            );
+            assertDeprecationWarningForTemplate(templateName);
+        }
+    }
+
+    private void assertDeprecationWarningForTemplate(String templateName) throws IOException {
+        var request = new Request("GET", "/_migration/deprecations");
+        var response = entityAsMap(client().performRequest(request));
+        assertThat(response.containsKey("templates"), equalTo(true));
+        Map<?, ?> issuesByTemplate = (Map<?, ?>) response.get("templates");
+        assertThat(issuesByTemplate.containsKey(templateName), equalTo(true));
+        var templateIssue = (Map<?, ?>) ((List<?>) issuesByTemplate.get(templateName)).getFirst();
+        // Bwc compatible logic until backports are complete.
+        if (templateIssue.containsKey("details")) {
+            assertThat(templateIssue.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING_TITLE));
+            assertThat(templateIssue.get("details"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        } else {
+            assertThat(templateIssue.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
         }
     }
 }

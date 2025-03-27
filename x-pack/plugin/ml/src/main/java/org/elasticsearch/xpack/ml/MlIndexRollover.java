@@ -117,7 +117,7 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
         }
 
         if (failures.isEmpty()) {
-            logger.info("ML legacy indies rolled over");
+            logger.info("ML legacy indices rolled over");
             return;
         }
 
@@ -136,8 +136,11 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
         }
 
         String latestIndex = MlIndexAndAlias.latestIndex(concreteIndices);
-        boolean isCompatibleIndexVersion = isCompatibleIndexVersion(clusterState.metadata().index(latestIndex).getCreationVersion());
-        boolean hasAlias = clusterState.getMetadata().hasAlias(alias);
+        // Indices created before 8.0 are read only in 9
+        boolean isCompatibleIndexVersion = MlIndexAndAlias.indexIsReadWriteCompatibleInV9(
+            clusterState.metadata().getProject().index(latestIndex).getCreationVersion()
+        );
+        boolean hasAlias = clusterState.getMetadata().getProject().hasAlias(alias);
 
         if (isCompatibleIndexVersion && hasAlias) {
             // v8 index with alias, no action required
@@ -147,7 +150,14 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
 
         SubscribableListener.<Boolean>newForked(l -> {
             if (hasAlias == false) {
-                MlIndexAndAlias.updateWriteAlias(client, alias, null, latestIndex, l);
+                MlIndexAndAlias.updateWriteAlias(
+                    client,
+                    alias,
+                    null,
+                    latestIndex,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    l
+                );
             } else {
                 l.onResponse(Boolean.TRUE);
             }

@@ -174,6 +174,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -866,7 +867,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(existsQuery("emp_no")));
+        assertThat(query.query(), is(unscore(existsQuery("emp_no"))));
     }
 
     /**
@@ -901,7 +902,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(existsQuery("emp_no")));
+        assertThat(query.query(), is(unscore(existsQuery("emp_no"))));
     }
 
     public void testQueryForStatWithMultiAgg() {
@@ -922,7 +923,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no, salary*/));
-        assertThat(query.query(), is(boolQuery().should(existsQuery("emp_no")).should(existsQuery("salary"))));
+        assertThat(query.query(), is(boolQuery().should(unscore(existsQuery("emp_no"))).should(unscore(existsQuery("salary")))));
     }
 
     /**
@@ -1130,6 +1131,71 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(rq.from(), equalTo(50000));
         assertThat(rq.includeLower(), equalTo(true));
         assertThat(rq.to(), nullValue());
+    }
+
+    /**
+     * Expects
+     *
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7,
+     *    hire_date{f}#12, job{f}#13, job.raw{f}#14, languages{f}#8, last_name{f}#9,
+     *    long_noidx{f}#15, salary{f}#10],false]
+     *   \_ProjectExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7,
+     *      hire_date{f}#12, job{f}#13, job.raw{f}#14, languages{f}#8, last_name{f}#9,
+     *      long_noidx{f}#15, salary{f}#10]]
+     *     \_FieldExtractExec[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *       \_EsQueryExec[test], indexMode[standard], query[
+     *         {"bool":{"must":[
+     *           {"bool":{"should":[
+     *             {"esql_single_value":{"field":"first_name","next":
+     *               {"wildcard":{"first_name":{"wildcard":"\\*Firs*","boost":1.0}}}
+     *               "source":"starts_with(first_name, \"*Firs\")@2:9"}},
+     *             {"esql_single_value":{"field":"first_name","next":
+     *               {"wildcard":{"first_name":{"wildcard":"*irst\\*","boost":1.0}}},
+     *               "source":"ends_with(first_name, \"irst*\")@2:45"}}],"boost":1.0}},
+     *             {"esql_single_value":{"field":"last_name","next":
+     *               {"wildcard":{"last_name":{"wildcard":"*ast","boost":1.0}}},
+     *               "source":"ends_with(last_name, \"ast\")@3:9"}}
+     *           ],"boost":1.0}}
+     *       ][_doc{f}#27], limit[1000], sort[] estimatedRowSize[332]
+     */
+    public void testPushMultipleFunctions() {
+        var plan = physicalPlan("""
+            from airports
+            | where starts_with(first_name, "*Firs") or ends_with(first_name, "irst*")
+            | where ends_with(last_name, "ast")
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
+
+        var andBool = as(source.query(), BoolQueryBuilder.class);
+        assertThat(andBool.must(), hasSize(2));
+        assertThat(andBool.should(), hasSize(0));
+
+        var orBool = as(andBool.must().get(0), BoolQueryBuilder.class);
+        assertThat(orBool.should(), hasSize(2));
+        assertThat(orBool.must(), hasSize(0));
+
+        var orStartsWith = as(sv(orBool.should().get(0), "first_name"), WildcardQueryBuilder.class);
+        assertThat(orStartsWith.fieldName(), equalTo("first_name"));
+        assertThat(orStartsWith.caseInsensitive(), equalTo(false));
+        assertThat(orStartsWith.value(), equalTo("\\*Firs*"));
+
+        var orEndsWith = as(sv(orBool.should().get(1), "first_name"), WildcardQueryBuilder.class);
+        assertThat(orEndsWith.fieldName(), equalTo("first_name"));
+        assertThat(orEndsWith.caseInsensitive(), equalTo(false));
+        assertThat(orEndsWith.value(), equalTo("*irst\\*"));
+
+        var andEndsWith = as(sv(andBool.must().get(1), "last_name"), WildcardQueryBuilder.class);
+        assertThat(andEndsWith.fieldName(), equalTo("last_name"));
+        assertThat(andEndsWith.caseInsensitive(), equalTo(false));
+        assertThat(andEndsWith.value(), equalTo("*ast"));
     }
 
     public void testLimit() {
@@ -1882,7 +1948,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                   "term" : {
                     "first_name" : {
                       "value" : "FOO",
-                      "case_insensitive" : true
+                      "case_insensitive" : true,
+                      "boost": 0.0
                     }
                   }
                 },
@@ -1926,7 +1993,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                   "term" : {
                     "first_name" : {
                       "value" : "foo",
-                      "case_insensitive" : true
+                      "case_insensitive" : true,
+                      "boost": 0.0
                     }
                   }
                 },
@@ -1950,12 +2018,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "term" : {
                           "first_name" : {
                             "value" : "FOO",
-                            "case_insensitive" : true
+                            "case_insensitive" : true,
+                            "boost": 0.0
                           }
                         }
                       }
                     ],
-                    "boost" : 1.0
+                    "boost": 0.0
                   }
                 },
                 "source" : "to_upper(first_name) != \\"FOO\\"@2:9"
@@ -1978,12 +2047,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "term" : {
                           "first_name" : {
                             "value" : "foo",
-                            "case_insensitive" : true
+                            "case_insensitive" : true,
+                            "boost": 0.0
                           }
                         }
                       }
                     ],
-                    "boost" : 1.0
+                    "boost" : 0.0
                   }
                 },
                 "source" : "to_lower(first_name) != \\"foo\\"@2:9"
@@ -2009,12 +2079,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                               "term" : {
                                 "first_name" : {
                                   "value" : "foo",
-                                  "case_insensitive" : true
+                                  "case_insensitive" : true,
+                                  "boost": 0.0
                                 }
                               }
                             }
                           ],
-                          "boost" : 1.0
+                          "boost": 0.0
                         }
                       },
                       "source" : "to_lower(first_name) != \\"foo\\"@2:9"
@@ -2027,7 +2098,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "term" : {
                           "first_name" : {
                             "value" : "FOO",
-                            "case_insensitive" : true
+                            "case_insensitive" : true,
+                            "boost": 0.0
                           }
                         }
                       },
@@ -2041,7 +2113,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "range" : {
                           "emp_no" : {
                             "gt" : 10,
-                            "boost" : 1.0
+                            "boost" : 0.0
                           }
                         }
                       },
@@ -2079,7 +2151,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                   "term" : {
                     "first_name" : {
                       "value" : "foo",
-                      "case_insensitive" : true
+                      "case_insensitive" : true,
+                      "boost" : 0.0
                     }
                   }
                 },
@@ -7587,6 +7660,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
         plan = PlannerUtils.localPlan(List.of(), config, FoldContext.small(), plan);
+        ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
             "",
@@ -7595,14 +7669,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             TestBlockFactory.getNonBreakingInstance(),
             Settings.EMPTY,
             config,
-            new ExchangeSourceHandler(10, null, null),
-            new ExchangeSinkHandler(null, 10, () -> 10),
+            new ExchangeSourceHandler(10, null)::createExchangeSource,
+            () -> exchangeSinkHandler.createExchangeSink(() -> {}),
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null)
+            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null),
+            List.of()
         );
 
-        return planner.plan(FoldContext.small(), plan);
+        return planner.plan("test", FoldContext.small(), plan);
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
@@ -7629,7 +7704,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testScore() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var plan = physicalPlan("""
             from test metadata _score
             | where match(first_name, "john")
@@ -7656,7 +7730,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testScoreTopN() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var plan = physicalPlan("""
             from test metadata _score
             | where match(first_name, "john")

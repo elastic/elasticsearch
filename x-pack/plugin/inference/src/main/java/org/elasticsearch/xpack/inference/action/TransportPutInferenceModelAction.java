@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -72,7 +71,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
@@ -105,6 +103,17 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     ) throws Exception {
         if (INFERENCE_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.INFERENCE));
+            return;
+        }
+
+        if (modelRegistry.containsDefaultConfigId(request.getInferenceEntityId())) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "[{}] is a reserved inference ID. Cannot create a new inference endpoint with a reserved ID.",
+                    RestStatus.BAD_REQUEST,
+                    request.getInferenceEntityId()
+                )
+            );
             return;
         }
 
@@ -193,7 +202,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                     } else {
                         delegate.onFailure(e);
                     }
-                })
+                }),
+                timeout
             )
         );
 

@@ -11,8 +11,8 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -48,6 +48,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
@@ -90,7 +91,7 @@ public abstract class SearchContext implements Releasable {
         if (lowLevelCancellation()) {
             // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
             Runnable c = () -> {
-                final SearchShardTask task = getTask();
+                final CancellableTask task = getTask();
                 if (task != null) {
                     task.ensureNotCancelled();
                 }
@@ -100,9 +101,9 @@ public abstract class SearchContext implements Releasable {
         return timeoutRunnable == null ? List.of() : List.of(timeoutRunnable);
     }
 
-    public abstract void setTask(SearchShardTask task);
+    public abstract void setTask(CancellableTask task);
 
-    public abstract SearchShardTask getTask();
+    public abstract CancellableTask getTask();
 
     public abstract boolean isCancelled();
 
@@ -368,6 +369,31 @@ public abstract class SearchContext implements Releasable {
      * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
      */
     public abstract Profilers getProfilers();
+
+    /**
+     * The circuit breaker used to account for the search operation.
+     */
+    public abstract CircuitBreaker circuitBreaker();
+
+    /**
+     * Return the amount of memory to buffer locally before accounting for it in the breaker.
+     */
+    public abstract long memAccountingBufferSize();
+
+    /**
+     * Checks if the accumulated bytes are greater than the buffer size and if so, checks the available memory in the parent breaker
+     * (the real memory breaker).
+     * @param locallyAccumulatedBytes the number of bytes accumulated locally
+     * @param label the label to use in the breaker
+     * @return true if the real memory breaker is called and false otherwise
+     */
+    public final boolean checkRealMemoryCB(int locallyAccumulatedBytes, String label) {
+        if (locallyAccumulatedBytes >= memAccountingBufferSize()) {
+            circuitBreaker().addEstimateBytesAndMaybeBreak(0, label);
+            return true;
+        }
+        return false;
+    }
 
     /**
      * Adds a releasable that will be freed when this context is closed.

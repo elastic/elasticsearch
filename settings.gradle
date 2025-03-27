@@ -14,7 +14,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.develocity" version "3.18.1"
+  id "com.gradle.develocity" version "3.19.2"
   id 'elasticsearch.java-toolchain'
 }
 
@@ -70,6 +70,7 @@ List projects = [
   'distribution:docker:ironbank-docker-export',
   'distribution:docker:wolfi-docker-aarch64-export',
   'distribution:docker:wolfi-docker-export',
+  'distribution:docker:fips-docker-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
   'distribution:packages:aarch64-rpm',
@@ -79,6 +80,8 @@ List projects = [
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
   'distribution:bwc:staged',
+  'distribution:bwc:staged2',
+  'distribution:bwc:main',
   'distribution:tools:java-version-checker',
   'distribution:tools:cli-launcher',
   'distribution:tools:server-cli',

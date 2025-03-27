@@ -64,7 +64,6 @@ import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -894,12 +893,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             useLegacyFormat
         );
         SourceToParse source = source(b -> addSemanticTextInferenceResults(useLegacyFormat, b, List.of(inferenceResults)));
-        Exception ex = expectThrows(
+        DocumentParsingException ex = expectThrows(
             DocumentParsingException.class,
-            XContentParseException.class,
+            DocumentParsingException.class,
             () -> mapperService.documentMapper().parse(source)
         );
-        assertThat(ex.getCause().getMessage(), containsString("Required [model_settings]"));
+        assertThat(ex.getMessage(), containsString("[model_settings] must be set for field [field] when chunks are provided"));
     }
 
     private MapperService mapperServiceForFieldWithModelSettings(String fieldName, String inferenceId, MinimalServiceSettings modelSettings)

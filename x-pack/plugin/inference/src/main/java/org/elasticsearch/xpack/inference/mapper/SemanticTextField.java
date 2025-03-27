@@ -155,11 +155,7 @@ public record SemanticTextField(
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
         builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
-        if (inference.chunkingSettings != null) {
-            builder.startObject(CHUNKING_SETTINGS_FIELD);
-            builder.mapContents(inference.chunkingSettings.asMap());
-            builder.endObject();
-        }
+        builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
 
         if (useLegacyFormat) {
             builder.startArray(CHUNKS_FIELD);
@@ -256,7 +252,12 @@ public record SemanticTextField(
             null,
             new ParseField(MODEL_SETTINGS_FIELD)
         );
-        INFERENCE_RESULT_PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField(CHUNKING_SETTINGS_FIELD));
+        INFERENCE_RESULT_PARSER.declareObjectOrNull(
+            optionalConstructorArg(),
+            (p, c) -> p.map(),
+            null,
+            new ParseField(CHUNKING_SETTINGS_FIELD)
+        );
         INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
             if (c.useLegacyFormat()) {
                 return Map.of(c.fieldName, parseChunksArrayLegacy(p, c));

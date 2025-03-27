@@ -694,11 +694,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
-            List<NamedExpression> aggregates = List.of(new Alias(
-                source,
-                MetadataAttribute.SCORE,
-                new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN))
-            ));
+            List<NamedExpression> aggregates = List.of(
+                new Alias(source, MetadataAttribute.SCORE, new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN)))
+            );
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 
             LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);

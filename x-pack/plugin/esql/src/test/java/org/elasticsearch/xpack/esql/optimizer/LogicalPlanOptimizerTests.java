@@ -7836,14 +7836,33 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    public void testRandomSamplePushDown_sort() {
+        var query = "FROM TEST | WHERE emp_no > 0 | RANDOM_SAMPLE 0.5 | LIMIT 100";
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var randomSample = as(filter.child(), RandomSample.class);
+        var source = as(randomSample.child(), EsRelation.class);
+
+        assertThat(randomSample.probability().fold(FoldContext.small()), equalTo(0.5));
+        assertNull(randomSample.seed());
+    }
+
+    public void testRandomSamplePushDown_where() {
+        var query = "FROM TEST | SORT emp_no | RANDOM_SAMPLE 0.5 | LIMIT 100";
+        var optimized = optimizedPlan(query);
+
+        var topN = as(optimized, TopN.class);
+        var randomSample = as(topN.child(), RandomSample.class);
+        var source = as(randomSample.child(), EsRelation.class);
+
+        assertThat(randomSample.probability().fold(FoldContext.small()), equalTo(0.5));
+        assertNull(randomSample.seed());
+    }
+
     public void testRandomSampleNoPushDown() {
-        for (var command : List.of(
-            "LIMIT 100",
-            "MV_EXPAND languages",
-            "SORT emp_no | LIMIT 100", // the limit avoids an unbounded sort
-            "STATS COUNT()",
-            "WHERE emp_no > 1"
-        )) {
+        for (var command : List.of("LIMIT 100", "MV_EXPAND languages", "STATS COUNT()")) {
             var query = "FROM TEST | " + command + " | RANDOM_SAMPLE .5";
             var optimized = optimizedPlan(query);
 

@@ -13,8 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -36,7 +38,9 @@ public class PushDownAndCombineRandomSample extends OptimizerRules.Parameterized
             plan = new RandomSample(randomSample.source(), probability, seed, rsChild.child());
         } else if (child instanceof Enrich
             || child instanceof Eval
+            || child instanceof Filter
             || child instanceof Insist
+            || child instanceof OrderBy
             || child instanceof Project
             || child instanceof RegexExtract) {
                 var unaryChild = (UnaryPlan) child;

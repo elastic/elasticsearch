@@ -264,6 +264,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/trained_model_cat_apis/Test cat trained models}
   issue: https://github.com/elastic/elasticsearch/issues/125750
+- class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
+  method: testAlreadyUpToDateDataStream
+  issue: https://github.com/elastic/elasticsearch/issues/125727
 
 # Examples:
 #

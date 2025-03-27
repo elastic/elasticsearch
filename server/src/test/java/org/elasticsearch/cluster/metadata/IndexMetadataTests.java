@@ -740,6 +740,7 @@ public class IndexMetadataTests extends ESTestCase {
                 i,
                 randomDoubleBetween(0.0, 128.0, true),
                 randomDoubleBetween(0.0, 128.0, true),
+                randomDoubleBetween(0.0, 128.0, true),
                 randomNonNegativeLong()
             );
         }

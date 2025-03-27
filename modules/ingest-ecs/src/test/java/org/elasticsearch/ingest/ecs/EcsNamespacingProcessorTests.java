@@ -24,11 +24,10 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
     public void testIsOTelDocument_validMinimalOTelDocument() {
         Map<String, Object> document = new HashMap<>();
         document.put("resource", new HashMap<>());
-        document.put("scope", new HashMap<>());
         assertTrue(processor.isOTelDocument(document));
     }
 
-    public void testIsOTelDocument_validOTelDocumentWithAttributes() {
+    public void testIsOTelDocument_validOTelDocumentWithScopAndAttributes() {
         Map<String, Object> document = new HashMap<>();
         document.put("attributes", new HashMap<>());
         document.put("resource", new HashMap<>());
@@ -39,12 +38,6 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
     public void testIsOTelDocument_missingResource() {
         Map<String, Object> document = new HashMap<>();
         document.put("scope", new HashMap<>());
-        assertFalse(processor.isOTelDocument(document));
-    }
-
-    public void testIsOTelDocument_missingScope() {
-        Map<String, Object> document = new HashMap<>();
-        document.put("resource", new HashMap<>());
         assertFalse(processor.isOTelDocument(document));
     }
 
@@ -184,6 +177,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         Map<String, Object> existingResource = new HashMap<>();
         existingResource.put("existingKey", "existingValue");
         document.put("resource", existingResource);
+        document.put("scope", "invalid scope");
         document.put("key1", "value1");
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
 
@@ -196,6 +190,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         Map<String, Object> attributes = (Map<String, Object>) source.get("attributes");
         assertEquals("value1", attributes.get("key1"));
         assertEquals("existingValue", attributes.get("resource.existingKey"));
+        assertEquals("invalid scope", attributes.get("scope"));
 
         Map<String, Object> resource = (Map<String, Object>) source.get("resource");
         assertTrue(resource.containsKey("attributes"));

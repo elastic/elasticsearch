@@ -139,7 +139,7 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
         }
 
         Object scope = source.get(SCOPE_KEY);
-        if (scope instanceof Map == false) {
+        if (scope != null && scope instanceof Map == false) {
             return false;
         }
 

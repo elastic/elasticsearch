@@ -136,13 +136,15 @@ teardown:
   - do:
       index:
         index: ecs_namespacing_test
-        id: "invalid_scope_field"
+        id: "invalid_body_field"
         pipeline: "ecs_namespacing_pipeline"
         body: {
           "resource": {},
-          "scope": "invalid scope",
+          "scope": {
+            "foo": "bar"
+          },
           "body": {
-            "text": "test message",
+            "text": 123,
             "structured": {
               "foo": "bar"
             }
@@ -153,10 +155,10 @@ teardown:
   - do:
       get:
         index: ecs_namespacing_test
-        id: "invalid_scope_field"
-  - match: { _source.attributes.scope: "invalid scope" }
-  - match: { _source.attributes.body\.text: "test message" }
+        id: "invalid_body_field"
+  - match: { _source.attributes.body\.text: 123 }
   - match: { _source.attributes.body\.structured\.foo: "bar" }
+  - match: { _source.attributes.scope\.foo: "bar" }
   - match: { _source.attributes.foo: "bar" }
   - match: { _source.body: null }
   - match: { _source.scope: null }

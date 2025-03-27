@@ -21,6 +21,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
@@ -155,6 +156,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     static class StatsHolder {
         private final MeanMetric indexMetric = new MeanMetric(); // Used for the count and total 'took' time (in ns) of index operations
         private final ExponentiallyWeightedMovingRate recentIndexMetric; // An EWMR of the total 'took' time of index operations (in ns)
+        private final AtomicReference<Double> peakIndexMetric; // The peak value of the EWMR observed in any stats() call
         private final MeanMetric deleteMetric = new MeanMetric();
         private final CounterMetric indexCurrent = new CounterMetric();
         private final CounterMetric indexFailed = new CounterMetric();
@@ -170,6 +172,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 lambdaInInverseNanos
             );
             this.recentIndexMetric = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, startTimeInNanos);
+            this.peakIndexMetric = new AtomicReference<>(0.0);
         }
 
         IndexingStats.Stats stats(
@@ -189,15 +192,17 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 currentTimeInNanos - timeSinceShardStartedInNanos,
                 recentIndexingLoadAtShardStarted
             );
+            double peakIndexingLoad = peakIndexMetric.accumulateAndGet(recentIndexingLoadSinceShardStarted, Math::max);
             logger.debug(
                 () -> Strings.format(
                     "Generating stats for an index shard with indexing time %s and active time %s giving unweighted write load %g, "
-                        + "while the recency-weighted write load is %g using a half-life of %s",
+                        + "while the recency-weighted write load is %g using a half-life of %s and the peak write load is %g",
                     timeValueNanos(totalIndexingTimeSinceShardStartedInNanos),
                     timeValueNanos(timeSinceShardStartedInNanos),
                     1.0 * totalIndexingTimeSinceShardStartedInNanos / timeSinceShardStartedInNanos,
                     recentIndexingLoadSinceShardStarted,
-                    timeValueNanos((long) recentIndexMetric.getHalfLife())
+                    timeValueNanos((long) recentIndexMetric.getHalfLife()),
+                    peakIndexingLoad
                 )
             );
             return new IndexingStats.Stats(
@@ -214,7 +219,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
                 totalIndexingTimeSinceShardStartedInNanos,
                 timeSinceShardStartedInNanos,
-                recentIndexingLoadSinceShardStarted
+                recentIndexingLoadSinceShardStarted,
+                peakIndexingLoad
             );
         }
     }

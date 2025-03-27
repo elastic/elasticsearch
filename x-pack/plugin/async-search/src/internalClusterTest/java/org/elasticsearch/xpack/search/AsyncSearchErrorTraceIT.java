@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -24,7 +23,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -35,9 +33,6 @@ import java.util.function.BooleanSupplier;
 
 public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     private BooleanSupplier transportMessageHasStackTrace;
-
-    private static final String loggerName = "org.elasticsearch.search.SearchService";
-    private static Level originalLogLevel;
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -52,13 +47,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
     @BeforeClass
     public static void setDebugLogLevel() {
-        originalLogLevel = LogManager.getLogger(loggerName).getLevel();
-        Configurator.setLevel(loggerName, Level.DEBUG);
-    }
-
-    @AfterClass
-    public static void resetLogLevel() {
-        Configurator.setLevel(loggerName, originalLogLevel);
+        Configurator.setLevel("org.elasticsearch.search.SearchService", Level.DEBUG);
     }
 
     @Before

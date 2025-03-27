@@ -10,7 +10,6 @@
 package org.elasticsearch.search;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
@@ -183,10 +182,8 @@ public class SearchServiceTests extends IndexShardTestCase {
             null
         );
 
-        final String loggerName = "org.elasticsearch.search.SearchService";
-        Level originalLogLevel = LogManager.getLogger(loggerName).getLevel();
         try (var mockLog = MockLog.capture(SearchService.class)) {
-            Configurator.setLevel(loggerName, Level.DEBUG);
+            Configurator.setLevel("org.elasticsearch.search.SearchService", Level.DEBUG);
             final String exceptionMessage = "test exception message";
             mockLog.addExpectation(
                 new MockLog.PatternAndExceptionSeenEventExpectation(
@@ -214,8 +211,6 @@ public class SearchServiceTests extends IndexShardTestCase {
             Exception e = new Exception(exceptionMessage);
             listener = maybeWrapListenerForStackTrace(listener, shardRequest, threadPool, createClusterService(threadPool));
             listener.onFailure(e);
-        } finally {
-            Configurator.setLevel(loggerName, originalLogLevel);
         }
     }
 

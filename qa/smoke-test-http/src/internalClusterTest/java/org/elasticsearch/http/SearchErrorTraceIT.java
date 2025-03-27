@@ -12,7 +12,6 @@ package org.elasticsearch.http;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -27,7 +26,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -41,9 +39,6 @@ import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery
 public class SearchErrorTraceIT extends HttpSmokeTestCase {
     private BooleanSupplier hasStackTrace;
 
-    private static final String loggerName = "org.elasticsearch.search.SearchService";
-    private static Level originalLogLevel;
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), MockTransportService.TestPlugin.class);
@@ -51,13 +46,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
 
     @BeforeClass
     public static void setDebugLogLevel() {
-        originalLogLevel = LogManager.getLogger(loggerName).getLevel();
-        Configurator.setLevel(loggerName, Level.DEBUG);
-    }
-
-    @AfterClass
-    public static void resetLogLevel() {
-        Configurator.setLevel(loggerName, originalLogLevel);
+        Configurator.setLevel("org.elasticsearch.search.SearchService", Level.DEBUG);
     }
 
     @Before

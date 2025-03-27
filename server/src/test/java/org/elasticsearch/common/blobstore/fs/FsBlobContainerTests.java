@@ -388,14 +388,14 @@ public class FsBlobContainerTests extends ESTestCase {
         final var sourceBlobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
         final var targetBlobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
         final var contents = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
-        sourceContainer.writeBlobAtomic(randomPurpose(), sourceBlobName, contents, true);
+        sourceContainer.writeBlob(randomPurpose(), sourceBlobName, contents, true);
         sourceContainer.copyBlob(randomPurpose(), sourceBlobName, targetContainer, targetBlobName, true);
         assertThrows(
             FileAlreadyExistsException.class,
             () -> sourceContainer.copyBlob(randomPurpose(), sourceBlobName, targetContainer, targetBlobName, true)
         );
 
-        var targetContents = new BytesArray(targetContainer.readBlob(randomPurpose(), targetBlobName).readAllBytes());
+        var targetContents = Streams.readFully(targetContainer.readBlob(randomPurpose(), targetBlobName));
         assertEquals(contents, targetContents);
     }
 

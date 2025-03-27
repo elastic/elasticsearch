@@ -154,7 +154,7 @@ with `double` (all represented as `double`)
 ** For text fields: You can only use text fields as the join key on the
 left-hand side of the join and only if they have a `.keyword` subfield
 
-To obtain a join key with a compatible type use a
+To obtain a join key with a compatible type, use a
 <<esql-type-conversion-functions,conversion function>> if needed.
 
 For a complete list of supported data types and their internal

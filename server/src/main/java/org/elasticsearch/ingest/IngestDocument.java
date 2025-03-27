@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.script.field.WriteField;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -192,6 +194,17 @@ public final class IngestDocument {
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
         final FieldPath fieldPath = FieldPath.of(path);
+        WriteField writeField = getWriteField(path);
+        if (writeField != null) {
+            if (writeField.exists() == false) {
+                if (ignoreMissing == false) {
+                    throw new IllegalArgumentException("no field found for path " + path);
+                } else {
+                    return null;
+                }
+            }
+            return cast(path, writeField.get(null), clazz);
+        }
         Object context = fieldPath.initialContext(this);
         ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context);
         if (result.wasSuccessful) {
@@ -257,6 +270,10 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
+        WriteField writeField = getWriteField(path);
+        if (writeField != null) {
+            return writeField.exists();
+        }
         final FieldPath fieldPath = FieldPath.of(path);
         Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
@@ -325,6 +342,14 @@ public final class IngestDocument {
         removeField(path, false);
     }
 
+    @Nullable
+    private WriteField getWriteField(String path) {
+        if ((path.startsWith("$('") && path.endsWith("')") ) || (path.startsWith("$(\"") && path.endsWith("\")"))) {
+            return new WriteField(path.substring(3, path.length() - 2), this::getCtxMap);
+        }
+        return null;
+    }
+
     /**
      * Removes the field identified by the provided path.
      *
@@ -333,6 +358,14 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
      */
     public void removeField(String path, boolean ignoreMissing) {
+        WriteField writeField = getWriteField(path);
+        if (writeField != null) {
+            if (ignoreMissing == false && writeField.exists() == false) {
+                throw new IllegalArgumentException("no field found for path " + path);
+            }
+            writeField.remove();
+            return;
+        }
         final FieldPath fieldPath = FieldPath.of(path);
         Object context = fieldPath.initialContext(this);
         ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length - 1, path, context);
@@ -548,6 +581,15 @@ public final class IngestDocument {
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
+        WriteField writeField = getWriteField(path);
+        if (writeField != null) {
+            if (append && writeField.exists()) {
+                writeField.set(appendValues(writeField.get(null), value, allowDuplicates));
+            } else {
+                writeField.set(value);
+            }
+            return;
+        }
         final FieldPath fieldPath = FieldPath.of(path);
         Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {

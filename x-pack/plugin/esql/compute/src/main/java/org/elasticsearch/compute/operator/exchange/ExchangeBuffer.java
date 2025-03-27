@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.Operator;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 final class ExchangeBuffer {
 
@@ -31,6 +32,7 @@ final class ExchangeBuffer {
     private SubscribableListener<Void> notFullFuture = null;
 
     private final SubscribableListener<Void> completionFuture = new SubscribableListener<>();
+    private final AtomicLong addedRows = new AtomicLong();
 
     private volatile boolean noMoreInputs = false;
 
@@ -58,6 +60,8 @@ final class ExchangeBuffer {
                     completionFuture.onResponse(null);
                 }
             }
+        } else {
+            addedRows.addAndGet(page.getPositionCount());
         }
     }
 
@@ -153,6 +157,13 @@ final class ExchangeBuffer {
 
     int size() {
         return queueSize.get();
+    }
+
+    /**
+     * Returns number of rows has been added to this exchange buffer
+     */
+    long addedRows() {
+        return addedRows.get();
     }
 
     /**

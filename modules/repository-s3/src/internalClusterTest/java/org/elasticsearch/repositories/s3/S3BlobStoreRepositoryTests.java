@@ -9,11 +9,11 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpHandler;
+import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.ListMultipartUploadsRequest;
+import software.amazon.awssdk.services.s3.model.MultipartUpload;
 
-import com.amazonaws.http.AmazonHttpClient;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
-import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
-import com.amazonaws.services.s3.model.MultipartUpload;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -285,7 +285,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             final BlobStore blobStore = blobStoreRepository.blobStore();
             final BlobStore delegateBlobStore = ((BlobStoreWrapper) blobStore).delegate();
             final S3BlobStore s3BlobStore = (S3BlobStore) delegateBlobStore;
-            final Map<S3BlobStore.StatsKey, S3BlobStore.IgnoreNoResponseMetricsCollector> statsCollectors = s3BlobStore
+            final Map<S3BlobStore.StatsKey, S3BlobStore.IgnoreNoResponseMetricsPublisher> statsCollectors = s3BlobStore
                 .getStatsCollectors().collectors;
 
             final var plugins = internalCluster().getInstance(PluginsService.class, nodeName)
@@ -512,30 +512,36 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         try (var clientRef = blobStore.clientReference()) {
             final var danglingBlobName = randomIdentifier();
-            final var initiateMultipartUploadRequest = new InitiateMultipartUploadRequest(
-                blobStore.bucket(),
-                blobStore.blobContainer(repository.basePath().add("test-multipart-upload")).path().buildAsString() + danglingBlobName
-            );
-            initiateMultipartUploadRequest.putCustomQueryParameter(
-                S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE,
-                OperationPurpose.SNAPSHOT_DATA.getKey()
-            );
-            final var multipartUploadResult = clientRef.client().initiateMultipartUpload(initiateMultipartUploadRequest);
+            final var initiateMultipartUploadRequest = CreateMultipartUploadRequest.builder()
+                .bucket(blobStore.bucket())
+                .key(blobStore.blobContainer(repository.basePath().add("test-multipart-upload")).path().buildAsString() + danglingBlobName)
+                .overrideConfiguration(
+                    // NOMERGE: check this conversion makes sense.
+                    AwsRequestOverrideConfiguration.builder()
+                        .putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey())
+                        .build()
+                )
+                .build();
 
-            final var listMultipartUploadsRequest = new ListMultipartUploadsRequest(blobStore.bucket()).withPrefix(
-                repository.basePath().buildAsString()
-            );
-            listMultipartUploadsRequest.putCustomQueryParameter(
-                S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE,
-                OperationPurpose.SNAPSHOT_DATA.getKey()
-            );
+            final var multipartUploadResult = clientRef.client().createMultipartUpload(initiateMultipartUploadRequest);
+
+            final var listMultipartUploadsRequest = ListMultipartUploadsRequest.builder()
+                .bucket(blobStore.bucket())
+                .prefix(repository.basePath().buildAsString())
+                .overrideConfiguration(
+                    // NOMERGE: check this conversion makes sense.
+                    AwsRequestOverrideConfiguration.builder()
+                        .putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey())
+                        .build()
+                )
+                .build();
             assertEquals(
-                List.of(multipartUploadResult.getUploadId()),
+                List.of(multipartUploadResult.uploadId()),
                 clientRef.client()
                     .listMultipartUploads(listMultipartUploadsRequest)
-                    .getMultipartUploads()
+                    .uploads()
                     .stream()
-                    .map(MultipartUpload::getUploadId)
+                    .map(MultipartUpload::uploadId)
                     .toList()
             );
 
@@ -557,7 +563,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     Level.INFO,
                     Strings.format(
                         "cleaned up dangling multipart upload [%s] of blob [%s]*test-multipart-upload/%s]",
-                        multipartUploadResult.getUploadId(),
+                        multipartUploadResult.uploadId(),
                         repoName,
                         danglingBlobName
                     )
@@ -575,9 +581,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             assertThat(
                 clientRef.client()
                     .listMultipartUploads(listMultipartUploadsRequest)
-                    .getMultipartUploads()
+                    .uploads()
                     .stream()
-                    .map(MultipartUpload::getUploadId)
+                    .map(MultipartUpload::uploadId)
                     .toList(),
                 empty()
             );
@@ -676,7 +682,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         @Override
         protected String requestUniqueId(final HttpExchange exchange) {
             // Amazon SDK client provides a unique ID per request
-            return exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
+            // TODO NOMERGE: make "x-amz-request-id" into a constant someplace.
+            return exchange.getRequestHeaders().getFirst("x-amz-request-id");
         }
     }
 

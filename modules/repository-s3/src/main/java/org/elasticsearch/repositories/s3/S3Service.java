@@ -19,8 +19,6 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
-import software.amazon.awssdk.core.retry.RetryPolicy;
-import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
@@ -246,28 +244,25 @@ class S3Service implements Closeable {
         return httpClientBuilder.build();
     }
 
-    static final RetryCondition RETRYABLE_403_RETRY_POLICY = (retryPolicyContext) -> {
-        if (RetryCondition.defaultRetryCondition().shouldRetry(retryPolicyContext)) {
-            return true;
-        }
-        if (retryPolicyContext.exception() instanceof AwsServiceException ase) {
+    static boolean RETRYABLE_403_RETRY_PREDICATE(Throwable e) {
+        if (e instanceof AwsServiceException ase) {
             return ase.statusCode() == RestStatus.FORBIDDEN.getStatus() && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
         }
         return false;
-    };
+    }
 
     static ClientOverrideConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
 
-        // TODO: revisit this, does it still make sense to specially retry?
-        RetryPolicy.Builder retryPolicy = RetryPolicy.builder();
-        retryPolicy.numRetries(clientSettings.maxRetries);
-        if (isStateless) {
-            // Create a 403 error retyable policy.
-            retryPolicy.retryCondition(RETRYABLE_403_RETRY_POLICY);
-        }
+        clientOverrideConfiguration.retryStrategy(builder -> {
+            builder.maxAttempts(clientSettings.maxRetries);
+            // TODO NOMERGE: revisit this, does it still make sense to specially retry?
+            if (isStateless) {
+                // Create a 403 error retyable policy.
+                builder.retryOnException(S3Service::RETRYABLE_403_RETRY_PREDICATE);
 
-        clientOverrideConfiguration.retryPolicy(retryPolicy.build());
+            }
+        });
         clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, clientSettings.signerOverride.signerFactory.get());
         return clientOverrideConfiguration.build();
     }
@@ -312,6 +307,7 @@ class S3Service implements Closeable {
                         .addCredentialsProvider(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER))
                         // TODO NOMERGE: revisit whether this conversion makes sense
                         // Consider using DefaultCredentialsProvider rather than these two particular providers.
+                        // .addCredentialsProvider(new ErrorLoggingCredentialsProvider(DefaultCredentialsProvider.create(), LOGGER))
                         .addCredentialsProvider(new ErrorLoggingCredentialsProvider(ContainerCredentialsProvider.create(), LOGGER))
                         .addCredentialsProvider(new ErrorLoggingCredentialsProvider(InstanceProfileCredentialsProvider.create(), LOGGER))
                         .build()

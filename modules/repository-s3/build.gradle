@@ -29,6 +29,7 @@ dependencies {
   implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:metrics-spi:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:regions:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:retries:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:services:${versions.awsv2sdk}"
@@ -56,7 +57,6 @@ dependencies {
   runtimeOnly "software.amazon.awssdk:json-utils:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:profiles:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
-  runtimeOnly "software.amazon.awssdk:retries:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:retries-spi:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
 

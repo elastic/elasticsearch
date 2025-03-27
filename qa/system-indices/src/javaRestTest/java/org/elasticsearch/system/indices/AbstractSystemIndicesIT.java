@@ -9,18 +9,11 @@
 
 package org.elasticsearch.system.indices;
 
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
 public abstract class AbstractSystemIndicesIT extends ESRestTestCase {
-    protected static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
-        "rest_user",
-        new SecureString("rest-user-password".toCharArray())
-    );
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -28,18 +21,10 @@ public abstract class AbstractSystemIndicesIT extends ESRestTestCase {
         .module("analysis-common")
         .module("ingest-common")
         .module("x-pack-migrate")
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.autoconfiguration.enabled", "false")
-        .user("rest_user", "rest-user-password")
         .build();
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 }

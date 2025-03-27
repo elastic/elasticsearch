@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.LongAdder;
  * <p>
  * The bucket boundaries are defined by increasing powers of two, e.g.
  * <code>
- *     (-&infin;, 1), [1, 2), [2, 4), [4, 8), ..., [2^({@link #BUCKET_COUNT}-2), -&infin;)
+ *     (-&infin;, 1), [1, 2), [2, 4), [4, 8), ..., [2^({@link #BUCKET_COUNT}-2), &infin;)
  * </code>
  * There are {@link #BUCKET_COUNT} buckets.
  */

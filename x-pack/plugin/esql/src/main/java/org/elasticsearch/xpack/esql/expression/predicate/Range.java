@@ -33,7 +33,6 @@ import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -42,9 +41,8 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
@@ -217,16 +215,23 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
         String format = null;
 
         DataType dataType = value.dataType();
-        logger.trace("Translating Range into lucene query.  dataType is [{}] upper is [{}]  lower is [{}]", dataType, lower, upper);
-        if (dataType == DataType.DATETIME && lower.dataType() == DATETIME && upper.dataType() == DATETIME) {
-            l = dateTimeToString((Long) l);
-            u = dateTimeToString((Long) u);
+        logger.warn(
+            "Translating Range into lucene query.  dataType is [{}] upper is [{}<{}>]  lower is [{}<{}>]",
+            dataType,
+            lower,
+            lower.dataType(),
+            upper,
+            upper.dataType()
+        );
+        if (dataType == DataType.DATETIME) {
+            l = dateWithTypeToString((Long) l, lower.dataType());
+            u = dateWithTypeToString((Long) u, upper.dataType());
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
         }
 
-        if (dataType == DATE_NANOS && lower.dataType() == DATE_NANOS && upper.dataType() == DATE_NANOS) {
-            l = nanoTimeToString((Long) l);
-            u = nanoTimeToString((Long) u);
+        if (dataType == DATE_NANOS) {
+            l = dateWithTypeToString((Long) l, lower.dataType());
+            u = dateWithTypeToString((Long) u, upper.dataType());
             format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
 
@@ -258,6 +263,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
                 u = unsignedLongAsNumber(ul);
             }
         }
+        logger.warn("Building range query with format string [{}]", format);
         return new RangeQuery(source(), handler.nameOf(value), l, includeLower(), u, includeUpper(), format, zoneId);
     }
 

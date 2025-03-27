@@ -666,6 +666,10 @@ FROM employees
 ## `LOOKUP JOIN` [esql-lookup-join]
 
 ::::{warning}
+```{applies_to}
+stack: preview 9.0, coming 9.1
+serverless: preview
+```
 This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
@@ -673,15 +677,9 @@ This functionality is in technical preview and may be changed or removed in a fu
 
 **Syntax**
 
-```
+```esql
 FROM <source_index>
 | LOOKUP JOIN <lookup_index> ON <field_name>
-```
-
-```esql
-FROM firewall_logs
-| LOOKUP JOIN threat_list ON source.IP
-| WHERE threat_level IS NOT NULL
 ```
 
 **Parameters**
@@ -711,6 +709,14 @@ In case of name collisions, the newly created columns will override existing col
 ```esql
 FROM firewall_logs
 | LOOKUP JOIN threat_list ON source.IP
+```
+
+To filter only for those rows that have a matching `threat_list` entry, use `WHERE ... IS NOT NULL` with a field from the lookup index:
+
+```esql
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+| WHERE threat_level IS NOT NULL
 ```
 
 **Host metadata correlation**: This query pulls in environment or ownership details for each host to correlate with your metrics data.
@@ -747,6 +753,10 @@ FROM Left
 ## `MV_EXPAND` [esql-mv_expand]
 
 ::::{warning}
+```{applies_to}
+stack: preview 9.0, coming 9.1
+serverless: preview
+```
 This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 

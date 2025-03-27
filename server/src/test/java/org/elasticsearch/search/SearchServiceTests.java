@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -63,7 +64,6 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.search.SearchService.maybeWrapListenerForStackTrace;
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -129,18 +129,7 @@ public class SearchServiceTests extends IndexShardTestCase {
     }
 
     public void testMaybeWrapListenerForStackTrace() {
-        ShardSearchRequest shardRequest = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            new SearchRequest().allowPartialSearchResults(false).source(new SearchSourceBuilder().query(new MatchAllQueryBuilder())),
-            new ShardId("index", "index", 0),
-            0,
-            1,
-            AliasFilter.EMPTY,
-            1.0f,
-            0,
-            null
-        );
-
+        ShardId shardId = new ShardId("index", "index", 0);
         // Tests that the same listener has stack trace if is not wrapped or does not have stack trace if it is wrapped.
         AtomicBoolean isWrapped = new AtomicBoolean(false);
         ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
@@ -162,35 +151,25 @@ public class SearchServiceTests extends IndexShardTestCase {
         e.fillInStackTrace();
         assertThat(e.getStackTrace().length, is(not(0)));
         listener.onFailure(e);
-        listener = maybeWrapListenerForStackTrace(listener, shardRequest, threadPool, createClusterService(threadPool));
+        listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), "node", shardId, threadPool);
         isWrapped.set(true);
         listener.onFailure(e);
     }
 
     public void testMaybeWrapListenerForStackTraceLogs() {
+        final String nodeId = "node";
         final String index = "index";
-        final int shardId = 0;
-        ShardSearchRequest shardRequest = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            new SearchRequest().allowPartialSearchResults(false).source(new SearchSourceBuilder().query(new MatchAllQueryBuilder())),
-            new ShardId(index, index, shardId),
-            0,
-            1,
-            AliasFilter.EMPTY,
-            1.0f,
-            0,
-            null
-        );
+        ShardId shardId = new ShardId(index, index, 0);
 
         try (var mockLog = MockLog.capture(SearchService.class)) {
             Configurator.setLevel("org.elasticsearch.search.SearchService", Level.DEBUG);
             final String exceptionMessage = "test exception message";
             mockLog.addExpectation(
                 new MockLog.PatternAndExceptionSeenEventExpectation(
-                    format("Tracking information ([node][%s][%d]) and exception logged before stack trace cleared", index, shardId),
+                    format("Tracking information ([%s]%s) and exception logged before stack trace cleared", nodeId, shardId),
                     SearchService.class.getCanonicalName(),
                     Level.DEBUG,
-                    format("\\[node\\]\\[%s\\]\\[%d\\] Clearing stack trace before transport:", index, shardId),
+                    format("\\[%s\\]%s: failed to execute search request", nodeId, shardId),
                     Exception.class,
                     exceptionMessage
                 )
@@ -209,7 +188,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                 }
             };
             Exception e = new Exception(exceptionMessage);
-            listener = maybeWrapListenerForStackTrace(listener, shardRequest, threadPool, createClusterService(threadPool));
+            listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, threadPool);
             listener.onFailure(e);
         }
     }

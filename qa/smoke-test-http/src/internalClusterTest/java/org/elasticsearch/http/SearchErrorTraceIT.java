@@ -46,7 +46,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
 
     @BeforeClass
     public static void setDebugLogLevel() {
-        Configurator.setLevel("org.elasticsearch.search.SearchService", Level.DEBUG);
+        Configurator.setLevel(SearchService.class, Level.DEBUG);
     }
 
     @Before
@@ -55,7 +55,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     private int setupIndexWithDocs() {
-        int numShards = between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS);
+        int numShards = numberOfShards();
         createIndex("test1", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build());
         createIndex("test2", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build());
         indexRandom(
@@ -123,30 +123,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         assertFalse(hasStackTrace.getAsBoolean());
     }
 
-    public void testLoggingInSearchFailingQueryErrorTraceDefault() throws IOException {
-        int numShards = setupIndexWithDocs();
-
-        Request searchRequest = new Request("POST", "/_search");
-        searchRequest.setJsonEntity("""
-            {
-                "query": {
-                    "simple_query_string" : {
-                        "query": "foo",
-                        "fields": ["field"]
-                    }
-                }
-            }
-            """);
-
-        String errorTriggeringIndex = "test2";
-        try (var mockLog = MockLog.capture(SearchService.class)) {
-            ErrorTraceHelper.addSeenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
-
-            getRestClient().performRequest(searchRequest);
-            mockLog.assertAllExpectationsMatched();
-        }
-    }
-
     public void testNoLoggingInSearchFailingQueryErrorTraceTrue() throws IOException {
         int numShards = setupIndexWithDocs();
 
@@ -191,7 +167,10 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addSeenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
 
-            searchRequest.addParameter("error_trace", "false");
+            // error_trace defaults to false so we can test both cases with some randomization
+            if (randomBoolean()) {
+                searchRequest.addParameter("error_trace", "false");
+            }
             getRestClient().performRequest(searchRequest);
             mockLog.assertAllExpectationsMatched();
         }
@@ -248,28 +227,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         assertFalse(hasStackTrace.getAsBoolean());
     }
 
-    public void testLoggingInMultiSearchFailingQueryErrorTraceDefault() throws IOException {
-        int numShards = setupIndexWithDocs();
-
-        XContentType contentType = XContentType.JSON;
-        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(
-            new SearchRequest("test*").source(new SearchSourceBuilder().query(simpleQueryStringQuery("foo").field("field")))
-        );
-        Request searchRequest = new Request("POST", "/_msearch");
-        byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
-        searchRequest.setEntity(
-            new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
-        );
-
-        String errorTriggeringIndex = "test2";
-        try (var mockLog = MockLog.capture(SearchService.class)) {
-            ErrorTraceHelper.addSeenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
-
-            getRestClient().performRequest(searchRequest);
-            mockLog.assertAllExpectationsMatched();
-        }
-    }
-
     public void testLoggingInMultiSearchFailingQueryErrorTraceTrue() throws IOException {
         int numShards = setupIndexWithDocs();
 
@@ -306,7 +263,11 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         searchRequest.setEntity(
             new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
         );
-        searchRequest.addParameter("error_trace", "false");
+
+        // error_trace defaults to false so we can test both cases with some randomization
+        if (randomBoolean()) {
+            searchRequest.addParameter("error_trace", "false");
+        }
 
         String errorTriggeringIndex = "test2";
         try (var mockLog = MockLog.capture(SearchService.class)) {

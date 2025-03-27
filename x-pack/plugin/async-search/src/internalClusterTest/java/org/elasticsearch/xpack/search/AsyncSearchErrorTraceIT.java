@@ -47,7 +47,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
     @BeforeClass
     public static void setDebugLogLevel() {
-        Configurator.setLevel("org.elasticsearch.search.SearchService", Level.DEBUG);
+        Configurator.setLevel(SearchService.class, Level.DEBUG);
     }
 
     @Before
@@ -56,7 +56,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     }
 
     private int setupIndexWithDocs() {
-        int numShards = between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS);
+        int numShards = numberOfShards();
         createIndex("test1", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build());
         createIndex("test2", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build());
         indexRandom(
@@ -150,38 +150,6 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         assertFalse(transportMessageHasStackTrace.getAsBoolean());
     }
 
-    public void testLoggingInAsyncSearchFailingQueryErrorTraceDefault() throws IOException, InterruptedException {
-        int numShards = setupIndexWithDocs();
-
-        Request searchRequest = new Request("POST", "/_async_search");
-        searchRequest.setJsonEntity("""
-            {
-                "query": {
-                    "simple_query_string" : {
-                        "query": "foo",
-                        "fields": ["field"]
-                    }
-                }
-            }
-            """);
-        searchRequest.addParameter("keep_on_completion", "true");
-        searchRequest.addParameter("wait_for_completion_timeout", "0ms");
-        Map<String, Object> responseEntity = performRequestAndGetResponseEntityAfterDelay(searchRequest, TimeValue.ZERO);
-        String asyncExecutionId = (String) responseEntity.get("id");
-        Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
-        while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
-            responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
-        }
-
-        String errorTriggeringIndex = "test2";
-        try (var mockLog = MockLog.capture(SearchService.class)) {
-            ErrorTraceHelper.addSeenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
-
-            getRestClient().performRequest(searchRequest);
-            mockLog.assertAllExpectationsMatched();
-        }
-    }
-
     public void testLoggingInAsyncSearchFailingQueryErrorTraceTrue() throws IOException, InterruptedException {
         int numShards = setupIndexWithDocs();
 
@@ -218,6 +186,8 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
     public void testLoggingInAsyncSearchFailingQueryErrorTraceFalse() throws IOException, InterruptedException {
         int numShards = setupIndexWithDocs();
+        // error_trace defaults to false so we can test both cases with some randomization
+        final boolean defineErrorTraceFalse = randomBoolean();
 
         Request searchRequest = new Request("POST", "/_async_search");
         searchRequest.setJsonEntity("""
@@ -230,13 +200,17 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
                 }
             }
             """);
-        searchRequest.addParameter("error_trace", "false");
+        if (defineErrorTraceFalse) {
+            searchRequest.addParameter("error_trace", "false");
+        }
         searchRequest.addParameter("keep_on_completion", "true");
         searchRequest.addParameter("wait_for_completion_timeout", "0ms");
         Map<String, Object> responseEntity = performRequestAndGetResponseEntityAfterDelay(searchRequest, TimeValue.ZERO);
         String asyncExecutionId = (String) responseEntity.get("id");
         Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
-        request.addParameter("error_trace", "false");
+        if (defineErrorTraceFalse) {
+            request.addParameter("error_trace", "false");
+        }
         while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
             responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
         }

@@ -78,12 +78,7 @@ public enum ErrorTraceHelper {
                     ),
                     SearchService.class.getCanonicalName(),
                     Level.DEBUG,
-                    format(
-                        "\\[%s\\]\\[%s\\]\\[%d\\] Clearing stack trace before transport:",
-                        nodesDisjunction,
-                        errorTriggeringIndex,
-                        shard
-                    ),
+                    format("\\[%s\\]\\[%s\\]\\[%d\\]: failed to execute search request", nodesDisjunction, errorTriggeringIndex, shard),
                     QueryShardException.class,
                     "failed to create query: For input string: \"foo\""
                 )
@@ -107,7 +102,7 @@ public enum ErrorTraceHelper {
                         "Tracking information ([nodeId][indexName][shard]) and exception logged before stack trace cleared",
                         SearchService.class.getCanonicalName(),
                         Level.DEBUG,
-                        format("[%s][%s][%d] Clearing stack trace before transport:", getNodeId(nodeName), errorTriggeringIndex, shard)
+                        format("[%s][%s][%d]: failed to execute search request", getNodeId(nodeName), errorTriggeringIndex, shard)
                     )
                 );
             }

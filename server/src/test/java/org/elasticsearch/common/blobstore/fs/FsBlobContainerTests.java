@@ -395,7 +395,9 @@ public class FsBlobContainerTests extends ESTestCase {
             () -> sourceContainer.copyBlob(randomPurpose(), sourceBlobName, targetContainer, targetBlobName, true)
         );
 
+        var sourceContents = Streams.readFully(sourceContainer.readBlob(randomPurpose(), sourceBlobName));
         var targetContents = Streams.readFully(targetContainer.readBlob(randomPurpose(), targetBlobName));
+        assertEquals(sourceContents, targetContents);
         assertEquals(contents, targetContents);
     }
 

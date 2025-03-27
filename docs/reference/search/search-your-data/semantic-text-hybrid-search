@@ -235,5 +235,5 @@ POST /_query?format=txt
 
 [TIP]
 ====
-Refer to <<esql-for-search, Using {esql} for search>> for more information on using the {esql} landuage for search use cases.
+Refer to <<esql-for-search, Using {esql} for search>> for more information on using the {esql} language for search use cases.
 ====

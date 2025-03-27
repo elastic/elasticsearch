@@ -101,7 +101,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         this(source, field, filter, false);
     }
 
-    public Count(Source source, Expression field, Expression filter, boolean isSampleCorrected) {
+    private Count(Source source, Expression field, Expression filter, boolean isSampleCorrected) {
         super(source, field, filter, emptyList());
         this.isSampleCorrected = isSampleCorrected;
     }

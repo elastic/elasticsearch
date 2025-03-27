@@ -72,7 +72,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, HasSam
         this(source, field, filter, false);
     }
 
-    public Sum(Source source, Expression field, Expression filter, boolean isSampleCorrected) {
+    private Sum(Source source, Expression field, Expression filter, boolean isSampleCorrected) {
         super(source, field, filter, emptyList());
         this.isSampleCorrected = isSampleCorrected;
     }

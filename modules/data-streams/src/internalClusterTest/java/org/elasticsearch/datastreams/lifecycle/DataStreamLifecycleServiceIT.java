@@ -55,6 +55,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
+import org.elasticsearch.datastreams.options.action.PutDataStreamOptionsAction;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -946,7 +947,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             );
         });
 
-        updateLifecycle(dataStreamName, TimeValue.timeValueSeconds(1));
+        updateFailureStoreConfiguration(dataStreamName, true, TimeValue.timeValueSeconds(1));
 
         // And finally apply retention
         assertBusy(() -> {
@@ -1059,6 +1060,16 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             dataRetention
         );
         assertAcked(client().execute(PutDataStreamLifecycleAction.INSTANCE, putDataLifecycleRequest));
+    }
+
+    static void updateFailureStoreConfiguration(String dataStreamName, boolean enabled, TimeValue retention) {
+        PutDataStreamOptionsAction.Request putDataOptionsRequest = new PutDataStreamOptionsAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName },
+            new DataStreamFailureStore(enabled, DataStreamLifecycle.builder().dataRetention(retention).build())
+        );
+        assertAcked(client().execute(PutDataStreamOptionsAction.INSTANCE, putDataOptionsRequest));
     }
 
     /*

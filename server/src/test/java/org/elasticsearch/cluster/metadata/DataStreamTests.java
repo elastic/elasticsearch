@@ -1373,14 +1373,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             {
-                // no lifecycle configured so we expect an empty list
+                // No lifecycle or disabled for data and only disabled lifecycle for failures should result in empty list.
                 Metadata.Builder builder = Metadata.builder();
+                var disabledLifecycle = DataStreamLifecycle.builder().enabled(false).build();
                 DataStream dataStream = createDataStream(
                     builder,
                     dataStreamName,
                     creationAndRolloverTimes,
                     settings(IndexVersion.current()),
-                    null
+                    randomBoolean() ? disabledLifecycle : null,
+                    new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), disabledLifecycle))
                 );
                 Metadata metadata = builder.build();
 
@@ -1795,6 +1797,17 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Settings.Builder backingIndicesSettings,
         @Nullable DataStreamLifecycle lifecycle
     ) {
+        return createDataStream(builder, dataStreamName, creationAndRolloverTimes, backingIndicesSettings, lifecycle, null);
+    }
+
+    private DataStream createDataStream(
+        Metadata.Builder builder,
+        String dataStreamName,
+        List<DataStreamMetadata> creationAndRolloverTimes,
+        Settings.Builder backingIndicesSettings,
+        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamOptions dataStreamOptions
+    ) {
         int backingIndicesCount = creationAndRolloverTimes.size();
         final List<Index> backingIndices = createDataStreamIndices(
             builder,
@@ -1812,7 +1825,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             backingIndicesCount,
             true
         );
-        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices);
+        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices, dataStreamOptions);
     }
 
     private static List<Index> createDataStreamIndices(
@@ -1905,8 +1918,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
-            // We check that even if there was no retention provided by the user, the global retention applies
-            assertThat(serialized, not(containsString("data_retention")));
             if (dataStream.isInternal() == false
                 && (globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null)) {
                 assertThat(serialized, containsString("effective_retention"));

@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -52,7 +51,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SemanticTextIndexVersionIT extends ESIntegTestCase {
     private static final IndexVersion SEMANTIC_TEXT_INTRODUCED_VERSION = IndexVersion.fromId(8512000);
-    private static final double PERCENTAGE_TO_TEST = 0.5;
     private static final int MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST = 25;
     private static final String SPARSE_SEMANTIC_FIELD = "sparse_field";
     private static final String DENSE_SEMANTIC_FIELD = "dense_field";
@@ -76,17 +74,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             .filter(indexVersion -> indexVersion.after(SEMANTIC_TEXT_INTRODUCED_VERSION))
             .collect(Collectors.toSet());
 
-        Function<Set<IndexVersion>, Integer> determineNumberOfVersionsToTest = versions -> {
-            int totalVersions = versions.size();
-            int percentageTestSize = (int) Math.ceil(totalVersions * PERCENTAGE_TO_TEST);
-
-            return totalVersions < MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST
-                ? totalVersions
-                : Math.min(percentageTestSize, MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST);
-        };
-
-        int versionsCount = determineNumberOfVersionsToTest.apply(availableVersions);
-        selectedVersions = randomSubsetOf(versionsCount, availableVersions);
+        selectedVersions = randomSubsetOf(Math.min(availableVersions.size(), MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST), availableVersions);
     }
 
     @Override
@@ -163,8 +151,9 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             ensureGreen(indexName);
 
             // Semantic search with sparse embedding
-            SearchSourceBuilder sparseSourceBuilder = new SearchSourceBuilder().query(new SemanticQueryBuilder(SPARSE_SEMANTIC_FIELD, "inference"))
-                .trackTotalHits(true);
+            SearchSourceBuilder sparseSourceBuilder = new SearchSourceBuilder().query(
+                new SemanticQueryBuilder(SPARSE_SEMANTIC_FIELD, "inference")
+            ).trackTotalHits(true);
 
             assertResponse(
                 client().search(new SearchRequest(indexName).source(sparseSourceBuilder)),
@@ -182,8 +171,9 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             });
 
             // Semantic search with text embedding
-            SearchSourceBuilder textSourceBuilder = new SearchSourceBuilder().query(new SemanticQueryBuilder(DENSE_SEMANTIC_FIELD, "inference"))
-                .trackTotalHits(true);
+            SearchSourceBuilder textSourceBuilder = new SearchSourceBuilder().query(
+                new SemanticQueryBuilder(DENSE_SEMANTIC_FIELD, "inference")
+            ).trackTotalHits(true);
 
             assertResponse(
                 client().search(new SearchRequest(indexName).source(textSourceBuilder)),

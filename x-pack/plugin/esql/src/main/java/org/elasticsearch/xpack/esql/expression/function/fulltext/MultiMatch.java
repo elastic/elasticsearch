@@ -156,10 +156,14 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         Source source,
         @Param(
             name = "query",
-            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "text", "unsigned_long", "version" },
             description = "Value to find in the provided fields."
         ) Expression query,
-        List<Expression> fields,
+        @Param(
+            name = "fields",
+            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            description = "Fields to use for matching"
+        ) List<Expression> fields,
         @MapParam(
             name = "options",
             params = {

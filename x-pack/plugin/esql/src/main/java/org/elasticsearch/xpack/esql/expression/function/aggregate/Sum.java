@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 public class Sum extends NumericAggregate implements SurrogateExpression, HasSampleCorrection {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
 
-    private boolean sampleCorrected = false;
+    private final boolean isSampleCorrected;
 
     @FunctionInfo(
         returnType = { "long", "double" },
@@ -69,11 +69,17 @@ public class Sum extends NumericAggregate implements SurrogateExpression, HasSam
     }
 
     public Sum(Source source, Expression field, Expression filter) {
+        this(source, field, filter, false);
+    }
+
+    public Sum(Source source, Expression field, Expression filter, boolean isSampleCorrected) {
         super(source, field, filter, emptyList());
+        this.isSampleCorrected = isSampleCorrected;
     }
 
     private Sum(StreamInput in) throws IOException {
         super(in);
+        this.isSampleCorrected = false;
     }
 
     @Override
@@ -153,15 +159,13 @@ public class Sum extends NumericAggregate implements SurrogateExpression, HasSam
     }
 
     @Override
-    public boolean sampleCorrected() {
-        return sampleCorrected;
+    public boolean isSampleCorrected() {
+        return isSampleCorrected;
     }
 
     @Override
     public Expression sampleCorrection(Expression sampleProbability) {
-        Sum sum = new Sum(source(), field(), filter());
-        sum.sampleCorrected = true;
-        Expression correctedSum = new Div(source(), sum, sampleProbability);
+        Expression correctedSum = new Div(source(), new Sum(source(), field(), filter(), true), sampleProbability);
         return switch (dataType()) {
             case DOUBLE -> correctedSum;
             case LONG -> new ToLong(source(), correctedSum);

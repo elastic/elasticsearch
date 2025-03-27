@@ -26,7 +26,7 @@ public class ApplySampleCorrections extends Rule<LogicalPlan, LogicalPlan> {
             }
             if (plan instanceof Aggregate && sampleProbability.get() != null) {
                 plan = plan.transformExpressionsOnly(
-                    e -> e instanceof HasSampleCorrection hsc && hsc.sampleCorrected() == false
+                    e -> e instanceof HasSampleCorrection hsc && hsc.isSampleCorrected() == false
                         ? hsc.sampleCorrection(sampleProbability.get())
                         : e
                 );

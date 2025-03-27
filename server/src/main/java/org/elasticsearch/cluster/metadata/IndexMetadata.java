@@ -903,15 +903,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @return updated instance with set primary term
      */
     public IndexMetadata withSetPrimaryTerm(int shardId, long primaryTerm) {
-        final long[] incremented = this.primaryTerms.clone();
-        incremented[shardId] = primaryTerm;
+        final long[] newPrimaryTerms = this.primaryTerms.clone();
+        newPrimaryTerms[shardId] = primaryTerm;
         return new IndexMetadata(
             this.index,
             this.version,
             this.mappingVersion,
             this.settingsVersion,
             this.aliasesVersion,
-            incremented,
+            newPrimaryTerms,
             this.state,
             this.numberOfShards,
             this.numberOfReplicas,

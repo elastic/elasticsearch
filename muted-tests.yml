@@ -261,6 +261,12 @@ tests:
 - class: org.elasticsearch.index.shard.StoreRecoveryTests
   method: testAddIndices
   issue: https://github.com/elastic/elasticsearch/issues/124104
+- class: org.elasticsearch.xpack.esql.spatial.SpatialExtentAggregationNoLicenseIT
+  method: testStExtentAggregationWithShapes
+  issue: https://github.com/elastic/elasticsearch/issues/125734
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/trained_model_cat_apis/Test cat trained models}
+  issue: https://github.com/elastic/elasticsearch/issues/125750
 
 # Examples:
 #

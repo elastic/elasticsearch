@@ -27,11 +27,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 public class Sample extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        LogicalPlan.class,
-        "Sample",
-        Sample::new
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Sample", Sample::new);
 
     private final Expression probability;
     private final Expression seed;

@@ -18,8 +18,7 @@ import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 
-public class PushSampleToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<SampleExec,
-    LocalPhysicalOptimizerContext> {
+public class PushSampleToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<SampleExec, LocalPhysicalOptimizerContext> {
     @Override
     protected PhysicalPlan rule(SampleExec sample, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = sample;

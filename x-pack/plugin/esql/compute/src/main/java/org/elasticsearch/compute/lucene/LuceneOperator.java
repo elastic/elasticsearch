@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -316,7 +315,7 @@ public abstract class LuceneOperator extends SourceOperator {
             int sliceMax,
             int current,
             long rowsEmitted,
-            SortedMap<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies
+            Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies
         ) {
             this.processedSlices = processedSlices;
             this.processedQueries = processedQueries;
@@ -378,7 +377,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 out.writeVLong(rowsEmitted);
             }
             if (out.getTransportVersion().onOrAfter(ESQL_REPORT_SHARD_PARTITIONING)) {
-                out.writeMapValues(partitioningStrategies);
+                out.writeMap(partitioningStrategies, StreamOutput::writeString, StreamOutput::writeWriteable);
             }
         }
 
@@ -431,6 +430,10 @@ public abstract class LuceneOperator extends SourceOperator {
             return rowsEmitted;
         }
 
+        public Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies() {
+            return partitioningStrategies;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -467,12 +470,23 @@ public abstract class LuceneOperator extends SourceOperator {
                 && sliceMin == status.sliceMin
                 && sliceMax == status.sliceMax
                 && current == status.current
-                && rowsEmitted == status.rowsEmitted;
+                && rowsEmitted == status.rowsEmitted
+                && partitioningStrategies.equals(status.partitioningStrategies);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(processedSlices, sliceIndex, totalSlices, pagesEmitted, sliceMin, sliceMax, current, rowsEmitted);
+            return Objects.hash(
+                processedSlices,
+                sliceIndex,
+                totalSlices,
+                pagesEmitted,
+                sliceMin,
+                sliceMax,
+                current,
+                rowsEmitted,
+                partitioningStrategies
+            );
         }
 
         @Override

@@ -26,6 +26,9 @@ hire_date:datetime
 ;
 
 Invalid Boundaries, date nanos 
+required_capability: date_nanos_type
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
 
 FROM date_nanos
 | WHERE nanos > TO_DATE_NANOS("2025-01-01") and nanos < TO_DATE_NANOS("2020-01-01")
@@ -39,6 +42,9 @@ nanos:date_nanos
 ;
 
 Invalid Boundaries, date nanos implicit casting
+required_capability: date_nanos_type
+required_capability: date_nanos_binary_comparison
+required_capability: date_nanos_implicit_casting
 
 FROM date_nanos
 | WHERE nanos > "2025-01-01" and nanos < "2020-01-01"

@@ -420,6 +420,8 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                 assertNotNull(timestampDV);
                 var gaugeOneDV = leaf.getSortedNumericDocValues("gauge_1");
                 assertNotNull(gaugeOneDV);
+                var tagsDV = leaf.getSortedSetDocValues("tags");
+                assertNotNull(tagsDV);
                 for (int i = 0; i < numDocs; i++) {
                     assertEquals(i, hostNameDV.nextDoc());
                     int round = i / numDocsPerRound;
@@ -439,6 +441,13 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                         for (int j = 0; j < gaugeOneDV.docValueCount(); j++) {
                             long value = gaugeOneDV.nextValue();
                             assertTrue("unexpected gauge [" + value + "]", Arrays.binarySearch(gauge1Values, value) >= 0);
+                        }
+                    }
+                    if (tagsDV.advanceExact(i)) {
+                        for (int j = 0; j < tagsDV.docValueCount(); j++) {
+                            long ordinal = tagsDV.nextOrd();
+                            String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
+                            assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
                         }
                     }
                 }

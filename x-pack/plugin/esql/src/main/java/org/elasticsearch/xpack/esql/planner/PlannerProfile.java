@@ -24,7 +24,10 @@ import java.util.Iterator;
  */
 public class PlannerProfile implements Writeable, ChunkedToXContentObject {
 
-    public record RuleProfile(String batchName, String ruleName, long durationNanos, int runs, int runsWithChanges) implements Writeable, ToXContentObject {
+    public record RuleProfile(String batchName, String ruleName, long durationNanos, int runs, int runsWithChanges)
+        implements
+            Writeable,
+            ToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(batchName);

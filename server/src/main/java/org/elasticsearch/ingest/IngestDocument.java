@@ -344,6 +344,9 @@ public final class IngestDocument {
 
     @Nullable
     private WriteField getWriteField(String path) {
+        if (path == null) {
+            return null;
+        }
         if ((path.startsWith("$('") && path.endsWith("')")) || (path.startsWith("$(\"") && path.endsWith("\")"))) {
             return new WriteField(path.substring(3, path.length() - 2), this::getCtxMap);
         }

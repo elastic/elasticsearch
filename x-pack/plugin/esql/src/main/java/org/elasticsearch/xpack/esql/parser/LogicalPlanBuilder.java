@@ -63,7 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
@@ -770,7 +770,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
     }
 
-    public PlanFactory visitRandomSampleCommand(EsqlBaseParser.RandomSampleCommandContext ctx) {
+    public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {
         var probability = visitDecimalValue(ctx.probability);
         Literal seed;
         if (ctx.seed != null) {
@@ -786,6 +786,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             seed = null;
         }
-        return plan -> new RandomSample(source(ctx), probability, seed, plan);
+        return plan -> new Sample(source(ctx), probability, seed, plan);
     }
 }

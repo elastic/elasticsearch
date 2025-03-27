@@ -26,23 +26,23 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class RandomSample extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
+public class Sample extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
-        "RandomSample",
-        RandomSample::new
+        "Sample",
+        Sample::new
     );
 
     private final Expression probability;
     private final Expression seed;
 
-    public RandomSample(Source source, Expression probability, @Nullable Expression seed, LogicalPlan child) {
+    public Sample(Source source, Expression probability, @Nullable Expression seed, LogicalPlan child) {
         super(source, child);
         this.probability = probability;
         this.seed = seed;
     }
 
-    private RandomSample(StreamInput in) throws IOException {
+    private Sample(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class), // probability
@@ -65,13 +65,13 @@ public class RandomSample extends UnaryPlan implements TelemetryAware, PostAnaly
     }
 
     @Override
-    protected NodeInfo<RandomSample> info() {
-        return NodeInfo.create(this, RandomSample::new, probability, seed, child());
+    protected NodeInfo<Sample> info() {
+        return NodeInfo.create(this, Sample::new, probability, seed, child());
     }
 
     @Override
-    public RandomSample replaceChild(LogicalPlan newChild) {
-        return new RandomSample(source(), probability, seed, newChild);
+    public Sample replaceChild(LogicalPlan newChild) {
+        return new Sample(source(), probability, seed, newChild);
     }
 
     public Expression probability() {
@@ -101,7 +101,7 @@ public class RandomSample extends UnaryPlan implements TelemetryAware, PostAnaly
             return false;
         }
 
-        var other = (RandomSample) obj;
+        var other = (Sample) obj;
 
         return Objects.equals(probability, other.probability) && Objects.equals(seed, other.seed) && Objects.equals(child(), other.child());
     }

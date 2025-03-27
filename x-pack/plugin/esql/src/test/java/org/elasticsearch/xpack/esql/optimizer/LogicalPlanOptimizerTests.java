@@ -121,7 +121,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -7789,30 +7789,30 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Eval[[1[INTEGER] AS irrelevant1, 2[INTEGER] AS irrelevant2]]
      *    \_Limit[1000[INTEGER],false]
-     *      \_RandomSample[0.015[DOUBLE],15[INTEGER]]
+     *      \_Sample[0.015[DOUBLE],15[INTEGER]]
      *        \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
-    public void testRandomSampleMerged() {
+    public void testSampleMerged() {
         var query = """
             FROM TEST
-            | RANDOM_SAMPLE .3 5
+            | SAMPLE .3 5
             | EVAL irrelevant1 = 1
-            | RANDOM_SAMPLE .5 10
+            | SAMPLE .5 10
             | EVAL irrelevant2 = 2
-            | RANDOM_SAMPLE .1
+            | SAMPLE .1
             """;
         var optimized = optimizedPlan(query);
 
         var eval = as(optimized, Eval.class);
         var limit = as(eval.child(), Limit.class);
-        var randomSample = as(limit.child(), RandomSample.class);
-        var source = as(randomSample.child(), EsRelation.class);
+        var sample = as(limit.child(), Sample.class);
+        var source = as(sample.child(), EsRelation.class);
 
-        assertThat(randomSample.probability().fold(FoldContext.small()), equalTo(0.015));
-        assertThat(randomSample.seed().fold(FoldContext.small()), equalTo(5 ^ 10));
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.015));
+        assertThat(sample.seed().fold(FoldContext.small()), equalTo(5 ^ 10));
     }
 
-    public void testRandomSamplePushDown() {
+    public void testSamplePushDown() {
         for (var command : List.of(
             "ENRICH languages_idx on first_name",
             "EVAL x = 1",
@@ -7823,59 +7823,59 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             "GROK first_name \"%{WORD:bar}\"",
             "DISSECT first_name \"%{z}\""
         )) {
-            var query = "FROM TEST | " + command + " | RANDOM_SAMPLE .5";
+            var query = "FROM TEST | " + command + " | SAMPLE .5";
             var optimized = optimizedPlan(query);
 
             var unary = as(optimized, UnaryPlan.class);
             var limit = as(unary.child(), Limit.class);
-            var randomSample = as(limit.child(), RandomSample.class);
-            var source = as(randomSample.child(), EsRelation.class);
+            var sample = as(limit.child(), Sample.class);
+            var source = as(sample.child(), EsRelation.class);
 
-            assertThat(randomSample.probability().fold(FoldContext.small()), equalTo(0.5));
-            assertNull(randomSample.seed());
+            assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+            assertNull(sample.seed());
         }
     }
 
-    public void testRandomSamplePushDown_sort() {
-        var query = "FROM TEST | WHERE emp_no > 0 | RANDOM_SAMPLE 0.5 | LIMIT 100";
+    public void testSamplePushDown_sort() {
+        var query = "FROM TEST | WHERE emp_no > 0 | SAMPLE 0.5 | LIMIT 100";
         var optimized = optimizedPlan(query);
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        var randomSample = as(filter.child(), RandomSample.class);
-        var source = as(randomSample.child(), EsRelation.class);
+        var sample = as(filter.child(), Sample.class);
+        var source = as(sample.child(), EsRelation.class);
 
-        assertThat(randomSample.probability().fold(FoldContext.small()), equalTo(0.5));
-        assertNull(randomSample.seed());
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+        assertNull(sample.seed());
     }
 
-    public void testRandomSamplePushDown_where() {
-        var query = "FROM TEST | SORT emp_no | RANDOM_SAMPLE 0.5 | LIMIT 100";
+    public void testSamplePushDown_where() {
+        var query = "FROM TEST | SORT emp_no | SAMPLE 0.5 | LIMIT 100";
         var optimized = optimizedPlan(query);
 
         var topN = as(optimized, TopN.class);
-        var randomSample = as(topN.child(), RandomSample.class);
-        var source = as(randomSample.child(), EsRelation.class);
+        var sample = as(topN.child(), Sample.class);
+        var source = as(sample.child(), EsRelation.class);
 
-        assertThat(randomSample.probability().fold(FoldContext.small()), equalTo(0.5));
-        assertNull(randomSample.seed());
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+        assertNull(sample.seed());
     }
 
-    public void testRandomSampleNoPushDown() {
+    public void testSampleNoPushDown() {
         for (var command : List.of("LIMIT 100", "MV_EXPAND languages", "STATS COUNT()")) {
-            var query = "FROM TEST | " + command + " | RANDOM_SAMPLE .5";
+            var query = "FROM TEST | " + command + " | SAMPLE .5";
             var optimized = optimizedPlan(query);
 
             var limit = as(optimized, Limit.class);
-            var randomSample = as(limit.child(), RandomSample.class);
-            var unary = as(randomSample.child(), UnaryPlan.class);
+            var sample = as(limit.child(), Sample.class);
+            var unary = as(sample.child(), UnaryPlan.class);
             var source = as(unary.child(), EsRelation.class);
         }
     }
 
     /**
      *    Limit[1000[INTEGER],false]
-     *    \_RandomSample[0.5[DOUBLE],null]
+     *    \_Sample[0.5[DOUBLE],null]
      *      \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#17]]
      *        |_Eval[[emp_no{f}#6 AS language_code]]
      *        | \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
@@ -7886,36 +7886,36 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             FROM TEST
             | EVAL language_code = emp_no
             | LOOKUP JOIN languages_lookup ON language_code
-            | RANDOM_SAMPLE .5
+            | SAMPLE .5
             """;
         var optimized = optimizedPlan(query);
 
         var limit = as(optimized, Limit.class);
-        var randomSample = as(limit.child(), RandomSample.class);
-        var join = as(randomSample.child(), Join.class);
+        var sample = as(limit.child(), Sample.class);
+        var join = as(sample.child(), Join.class);
         var eval = as(join.left(), Eval.class);
         var source = as(eval.child(), EsRelation.class);
     }
 
     /**
      *    Limit[1000[INTEGER],false]
-     *    \_RandomSample[0.5[DOUBLE],null]
+     *    \_Sample[0.5[DOUBLE],null]
      *      \_Limit[1000[INTEGER],false]
      *        \_ChangePoint[emp_no{f}#6,hire_date{f}#13,type{r}#4,pvalue{r}#5]
      *          \_TopN[[Order[hire_date{f}#13,ASC,ANY]],1001[INTEGER]]
      *            \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
-    public void testRandomSampleNoPushDownChangePoint() {
+    public void testSampleNoPushDownChangePoint() {
         var query = """
             FROM TEST
             | CHANGE_POINT emp_no ON hire_date
-            | RANDOM_SAMPLE .5 -55
+            | SAMPLE .5 -55
             """;
         var optimized = optimizedPlan(query);
 
         var limit = as(optimized, Limit.class);
-        var randomSample = as(limit.child(), RandomSample.class);
-        limit = as(randomSample.child(), Limit.class);
+        var sample = as(limit.child(), Sample.class);
+        limit = as(sample.child(), Limit.class);
         var changePoint = as(limit.child(), ChangePoint.class);
         var topN = as(changePoint.child(), TopN.class);
         var source = as(topN.child(), EsRelation.class);

@@ -27,31 +27,30 @@ public class EsqlBaseParser extends ParserConfig {
   public static final int
     LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, CHANGE_POINT=4, ENRICH=5, EXPLAIN=6, 
     DISSECT=7, EVAL=8, GROK=9, LIMIT=10, ROW=11, SORT=12, STATS=13, WHERE=14, 
-    DEV_COMPLETION=15, DEV_INLINESTATS=16, DEV_RERANK=17, DEV_RANDOM_SAMPLE=18, 
-    FROM=19, DEV_TIME_SERIES=20, DEV_FORK=21, JOIN_LOOKUP=22, DEV_JOIN_FULL=23, 
-    DEV_JOIN_LEFT=24, DEV_JOIN_RIGHT=25, DEV_LOOKUP=26, MV_EXPAND=27, DROP=28, 
-    KEEP=29, DEV_INSIST=30, DEV_RRF=31, RENAME=32, SHOW=33, UNKNOWN_CMD=34, 
-    CHANGE_POINT_LINE_COMMENT=35, CHANGE_POINT_MULTILINE_COMMENT=36, CHANGE_POINT_WS=37, 
-    ENRICH_POLICY_NAME=38, ENRICH_LINE_COMMENT=39, ENRICH_MULTILINE_COMMENT=40, 
-    ENRICH_WS=41, ENRICH_FIELD_LINE_COMMENT=42, ENRICH_FIELD_MULTILINE_COMMENT=43, 
-    ENRICH_FIELD_WS=44, SETTING=45, SETTING_LINE_COMMENT=46, SETTTING_MULTILINE_COMMENT=47, 
-    SETTING_WS=48, EXPLAIN_WS=49, EXPLAIN_LINE_COMMENT=50, EXPLAIN_MULTILINE_COMMENT=51, 
-    PIPE=52, QUOTED_STRING=53, INTEGER_LITERAL=54, DECIMAL_LITERAL=55, AND=56, 
-    AS=57, ASC=58, ASSIGN=59, BY=60, CAST_OP=61, COLON=62, COMMA=63, DESC=64, 
-    DOT=65, FALSE=66, FIRST=67, IN=68, IS=69, LAST=70, LIKE=71, NOT=72, NULL=73, 
-    NULLS=74, ON=75, OR=76, PARAM=77, RLIKE=78, TRUE=79, WITH=80, EQ=81, CIEQ=82, 
-    NEQ=83, LT=84, LTE=85, GT=86, GTE=87, PLUS=88, MINUS=89, ASTERISK=90, 
-    SLASH=91, PERCENT=92, LEFT_BRACES=93, RIGHT_BRACES=94, DOUBLE_PARAMS=95, 
-    NAMED_OR_POSITIONAL_PARAM=96, NAMED_OR_POSITIONAL_DOUBLE_PARAMS=97, OPENING_BRACKET=98, 
-    CLOSING_BRACKET=99, LP=100, RP=101, UNQUOTED_IDENTIFIER=102, QUOTED_IDENTIFIER=103, 
-    EXPR_LINE_COMMENT=104, EXPR_MULTILINE_COMMENT=105, EXPR_WS=106, METADATA=107, 
-    UNQUOTED_SOURCE=108, FROM_LINE_COMMENT=109, FROM_MULTILINE_COMMENT=110, 
-    FROM_WS=111, FORK_WS=112, FORK_LINE_COMMENT=113, FORK_MULTILINE_COMMENT=114, 
-    JOIN=115, USING=116, JOIN_LINE_COMMENT=117, JOIN_MULTILINE_COMMENT=118, 
-    JOIN_WS=119, LOOKUP_LINE_COMMENT=120, LOOKUP_MULTILINE_COMMENT=121, LOOKUP_WS=122, 
-    LOOKUP_FIELD_LINE_COMMENT=123, LOOKUP_FIELD_MULTILINE_COMMENT=124, LOOKUP_FIELD_WS=125, 
-    MVEXPAND_LINE_COMMENT=126, MVEXPAND_MULTILINE_COMMENT=127, MVEXPAND_WS=128, 
-    ID_PATTERN=129, PROJECT_LINE_COMMENT=130, PROJECT_MULTILINE_COMMENT=131, 
+    DEV_COMPLETION=15, DEV_INLINESTATS=16, DEV_RERANK=17, DEV_SAMPLE=18, FROM=19, 
+    DEV_TIME_SERIES=20, DEV_FORK=21, JOIN_LOOKUP=22, DEV_JOIN_FULL=23, DEV_JOIN_LEFT=24, 
+    DEV_JOIN_RIGHT=25, DEV_LOOKUP=26, MV_EXPAND=27, DROP=28, KEEP=29, DEV_INSIST=30, 
+    DEV_RRF=31, RENAME=32, SHOW=33, UNKNOWN_CMD=34, CHANGE_POINT_LINE_COMMENT=35, 
+    CHANGE_POINT_MULTILINE_COMMENT=36, CHANGE_POINT_WS=37, ENRICH_POLICY_NAME=38, 
+    ENRICH_LINE_COMMENT=39, ENRICH_MULTILINE_COMMENT=40, ENRICH_WS=41, ENRICH_FIELD_LINE_COMMENT=42, 
+    ENRICH_FIELD_MULTILINE_COMMENT=43, ENRICH_FIELD_WS=44, SETTING=45, SETTING_LINE_COMMENT=46, 
+    SETTTING_MULTILINE_COMMENT=47, SETTING_WS=48, EXPLAIN_WS=49, EXPLAIN_LINE_COMMENT=50, 
+    EXPLAIN_MULTILINE_COMMENT=51, PIPE=52, QUOTED_STRING=53, INTEGER_LITERAL=54, 
+    DECIMAL_LITERAL=55, AND=56, AS=57, ASC=58, ASSIGN=59, BY=60, CAST_OP=61, 
+    COLON=62, COMMA=63, DESC=64, DOT=65, FALSE=66, FIRST=67, IN=68, IS=69, 
+    LAST=70, LIKE=71, NOT=72, NULL=73, NULLS=74, ON=75, OR=76, PARAM=77, RLIKE=78, 
+    TRUE=79, WITH=80, EQ=81, CIEQ=82, NEQ=83, LT=84, LTE=85, GT=86, GTE=87, 
+    PLUS=88, MINUS=89, ASTERISK=90, SLASH=91, PERCENT=92, LEFT_BRACES=93, 
+    RIGHT_BRACES=94, DOUBLE_PARAMS=95, NAMED_OR_POSITIONAL_PARAM=96, NAMED_OR_POSITIONAL_DOUBLE_PARAMS=97, 
+    OPENING_BRACKET=98, CLOSING_BRACKET=99, LP=100, RP=101, UNQUOTED_IDENTIFIER=102, 
+    QUOTED_IDENTIFIER=103, EXPR_LINE_COMMENT=104, EXPR_MULTILINE_COMMENT=105, 
+    EXPR_WS=106, METADATA=107, UNQUOTED_SOURCE=108, FROM_LINE_COMMENT=109, 
+    FROM_MULTILINE_COMMENT=110, FROM_WS=111, FORK_WS=112, FORK_LINE_COMMENT=113, 
+    FORK_MULTILINE_COMMENT=114, JOIN=115, USING=116, JOIN_LINE_COMMENT=117, 
+    JOIN_MULTILINE_COMMENT=118, JOIN_WS=119, LOOKUP_LINE_COMMENT=120, LOOKUP_MULTILINE_COMMENT=121, 
+    LOOKUP_WS=122, LOOKUP_FIELD_LINE_COMMENT=123, LOOKUP_FIELD_MULTILINE_COMMENT=124, 
+    LOOKUP_FIELD_WS=125, MVEXPAND_LINE_COMMENT=126, MVEXPAND_MULTILINE_COMMENT=127, 
+    MVEXPAND_WS=128, ID_PATTERN=129, PROJECT_LINE_COMMENT=130, PROJECT_MULTILINE_COMMENT=131, 
     PROJECT_WS=132, RENAME_LINE_COMMENT=133, RENAME_MULTILINE_COMMENT=134, 
     RENAME_WS=135, INFO=136, SHOW_LINE_COMMENT=137, SHOW_MULTILINE_COMMENT=138, 
     SHOW_WS=139;
@@ -74,7 +73,7 @@ public class EsqlBaseParser extends ParserConfig {
     RULE_forkCommand = 50, RULE_forkSubQueries = 51, RULE_forkSubQuery = 52, 
     RULE_forkSubQueryCommand = 53, RULE_forkSubQueryProcessingCommand = 54, 
     RULE_rrfCommand = 55, RULE_rerankCommand = 56, RULE_completionCommand = 57, 
-    RULE_randomSampleCommand = 58, RULE_booleanExpression = 59, RULE_regexBooleanExpression = 60, 
+    RULE_sampleCommand = 58, RULE_booleanExpression = 59, RULE_regexBooleanExpression = 60, 
     RULE_matchBooleanExpression = 61, RULE_valueExpression = 62, RULE_operatorExpression = 63, 
     RULE_primaryExpression = 64, RULE_functionExpression = 65, RULE_functionName = 66, 
     RULE_mapExpression = 67, RULE_entryExpression = 68, RULE_constant = 69, 
@@ -96,7 +95,7 @@ public class EsqlBaseParser extends ParserConfig {
       "showCommand", "enrichCommand", "enrichWithClause", "lookupCommand", 
       "inlinestatsCommand", "changePointCommand", "insistCommand", "forkCommand", 
       "forkSubQueries", "forkSubQuery", "forkSubQueryCommand", "forkSubQueryProcessingCommand", 
-      "rrfCommand", "rerankCommand", "completionCommand", "randomSampleCommand", 
+      "rrfCommand", "rerankCommand", "completionCommand", "sampleCommand", 
       "booleanExpression", "regexBooleanExpression", "matchBooleanExpression", 
       "valueExpression", "operatorExpression", "primaryExpression", "functionExpression", 
       "functionName", "mapExpression", "entryExpression", "constant", "booleanValue", 
@@ -130,7 +129,7 @@ public class EsqlBaseParser extends ParserConfig {
     return new String[] {
       null, "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "CHANGE_POINT", "ENRICH", 
       "EXPLAIN", "DISSECT", "EVAL", "GROK", "LIMIT", "ROW", "SORT", "STATS", 
-      "WHERE", "DEV_COMPLETION", "DEV_INLINESTATS", "DEV_RERANK", "DEV_RANDOM_SAMPLE", 
+      "WHERE", "DEV_COMPLETION", "DEV_INLINESTATS", "DEV_RERANK", "DEV_SAMPLE", 
       "FROM", "DEV_TIME_SERIES", "DEV_FORK", "JOIN_LOOKUP", "DEV_JOIN_FULL", 
       "DEV_JOIN_LEFT", "DEV_JOIN_RIGHT", "DEV_LOOKUP", "MV_EXPAND", "DROP", 
       "KEEP", "DEV_INSIST", "DEV_RRF", "RENAME", "SHOW", "UNKNOWN_CMD", "CHANGE_POINT_LINE_COMMENT", 
@@ -539,8 +538,8 @@ public class EsqlBaseParser extends ParserConfig {
     public RrfCommandContext rrfCommand() {
       return getRuleContext(RrfCommandContext.class,0);
     }
-    public RandomSampleCommandContext randomSampleCommand() {
-      return getRuleContext(RandomSampleCommandContext.class,0);
+    public SampleCommandContext sampleCommand() {
+      return getRuleContext(SampleCommandContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public ProcessingCommandContext(ParserRuleContext parent, int invokingState) {
@@ -736,7 +735,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(210);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(211);
-        randomSampleCommand();
+        sampleCommand();
         }
         break;
       }
@@ -4329,10 +4328,10 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class RandomSampleCommandContext extends ParserRuleContext {
+  public static class SampleCommandContext extends ParserRuleContext {
     public DecimalValueContext probability;
     public IntegerValueContext seed;
-    public TerminalNode DEV_RANDOM_SAMPLE() { return getToken(EsqlBaseParser.DEV_RANDOM_SAMPLE, 0); }
+    public TerminalNode DEV_SAMPLE() { return getToken(EsqlBaseParser.DEV_SAMPLE, 0); }
     public DecimalValueContext decimalValue() {
       return getRuleContext(DecimalValueContext.class,0);
     }
@@ -4340,42 +4339,42 @@ public class EsqlBaseParser extends ParserConfig {
       return getRuleContext(IntegerValueContext.class,0);
     }
     @SuppressWarnings("this-escape")
-    public RandomSampleCommandContext(ParserRuleContext parent, int invokingState) {
+    public SampleCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_randomSampleCommand; }
+    @Override public int getRuleIndex() { return RULE_sampleCommand; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterRandomSampleCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterSampleCommand(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitRandomSampleCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitSampleCommand(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitRandomSampleCommand(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitSampleCommand(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final RandomSampleCommandContext randomSampleCommand() throws RecognitionException {
-    RandomSampleCommandContext _localctx = new RandomSampleCommandContext(_ctx, getState());
-    enterRule(_localctx, 116, RULE_randomSampleCommand);
+  public final SampleCommandContext sampleCommand() throws RecognitionException {
+    SampleCommandContext _localctx = new SampleCommandContext(_ctx, getState());
+    enterRule(_localctx, 116, RULE_sampleCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
       setState(523);
-      match(DEV_RANDOM_SAMPLE);
+      match(DEV_SAMPLE);
       setState(524);
-      ((RandomSampleCommandContext)_localctx).probability = decimalValue();
+      ((SampleCommandContext)_localctx).probability = decimalValue();
       setState(526);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,39,_ctx) ) {
       case 1:
         {
         setState(525);
-        ((RandomSampleCommandContext)_localctx).seed = integerValue();
+        ((SampleCommandContext)_localctx).seed = integerValue();
         }
         break;
       }

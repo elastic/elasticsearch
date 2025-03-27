@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HasSampleCorrection;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 public class ApplySampleCorrections extends Rule<LogicalPlan, LogicalPlan> {
@@ -21,8 +21,8 @@ public class ApplySampleCorrections extends Rule<LogicalPlan, LogicalPlan> {
     public LogicalPlan apply(LogicalPlan logicalPlan) {
         Holder<Expression> sampleProbability = new Holder<>(null);
         return logicalPlan.transformUp(plan -> {
-            if (plan instanceof RandomSample randomSample) {
-                sampleProbability.set(randomSample.probability());
+            if (plan instanceof Sample sample) {
+                sampleProbability.set(sample.probability());
             }
             if (plan instanceof Aggregate && sampleProbability.get() != null) {
                 plan = plan.transformExpressionsOnly(

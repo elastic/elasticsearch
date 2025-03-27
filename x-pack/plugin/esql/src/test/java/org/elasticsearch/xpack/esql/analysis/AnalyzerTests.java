@@ -3405,14 +3405,14 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRandomSampleProbability() {
-        var e = expectThrows(VerificationException.class, () -> analyze("FROM test | RANDOM_SAMPLE 1."));
+        var e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE 1."));
         assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [1.0]"));
 
-        e = expectThrows(VerificationException.class, () -> analyze("FROM test | RANDOM_SAMPLE .0"));
+        e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE .0"));
         assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [0.0]"));
 
         double p = randomValueOtherThanTest(d -> 0 < d && d < 1, () -> randomDoubleBetween(0, Double.MAX_VALUE, false));
-        e = expectThrows(VerificationException.class, () -> analyze("FROM test | RANDOM_SAMPLE " + p));
+        e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE " + p));
         assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [" + p + "]"));
     }
 

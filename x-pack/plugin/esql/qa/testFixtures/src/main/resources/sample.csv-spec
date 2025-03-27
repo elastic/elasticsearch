@@ -1,10 +1,10 @@
-// Tests focused on the RANDOM_SAMPLE command
+// Tests focused on the SAMPLE command
 
 row
-required_capability: random_sample
+required_capability: sample
 
 ROW x = 1
-| RANDOM_SAMPLE .99 9
+| SAMPLE .99 9
 ;
 
 x:integer
@@ -12,10 +12,10 @@ x:integer
 ;
 
 topN_PushedDown
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
-| RANDOM_SAMPLE .5 0
+| SAMPLE .5 0
 | SORT emp_no
 | LIMIT 5
 | STATS empNoMax = MAX(emp_no)
@@ -28,11 +28,11 @@ true
 ;
 
 topN_Operator
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
-| RANDOM_SAMPLE .5 0
+| SAMPLE .5 0
 | SORT emp_no
 | LIMIT 5
 | STATS empNoMax = MAX(emp_no)
@@ -45,10 +45,10 @@ true
 ;
 
 aggCount_PushedDown
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
-| RANDOM_SAMPLE .5 123
+| SAMPLE .5 123
 | STATS count = COUNT(*)
 | EVAL correct = count > 50 AND count < 150
 | KEEP correct
@@ -59,11 +59,11 @@ true
 ;
 
 aggCount_Operator
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
-| RANDOM_SAMPLE .5 123
+| SAMPLE .5 123
 | STATS count = COUNT(*)
 | EVAL correct = count > 50 AND count < 150
 | KEEP correct
@@ -74,10 +74,10 @@ true
 ;
 
 aggCountNoSeed_PushedDown
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
-| RANDOM_SAMPLE .5
+| SAMPLE .5
 | STATS count = COUNT(*)
 | EVAL correct = count > 50 AND count < 150
 | KEEP correct
@@ -88,11 +88,11 @@ true
 ;
 
 aggCountNoSeed_Operator
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
-| RANDOM_SAMPLE .5
+| SAMPLE .5
 | STATS count = COUNT(*)
 | EVAL inRange = count > 50 AND count < 150
 | KEEP inRange
@@ -103,10 +103,10 @@ true
 ;
 
 withPostFilter_PushDown
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
-| RANDOM_SAMPLE .5 0
+| SAMPLE .5 0
 | WHERE emp_no > 10050
 | STATS count = COUNT(*)
 | EVAL correct = count > 20 AND count < 80
@@ -118,11 +118,11 @@ true
 ;
 
 withPostFilter_Operator
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
-| RANDOM_SAMPLE .5 0
+| SAMPLE .5 0
 | WHERE emp_no > 10050
 | STATS count = COUNT(*)
 | EVAL correct = count > 20 AND count < 80
@@ -134,12 +134,12 @@ true
 ;
 
 combined_PushDown
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
-| RANDOM_SAMPLE .6 11
+| SAMPLE .6 11
 | EVAL e1 = emp_no + 1
-| RANDOM_SAMPLE .7 11111
+| SAMPLE .7 11111
 | STATS count = COUNT(e1)
 | EVAL correct = count > 50 AND count < 150
 | KEEP correct
@@ -150,13 +150,13 @@ true
 ;
 
 combined_Operator
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
-| RANDOM_SAMPLE .6 11
+| SAMPLE .6 11
 | EVAL e1 = emp_no + 1
-| RANDOM_SAMPLE .7 11111
+| SAMPLE .7 11111
 | STATS count = COUNT(e1)
 | EVAL correct = count > 50 AND count < 150
 | KEEP correct
@@ -167,14 +167,14 @@ true
 ;
 
 combined2_PushDown
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
-| RANDOM_SAMPLE .6 11
+| SAMPLE .6 11
 | EVAL e1 = emp_no + 1
-| RANDOM_SAMPLE .7 11111
+| SAMPLE .7 11111
 | EVAL e1s = e1::KEYWORD
-| RANDOM_SAMPLE .1
+| SAMPLE .1
 | STATS count = COUNT(e1s)
 | EVAL correct = count > 0 AND count < 250
 | KEEP correct
@@ -185,15 +185,15 @@ true
 ;
 
 combined2_Operator
-required_capability: random_sample
+required_capability: sample
 
 FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
-| RANDOM_SAMPLE .6 11
+| SAMPLE .6 11
 | EVAL e1 = emp_no + 1
-| RANDOM_SAMPLE .7 11111
+| SAMPLE .7 11111
 | EVAL e1s = e1::KEYWORD
-| RANDOM_SAMPLE .1
+| SAMPLE .1
 | STATS count = COUNT(e1s)
 | EVAL correct = count > 0 AND count < 250
 | KEEP correct

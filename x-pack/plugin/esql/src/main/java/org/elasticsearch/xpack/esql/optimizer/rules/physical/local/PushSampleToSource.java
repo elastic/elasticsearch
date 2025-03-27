@@ -13,18 +13,17 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.RandomSampleExec;
+import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 
-public class PushRandomSampleToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
-    RandomSampleExec,
+public class PushSampleToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<SampleExec,
     LocalPhysicalOptimizerContext> {
     @Override
-    protected PhysicalPlan rule(RandomSampleExec randomSample, LocalPhysicalOptimizerContext ctx) {
-        PhysicalPlan plan = randomSample;
-        if (randomSample.child() instanceof EsQueryExec queryExec) {
+    protected PhysicalPlan rule(SampleExec sample, LocalPhysicalOptimizerContext ctx) {
+        PhysicalPlan plan = sample;
+        if (sample.child() instanceof EsQueryExec queryExec) {
             var fullQuery = boolQuery();
             if (queryExec.query() != null) {
                 if (hasScoreAttribute(queryExec.output())) {
@@ -34,9 +33,9 @@ public class PushRandomSampleToSource extends PhysicalOptimizerRules.Parameteriz
                 }
             }
 
-            var sampleQuery = new RandomSamplingQueryBuilder((double) Foldables.valueOf(ctx.foldCtx(), randomSample.probability()));
-            if (randomSample.seed() != null) {
-                sampleQuery.seed((int) Foldables.valueOf(ctx.foldCtx(), randomSample.seed()));
+            var sampleQuery = new RandomSamplingQueryBuilder((double) Foldables.valueOf(ctx.foldCtx(), sample.probability()));
+            if (sample.seed() != null) {
+                sampleQuery.seed((int) Foldables.valueOf(ctx.foldCtx(), sample.seed()));
             }
 
             fullQuery.filter(sampleQuery);

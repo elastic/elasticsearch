@@ -18,24 +18,24 @@ import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
-public class PushDownAndCombineRandomSample extends OptimizerRules.ParameterizedOptimizerRule<RandomSample, LogicalOptimizerContext> {
+public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimizerRule<Sample, LogicalOptimizerContext> {
 
-    public PushDownAndCombineRandomSample() {
+    public PushDownAndCombineSample() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
     @Override
-    protected LogicalPlan rule(RandomSample randomSample, LogicalOptimizerContext context) {
-        LogicalPlan plan = randomSample;
-        var child = randomSample.child();
-        if (child instanceof RandomSample rsChild) {
-            var probability = combinedProbability(context, randomSample, rsChild);
-            var seed = combinedSeed(context, randomSample, rsChild);
-            plan = new RandomSample(randomSample.source(), probability, seed, rsChild.child());
+    protected LogicalPlan rule(Sample sample, LogicalOptimizerContext context) {
+        LogicalPlan plan = sample;
+        var child = sample.child();
+        if (child instanceof Sample rsChild) {
+            var probability = combinedProbability(context, sample, rsChild);
+            var seed = combinedSeed(context, sample, rsChild);
+            plan = new Sample(sample.source(), probability, seed, rsChild.child());
         } else if (child instanceof Enrich
             || child instanceof Eval
             || child instanceof Filter
@@ -44,18 +44,18 @@ public class PushDownAndCombineRandomSample extends OptimizerRules.Parameterized
             || child instanceof Project
             || child instanceof RegexExtract) {
                 var unaryChild = (UnaryPlan) child;
-                plan = unaryChild.replaceChild(randomSample.replaceChild(unaryChild.child()));
+                plan = unaryChild.replaceChild(sample.replaceChild(unaryChild.child()));
             }
         return plan;
     }
 
-    private static Expression combinedProbability(LogicalOptimizerContext context, RandomSample parent, RandomSample child) {
+    private static Expression combinedProbability(LogicalOptimizerContext context, Sample parent, Sample child) {
         var parentProbability = (double) Foldables.valueOf(context.foldCtx(), parent.probability());
         var childProbability = (double) Foldables.valueOf(context.foldCtx(), child.probability());
         return Literal.of(parent.probability(), parentProbability * childProbability);
     }
 
-    private static Expression combinedSeed(LogicalOptimizerContext context, RandomSample parent, RandomSample child) {
+    private static Expression combinedSeed(LogicalOptimizerContext context, Sample parent, Sample child) {
         var parentSeed = parent.seed();
         var childSeed = child.seed();
         Expression seed;

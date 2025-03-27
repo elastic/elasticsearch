@@ -25,7 +25,7 @@ import java.util.LinkedList;
 import java.util.Objects;
 import java.util.SplittableRandom;
 
-public class RandomSampleOperator implements Operator {
+public class SampleOperator implements Operator {
 
     private boolean finished;
     private final Deque<Page> outputPages;
@@ -39,7 +39,7 @@ public class RandomSampleOperator implements Operator {
     private long collectNanos;
     private long emitNanos;
 
-    public RandomSampleOperator(double probability, int seed) {
+    public SampleOperator(double probability, int seed) {
         finished = false;
         outputPages = new LinkedList<>();
         SplittableRandom random = new SplittableRandom(seed);
@@ -50,13 +50,13 @@ public class RandomSampleOperator implements Operator {
     public record Factory(double probability, int seed) implements OperatorFactory {
 
         @Override
-        public RandomSampleOperator get(DriverContext driverContext) {
-            return new RandomSampleOperator(probability, seed);
+        public SampleOperator get(DriverContext driverContext) {
+            return new SampleOperator(probability, seed);
         }
 
         @Override
         public String describe() {
-            return "RandomSampleOperator[probability = " + probability + ", seed = " + seed + "]";
+            return "SampleOperator[probability = " + probability + ", seed = " + seed + "]";
         }
     }
 
@@ -139,7 +139,7 @@ public class RandomSampleOperator implements Operator {
 
     @Override
     public String toString() {
-        return "RandomSampleOperator[sampled = " + rowsEmitted + "/" + rowsCollected + "]";
+        return "SampleOperator[sampled = " + rowsEmitted + "/" + rowsCollected + "]";
     }
 
     @Override
@@ -153,7 +153,7 @@ public class RandomSampleOperator implements Operator {
 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
-            "random_sample",
+            "sample",
             Status::new
         );
 

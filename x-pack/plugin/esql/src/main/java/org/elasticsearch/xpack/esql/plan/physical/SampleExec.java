@@ -19,23 +19,23 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RandomSampleExec extends UnaryExec {
+public class SampleExec extends UnaryExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
-        "RandomSampleExec",
-        RandomSampleExec::new
+        "SampleExec",
+        SampleExec::new
     );
 
     private final Expression probability;
     private final Expression seed;
 
-    public RandomSampleExec(Source source, PhysicalPlan child, Expression probability, @Nullable Expression seed) {
+    public SampleExec(Source source, PhysicalPlan child, Expression probability, @Nullable Expression seed) {
         super(source, child);
         this.probability = probability;
         this.seed = seed;
     }
 
-    public RandomSampleExec(StreamInput in) throws IOException {
+    public SampleExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class), // child
@@ -54,12 +54,12 @@ public class RandomSampleExec extends UnaryExec {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new RandomSampleExec(source(), newChild, probability, seed);
+        return new SampleExec(source(), newChild, probability, seed);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, RandomSampleExec::new, child(), probability, seed);
+        return NodeInfo.create(this, SampleExec::new, child(), probability, seed);
     }
 
     /**
@@ -92,7 +92,7 @@ public class RandomSampleExec extends UnaryExec {
             return false;
         }
 
-        var other = (RandomSampleExec) obj;
+        var other = (SampleExec) obj;
 
         return Objects.equals(child(), other.child()) && Objects.equals(probability, other.probability) && Objects.equals(seed, other.seed);
     }

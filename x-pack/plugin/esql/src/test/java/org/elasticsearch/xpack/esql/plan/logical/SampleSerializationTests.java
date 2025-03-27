@@ -12,15 +12,15 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 
-public class RandomSampleSerializationTests extends AbstractLogicalPlanSerializationTests<RandomSample> {
+public class SampleSerializationTests extends AbstractLogicalPlanSerializationTests<Sample> {
     /**
      * Creates a random test instance to use in the tests. This method will be
      * called multiple times during test execution and should return a different
      * random instance each time it is called.
      */
     @Override
-    protected RandomSample createTestInstance() {
-        return new RandomSample(randomSource(), randomProbability(), randomSeed(), randomChild(0));
+    protected Sample createTestInstance() {
+        return new Sample(randomSource(), randomProbability(), randomSeed(), randomChild(0));
     }
 
     public static Literal randomProbability() {
@@ -38,17 +38,17 @@ public class RandomSampleSerializationTests extends AbstractLogicalPlanSerializa
      * @param instance
      */
     @Override
-    protected RandomSample mutateInstance(RandomSample instance) throws IOException {
+    protected Sample mutateInstance(Sample instance) throws IOException {
         var probability = instance.probability();
         var seed = instance.seed();
         var child = instance.child();
         int updateSelector = randomIntBetween(0, 2);
         switch (updateSelector) {
-            case 0 -> probability = randomValueOtherThan(probability, RandomSampleSerializationTests::randomProbability);
-            case 1 -> seed = randomValueOtherThan(seed, RandomSampleSerializationTests::randomSeed);
+            case 0 -> probability = randomValueOtherThan(probability, SampleSerializationTests::randomProbability);
+            case 1 -> seed = randomValueOtherThan(seed, SampleSerializationTests::randomSeed);
             case 2 -> child = randomValueOtherThan(child, () -> randomChild(0));
             default -> throw new IllegalArgumentException("Invalid selector: " + updateSelector);
         }
-        return new RandomSample(instance.source(), probability, seed, child);
+        return new Sample(instance.source(), probability, seed, child);
     }
 }

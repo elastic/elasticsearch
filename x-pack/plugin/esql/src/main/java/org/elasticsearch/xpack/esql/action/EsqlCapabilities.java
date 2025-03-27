@@ -1030,9 +1030,9 @@ public class EsqlCapabilities {
         LAST_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support for the RANDOM_SAMPLE command
+         * Support for the SAMPLE command
          */
-        RANDOM_SAMPLE(Build.current().isSnapshot());
+        SAMPLE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

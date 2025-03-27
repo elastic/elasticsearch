@@ -7836,13 +7836,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *              ges{f}#5, last_name{f}#6, long_noidx{f}#12, salary{f}#7]]
      *        \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen..]<[],[]>
      *          \_EsQueryExec[test], indexMode[standard],
-     *                  query[{"bool":{"filter":[{"random_sampling":{"probability":0.1,"seed":234,"hash":0}}],"boost":1.0}}]
+     *                  query[{"bool":{"filter":[{"sampling":{"probability":0.1,"seed":234,"hash":0}}],"boost":1.0}}]
      *                  [_doc{f}#24], limit[1000], sort[] estimatedRowSize[332]
      */
     public void testRandomSamplePushDown() {
         var plan = physicalPlan("""
             FROM test
-            | RANDOM_SAMPLE +0.1 -234
+            | SAMPLE +0.1 -234
             """);
         var optimized = optimizedPlan(plan);
 

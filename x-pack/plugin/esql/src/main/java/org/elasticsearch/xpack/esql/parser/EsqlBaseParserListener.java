@@ -656,15 +656,15 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#randomSampleCommand}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
    * @param ctx the parse tree
    */
-  void enterRandomSampleCommand(EsqlBaseParser.RandomSampleCommandContext ctx);
+  void enterSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#randomSampleCommand}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
    * @param ctx the parse tree
    */
-  void exitRandomSampleCommand(EsqlBaseParser.RandomSampleCommandContext ctx);
+  void exitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

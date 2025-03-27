@@ -644,7 +644,7 @@ public class IpFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
             return new SyntheticSourceSupport.Native(() -> {
-                var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+                var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
                 if (offsetsFieldName != null) {
                     layers.add(
                         new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)

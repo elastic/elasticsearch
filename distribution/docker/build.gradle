@@ -316,7 +316,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
             from configurations.fips
           }
           into("resources") {
-            from tasks.named('fipsResources')
+            from tasks.named('fipsDockerResources')
           }
         }
       }
@@ -536,9 +536,9 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
 }
 
 // fips
-TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = tasks.register('fipsResources', ExportElasticsearchBuildResourcesTask)
+TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = tasks.register('fipsDockerResources', ExportElasticsearchBuildResourcesTask)
 fipsResourcesTask.configure {
-  outputDir = project.layout.buildDirectory.dir('fips-resources').get().asFile
+  outputDir = project.layout.buildDirectory.dir('fips-docker-resources').get().asFile
   copy 'fips_java.security'
   copy 'fips_java.policy'
 }

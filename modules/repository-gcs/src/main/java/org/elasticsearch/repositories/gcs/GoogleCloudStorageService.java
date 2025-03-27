@@ -41,6 +41,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.Proxy;
+import java.net.SocketException;
 import java.net.URI;
 import java.net.URL;
 import java.net.UnknownHostException;
@@ -273,6 +274,10 @@ public class GoogleCloudStorageService {
             (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
                 // Retry in the event of an unknown host exception
                 if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
+                    return true;
+                }
+                // Also retry on `SocketException`s
+                if (ExceptionsHelper.unwrap(prevThrowable, SocketException.class) != null) {
                     return true;
                 }
                 return delegate.shouldRetry(prevThrowable, prevResponse);

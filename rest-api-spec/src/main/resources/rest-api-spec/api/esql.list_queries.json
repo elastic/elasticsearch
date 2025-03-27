@@ -1,6 +1,7 @@
 {
   "esql.list_queries": {
     "documentation": {
+      "url": null,
       "description": "Executes a list ESQL queries request"
     },
     "stability": "experimental",

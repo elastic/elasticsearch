@@ -81,6 +81,7 @@ public final class CefProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
+
         private final ScriptService scriptService;
 
         public Factory(ScriptService scriptService) {

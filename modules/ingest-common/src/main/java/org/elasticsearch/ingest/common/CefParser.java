@@ -274,7 +274,7 @@ final class CefParser {
             if (headerFields.size() != 7) {
                 event.addRootMapping("error.message", new HashSet<>(ERROR_MESSAGE_INCOMPLETE_CEF_HEADER));
             }
-            processHeaderFields(List.copyOf(headerFields), event);
+            processHeaderFields(headerFields, event);
             processExtensions(cefString, extensionStart, event);
             return event;
         } else {

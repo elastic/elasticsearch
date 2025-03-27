@@ -58,7 +58,7 @@ public abstract class SpatialExtentAggregationTestCase extends AbstractEsqlInteg
             assertColumnTypes(resp.columns(), List.of("geo_shape", "double", "double", "double", "double"));
             List<List<Object>> values = getValuesList(resp.values());
             assertThat(values.size(), equalTo(1));
-            List<Object> row = values.getFirst();
+            List<Object> row = values.get(0);
             List<Object> expectedValues = List.of(-10.0, 10.0, -10.0, 10.0);
             assertThat(row.subList(1, row.size()), equalTo(expectedValues));
         }

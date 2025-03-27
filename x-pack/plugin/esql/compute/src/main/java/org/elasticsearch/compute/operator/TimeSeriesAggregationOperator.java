@@ -11,7 +11,6 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -32,18 +31,17 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new HashAggregationOperator(aggregators, () -> {
-                if (aggregatorMode.isInputPartial()) {
-                    return BlockHash.build(
-                        List.of(tsidGroup, timestampGroup),
-                        driverContext.blockFactory(),
-                        maxPageSize,
-                        true // we can enable optimizations as the inputs are vectors
-                    );
-                } else {
-                    return new TimeSeriesBlockHash(timestampGroup.channel(), timestampGroup.channel(), driverContext.blockFactory());
-                }
-            }, driverContext);
+            // TODO: use TimeSeriesBlockHash when possible
+            return new HashAggregationOperator(
+                aggregators,
+                () -> BlockHash.build(
+                    List.of(tsidGroup, timestampGroup),
+                    driverContext.blockFactory(),
+                    maxPageSize,
+                    true // we can enable optimizations as the inputs are vectors
+                ),
+                driverContext
+            );
         }
 
         @Override

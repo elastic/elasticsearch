@@ -17,9 +17,9 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
+import java.util.Set;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexWriteLoadTests extends ESTestCase {
@@ -31,15 +31,18 @@ public class IndexWriteLoadTests extends ESTestCase {
 
         final double[] populatedShardWriteLoads = new double[numberOfPopulatedShards];
         final double[] populatedShardRecentWriteLoads = new double[numberOfPopulatedShards];
+        final double[] populatedShardPeakWriteLoads = new double[numberOfPopulatedShards];
         final long[] populatedShardUptimes = new long[numberOfPopulatedShards];
         for (int shardId = 0; shardId < numberOfPopulatedShards; shardId++) {
             double writeLoad = randomDoubleBetween(1, 128, true);
             double recentWriteLoad = randomDoubleBetween(1, 128, true);
+            double peakWriteLoad = randomDoubleBetween(1, 128, true);
             long uptimeInMillis = randomNonNegativeLong();
             populatedShardWriteLoads[shardId] = writeLoad;
             populatedShardRecentWriteLoads[shardId] = recentWriteLoad;
+            populatedShardPeakWriteLoads[shardId] = peakWriteLoad;
             populatedShardUptimes[shardId] = uptimeInMillis;
-            indexWriteLoadBuilder.withShardWriteLoad(shardId, writeLoad, recentWriteLoad, uptimeInMillis);
+            indexWriteLoadBuilder.withShardWriteLoad(shardId, writeLoad, recentWriteLoad, peakWriteLoad, uptimeInMillis);
         }
 
         final IndexWriteLoad indexWriteLoad = indexWriteLoadBuilder.build();
@@ -49,6 +52,10 @@ public class IndexWriteLoadTests extends ESTestCase {
                 assertThat(
                     indexWriteLoad.getRecentWriteLoadForShard(shardId),
                     equalTo(OptionalDouble.of(populatedShardRecentWriteLoads[shardId]))
+                );
+                assertThat(
+                    indexWriteLoad.getPeakWriteLoadForShard(shardId),
+                    equalTo(OptionalDouble.of(populatedShardPeakWriteLoads[shardId]))
                 );
                 assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId), equalTo(OptionalLong.of(populatedShardUptimes[shardId])));
             } else {
@@ -66,13 +73,16 @@ public class IndexWriteLoadTests extends ESTestCase {
         assertThat(roundTripped, equalTo(original));
     }
 
-    public void testXContent_missingRecentWriteLoad() throws IOException {
+    public void testXContent_missingRecentWriteAndPeakLoad() throws IOException {
         // Simulate a JSON serialization from before we added recent write load:
         IndexWriteLoad original = randomIndexWriteLoad();
         XContentBuilder builder = XContentBuilder.builder(
             XContentType.JSON,
             emptySet(),
-            singleton(IndexWriteLoad.SHARDS_RECENT_WRITE_LOAD_FIELD.getPreferredName())
+            Set.of(
+                IndexWriteLoad.SHARDS_RECENT_WRITE_LOAD_FIELD.getPreferredName(),
+                IndexWriteLoad.SHARDS_PEAK_WRITE_LOAD_FIELD.getPreferredName()
+            )
         ).startObject().value(original).endObject();
         // Deserialize, and assert that it matches the original except the recent write loads are all missing:
         IndexWriteLoad roundTripped = IndexWriteLoad.fromXContent(createParser(builder));
@@ -80,6 +90,7 @@ public class IndexWriteLoadTests extends ESTestCase {
             assertThat(roundTripped.getUptimeInMillisForShard(i), equalTo(original.getUptimeInMillisForShard(i)));
             assertThat(roundTripped.getWriteLoadForShard(i), equalTo(original.getWriteLoadForShard(i)));
             assertThat(roundTripped.getRecentWriteLoadForShard(i), equalTo(OptionalDouble.empty()));
+            assertThat(roundTripped.getPeakWriteLoadForShard(i), equalTo(OptionalDouble.empty()));
         }
     }
 
@@ -90,6 +101,7 @@ public class IndexWriteLoadTests extends ESTestCase {
         for (int shardId = 0; shardId < numberOfPopulatedShards; shardId++) {
             builder.withShardWriteLoad(
                 shardId,
+                randomDoubleBetween(1, 128, true),
                 randomDoubleBetween(1, 128, true),
                 randomDoubleBetween(1, 128, true),
                 randomNonNegativeLong()

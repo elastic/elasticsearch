@@ -251,12 +251,12 @@ public class IndexVersions {
                     var sameVersionNumber = versionIdFields.put(version.id(), fieldName);
                     assert sameVersionNumber == null
                         : "Versions ["
-                        + sameVersionNumber
-                        + "] and ["
-                        + fieldName
-                        + "] have the same version number ["
-                        + version.id()
-                        + "]. Each IndexVersion should have a different version number";
+                            + sameVersionNumber
+                            + "] and ["
+                            + fieldName
+                            + "] have the same version number ["
+                            + version.id()
+                            + "]. Each IndexVersion should have a different version number";
                 }
             }
         }

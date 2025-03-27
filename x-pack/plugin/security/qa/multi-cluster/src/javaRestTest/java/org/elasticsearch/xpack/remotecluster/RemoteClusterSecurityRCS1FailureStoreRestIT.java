@@ -181,7 +181,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
         boolean ccsMinimizeRoundtrips
     ) {
         // try searching remote index for which user has no access
-        final String indexToSearch = randomFrom("other1", "other1::data", otherBackingFailureIndexName, otherBackingDataIndexName);
+        final String indexToSearch = randomFrom("other1", otherBackingFailureIndexName, otherBackingDataIndexName);
         final ResponseException exception = expectThrows(
             ResponseException.class,
             () -> performRequestWithUser(

@@ -130,7 +130,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                     .get()
                     .getIndexToSettings()
                     .get(indexName)
-                    .getAsVersionId("index.version.created", IndexVersion::fromId)
+                    .getAsVersionId(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion::fromId)
                     .id()
             );
 
@@ -165,13 +165,6 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 client().search(new SearchRequest(indexName).source(sourceBuilder)),
                 response -> { assertHitCount(response, 1L); }
             );
-
-            Settings settings = client().admin()
-                .indices()
-                .prepareGetSettings(TimeValue.THIRTY_SECONDS, indexName)
-                .get()
-                .getIndexToSettings()
-                .get(indexName);
 
             // Semantic Search with highlighter
             SearchSourceBuilder sourceHighlighterBuilder = new SearchSourceBuilder().query(

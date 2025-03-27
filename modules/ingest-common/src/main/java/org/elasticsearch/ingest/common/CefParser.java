@@ -219,7 +219,7 @@ final class CefParser {
         entry("user_agent.original", String.class)
     );
 
-    private static final String ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = "incomplete CEF header";
+    private static final Set<String> ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = Set.of("incomplete CEF header");
     private static final List<String> TIME_LAYOUTS = List.of(
         // MMM dd HH:mm:ss.SSS zzz
         "MMM dd HH:mm:ss.SSS z",
@@ -272,7 +272,7 @@ final class CefParser {
             CEFEvent event = new CEFEvent();
             // Add error message if there are not enough header fields
             if (headerFields.size() != 7) {
-                event.addRootMapping("error.message", new HashSet<>(Set.of(ERROR_MESSAGE_INCOMPLETE_CEF_HEADER)));
+                event.addRootMapping("error.message", new HashSet<>(ERROR_MESSAGE_INCOMPLETE_CEF_HEADER));
             }
             processHeaderFields(List.copyOf(headerFields), event);
             processExtensions(cefString, extensionStart, event);

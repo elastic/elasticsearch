@@ -10,14 +10,13 @@
 package org.elasticsearch.discovery.ec2;
 
 import fixture.aws.DynamicAwsCredentials;
+import fixture.aws.DynamicRegionSupplier;
 import fixture.aws.ec2.AwsEc2HttpFixture;
 import fixture.aws.imds.Ec2ImdsHttpFixture;
 import fixture.aws.imds.Ec2ImdsServiceBuilder;
 import fixture.aws.imds.Ec2ImdsVersion;
 
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -29,7 +28,7 @@ import java.util.function.Supplier;
 public class DiscoveryEc2InstanceProfileIT extends DiscoveryEc2ClusterFormationTestCase {
 
     // Lazy-initialized so we can generate it randomly, which is not possible in static context.
-    private static final Supplier<String> regionSupplier = new LazyInitializable<>(ESTestCase::randomIdentifier)::getOrCompute;
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
 
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "ec2");
 

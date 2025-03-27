@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -73,7 +74,8 @@ public class AwsStsHttpHandler implements HttpHandler {
                     exchange.close();
                     return;
                 }
-                final var accessKey = randomIdentifier();
+                // ATIA for a test key, similar to AKIA and ASIA used in real AWS credentials
+                final var accessKey = "ATIA_STS_" + randomIdentifier();
                 final var sessionToken = randomIdentifier();
                 newCredentialsConsumer.accept(accessKey, sessionToken);
                 final byte[] response = String.format(
@@ -104,7 +106,7 @@ public class AwsStsHttpHandler implements HttpHandler {
                     ROLE_NAME,
                     sessionToken,
                     randomSecretKey(),
-                    ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
+                    ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
                     accessKey
                 ).getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "text/xml; charset=UTF-8");

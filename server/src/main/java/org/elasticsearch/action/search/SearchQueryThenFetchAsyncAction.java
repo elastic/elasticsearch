@@ -770,7 +770,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
                 final QueryPhaseResultConsumer.MergeResult mergeResult;
                 try {
-                    mergeResult = Objects.requireNonNullElse(queryPhaseResultConsumer.consumePartialResult(), EMPTY_PARTIAL_MERGE_RESULT);
+                    mergeResult = Objects.requireNonNullElse(
+                        queryPhaseResultConsumer.consumePartialMergeResultDataNode(),
+                        EMPTY_PARTIAL_MERGE_RESULT
+                    );
                 } catch (Exception e) {
                     handleMergeFailure(e, channelListener);
                     return;

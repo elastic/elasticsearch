@@ -169,7 +169,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      *
      * @return the partial MergeResult for all shards queried on this data node.
      */
-    MergeResult consumePartialResult() {
+    MergeResult consumePartialMergeResultDataNode() {
         var mergeResult = this.mergeResult;
         this.mergeResult = null;
         assert runningTask.get() == null;
@@ -317,6 +317,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private static final Comparator<QuerySearchResult> RESULT_COMPARATOR = Comparator.comparingInt(QuerySearchResult::getShardIndex);
 
+    /**
+     * Called on both the coordinating- and data-node. Both types of nodes use this to partially reduce the merge result once
+     * {@link #batchReduceSize} shard responses have accumulated. Data nodes also do a final partial reduce before sending query phase
+     * results back to the coordinating node.
+     */
     private MergeResult partialReduce(
         List<QuerySearchResult> toConsume,
         List<SearchShard> processedShards,

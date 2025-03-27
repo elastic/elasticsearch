@@ -1279,7 +1279,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
         assert fieldType.stored() || hasDocValues;
 
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
         if (fieldType.stored()) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {
                 @Override

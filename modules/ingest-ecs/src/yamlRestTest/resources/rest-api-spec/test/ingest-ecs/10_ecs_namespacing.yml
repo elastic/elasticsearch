@@ -24,19 +24,53 @@ teardown:
         body: {
           "agent.name": "agentNameValue",
           "agent": {
-              "type": "agentTypeValue"
+            "type": "agentTypeValue",
+            "deep": {
+              "nested": "nestedValue",
+              "scalar-array": [
+                "arrayValue1",
+                "arrayValue2"
+              ],
+              "object-array": [
+                {
+                  "key1": "value1"
+                },
+                {
+                  "key2": "value2"
+                }
+              ]
+            },
+            "scalar-array": [
+              "arrayValue1",
+              "arrayValue2"
+            ]
           },
           "cloud.provider": "cloudProviderValue",
           "cloud": {
-              "type": "cloudTypeValue"
+            "type": "cloudTypeValue"
           },
           "host.name": "hostNameValue",
           "host": {
-              "type": "hostTypeValue"
+            "type": "hostTypeValue"
           },
           "service.name": "serviceNameValue",
           "service": {
-              "type": "serviceTypeValue"
+            "type": "serviceTypeValue",
+            "deep": {
+              "nested": "nestedValue",
+              "scalar-array": [
+                "arrayValue1",
+                "arrayValue2"
+              ],
+              "object-array": [
+                {
+                  "key1": "value1"
+                },
+                {
+                  "key2": "value2"
+                }
+              ]
+            },
           }
         }
 
@@ -46,12 +80,22 @@ teardown:
         id: "nested_and_flat_attributes"
   - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
   - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
+  - match: { _source.resource.attributes.agent\.deep\.nested: "nestedValue" }
+  - match: { _source.resource.attributes.agent\.deep\.scalar-array.0: "arrayValue1" }
+  - match: { _source.resource.attributes.agent\.deep\.scalar-array.1: "arrayValue2" }
+  - match: { _source.resource.attributes.agent\.deep\.object-array.0.key1: "value1" }
+  - match: { _source.resource.attributes.agent\.deep\.object-array.1.key2: "value2" }
   - match: { _source.resource.attributes.cloud\.provider: "cloudProviderValue" }
   - match: { _source.resource.attributes.cloud\.type: "cloudTypeValue" }
   - match: { _source.resource.attributes.host\.name: "hostNameValue" }
   - match: { _source.resource.attributes.host\.type: "hostTypeValue" }
   - match: { _source.attributes.service\.name: "serviceNameValue" }
   - match: { _source.attributes.service\.type: "serviceTypeValue" }
+  - match: { _source.attributes.service\.deep\.nested: "nestedValue" }
+  - match: { _source.attributes.service\.deep\.scalar-array.0: "arrayValue1" }
+  - match: { _source.attributes.service\.deep\.scalar-array.1: "arrayValue2" }
+  - match: { _source.attributes.service\.deep\.object-array.0.key1: "value1" }
+  - match: { _source.attributes.service\.deep\.object-array.1.key2: "value2" }
   - match: { _source.agent.name: null }
   - match: { _source.agent: null }
   - match: { _source.cloud.provider: null }
@@ -109,7 +153,9 @@ teardown:
               "foo": "bar"
             }
           },
-          "scope": {},
+          "scope": {
+            "foo": "bar"
+          },
           "attributes": {
             "foo": "bar"
           },
@@ -117,6 +163,9 @@ teardown:
             "text": "a string",
             "structured": {}
           },
+          "span_id": "spanIdValue",
+          "trace_id": "traceIdValue",
+          "severity_text": "severityTextValue",
           "foo": "bar"
         }
 
@@ -125,10 +174,13 @@ teardown:
         index: ecs_namespacing_test
         id: "valid_otel_document"
   - match: { _source.resource.attributes.foo: "bar" }
-  - match: { _source.scope: {} }
+  - match: { _source.scope.foo: "bar" }
   - match: { _source.attributes.foo: "bar" }
   - match: { _source.body.text: "a string" }
   - match: { _source.body.structured: {} }
+  - match: { _source.span_id: "spanIdValue" }
+  - match: { _source.trace_id: "traceIdValue" }
+  - match: { _source.severity_text: "severityTextValue" }
   - match: { _source.foo: "bar" }
 
 ---
@@ -149,6 +201,9 @@ teardown:
               "foo": "bar"
             }
           },
+          "span_id": "spanIdValue",
+          "trace_id": "traceIdValue",
+          "severity_text": "severityTextValue",
           "foo": "bar"
         }
 
@@ -159,6 +214,9 @@ teardown:
   - match: { _source.attributes.body\.text: 123 }
   - match: { _source.attributes.body\.structured\.foo: "bar" }
   - match: { _source.attributes.scope\.foo: "bar" }
+  - match: { _source.attributes.span_id: "spanIdValue" }
+  - match: { _source.attributes.trace_id: "traceIdValue" }
+  - match: { _source.attributes.severity_text: "severityTextValue" }
   - match: { _source.attributes.foo: "bar" }
   - match: { _source.body: null }
   - match: { _source.scope: null }

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -482,13 +483,13 @@ public final class IndexPrivilege extends Privilege {
      * @see Privilege#sortByAccessLevel
      */
     public static Collection<String> findPrivilegesThatGrant(String action) {
-        return findPrivilegesThatGrant(action, IndexComponentSelector.DATA);
+        return findPrivilegesThatGrant(action, Predicates.always());
     }
 
-    public static Collection<String> findPrivilegesThatGrant(String action, IndexComponentSelector selector) {
+    public static Collection<String> findPrivilegesThatGrant(String action, Predicate<IndexPrivilege> preCondition) {
         return VALUES.entrySet()
             .stream()
-            .filter(e -> e.getValue().selectorPredicate.test(selector))
+            .filter(e -> preCondition.test(e.getValue()))
             .filter(e -> e.getValue().predicate.test(action))
             .map(Map.Entry::getKey)
             .toList();

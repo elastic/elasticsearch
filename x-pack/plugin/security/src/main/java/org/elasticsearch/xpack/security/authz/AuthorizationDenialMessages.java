@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
@@ -98,10 +99,14 @@ public interface AuthorizationDenialMessages {
                         + "]";
                 }
             } else if (isIndexAction(action)) {
-                final Collection<String> privileges = findIndexPrivilegesThatGrant(action, IndexComponentSelector.DATA);
+                final Collection<String> privileges = findIndexPrivilegesThatGrant(
+                    action,
+                    p -> p.getSelectorPredicate().test(IndexComponentSelector.DATA)
+                );
                 final Collection<String> privilegesForFailuresSelector = findIndexPrivilegesThatGrant(
                     action,
-                    IndexComponentSelector.FAILURES
+                    p -> p.getSelectorPredicate().test(IndexComponentSelector.FAILURES)
+                        && false == p.getSelectorPredicate().test(IndexComponentSelector.DATA)
                 );
                 if (privileges != null && false == privileges.isEmpty()) {
                     message = message
@@ -112,15 +117,13 @@ public interface AuthorizationDenialMessages {
                 if (privilegesForFailuresSelector != null && false == privilegesForFailuresSelector.isEmpty()) {
                     if (privileges != null && false == privileges.isEmpty()) {
                         message = message
-                            + " for data access, or ["
+                            + ", or by ["
                             + collectionToCommaDelimitedString(privilegesForFailuresSelector)
-                            + "] for access via the failures selector";
+                            + "] for access with the [failures] selector";
                     } else {
-                        message = message
-                            + ", this action is granted by the index privileges ["
-                            + collectionToCommaDelimitedString(privilegesForFailuresSelector)
-                            + "] for access via the failures selector";
+                        assert false : "action covered by failures selector privileges but no regular privileges [" + action + "]";
                     }
+
                 }
             }
             return message;
@@ -149,8 +152,8 @@ public interface AuthorizationDenialMessages {
             return ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
         }
 
-        protected Collection<String> findIndexPrivilegesThatGrant(String action, IndexComponentSelector selector) {
-            return IndexPrivilege.findPrivilegesThatGrant(action, selector);
+        protected Collection<String> findIndexPrivilegesThatGrant(String action, Predicate<IndexPrivilege> preCondition) {
+            return IndexPrivilege.findPrivilegesThatGrant(action, preCondition);
         }
 
         private String remoteClusterText(@Nullable String clusterAlias) {

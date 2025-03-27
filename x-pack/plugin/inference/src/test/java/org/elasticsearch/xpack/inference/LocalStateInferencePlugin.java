@@ -76,11 +76,6 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
-    public List<QuerySpec<?>> getQueries() {
-        return inferencePlugin.getQueries();
-    }
-
-    @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return super.getNamedWriteables();
     }

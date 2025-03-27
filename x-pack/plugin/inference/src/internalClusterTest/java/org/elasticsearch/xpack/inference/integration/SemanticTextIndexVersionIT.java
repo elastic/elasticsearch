@@ -17,7 +17,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -28,16 +27,16 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -55,6 +54,8 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
     private static final IndexVersion SEMANTIC_TEXT_INTRODUCED_VERSION = IndexVersion.fromId(8512000);
     private static final double PERCENTAGE_TO_TEST = 0.5;
     private static final int MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST = 25;
+    private static final String SPARSE_SEMANTIC_FIELD = "sparse_field";
+    private static final String DENSE_SEMANTIC_FIELD = "dense_field";
     private List<IndexVersion> selectedVersions;
 
     @Before
@@ -100,7 +101,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateInferencePlugin.class, FakeMlPlugin.class, FakeSemanticQueryBuilderPlugin.class);
+        return List.of(LocalStateInferencePlugin.class, FakeMlPlugin.class);
     }
 
     /**
@@ -117,9 +118,23 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
     public void testSemanticText() throws Exception {
         for (IndexVersion version : selectedVersions) {
             String indexName = "test_semantic_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-            createIndex(indexName, getIndexSettingsWithVersion(version));
+            XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject(SPARSE_SEMANTIC_FIELD)
+                .field("type", "semantic_text")
+                .field("inference_id", TestSparseInferenceServiceExtension.TestInferenceService.NAME)
+                .endObject()
+                .startObject(DENSE_SEMANTIC_FIELD)
+                .field("type", "semantic_text")
+                .field("inference_id", TestDenseInferenceServiceExtension.TestInferenceService.NAME)
+                .endObject()
+                .endObject()
+                .endObject();
 
-            // Test index creation
+            assertAcked(prepareCreate(indexName).setSettings(getIndexSettingsWithVersion(version)).setMapping(mapping).get());
+
+            // Test index creation with expected version id
             assertTrue("Index " + indexName + " should exist", indexExists(indexName));
             assertEquals(
                 "Index version should match",
@@ -134,22 +149,12 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                     .id()
             );
 
-            // Test update mapping
-            XContentBuilder mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("semantic_field")
-                .field("type", "semantic_text")
-                .field("inference_id", TestSparseInferenceServiceExtension.TestInferenceService.NAME)
-                .endObject()
-                .endObject()
-                .endObject();
-
-            assertAcked(client().admin().indices().preparePutMapping(indexName).setSource(mapping).get());
-
             // Test data ingestion
             String[] text = new String[] { "inference test", "another inference test" };
-            DocWriteResponse docWriteResponse = client().prepareIndex(indexName).setSource(Map.of("semantic_field", text)).get();
+            Map<String, String[]> sourceMap = new HashMap<>();
+            sourceMap.put(SPARSE_SEMANTIC_FIELD, text);
+            sourceMap.put(DENSE_SEMANTIC_FIELD, text);
+            DocWriteResponse docWriteResponse = client().prepareIndex(indexName).setSource(sourceMap).get();
 
             assertEquals("Document should be created", "created", docWriteResponse.getResult().toString().toLowerCase(Locale.ROOT));
 
@@ -157,23 +162,42 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             client().admin().indices().refresh(new RefreshRequest(indexName)).get();
             ensureGreen(indexName);
 
-            // Semantic Search
-            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new SemanticQueryBuilder("semantic_field", "inference"))
+            // Semantic search with sparse embedding
+            SearchSourceBuilder sparseSourceBuilder = new SearchSourceBuilder().query(new SemanticQueryBuilder(SPARSE_SEMANTIC_FIELD, "inference"))
                 .trackTotalHits(true);
 
             assertResponse(
-                client().search(new SearchRequest(indexName).source(sourceBuilder)),
+                client().search(new SearchRequest(indexName).source(sparseSourceBuilder)),
                 response -> { assertHitCount(response, 1L); }
             );
 
-            // Semantic Search with highlighter
-            SearchSourceBuilder sourceHighlighterBuilder = new SearchSourceBuilder().query(
-                new SemanticQueryBuilder("semantic_field", "inference")
-            ).highlighter(new HighlightBuilder().field("semantic_field")).trackTotalHits(true);
+            // Highlighting semantic search with sparse embedding
+            SearchSourceBuilder sparseSourceHighlighterBuilder = new SearchSourceBuilder().query(
+                new SemanticQueryBuilder(SPARSE_SEMANTIC_FIELD, "inference")
+            ).highlighter(new HighlightBuilder().field(SPARSE_SEMANTIC_FIELD)).trackTotalHits(true);
 
-            assertResponse(client().search(new SearchRequest(indexName).source(sourceHighlighterBuilder)), response -> {
-                assertHighlight(response, 0, "semantic_field", 0, 2, equalTo("inference test"));
-                assertHighlight(response, 0, "semantic_field", 1, 2, equalTo("another inference test"));
+            assertResponse(client().search(new SearchRequest(indexName).source(sparseSourceHighlighterBuilder)), response -> {
+                assertHighlight(response, 0, SPARSE_SEMANTIC_FIELD, 0, 2, equalTo("inference test"));
+                assertHighlight(response, 0, SPARSE_SEMANTIC_FIELD, 1, 2, equalTo("another inference test"));
+            });
+
+            // Semantic search with text embedding
+            SearchSourceBuilder textSourceBuilder = new SearchSourceBuilder().query(new SemanticQueryBuilder(DENSE_SEMANTIC_FIELD, "inference"))
+                .trackTotalHits(true);
+
+            assertResponse(
+                client().search(new SearchRequest(indexName).source(textSourceBuilder)),
+                response -> { assertHitCount(response, 1L); }
+            );
+
+            // Highlighting semantic search with text embedding
+            SearchSourceBuilder textSourceHighlighterBuilder = new SearchSourceBuilder().query(
+                new SemanticQueryBuilder(DENSE_SEMANTIC_FIELD, "inference")
+            ).highlighter(new HighlightBuilder().field(DENSE_SEMANTIC_FIELD)).trackTotalHits(true);
+
+            assertResponse(client().search(new SearchRequest(indexName).source(textSourceHighlighterBuilder)), response -> {
+                assertHighlight(response, 0, DENSE_SEMANTIC_FIELD, 0, 2, equalTo("inference test"));
+                assertHighlight(response, 0, DENSE_SEMANTIC_FIELD, 1, 2, equalTo("another inference test"));
             });
 
             beforeIndexDeletion();
@@ -185,17 +209,6 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return new MlInferenceNamedXContentProvider().getNamedWriteables();
-        }
-    }
-
-    public static class FakeSemanticQueryBuilderPlugin extends Plugin {
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-            namedWriteables.add(
-                new NamedWriteableRegistry.Entry(QueryBuilder.class, SparseVectorQueryBuilder.NAME, SparseVectorQueryBuilder::new)
-            );
-            return namedWriteables;
         }
     }
 }

@@ -292,6 +292,7 @@ include::network/threading.asciidoc[]
 
 preview::[]
 
+[[tcp-readiness-port]]
 If configured, a node can open a TCP port when the node is in a ready state. A node is deemed
 ready when it has successfully joined a cluster. In a single node configuration, the node is
 said to be ready, when it's able to accept requests.

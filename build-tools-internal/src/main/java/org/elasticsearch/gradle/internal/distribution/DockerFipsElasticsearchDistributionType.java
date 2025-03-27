@@ -7,8 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+package org.elasticsearch.gradle.internal.distribution;
 
-dependencies {
-  clusterModules project(':modules:ingest-geoip')
+import org.elasticsearch.gradle.ElasticsearchDistributionType;
+
+public class DockerFipsElasticsearchDistributionType implements ElasticsearchDistributionType {
+
+    DockerFipsElasticsearchDistributionType() {}
+
+    @Override
+    public String getName() {
+        return "dockerFips";
+    }
+
+    @Override
+    public boolean isDocker() {
+        return true;
+    }
 }

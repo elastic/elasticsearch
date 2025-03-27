@@ -72,6 +72,7 @@ List projects = [
   'distribution:docker:ubi-docker-export',
   'distribution:docker:wolfi-docker-aarch64-export',
   'distribution:docker:wolfi-docker-export',
+  'distribution:docker:fips-docker-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
   'distribution:packages:aarch64-rpm',

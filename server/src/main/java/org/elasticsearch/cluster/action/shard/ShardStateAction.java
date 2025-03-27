@@ -276,7 +276,7 @@ public class ShardStateAction {
     }
 
     // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code
-    static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
+    private static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
         private final MasterServiceTaskQueue<FailedShardUpdateTask> taskQueue;
 
         ShardFailedTransportHandler(

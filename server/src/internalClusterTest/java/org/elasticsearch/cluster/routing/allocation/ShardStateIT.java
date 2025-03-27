@@ -8,13 +8,19 @@
  */
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+
+import java.util.concurrent.CyclicBarrier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -75,5 +81,77 @@ public class ShardStateIT extends ESIntegTestCase {
                 }
             }
         }
+    }
+
+    public void testGetPendingTasksSourceStringDataForFailedAndStartedShards() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        prepareCreate("test").setSettings(indexSettings(1, 0)).get();
+        ensureGreen();
+
+        final var masterNodeClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var barrier = new CyclicBarrier(2);
+
+        final var finalBlockingQueue = masterNodeClusterService.createTaskQueue("final-block", Priority.NORMAL, batchExecutionContext -> {
+            safeAwait(barrier);
+            batchExecutionContext.taskContexts().forEach(c -> c.success(() -> {}));
+            return batchExecutionContext.initialState();
+        });
+
+        masterNodeClusterService.createTaskQueue("initial-block", Priority.NORMAL, batchExecutionContext -> {
+            safeAwait(barrier);
+            safeAwait(barrier);
+            batchExecutionContext.taskContexts().forEach(c -> c.success(() -> {}));
+            // Submit the final blocking task before exiting so that it will be queued before the expected shard-started task.
+            finalBlockingQueue.submitTask("final-block", ignored -> {}, null);
+            return batchExecutionContext.initialState();
+        }).submitTask("initial-block", ignored -> {}, null);
+
+        // Sync up with our initial blocking executor.
+        safeAwait(barrier);
+
+        // Obtain a reference to the IndexShard for shard 0.
+        final var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final var shard0RoutingTable = state.routingTable().index("test").shard(0);
+        assertNotNull(shard0RoutingTable);
+        final var nodeId = shard0RoutingTable.primaryShard().currentNodeId();
+        final var node = state.nodes().get(nodeId).getName();
+        final var indicesService = internalCluster().getInstance(IndicesService.class, node);
+        final var shard0 = indicesService.indexService(resolveIndex("test")).getShard(0);
+        assertNotNull(shard0);
+
+        // Create a failed shard state action for shard 0.
+        final var shardFailedReason = "simulated test failure";
+        final var shardFailedException = new ElasticsearchException("simulated exception");
+        shard0.failShard(shardFailedReason, shardFailedException);
+
+        // Get the pending tasks and verify we see the shard-failed state action and expected source string components.
+        final var masterService = masterNodeClusterService.getMasterService();
+        assertBusy(() -> {
+            assertTrue(masterService.pendingTasks().stream().anyMatch(task -> {
+                final var src = task.getSource().string();
+                // We expect the failure reason and exception message, but not the stack trace.
+                return src.startsWith("shard-failed ")
+                    && src.contains("[test][0]")
+                    && src.contains(shardFailedReason)
+                    && src.contains(shardFailedException.getMessage())
+                    && src.contains(ExceptionsHelper.stackTrace(shardFailedException)) == false;
+            }));
+        });
+
+        // Unblock the master service from the initial-block executor and allow the failed shard task to get processed.
+        safeAwait(barrier);
+
+        // Wait for recovery and a shard-started pending task for shard 0.
+        assertBusy(() -> {
+            assertTrue(masterService.pendingTasks().stream().anyMatch(task -> {
+                final var src = task.getSource().string();
+                return src.startsWith("shard-started ") && src.contains("[test][0]") && src.contains("after existing store recovery");
+            }));
+        });
+
+        // Unblock the master service and wait for all tasks to clear and the cluster to complete the recovery.
+        safeAwait(barrier);
+        assertBusy(() -> assertTrue(masterService.pendingTasks().isEmpty()));
+        ensureGreen();
     }
 }

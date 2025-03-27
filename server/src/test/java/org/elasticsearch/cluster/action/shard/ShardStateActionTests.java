@@ -11,15 +11,12 @@ package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
@@ -31,27 +28,19 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardLongFieldRangeWireTests;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
-import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
@@ -62,11 +51,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
@@ -643,77 +628,6 @@ public class ShardStateActionTests extends ESTestCase {
         }
     }
 
-    public void testShardFailedTransportHandlerSubmitTaskSourceStringIncludesRequestInfo() {
-        // Create a modified ClusterService that returns task capturing task queues.
-        final var taskQueueMap = new HashMap<String, TaskCollectingQueue<? extends ClusterStateTaskListener>>();
-        final var modifiedClusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            THREAD_POOL,
-            null
-        ) {
-            @SuppressWarnings("unchecked")
-            @Override
-            public <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> createTaskQueue(
-                String name,
-                Priority priority,
-                ClusterStateTaskExecutor<T> executor
-            ) {
-                return (MasterServiceTaskQueue<T>) taskQueueMap.computeIfAbsent(
-                    name,
-                    k -> new TaskCollectingQueue<T>(super.createTaskQueue(name, priority, executor))
-                );
-            }
-        };
-
-        final var simulatedException = new RuntimeException("fake exception");
-        final var failedShardEntry = new FailedShardEntry(
-            new ShardId(new Index("foo-idx", "foo-idx-id"), 0),
-            "alloc-id",
-            0L,
-            "FAILURE MSG",
-            simulatedException,
-            false
-        );
-        final var now = new TimeValue(System.currentTimeMillis());
-        final var shardFailedTask = new Task(
-            82L,
-            "transport",
-            ShardStateAction.SHARD_FAILED_ACTION_NAME,
-            "",
-            null,
-            now.millis(),
-            now.nanos(),
-            Map.of()
-        );
-
-        final var handler = new ShardStateAction.ShardFailedTransportHandler(
-            modifiedClusterService,
-            new ShardStateAction.ShardFailedClusterStateTaskExecutor(null, null)
-        );
-
-        // Check that the submitted task's 'source' string doesn't include the exception stack trace.
-        handler.messageReceived(failedShardEntry, new TestTransportChannel(ActionListener.noop()), shardFailedTask);
-        final var taskQueue = taskQueueMap.get("shard-failed");
-        assertNotNull(taskQueue);
-        final var tasks = taskQueue.getTasks();
-        assertEquals(1, tasks.size());
-        final var task = tasks.getFirst();
-        final var stackTraceInfo = ExceptionsHelper.stackTrace(simulatedException);
-        assertEquals("shard-failed " + failedShardEntry.toStringNoFailureStackTrace(), task.source());
-        assertNotNull(failedShardEntry.failure);
-        assertFalse("Shard failed task's source string included the exception stack trace", task.source.contains(stackTraceInfo));
-        assertTrue(
-            "Shard failed task's source string didn't include the exception message",
-            task.source.contains(simulatedException.getMessage())
-        );
-        assertTrue(
-            "FailedShardEntry.toString() didn't include the exception stack trace",
-            failedShardEntry.toString().contains(stackTraceInfo)
-        );
-        assertTrue(task.task instanceof ShardStateAction.FailedShardUpdateTask);
-    }
-
     BytesReference serialize(Writeable writeable, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
@@ -747,29 +661,6 @@ public class ShardStateActionTests extends ESTestCase {
 
         void await() throws InterruptedException {
             latch.await();
-        }
-    }
-
-    private static class TaskCollectingQueue<T extends ClusterStateTaskListener> implements MasterServiceTaskQueue<T> {
-
-        record Entry<T>(String source, T task, TimeValue timeout) {}
-
-        private final List<Entry<T>> tasks;
-        private final MasterServiceTaskQueue<T> taskQueue;
-
-        TaskCollectingQueue(MasterServiceTaskQueue<T> taskQueue) {
-            this.taskQueue = taskQueue;
-            tasks = new ArrayList<>();
-        }
-
-        @Override
-        public void submitTask(String source, T task, TimeValue timeout) {
-            tasks.add(new Entry<T>(source, task, timeout));
-            taskQueue.submitTask(source, task, timeout);
-        }
-
-        List<Entry<T>> getTasks() {
-            return tasks;
         }
     }
 }

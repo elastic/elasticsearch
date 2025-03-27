@@ -271,6 +271,7 @@ public class InternalUsersTests extends ESTestCase {
             TransportAddIndexBlockAction.TYPE.name()
         );
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
+
         checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
         // Also check backing index access
         checkIndexAccess(
@@ -280,12 +281,29 @@ public class InternalUsersTests extends ESTestCase {
             true
         );
 
+        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream + "::failures", true);
+        // Also check failure index access
+        checkIndexAccess(
+            role,
+            randomFrom(sampleIndexActions),
+            DataStream.FAILURE_STORE_PREFIX + dataStream + randomAlphaOfLengthBetween(4, 8),
+            true
+        );
+
         allowedSystemDataStreams.forEach(allowedSystemDataStream -> {
             checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true);
             checkIndexAccess(
                 role,
                 randomFrom(sampleSystemDataStreamActions),
                 DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
+                true
+            );
+
+            checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream + "::failures", true);
+            checkIndexAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                DataStream.FAILURE_STORE_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
                 true
             );
         });

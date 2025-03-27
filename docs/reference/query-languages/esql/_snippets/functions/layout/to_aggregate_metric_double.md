@@ -21,3 +21,6 @@ product: COMING 9.1
 
 :::{include} ../types/to_aggregate_metric_double.md
 :::
+
+:::{include} ../examples/to_aggregate_metric_double.md
+:::

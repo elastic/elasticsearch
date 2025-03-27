@@ -378,12 +378,14 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             });
         }
 
-        // Unhollow shards
-        indexDocs(indexName, randomIntBetween(16, 64));
-        for (int i = 0; i < numberOfShards; i++) {
-            var indexShard = findIndexShard(index, i);
-            assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
-        }
+        // Ensure ingestion reaches all shards and unhollow them
+        assertBusy(() -> {
+            indexDocs(indexName, randomIntBetween(16, 64));
+            for (int i = 0; i < numberOfShards; i++) {
+                var indexShard = findIndexShard(index, i);
+                assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+            }
+        });
 
         // We don't lose stats after unhollowing, too
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeB), indexName);

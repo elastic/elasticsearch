@@ -21,10 +21,8 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentUtils;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -55,8 +53,8 @@ public class EsqlPartitioningIT extends ESRestTestCase {
     @ParametersFactory(argumentFormatting = "%2$s -> %3$s")
     public static Iterable<Object[]> parameters() {
         List<Object[]> params = new ArrayList<>();
-        for (String index: new String[] {"idx", "small_idx"}) {
-            for (Case c: new Case[] {
+        for (String index : new String[] { "idx", "small_idx" }) {
+            for (Case c : new Case[] {
                 new Case("", "SHARD"),
                 new Case("| SORT @timestamp ASC", "SHARD"),
                 new Case("| WHERE ABS(a) == 1", "DOC"),
@@ -64,9 +62,8 @@ public class EsqlPartitioningIT extends ESRestTestCase {
                 new Case("| STATS SUM(a)", "DOC"),
                 new Case("| MV_EXPAND a | STATS SUM(a)", "DOC"),
                 new Case("| WHERE a == 1 | STATS SUM(a)", "SEGMENT"),
-                new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "SEGMENT"),
-            }) {
-                params.add(new Object[]{ index, "FROM " + index + " " + c.suffix, expectedPartition(index, c.idxPartition)});
+                new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "SEGMENT"), }) {
+                params.add(new Object[] { index, "FROM " + index + " " + c.suffix, expectedPartition(index, c.idxPartition) });
             }
         }
         return params;

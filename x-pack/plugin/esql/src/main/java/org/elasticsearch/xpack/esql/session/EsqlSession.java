@@ -345,7 +345,8 @@ public class EsqlSession {
         Function<PreAnalysisResult, LogicalPlan> analyzeAction = (l) -> {
             Analyzer analyzer = new Analyzer(
                 new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution),
-                verifier, plannerProfile
+                verifier,
+                plannerProfile
             );
             LogicalPlan plan = analyzer.analyze(parsed);
             plan.setAnalyzed();

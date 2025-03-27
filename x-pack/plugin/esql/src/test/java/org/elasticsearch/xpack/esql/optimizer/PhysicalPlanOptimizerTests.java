@@ -358,7 +358,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(index);
         Analyzer analyzer = new Analyzer(
             new AnalyzerContext(config, functionRegistry, getIndexResult, lookupResolution, enrichResolution),
-            TEST_VERIFIER, new PlannerProfile(false, "")
+            TEST_VERIFIER,
+            new PlannerProfile(false, "")
         );
         return new TestDataSource(mapping, index, analyzer, stats);
     }

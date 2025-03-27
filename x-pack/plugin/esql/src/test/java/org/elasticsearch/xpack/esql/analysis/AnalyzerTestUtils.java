@@ -60,7 +60,8 @@ public final class AnalyzerTestUtils {
                 defaultLookupResolution(),
                 defaultEnrichResolution()
             ),
-            verifier, new PlannerProfile(false, "")
+            verifier,
+            new PlannerProfile(false, "")
         );
     }
 
@@ -73,14 +74,16 @@ public final class AnalyzerTestUtils {
                 lookupResolution,
                 defaultEnrichResolution()
             ),
-            verifier, new PlannerProfile(false, "")
+            verifier,
+            new PlannerProfile(false, "")
         );
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier, Configuration config) {
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultLookupResolution(), defaultEnrichResolution()),
-            verifier, new PlannerProfile(false, "")
+            verifier,
+            new PlannerProfile(false, "")
         );
     }
 
@@ -93,7 +96,8 @@ public final class AnalyzerTestUtils {
                 defaultLookupResolution(),
                 defaultEnrichResolution()
             ),
-            verifier, new PlannerProfile(false, "")
+            verifier,
+            new PlannerProfile(false, "")
         );
     }
 

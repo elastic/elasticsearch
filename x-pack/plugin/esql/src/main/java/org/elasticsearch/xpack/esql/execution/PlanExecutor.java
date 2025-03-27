@@ -67,7 +67,8 @@ public class PlanExecutor {
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
-        ActionListener<Result> listener) {
+        ActionListener<Result> listener
+    ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
         final var session = new EsqlSession(
             sessionId,
@@ -82,7 +83,8 @@ public class PlanExecutor {
             verifier,
             planTelemetry,
             indicesExpressionGrouper,
-            services);
+            services
+        );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
 

@@ -22,7 +22,6 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -220,7 +219,7 @@ final class CefParser {
     );
 
     private static final String ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = "incomplete CEF header";
-    private static final List<String> TIME_LAYOUTS = Arrays.asList(
+    private static final List<String> TIME_LAYOUTS = List.of(
         // MMM dd HH:mm:ss.SSS zzz
         "MMM dd HH:mm:ss.SSS z",
         "MMM dd HH:mm:ss.SSS Z",

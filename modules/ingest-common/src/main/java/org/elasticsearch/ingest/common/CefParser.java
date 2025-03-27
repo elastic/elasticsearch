@@ -257,24 +257,24 @@ final class CefParser {
     );
 
     CEFEvent process(String cefString) {
-        List<String> headerFields = new ArrayList<>();
-        Matcher headerMatcher = HEADER_NEXT_FIELD_PATTERN.matcher(cefString);
+        List<String> headers = new ArrayList<>();
+        Matcher matcher = HEADER_NEXT_FIELD_PATTERN.matcher(cefString);
         int extensionStart = 0;
 
-        for (int i = 0; i < 7 && headerMatcher.find(); i++) {
-            String field = headerMatcher.group(1);
+        for (int i = 0; i < 7 && matcher.find(); i++) {
+            String field = matcher.group(1);
             field = HEADER_ESCAPE_CAPTURE.matcher(field).replaceAll("$1");
-            headerFields.add(field);
-            extensionStart = headerMatcher.end();
+            headers.add(field);
+            extensionStart = matcher.end();
         }
 
-        if (headerFields.isEmpty() == false && headerFields.getFirst().startsWith("CEF:")) {
+        if (headers.isEmpty() == false && headers.getFirst().startsWith("CEF:")) {
             CEFEvent event = new CEFEvent();
             // Add error message if there are not enough header fields
-            if (headerFields.size() != 7) {
+            if (headers.size() != 7) {
                 event.addRootMapping("error.message", new HashSet<>(ERROR_MESSAGE_INCOMPLETE_CEF_HEADER));
             }
-            processHeaderFields(headerFields, event);
+            processHeaders(headers, event);
             processExtensions(cefString, extensionStart, event);
             return event;
         } else {
@@ -282,28 +282,29 @@ final class CefParser {
         }
     }
 
-    private static void processHeaderFields(List<String> headerFields, CEFEvent event) {
-        for (int i = 0; i < headerFields.size(); i++) {
+    private static void processHeaders(List<String> headers, CEFEvent event) {
+        for (int i = 0; i < headers.size(); i++) {
+            final String value = headers.get(i);
             switch (i) {
-                case 0 -> event.addCefMapping("version", headerFields.get(0).substring(4));
+                case 0 -> event.addCefMapping("version", value.substring(4));
                 case 1 -> {
-                    event.addCefMapping("device.vendor", headerFields.get(1));
-                    event.addRootMapping("observer.vendor", headerFields.get(1));
+                    event.addCefMapping("device.vendor", value);
+                    event.addRootMapping("observer.vendor", value);
                 }
                 case 2 -> {
-                    event.addCefMapping("device.product", headerFields.get(2));
-                    event.addRootMapping("observer.product", headerFields.get(2));
+                    event.addCefMapping("device.product", value);
+                    event.addRootMapping("observer.product", value);
                 }
                 case 3 -> {
-                    event.addCefMapping("device.version", headerFields.get(3));
-                    event.addRootMapping("observer.version", headerFields.get(3));
+                    event.addCefMapping("device.version", value);
+                    event.addRootMapping("observer.version", value);
                 }
                 case 4 -> {
-                    event.addCefMapping("device.event_class_id", headerFields.get(4));
-                    event.addRootMapping("event.code", headerFields.get(4));
+                    event.addCefMapping("device.event_class_id", value);
+                    event.addRootMapping("event.code", value);
                 }
-                case 5 -> event.addCefMapping("name", headerFields.get(5));
-                case 6 -> event.addCefMapping("severity", headerFields.get(6));
+                case 5 -> event.addCefMapping("name", value);
+                case 6 -> event.addCefMapping("severity", value);
             }
         }
     }

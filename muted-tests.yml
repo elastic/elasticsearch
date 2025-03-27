@@ -393,6 +393,9 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
   method: testAlreadyUpToDateDataStream
   issue: https://github.com/elastic/elasticsearch/issues/125727
+- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
+  method: testMergingFallsBehindAndThenCatchesUp
+  issue: https://github.com/elastic/elasticsearch/issues/125744
 
 # Examples:
 #

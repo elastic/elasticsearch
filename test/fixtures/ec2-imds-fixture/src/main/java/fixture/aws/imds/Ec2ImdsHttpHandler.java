@@ -133,8 +133,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     sendStringResponse(exchange, Strings.toString(instanceIdentityDocument));
                     return;
                 } else if (validCredentialsEndpoints.contains(path)) {
-                    // ATIA for a test key, similar to AKIA and ASIA used in real AWS credentials
-                    final String accessKey = "ATIA_IMDS_" + randomIdentifier();
+                    final String accessKey = "test_key_imds_" + randomIdentifier();
                     final String sessionToken = randomIdentifier();
                     newCredentialsConsumer.accept(accessKey, sessionToken);
                     final byte[] response = Strings.format(

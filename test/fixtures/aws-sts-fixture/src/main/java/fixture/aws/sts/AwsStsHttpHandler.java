@@ -74,8 +74,7 @@ public class AwsStsHttpHandler implements HttpHandler {
                     exchange.close();
                     return;
                 }
-                // ATIA for a test key, similar to AKIA and ASIA used in real AWS credentials
-                final var accessKey = "ATIA_STS_" + randomIdentifier();
+                final var accessKey = "test_key_STS_" + randomIdentifier();
                 final var sessionToken = randomIdentifier();
                 newCredentialsConsumer.accept(accessKey, sessionToken);
                 final byte[] response = String.format(

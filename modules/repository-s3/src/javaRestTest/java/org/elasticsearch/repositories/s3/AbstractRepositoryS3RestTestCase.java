@@ -103,9 +103,9 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
         final var repository = newTestRepository();
         try (var ignored = repository.register(readonlyOperator(readonly))) {
             final var repositoryName = repository.repositoryName();
-            final var responseObjectPath = assertOKAndCreateObjectPath(
-                client().performRequest(new Request("GET", "/_snapshot/" + repositoryName))
-            );
+            final var getRepositoryRequest = new Request("GET", "/_snapshot/" + repositoryName);
+            getRepositoryRequest.addParameter("error_trace", "true");
+            final var responseObjectPath = assertOKAndCreateObjectPath(client().performRequest(getRepositoryRequest));
 
             assertEquals("s3", responseObjectPath.evaluate(repositoryName + ".type"));
             assertNotNull(responseObjectPath.evaluate(repositoryName + ".settings"));

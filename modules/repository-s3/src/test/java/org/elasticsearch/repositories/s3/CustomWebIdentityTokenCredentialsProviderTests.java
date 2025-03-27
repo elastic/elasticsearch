@@ -122,7 +122,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
     @SuppressForbidden(reason = "HTTP server is used for testing")
     private static Map<String, String> getSystemProperties(HttpServer httpServer) {
         return Map.of(
-            "com.amazonaws.sdk.stsMetadataServiceEndpointOverride",
+            "org.elasticsearch.repositories.s3.stsEndpointOverride",
             "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
         );
     }

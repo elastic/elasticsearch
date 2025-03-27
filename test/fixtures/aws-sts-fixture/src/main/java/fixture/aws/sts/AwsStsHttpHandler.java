@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -55,7 +56,7 @@ public class AwsStsHttpHandler implements HttpHandler {
             final var requestMethod = exchange.getRequestMethod();
             final var path = exchange.getRequestURI().getPath();
 
-            if ("POST".equals(requestMethod) && "/assume-role-with-web-identity/".equals(path)) {
+            if ("POST".equals(requestMethod) && "/".equals(path)) {
 
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 Map<String, String> params = Arrays.stream(body.split("&"))
@@ -73,7 +74,7 @@ public class AwsStsHttpHandler implements HttpHandler {
                     exchange.close();
                     return;
                 }
-                final var accessKey = randomIdentifier();
+                final var accessKey = "AKIA_STS_" + randomIdentifier();
                 final var sessionToken = randomIdentifier();
                 newCredentialsConsumer.accept(accessKey, sessionToken);
                 final byte[] response = String.format(
@@ -104,7 +105,7 @@ public class AwsStsHttpHandler implements HttpHandler {
                     ROLE_NAME,
                     sessionToken,
                     randomSecretKey(),
-                    ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
+                    ZonedDateTime.now(ZoneOffset.UTC).plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
                     accessKey
                 ).getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "text/xml; charset=UTF-8");

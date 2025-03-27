@@ -16,12 +16,16 @@ import fixture.s3.S3HttpFixture;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
+import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
+
+import java.util.function.Supplier;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
@@ -32,7 +36,12 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "sts_credentials_client";
 
-    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials("*", "s3");
+    // Lazy-initialized so we can generate it randomly, which is not possible in static context.
+    private static final Supplier<String> regionSupplier = new LazyInitializable<>(
+        () -> "region-" + ESTestCase.randomIdentifier()
+    )::getOrCompute;
+
+    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
 
     private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
 
@@ -49,19 +58,19 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3HttpFixture::getAddress)
-        .systemProperty(
-            "com.amazonaws.sdk.stsMetadataServiceEndpointOverride",
-            () -> stsHttpFixture.getAddress() + "/assume-role-with-web-identity"
-        )
+        .systemProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", stsHttpFixture::getAddress)
         .configFile(
             S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION,
             Resource.fromString(WEB_IDENTITY_TOKEN_FILE_CONTENTS)
         )
+        .setting("logger.software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain", "DEBUG")
         .environment("AWS_WEB_IDENTITY_TOKEN_FILE", S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION)
         // The AWS STS SDK requires the role and session names to be set. We can verify that they are sent to S3S in the
         // S3HttpFixtureWithSTS fixture
         .environment("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/FederatedWebIdentityRole")
         .environment("AWS_ROLE_SESSION_NAME", "sts-fixture-test")
+        .environment("AWS_STS_REGIONAL_ENDPOINTS", "regional")
+        .environment("AWS_REGION", regionSupplier)
         .build();
 
     @ClassRule

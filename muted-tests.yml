@@ -489,3 +489,6 @@ tests:
 - class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
   method: testUpgradeModels {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/125535
+- class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
+  method: testUpgradeModels {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/125549

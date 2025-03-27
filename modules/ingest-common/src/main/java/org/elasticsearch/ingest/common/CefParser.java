@@ -268,7 +268,7 @@ final class CefParser {
             extensionStart = headerMatcher.end();
         }
 
-        if (headerFields.size() > 0 && headerFields.get(0).startsWith("CEF:")) {
+        if (headerFields.isEmpty() == false && headerFields.getFirst().startsWith("CEF:")) {
             CEFEvent event = new CEFEvent();
             // Add error message if there are not enough header fields
             if (headerFields.size() != 7) {

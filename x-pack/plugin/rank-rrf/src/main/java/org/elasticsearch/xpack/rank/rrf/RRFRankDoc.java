@@ -93,7 +93,7 @@ public final class RRFRankDoc extends RankDoc {
         int queries = positions.length;
         Explanation[] details = new Explanation[queries];
         for (int i = 0; i < queries; i++) {
-            final String queryAlias = queryNames[i] != null ? " [" + queryNames[i] + "]" : "";
+            final String queryAlias = queryNames[i] == null ? "" : " [" + queryNames[i] + "]";
             final String queryIdentifier = "at index [" + i + "]" + queryAlias;
             if (positions[i] == RRFRankDoc.NO_RANK) {
                 final String description = "rrf score: [0], result not found in query " + queryIdentifier;
@@ -102,7 +102,7 @@ public final class RRFRankDoc extends RankDoc {
                 final int rank = positions[i] + 1;
                 final float rrfScore = (1f / (rank + rankConstant));
                 details[i] = Explanation.match(
-                    rrfScore,
+                    rank,
                     "rrf score: ["
                         + rrfScore
                         + "], "

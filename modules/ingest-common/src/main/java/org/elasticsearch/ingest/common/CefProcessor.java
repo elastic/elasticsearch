@@ -14,6 +14,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.common.CefParser.CEFEvent;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
@@ -50,19 +51,19 @@ public final class CefProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) {
-        String line = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
+    public IngestDocument execute(IngestDocument document) {
+        String line = document.getFieldValue(field, String.class, ignoreMissing);
         if (line == null && ignoreMissing) {
-            return ingestDocument;
+            return document;
         } else if (line == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
-        ZoneId timezone = getTimezone(ingestDocument);
-        CefParser.CEFEvent cefEvent = new CefParser(timezone, removeEmptyValue).process(line);
+        ZoneId timezone = getTimezone(document);
+        CEFEvent event = new CefParser(timezone, removeEmptyValue).process(line);
         // Update ingestDocument with the CEF mappings
-        ingestDocument.setFieldValue(targetField, cefEvent.getCefMappings());
-        cefEvent.getRootMappings().forEach(ingestDocument::setFieldValue);
-        return ingestDocument;
+        document.setFieldValue(targetField, event.getCefMappings());
+        event.getRootMappings().forEach(document::setFieldValue);
+        return document;
     }
 
     @Override
@@ -79,7 +80,7 @@ public final class CefProcessor extends AbstractProcessor {
         }
     }
 
-    public static final class Factory implements org.elasticsearch.ingest.Processor.Factory {
+    public static final class Factory implements Processor.Factory {
         private final ScriptService scriptService;
 
         public Factory(ScriptService scriptService) {

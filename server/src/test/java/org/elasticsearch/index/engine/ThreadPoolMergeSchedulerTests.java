@@ -38,6 +38,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -171,6 +173,117 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             assertThat(schedule, is(Schedule.RUN));
             assertThat(threadPoolMergeScheduler.getRunningMergeTasks().size(), is(mergeExecutorThreadCount));
         }
+    }
+
+    public void testIndexingThrottling() {
+        final int maxThreadCount = randomIntBetween(1, 5);
+        // settings validation requires maxMergeCount >= maxThreadCount
+        final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
+        List<MergeTask> submittedMergeTasks = new ArrayList<>();
+        List<MergeTask> scheduledToRunMergeTasks = new ArrayList<>();
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
+        doAnswer(invocation -> {
+            MergeTask mergeTask = (MergeTask) invocation.getArguments()[0];
+            submittedMergeTasks.add(mergeTask);
+            return null;
+        }).when(threadPoolMergeExecutorService).submitMergeTask(any(MergeTask.class));
+        doAnswer(invocation -> {
+            MergeTask mergeTask = (MergeTask) invocation.getArguments()[0];
+            submittedMergeTasks.add(mergeTask);
+            return null;
+        }).when(threadPoolMergeExecutorService).reEnqueueBackloggedMergeTask(any(MergeTask.class));
+        AtomicBoolean isUsingMaxTargetIORate = new AtomicBoolean(false);
+        doAnswer(invocation -> isUsingMaxTargetIORate.get()).when(threadPoolMergeExecutorService).usingMaxTargetIORateBytesPerSec();
+        Settings mergeSchedulerSettings = Settings.builder()
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount)
+            .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount)
+            .build();
+        AtomicBoolean isIndexingThrottlingEnabled = new AtomicBoolean(false);
+        ThreadPoolMergeScheduler threadPoolMergeScheduler = new TestThreadPoolMergeScheduler(
+            new ShardId("index", "_na_", 1),
+            IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
+            threadPoolMergeExecutorService,
+            (numRunningMerges, numQueuedMerges) -> isIndexingThrottlingEnabled.set(true),
+            (numRunningMerges, numQueuedMerges) -> isIndexingThrottlingEnabled.set(false)
+        );
+        int mergesToRun = randomIntBetween(0, 5);
+        // make sure there are more merges submitted and not run
+        int excessMerges = randomIntBetween(1, 10);
+        int mergesToSubmit = maxMergeCount + mergesToRun + excessMerges;
+        int mergesOutstanding = 0;
+        boolean expectIndexThrottling = false;
+        // simulate merge load, while also scheduling and running merges
+        while (mergesToSubmit > 0 || mergesToRun > 0) {
+            // simulate that the {@link ThreadPoolMergeExecutorService} maybe peaked IO un-throttling
+            isUsingMaxTargetIORate.set(randomBoolean());
+            if (mergesToRun > 0 && scheduledToRunMergeTasks.isEmpty() == false && randomBoolean()) {
+                // maybe run one scheduled merge
+                MergeTask mergeTask = randomFrom(scheduledToRunMergeTasks);
+                scheduledToRunMergeTasks.remove(mergeTask);
+                mergeTask.run();
+                mergesToRun--;
+                mergesOutstanding--;
+                if (isUsingMaxTargetIORate.get() && mergesOutstanding > maxMergeCount) {
+                    expectIndexThrottling = true;
+                } else if (mergesOutstanding <= maxMergeCount) {
+                    expectIndexThrottling = false;
+                }
+            } else if (submittedMergeTasks.isEmpty() == false && (mergesToSubmit == 0 || randomBoolean())) {
+                // maybe schedule one submitted merge
+                MergeTask mergeTask = randomFrom(submittedMergeTasks);
+                submittedMergeTasks.remove(mergeTask);
+                Schedule schedule = mergeTask.schedule();
+                if (schedule == Schedule.RUN) {
+                    scheduledToRunMergeTasks.add(mergeTask);
+                }
+            } else if (mergesToSubmit > 0) {
+                // submit one merge
+                MergeSource mergeSource = mock(MergeSource.class);
+                OneMerge oneMerge = mock(OneMerge.class);
+                when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+                when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+                when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+                threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+                mergesToSubmit--;
+                mergesOutstanding++;
+                if (isUsingMaxTargetIORate.get() && mergesOutstanding > maxMergeCount) {
+                    expectIndexThrottling = true;
+                } else if (mergesOutstanding <= maxMergeCount) {
+                    expectIndexThrottling = false;
+                }
+            }
+            // assert IO throttle state
+            assertThat(isIndexingThrottlingEnabled.get(), is(expectIndexThrottling));
+        }
+        // execute all remaining merges (submitted or scheduled)
+        while (submittedMergeTasks.isEmpty() == false || scheduledToRunMergeTasks.isEmpty() == false) {
+            // simulate that the {@link ThreadPoolMergeExecutorService} maybe peaked IO un-throttling
+            isUsingMaxTargetIORate.set(randomBoolean());
+            if (submittedMergeTasks.isEmpty() == false && (scheduledToRunMergeTasks.isEmpty() || randomBoolean())) {
+                // maybe schedule one submitted merge
+                MergeTask mergeTask = randomFrom(submittedMergeTasks);
+                submittedMergeTasks.remove(mergeTask);
+                Schedule schedule = mergeTask.schedule();
+                if (schedule == Schedule.RUN) {
+                    scheduledToRunMergeTasks.add(mergeTask);
+                }
+            } else {
+                // maybe run one scheduled merge
+                MergeTask mergeTask = randomFrom(scheduledToRunMergeTasks);
+                scheduledToRunMergeTasks.remove(mergeTask);
+                mergeTask.run();
+                mergesOutstanding--;
+                if (isUsingMaxTargetIORate.get() && mergesOutstanding > maxMergeCount) {
+                    expectIndexThrottling = true;
+                } else if (mergesOutstanding <= maxMergeCount) {
+                    expectIndexThrottling = false;
+                }
+            }
+            // assert IO throttle state
+            assertThat(isIndexingThrottlingEnabled.get(), is(expectIndexThrottling));
+        }
+        // all merges done
+        assertThat(isIndexingThrottlingEnabled.get(), is(false));
     }
 
     public void testMergeSourceWithFollowUpMergesRunSequentially() throws Exception {
@@ -492,5 +605,32 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     private static MergeInfo getNewMergeInfo(long estimatedMergeBytes, int maxNumSegments) {
         return new MergeInfo(randomNonNegativeInt(), estimatedMergeBytes, randomBoolean(), maxNumSegments);
+    }
+
+    static class TestThreadPoolMergeScheduler extends ThreadPoolMergeScheduler {
+        private BiConsumer<Integer, Integer> enableIndexingThrottlingHook;
+        private BiConsumer<Integer, Integer> disableIndexingThrottlingHook;
+
+        public TestThreadPoolMergeScheduler(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+            BiConsumer<Integer, Integer> enableIndexingThrottlingHook,
+            BiConsumer<Integer, Integer> disableIndexingThrottlingHook
+        ) {
+            super(shardId, indexSettings, threadPoolMergeExecutorService);
+            this.enableIndexingThrottlingHook = enableIndexingThrottlingHook;
+            this.disableIndexingThrottlingHook = disableIndexingThrottlingHook;
+        }
+
+        @Override
+        protected void enableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            enableIndexingThrottlingHook.accept(numRunningMerges, numQueuedMerges);
+        }
+
+        @Override
+        protected void disableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            disableIndexingThrottlingHook.accept(numRunningMerges, numQueuedMerges);
+        }
     }
 }

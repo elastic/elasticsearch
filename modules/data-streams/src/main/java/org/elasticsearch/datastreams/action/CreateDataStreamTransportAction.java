@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -68,6 +69,13 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
             request.getName(),
             threadPool.getThreadContext()
         );
+        ComposableIndexTemplate indexTemplate = request.getIndexTemplate();
+        if (indexTemplate != null) {
+            if (indexTemplate.indexPatterns() != null && indexTemplate.indexPatterns().isEmpty() == false) {
+                // TODO lots of other things aren't supported
+                throw new IllegalArgumentException("Cannot specify index_patterns");
+            }
+        }
         MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest updateRequest =
             new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(
                 projectResolver.getProjectId(),
@@ -76,7 +84,8 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
                 systemDataStreamDescriptor,
                 request.masterNodeTimeout(),
                 request.ackTimeout(),
-                true
+                true,
+                indexTemplate
             );
         metadataCreateDataStreamService.createDataStream(updateRequest, listener);
     }

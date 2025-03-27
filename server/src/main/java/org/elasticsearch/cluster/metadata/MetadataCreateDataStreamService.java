@@ -150,7 +150,8 @@ public class MetadataCreateDataStreamService {
         @Nullable SystemDataStreamDescriptor systemDataStreamDescriptor,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
-        boolean performReroute
+        boolean performReroute,
+        ComposableIndexTemplate indexTemplate
     ) {
         public CreateDataStreamClusterStateUpdateRequest {
             Objects.requireNonNull(name);
@@ -170,7 +171,16 @@ public class MetadataCreateDataStreamService {
             TimeValue ackTimeout,
             boolean performReroute
         ) {
-            this(projectId, name, System.currentTimeMillis(), systemDataStreamDescriptor, masterNodeTimeout, ackTimeout, performReroute);
+            this(
+                projectId,
+                name,
+                System.currentTimeMillis(),
+                systemDataStreamDescriptor,
+                masterNodeTimeout,
+                ackTimeout,
+                performReroute,
+                null
+            );
         }
 
         public boolean isSystem() {
@@ -258,9 +268,22 @@ public class MetadataCreateDataStreamService {
         }
 
         final boolean isSystem = systemDataStreamDescriptor != null;
+        ComposableIndexTemplate templateOverrides = request.indexTemplate();
         final ComposableIndexTemplate template = isSystem
             ? systemDataStreamDescriptor.getComposableIndexTemplate()
-            : lookupTemplateForDataStream(dataStreamName, currentProject);
+            : lookupTemplateForDataStream(dataStreamName, currentProject, false);
+        ComposableIndexTemplate mergedTemplate = DataStream.mergeTemplates(template, templateOverrides);
+        if (mergedTemplate == null) {
+            throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
+        } else if (mergedTemplate.getDataStreamTemplate() == null) {
+            throw new IllegalArgumentException(
+                "matching index template ["
+                    + MetadataIndexTemplateService.findV2Template(currentProject, dataStreamName, false)
+                    + "] for data stream ["
+                    + dataStreamName
+                    + "] has no data stream template"
+            );
+        }
         // The initial backing index and the initial failure store index will have the same initial generation.
         // This is not a problem as both have different prefixes (`.ds-` vs `.fs-`) and both will be using the same `generation` field
         // when rolling over in the future.
@@ -268,7 +291,7 @@ public class MetadataCreateDataStreamService {
         final DataStreamOptions dataStreamOptions = resolveDataStreamOptions(
             currentProject,
             systemDataStreamDescriptor,
-            template,
+            mergedTemplate,
             isSystem
         );
 
@@ -290,7 +313,7 @@ public class MetadataCreateDataStreamService {
                 currentState,
                 request.startTime(),
                 dataStreamName,
-                template,
+                mergedTemplate,
                 failureStoreIndexName,
                 null
             );
@@ -307,7 +330,7 @@ public class MetadataCreateDataStreamService {
                 dataStreamName,
                 systemDataStreamDescriptor,
                 isSystem,
-                template,
+                mergedTemplate,
                 firstBackingIndexName
             );
             writeIndex = currentState.metadata().getProject(request.projectId()).index(firstBackingIndexName);
@@ -325,19 +348,26 @@ public class MetadataCreateDataStreamService {
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toCollection(ArrayList::new));
         dsBackingIndices.add(writeIndex.getIndex());
-        boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
-        final IndexMode indexMode = newProject.retrieveIndexModeFromTemplate(template);
-        final DataStreamLifecycle lifecycle = resolveDataStreamLifecycle(currentProject, systemDataStreamDescriptor, template, isSystem);
+        boolean hidden = isSystem || mergedTemplate.getDataStreamTemplate().isHidden();
+        final IndexMode indexMode = newProject.retrieveIndexModeFromTemplate(mergedTemplate);
+        final DataStreamLifecycle lifecycle = resolveDataStreamLifecycle(
+            currentProject,
+            systemDataStreamDescriptor,
+            mergedTemplate,
+            isSystem
+        );
         List<Index> failureIndices = failureStoreIndex == null ? List.of() : List.of(failureStoreIndex.getIndex());
         DataStream newDataStream = new DataStream(
             dataStreamName,
             initialGeneration,
-            template.metadata() != null ? Map.copyOf(template.metadata()) : null,
+            template,
+            templateOverrides,
+            mergedTemplate.metadata() != null ? Map.copyOf(mergedTemplate.metadata()) : null,
             hidden,
             false,
             isSystem,
             System::currentTimeMillis,
-            template.getDataStreamTemplate().isAllowCustomRouting(),
+            mergedTemplate.getDataStreamTemplate().isAllowCustomRouting(),
             indexMode,
             lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle,
             dataStreamOptions,
@@ -348,7 +378,7 @@ public class MetadataCreateDataStreamService {
         );
         ProjectMetadata.Builder builder = ProjectMetadata.builder(newProject).put(newDataStream);
         List<String> aliases = new ArrayList<>();
-        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(newProject, template);
+        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(newProject, mergedTemplate);
         for (var resolvedAliasMap : resolvedAliases) {
             for (var alias : resolvedAliasMap.values()) {
                 aliases.add(alias.getAlias());
@@ -463,16 +493,30 @@ public class MetadataCreateDataStreamService {
         return currentState;
     }
 
-    public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, ProjectMetadata projectMetadata) {
-        final String v2Template = MetadataIndexTemplateService.findV2Template(projectMetadata, dataStreamName, false);
-        if (v2Template == null) {
-            throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
+    public static ComposableIndexTemplate lookupTemplateForDataStream(
+        String dataStreamName,
+        ProjectMetadata projectMetadata,
+        boolean throwExceptionIfMissing
+    ) throws IOException {
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
+        ComposableIndexTemplate composableIndexTemplate = null;
+        if (dataStream != null) {
+            composableIndexTemplate = projectMetadata.dataStreams().get(dataStreamName).getEffectiveIndexTemplate();
         }
-        ComposableIndexTemplate composableIndexTemplate = projectMetadata.templatesV2().get(v2Template);
-        if (composableIndexTemplate.getDataStreamTemplate() == null) {
-            throw new IllegalArgumentException(
-                "matching index template [" + v2Template + "] for data stream [" + dataStreamName + "] has no data stream template"
-            );
+        if (composableIndexTemplate == null) {
+            final String v2Template = MetadataIndexTemplateService.findV2Template(projectMetadata, dataStreamName, false);
+            if (v2Template == null) {
+                if (throwExceptionIfMissing) {
+                    throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
+                }
+            } else {
+                composableIndexTemplate = projectMetadata.templatesV2().get(v2Template);
+                if (composableIndexTemplate.getDataStreamTemplate() == null && throwExceptionIfMissing) {
+                    throw new IllegalArgumentException(
+                        "matching index template [" + v2Template + "] for data stream [" + dataStreamName + "] has no data stream template"
+                    );
+                }
+            }
         }
         return composableIndexTemplate;
     }

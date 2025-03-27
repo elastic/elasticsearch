@@ -441,6 +441,17 @@ public class MetadataCreateIndexService {
                 ? IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings())
                 : null;
 
+            ComposableIndexTemplate templateFromRequest = request.matchingTemplate();
+            if (templateFromRequest != null) {
+                return applyCreateIndexRequestWithV2Template(
+                    currentState,
+                    request,
+                    silent,
+                    templateFromRequest,
+                    metadataTransformer,
+                    rerouteListener
+                );
+            }
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 projectMetadata,
@@ -770,6 +781,71 @@ public class MetadataCreateIndexService {
         );
     }
 
+    private ClusterState applyCreateIndexRequestWithV2Template(
+        final ClusterState currentState,
+        final CreateIndexClusterStateUpdateRequest request,
+        final boolean silent,
+        final ComposableIndexTemplate template,
+        final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
+        final ActionListener<Void> rerouteListener
+    ) throws Exception {
+
+        final Metadata metadata = currentState.getMetadata();
+        final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
+        final RoutingTable routingTable = currentState.routingTable(request.projectId());
+
+        final boolean isDataStream = template.getDataStreamTemplate() != null;
+
+        final List<CompressedXContent> mappings = collectV2Mappings(
+            request.mappings(),
+            projectMetadata,
+            template,
+            xContentRegistry,
+            request.index()
+        );
+        final Settings aggregatedIndexSettings = aggregateIndexSettings(
+            metadata,
+            projectMetadata,
+            currentState.nodes(),
+            currentState.blocks(),
+            routingTable,
+            request,
+            resolveSettings(template, projectMetadata.componentTemplates()),
+            mappings,
+            null,
+            settings,
+            indexScopedSettings,
+            shardLimitValidator,
+            indexSettingProviders
+        );
+        int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+
+        return applyCreateIndexWithTemporaryService(
+            currentState,
+            request,
+            silent,
+            null,
+            tmpImd,
+            mappings,
+            indexService -> resolveAndValidateAliases(
+                request.index(),
+                // data stream aliases are created separately in MetadataCreateDataStreamService::createDataStream
+                isDataStream ? Set.of() : request.aliases(),
+                isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(projectMetadata, template),
+                projectMetadata,
+                xContentRegistry,
+                // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
+            ),
+            Collections.singletonList("provided in request"),
+            projectMetadataTransformer,
+            rerouteListener
+        );
+    }
+
     private ClusterState applyCreateIndexRequestForSystemIndex(
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
@@ -914,6 +990,21 @@ public class MetadataCreateIndexService {
         final String indexName
     ) throws Exception {
         List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(projectMetadata, templateName, indexName);
+        return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
+    }
+
+    public static List<CompressedXContent> collectV2Mappings(
+        @Nullable final String requestMappings,
+        final ProjectMetadata projectMetadata,
+        final ComposableIndexTemplate template,
+        final NamedXContentRegistry xContentRegistry,
+        final String indexName
+    ) throws Exception {
+        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
+            template,
+            projectMetadata.componentTemplates(),
+            indexName
+        );
         return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
     }
 

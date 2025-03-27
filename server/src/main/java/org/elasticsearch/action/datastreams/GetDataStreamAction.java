@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAutoShardingEvent;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
@@ -213,6 +214,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
+            public static final ParseField INDEX_TEMPLATE_CONTENTS_FIELD = new ParseField("index_template");
+            public static final ParseField INDEX_TEMPLATE_OVERRIDES_FIELD = new ParseField("index_template_overrides");
+            public static final ParseField EFFECTIVE_INDEX_TEMPLATE_FIELD = new ParseField("effective_index_template");
             public static final ParseField PREFER_ILM = new ParseField("prefer_ilm");
             public static final ParseField MANAGED_BY = new ParseField("managed_by");
             public static final ParseField NEXT_GENERATION_INDEX_MANAGED_BY = new ParseField("next_generation_managed_by");
@@ -426,6 +430,20 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     indicesToXContent(builder, dataStream.getFailureIndices());
                     addAutoShardingEvent(builder, params, dataStream.getFailureComponent().getAutoShardingEvent());
                     builder.endObject();
+
+                    if (dataStream.getIndexTemplate() != null) {
+                        builder.field(INDEX_TEMPLATE_CONTENTS_FIELD.getPreferredName());
+                        dataStream.getIndexTemplate().toXContent(builder, params);
+                    }
+                    if (dataStream.getIndexTemplateOverrides() != null) {
+                        builder.field(INDEX_TEMPLATE_OVERRIDES_FIELD.getPreferredName());
+                        dataStream.getIndexTemplateOverrides().toXContent(builder, params);
+                    }
+                    ComposableIndexTemplate effectiveTemplate = dataStream.getEffectiveIndexTemplate();
+                    if (effectiveTemplate != null) {
+                        builder.field(EFFECTIVE_INDEX_TEMPLATE_FIELD.getPreferredName());
+                        effectiveTemplate.toXContent(builder, params);
+                    }
                 }
                 builder.endObject();
                 return builder;

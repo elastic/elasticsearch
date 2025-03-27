@@ -22,6 +22,7 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -447,11 +448,11 @@ final class CefParser {
         }
 
         public Map<String, Object> getRootMappings() {
-            return Map.copyOf(rootMappings);
+            return Collections.unmodifiableMap(rootMappings);
         }
 
         public Map<String, String> getCefMappings() {
-            return Map.copyOf(cefMappings);
+            return Collections.unmodifiableMap(cefMappings);
         }
     }
 }

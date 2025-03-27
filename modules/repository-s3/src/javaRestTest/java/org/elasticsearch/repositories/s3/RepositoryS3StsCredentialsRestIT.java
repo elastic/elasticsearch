@@ -58,12 +58,11 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3HttpFixture::getAddress)
-        .systemProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", stsHttpFixture::getAddress)
+        .systemProperty("org.elasticsearch.repositories.s3.stsEndpointOverride", stsHttpFixture::getAddress)
         .configFile(
             S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION,
             Resource.fromString(WEB_IDENTITY_TOKEN_FILE_CONTENTS)
         )
-        .setting("logger.software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain", "DEBUG")
         .environment("AWS_WEB_IDENTITY_TOKEN_FILE", S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION)
         // The AWS STS SDK requires the role and session names to be set. We can verify that they are sent to S3S in the
         // S3HttpFixtureWithSTS fixture

@@ -68,7 +68,7 @@ final class CefParser {
         entry("\\\r", "\r")
     );
 
-    private static final Map<String, String> FIELD_MAPPING = Map.<String, String>ofEntries(
+    private static final Map<String, String> FIELD_MAPPINGS = Map.<String, String>ofEntries(
         entry("app", "network.protocol"),
         entry("in", "source.bytes"),
         entry("out", "destination.bytes"),
@@ -215,7 +215,7 @@ final class CefParser {
     );
 
     private static final Set<String> FIELD_MAPPINGS_AND_VALUES = Set.copyOf(
-        Sets.union(FIELD_MAPPING.keySet(), Set.copyOf(FIELD_MAPPING.values()))
+        Sets.union(FIELD_MAPPINGS.keySet(), Set.copyOf(FIELD_MAPPINGS.values()))
     );
 
     private static final String ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = "incomplete CEF header";
@@ -319,9 +319,9 @@ final class CefParser {
         // Translate extensions to possible ECS fields
         Map<String, Object> translatedFields = extensions.entrySet()
             .stream()
-            .filter(entry -> FIELD_MAPPING.containsKey(entry.getKey()))
-            .collect(Collectors.toMap(entry -> FIELD_MAPPING.get(entry.getKey()), entry -> {
-                Class<?> fieldType = FIELDS.get(FIELD_MAPPING.get(entry.getKey()));
+            .filter(entry -> FIELD_MAPPINGS.containsKey(entry.getKey()))
+            .collect(Collectors.toMap(entry -> FIELD_MAPPINGS.get(entry.getKey()), entry -> {
+                Class<?> fieldType = FIELDS.get(FIELD_MAPPINGS.get(entry.getKey()));
                 return convertValueToType(entry.getValue(), fieldType);
             }));
         // Add ECS translations to the root of the document

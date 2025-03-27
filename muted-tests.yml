@@ -245,16 +245,12 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
-  issue: https://github.com/elastic/elasticsearch/issues/123727
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
   method: testDataStreamLifecycleDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/123769
 - class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
   method: testCreateAndRestorePartialSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/123773
-
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/10_basic/Create a source only snapshot and then restore it}
   issue: https://github.com/elastic/elasticsearch/issues/122755
@@ -318,9 +314,6 @@ tests:
 - class: org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRateTests
   method: testEwmr_threadSafe
   issue: https://github.com/elastic/elasticsearch/issues/124692
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
-  issue: https://github.com/elastic/elasticsearch/issues/124848
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/124940
@@ -378,9 +371,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_cat_apis/Test cat data frame analytics single job with header}
   issue: https://github.com/elastic/elasticsearch/issues/125642
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/125668
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/125680
@@ -393,6 +383,12 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
   method: testAlreadyUpToDateDataStream
   issue: https://github.com/elastic/elasticsearch/issues/125727
+- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
+  method: testMergingFallsBehindAndThenCatchesUp
+  issue: https://github.com/elastic/elasticsearch/issues/125744
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=cat.allocation/10_basic/Node forecasts}
+  issue: https://github.com/elastic/elasticsearch/issues/125661
 
 # Examples:
 #

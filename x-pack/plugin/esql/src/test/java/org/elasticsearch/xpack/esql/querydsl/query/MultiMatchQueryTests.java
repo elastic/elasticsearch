@@ -41,6 +41,6 @@ public class MultiMatchQueryTests extends ESTestCase {
     public void testToString() {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
         final MultiMatchQuery mmq = new MultiMatchQuery(source, "eggplant", Map.of("bar", 1.0f, "foo", 1.0f), null);
-        assertEquals("MultiMatchQuery@1:2[{foo=1.0, bar=1.0}:eggplant]", mmq.toString());
+        assertEquals("MultiMatchQuery@1:2[{bar=1.0, foo=1.0}:eggplant]", mmq.toString());
     }
 }

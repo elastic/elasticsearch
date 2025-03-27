@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
@@ -103,6 +104,7 @@ public class MultiMatchQuery extends Query {
 
     @Override
     protected String innerToString() {
-        return fields + ":" + query;
+        // Use a TreeMap so we get the fields in a predictable order.
+        return new TreeMap<>(fields) + ":" + query;
     }
 }

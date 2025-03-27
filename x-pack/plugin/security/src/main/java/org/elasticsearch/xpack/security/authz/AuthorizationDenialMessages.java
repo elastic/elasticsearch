@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -90,20 +92,56 @@ public interface AuthorizationDenialMessages {
 
             if (ClusterPrivilegeResolver.isClusterAction(action)) {
                 final Collection<String> privileges = findClusterPrivilegesThatGrant(authentication, action, request);
-                if (privileges != null && privileges.size() > 0) {
+                if (privileges != null && false == privileges.isEmpty()) {
                     message = message
                         + ", this action is granted by the cluster privileges ["
                         + collectionToCommaDelimitedString(privileges)
                         + "]";
                 }
             } else if (isIndexAction(action)) {
-                final Collection<String> privileges = findIndexPrivilegesThatGrant(action);
-                if (privileges != null && privileges.size() > 0) {
-                    message = message
-                        + ", this action is granted by the index privileges ["
-                        + collectionToCommaDelimitedString(privileges)
-                        + "]";
+                String[] indices = AuthorizationEngine.RequestInfo.indices(request);
+                boolean hasFailuresSelector = false;
+                boolean hasNullOrDataSelector = false;
+                if (indices != null) {
+                    for (String index : indices) {
+                        if (IndexNameExpressionResolver.hasSelector(index, IndexComponentSelector.FAILURES)) {
+                            hasFailuresSelector = true;
+                        } else {
+                            hasNullOrDataSelector = true;
+                        }
+                        // we found both selectors, we can stop
+                        if (hasNullOrDataSelector && hasFailuresSelector) {
+                            break;
+                        }
+                    }
                 }
+
+                if (hasNullOrDataSelector) {
+                    final Collection<String> privileges = findIndexPrivilegesThatGrant(action, IndexComponentSelector.DATA);
+                    if (privileges != null && false == privileges.isEmpty()) {
+                        message = message
+                            + ", this action is granted by the index privileges ["
+                            + collectionToCommaDelimitedString(privileges)
+                            + "]";
+                    }
+                }
+                if (hasFailuresSelector) {
+                    final Collection<String> privileges = findIndexPrivilegesThatGrant(action, IndexComponentSelector.FAILURES);
+                    if (privileges != null && false == privileges.isEmpty()) {
+                        if (hasNullOrDataSelector) {
+                            message = message
+                                + " for data access, or ["
+                                + collectionToCommaDelimitedString(privileges)
+                                + "] for access with the failures selector";
+                        } else {
+                            message = message
+                                + ", this action is granted by the index privileges ["
+                                + collectionToCommaDelimitedString(privileges)
+                                + "]";
+                        }
+                    }
+                }
+
             }
 
             return message;
@@ -132,8 +170,8 @@ public interface AuthorizationDenialMessages {
             return ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
         }
 
-        protected Collection<String> findIndexPrivilegesThatGrant(String action) {
-            return IndexPrivilege.findPrivilegesThatGrant(action);
+        protected Collection<String> findIndexPrivilegesThatGrant(String action, IndexComponentSelector selector) {
+            return IndexPrivilege.findPrivilegesThatGrant(action, selector);
         }
 
         private String remoteClusterText(@Nullable String clusterAlias) {

@@ -623,6 +623,10 @@ CLOSING_METRICS_COLON
     : COLON -> type(COLON), popMode, pushMode(METRICS_MODE)
     ;
 
+CLOSING_METRICS_SELECTOR
+    : CAST_OP -> type(CAST_OP), popMode, pushMode(METRICS_MODE)
+    ;
+
 CLOSING_METRICS_COMMA
     : COMMA -> type(COMMA), popMode, pushMode(METRICS_MODE)
     ;

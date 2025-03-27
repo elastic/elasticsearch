@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.support.IndexComponentSelector;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -99,57 +98,31 @@ public interface AuthorizationDenialMessages {
                         + "]";
                 }
             } else if (isIndexAction(action)) {
-                String[] indices = AuthorizationEngine.RequestInfo.indices(request);
-                if (indices == null || indices.length == 0) {
-                    final Collection<String> privileges = findIndexPrivilegesThatGrant(action, IndexComponentSelector.DATA);
+                final Collection<String> privileges = findIndexPrivilegesThatGrant(action, IndexComponentSelector.DATA);
+                final Collection<String> privilegesForFailuresSelector = findIndexPrivilegesThatGrant(
+                    action,
+                    IndexComponentSelector.FAILURES
+                );
+                if (privileges != null && false == privileges.isEmpty()) {
+                    message = message
+                        + ", this action is granted by the index privileges ["
+                        + collectionToCommaDelimitedString(privileges)
+                        + "]";
+                }
+                if (privilegesForFailuresSelector != null && false == privilegesForFailuresSelector.isEmpty()) {
                     if (privileges != null && false == privileges.isEmpty()) {
                         message = message
-                            + ", this action is granted by the index privileges ["
-                            + collectionToCommaDelimitedString(privileges)
-                            + "]";
-                    }
-                    return message;
-                }
-                boolean hasFailuresSelector = false;
-                boolean hasNullOrDataSelector = false;
-                for (String index : indices) {
-                    if (IndexNameExpressionResolver.hasSelector(index, IndexComponentSelector.FAILURES)) {
-                        hasFailuresSelector = true;
+                            + " for data access, or ["
+                            + collectionToCommaDelimitedString(privilegesForFailuresSelector)
+                            + "] for access via the failures selector";
                     } else {
-                        hasNullOrDataSelector = true;
-                    }
-                    // we found both selectors, we can stop
-                    if (hasNullOrDataSelector && hasFailuresSelector) {
-                        break;
-                    }
-                }
-                if (hasNullOrDataSelector) {
-                    final Collection<String> privileges = findIndexPrivilegesThatGrant(action, IndexComponentSelector.DATA);
-                    if (privileges != null && false == privileges.isEmpty()) {
                         message = message
                             + ", this action is granted by the index privileges ["
-                            + collectionToCommaDelimitedString(privileges)
-                            + "]";
-                    }
-                }
-                if (hasFailuresSelector) {
-                    final Collection<String> privileges = findIndexPrivilegesThatGrant(action, IndexComponentSelector.FAILURES);
-                    if (privileges != null && false == privileges.isEmpty()) {
-                        if (hasNullOrDataSelector) {
-                            message = message
-                                + " for data access, or ["
-                                + collectionToCommaDelimitedString(privileges)
-                                + "] for access via the failures selector";
-                        } else {
-                            message = message
-                                + ", this action is granted by the index privileges ["
-                                + collectionToCommaDelimitedString(privileges)
-                                + "]";
-                        }
+                            + collectionToCommaDelimitedString(privilegesForFailuresSelector)
+                            + "] for access via the failures selector";
                     }
                 }
             }
-
             return message;
         }
 

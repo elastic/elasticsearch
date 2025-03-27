@@ -8,4 +8,4 @@ breaking:
   title: Remove apm_user role
   area: APM
   details: The apm_user role have been removed. Instead stack-wide roles (viewer, editor and superuser) should be used.
-  impact: Any user using the apm_user role should replace it by one of the stack-wide roles (viewer, editor and superuser) in order to have access to APM ui and APM data.
+  impact: Any user or role mappings using the apm_user role should replace it by one of the stack-wide roles (viewer, editor and superuser) in order to have access to APM ui and APM data.

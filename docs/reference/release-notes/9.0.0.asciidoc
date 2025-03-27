@@ -12,6 +12,9 @@ Also see <<breaking-changes-9.0,Breaking changes in 9.0>>.
 TLS::
 * Drop `TLS_RSA` cipher support for JDK 24 {es-pull}123600[#123600]
 
+Infra/Core::
+* Update the response format when detailed error information is disabled {es-pull}90529[#90529]
+
 [[bug-9.0.0]]
 [float]
 === Bug fixes

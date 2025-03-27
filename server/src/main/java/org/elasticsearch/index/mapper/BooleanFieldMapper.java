@@ -659,7 +659,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
         if (offsetsFieldName != null) {
-            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(
                 new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(
                     fullPath(),

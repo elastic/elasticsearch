@@ -385,17 +385,18 @@ public class FsBlobContainerTests extends ESTestCase {
         final var targetPath = BlobPath.EMPTY.add("target");
         final var targetContainer = store.blobContainer(targetPath);
 
-        final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final var sourceBlobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final var targetBlobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
         final var contents = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
-        sourceContainer.writeBlobAtomic(randomPurpose(), blobName, contents, true);
-        sourceContainer.copyBlob(randomPurpose(), blobName, targetContainer, blobName, true);
+        sourceContainer.writeBlobAtomic(randomPurpose(), sourceBlobName, contents, true);
+        sourceContainer.copyBlob(randomPurpose(), sourceBlobName, targetContainer, targetBlobName, true);
         assertThrows(
             FileAlreadyExistsException.class,
-            () -> sourceContainer.copyBlob(randomPurpose(), blobName, targetContainer, blobName, true)
+            () -> sourceContainer.copyBlob(randomPurpose(), sourceBlobName, targetContainer, targetBlobName, true)
         );
 
-        var targetContents = new BytesArray(targetContainer.readBlob(randomPurpose(), blobName).readAllBytes());
-        assertArrayEquals(contents.array(), targetContents.array());
+        var targetContents = new BytesArray(targetContainer.readBlob(randomPurpose(), targetBlobName).readAllBytes());
+        assertEquals(contents, targetContents);
     }
 
     static class MockFileSystemProvider extends FilterFileSystemProvider {

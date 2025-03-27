@@ -41,7 +41,7 @@ public class ScaledFloatOffsetDocValuesLoaderTests extends OffsetDocValuesLoader
     }
 
     @Override
-    protected Object randomValue() {
-        return Math.round(randomDoubleBetween(Long.MIN_VALUE / 10.0, Long.MAX_VALUE / 10.0, true) * 10) / 10.0;
+    protected Double randomValue() {
+        return randomLong() / 10.0;
     }
 }

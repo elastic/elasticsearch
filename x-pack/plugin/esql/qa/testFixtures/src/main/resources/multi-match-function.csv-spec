@@ -70,7 +70,7 @@ required_capability: multi_match_function
 required_capability: full_text_functions_disjunctions_compute_engine
 
 from books 
-| where multi_match("lord", "title", "summary", {}) or length(title) > 130 
+| where multi_match("lord", "title", "summary", {"operator": "AND"}) or length(title) > 130 
 | keep book_no
 ;
 ignoreOrder: true

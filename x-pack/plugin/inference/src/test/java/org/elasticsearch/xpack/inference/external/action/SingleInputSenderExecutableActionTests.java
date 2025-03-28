@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.junit.Before;
 
 import java.util.List;
@@ -53,7 +54,7 @@ public class SingleInputSenderExecutableActionTests extends ESTestCase {
         var testRan = new AtomicBoolean(false);
 
         executableAction.execute(
-            mock(EmbeddingsInput.class),
+            new UnifiedChatInput(List.of("one"), "system", false),
             mock(TimeValue.class),
             ActionListener.wrap(success -> testRan.set(true), e -> fail(e, "Test failed."))
         );
@@ -65,7 +66,7 @@ public class SingleInputSenderExecutableActionTests extends ESTestCase {
         var badInput = mock(EmbeddingsInput.class);
         var input = List.of("one", "two");
         when(badInput.getInputs()).thenReturn(input);
-        when(badInput.inputSize()).thenReturn(input.size());
+        when(badInput.isSingleInput()).thenReturn(false);
         var actualException = new AtomicReference<Exception>();
 
         executableAction.execute(

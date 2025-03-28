@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -40,14 +41,14 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     // Visible for testing
     record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, List<String> inputs) {
-        public String chunkText() {
+        String chunkText() {
             return inputs.get(inputIndex).substring(chunk.start(), chunk.end());
         }
     }
 
     public record BatchRequest(List<Request> requests) {
-        public List<String> inputs() {
-            return requests.stream().map(Request::chunkText).collect(Collectors.toList());
+        public Supplier<List<String>> inputs() {
+            return () -> requests.stream().map(Request::chunkText).collect(Collectors.toList());
         }
     }
 
@@ -142,7 +143,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
      */
     private class DebatchingListener implements ActionListener<InferenceServiceResults> {
 
-        private final BatchRequest request;
+        private BatchRequest request;
 
         DebatchingListener(BatchRequest request) {
             this.request = request;
@@ -168,6 +169,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
                         oldEmbedding -> oldEmbedding == null ? newEmbedding : oldEmbedding.merge(newEmbedding)
                     );
             }
+            request = null;
             if (resultCount.incrementAndGet() == batchRequests.size()) {
                 sendFinalResponse();
             }
@@ -195,6 +197,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             for (Request request : request.requests) {
                 resultsErrors.set(request.inputIndex(), e);
             }
+            this.request = null;
             if (resultCount.incrementAndGet() == batchRequests.size()) {
                 sendFinalResponse();
             }
@@ -206,6 +209,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         for (int i = 0; i < resultEmbeddings.size(); i++) {
             if (resultsErrors.get(i) != null) {
                 response.add(new ChunkedInferenceError(resultsErrors.get(i)));
+                resultsErrors.set(i, null);
             } else {
                 response.add(mergeResultsWithInputs(i));
             }

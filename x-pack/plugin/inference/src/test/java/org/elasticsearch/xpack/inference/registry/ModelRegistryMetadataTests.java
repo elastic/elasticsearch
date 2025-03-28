@@ -32,7 +32,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
 
     public static ModelRegistryMetadata randomInstance(boolean isUpgraded, boolean acceptsEmpty) {
         if (rarely() && acceptsEmpty) {
-            return isUpgraded ? ModelRegistryMetadata.EMPTY_UPGRADED : ModelRegistryMetadata.EMPTY;
+            return isUpgraded ? ModelRegistryMetadata.EMPTY_UPGRADED : ModelRegistryMetadata.EMPTY_NOT_UPGRADED;
         }
         int size = randomIntBetween(1, 5);
 

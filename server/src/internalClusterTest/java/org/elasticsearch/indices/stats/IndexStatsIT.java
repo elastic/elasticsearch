@@ -58,6 +58,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -1082,6 +1083,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
+    @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/124447")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder()
             .put(indexSettings())
@@ -1356,7 +1358,11 @@ public class IndexStatsIT extends ESIntegTestCase {
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
                     indexShard.sync();
-                    assertThat(indexShard.getLastSyncedGlobalCheckpoint(), equalTo(indexShard.getLastKnownGlobalCheckpoint()));
+                    assertThat(
+                        "Routing entry for shard " + indexShard.routingEntry().toString(),
+                        indexShard.getLastSyncedGlobalCheckpoint(),
+                        equalTo(indexShard.getLastKnownGlobalCheckpoint())
+                    );
                 }
             }
         }

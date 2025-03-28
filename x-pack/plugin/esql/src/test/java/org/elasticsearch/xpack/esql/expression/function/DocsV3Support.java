@@ -233,16 +233,50 @@ public abstract class DocsV3Support {
         return operatorEntry(name, symbol, clazz, category, false);
     }
 
+    @FunctionalInterface
+    interface TempFileWriter {
+        void writeToTempDir(Path dir, String extension, String str) throws IOException;
+    }
+
+    private class DocsFileWriter implements TempFileWriter {
+        @Override
+        public void writeToTempDir(Path dir, String extension, String str) throws IOException {
+            Files.createDirectories(dir);
+            Path file = dir.resolve(name + "." + extension);
+            Files.writeString(file, str);
+            logger.info("Wrote to file: {}", file);
+        }
+    }
+
     protected final String category;
     protected final String name;
+    protected final FunctionDefinition definition;
     protected final Logger logger;
     private final Supplier<Map<List<DataType>, DataType>> signatures;
+    private TempFileWriter tempFileWriter;
 
     private DocsV3Support(String category, String name, Class<?> testClass, Supplier<Map<List<DataType>, DataType>> signatures) {
+        this(category, name, definition(name), testClass, signatures);
+    }
+
+    private DocsV3Support(
+        String category,
+        String name,
+        FunctionDefinition definition,
+        Class<?> testClass,
+        Supplier<Map<List<DataType>, DataType>> signatures
+    ) {
         this.category = category;
         this.name = name;
+        this.definition = definition == null ? definition(name) : definition;
         this.logger = LogManager.getLogger(testClass);
         this.signatures = signatures;
+        this.tempFileWriter = new DocsFileWriter();
+    }
+
+    /** Used in tests to capture output for asserting on the content */
+    void setTempFileWriter(TempFileWriter tempFileWriter) {
+        this.tempFileWriter = tempFileWriter;
     }
 
     String replaceLinks(String text) {
@@ -363,7 +397,7 @@ public abstract class DocsV3Support {
     void writeToTempImageDir(String str) throws IOException {
         // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("images").resolve(category);
-        writeToTempDir(dir, "svg", str);
+        tempFileWriter.writeToTempDir(dir, "svg", str);
     }
 
     void writeToTempSnippetsDir(String subdir, String str) throws IOException {
@@ -373,20 +407,13 @@ public abstract class DocsV3Support {
             .resolve("_snippets")
             .resolve(category)
             .resolve(subdir);
-        writeToTempDir(dir, "md", str);
+        tempFileWriter.writeToTempDir(dir, "md", str);
     }
 
     void writeToTempKibanaDir(String subdir, String extension, String str) throws IOException {
         // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("kibana").resolve(subdir).resolve(category);
-        writeToTempDir(dir, extension, str);
-    }
-
-    private void writeToTempDir(Path dir, String extension, String str) throws IOException {
-        Files.createDirectories(dir);
-        Path file = dir.resolve(name + "." + extension);
-        Files.writeString(file, str);
-        logger.info("Wrote to file: {}", file);
+        tempFileWriter.writeToTempDir(dir, extension, str);
     }
 
     protected abstract void renderSignature() throws IOException;
@@ -396,6 +423,15 @@ public abstract class DocsV3Support {
     static class FunctionDocsSupport extends DocsV3Support {
         private FunctionDocsSupport(String name, Class<?> testClass) {
             super("functions", name, testClass, () -> AbstractFunctionTestCase.signatures(testClass));
+        }
+
+        FunctionDocsSupport(
+            String name,
+            Class<?> testClass,
+            FunctionDefinition definition,
+            Supplier<Map<List<DataType>, DataType>> signatures
+        ) {
+            super("functions", name, definition, testClass, signatures);
         }
 
         @Override
@@ -411,7 +447,6 @@ public abstract class DocsV3Support {
 
         @Override
         protected void renderDocs() throws IOException {
-            FunctionDefinition definition = definition(name);
             if (definition == null) {
                 logger.info("Skipping rendering docs because the function '{}' isn't registered", name);
             } else {
@@ -486,22 +521,16 @@ public abstract class DocsV3Support {
         }
 
         private String makePreviewText(boolean preview, FunctionAppliesTo[] functionAppliesTos) {
-            StringBuilder previewDescription = new StringBuilder();
-            for (FunctionAppliesTo appliesTo : functionAppliesTos) {
-                if (appliesTo.description().isEmpty() == false) {
-                    previewDescription.append(appliesTo.description()).append("\n");
-                }
-                preview = preview || appliesTo.lifeCycle() == FunctionAppliesToLifecycle.PREVIEW;
-            }
             String appliesToTextWithAT = appliesToText(functionAppliesTos);
             String appliesToText = appliesToTextWithoutAppliesTo(functionAppliesTos);
             StringBuilder previewText = new StringBuilder();
             if (preview) {
                 // We have a preview flag, use the WARNING callout
-                previewText.append(makeCallout("warning", appliesToText + "\n" + PREVIEW_CALLOUT + "\n" + previewDescription + "\n"));
-            } else if (previewDescription.isEmpty() == false) {
+                previewText.append(makeCallout("warning", "\n" + PREVIEW_CALLOUT + "\n")).append("\n");
+            }
+            if (appliesToText.isEmpty() == false) {
                 // We have extra descriptive text, nest inside a NOTE for emphasis
-                previewText.append(makeCallout("note", appliesToText + "\n" + previewDescription));
+                previewText.append(makeCallout("note", appliesToText));
             } else if (appliesToTextWithAT.isEmpty() == false) {
                 // No additional text, just use the plan applies_to syntax
                 previewText.append(appliesToTextWithAT);
@@ -514,6 +543,10 @@ public abstract class DocsV3Support {
             if (functionAppliesTos.length > 0) {
                 appliesToText.append("```{applies_to}\n");
                 for (FunctionAppliesTo appliesTo : functionAppliesTos) {
+                    if (appliesTo.description().isEmpty() == false) {
+                        // If any of the appliesTo has descriptive text, we need to format things differently
+                        return "";
+                    }
                     appliesToText.append("product: ")
                         .append(appliesTo.lifeCycle().name())
                         .append(" ")
@@ -531,7 +564,14 @@ public abstract class DocsV3Support {
                 appliesToText.append("\n");
                 for (FunctionAppliesTo appliesTo : functionAppliesTos) {
                     appliesToText.append("###### ");
-                    appliesToText.append(appliesTo.lifeCycle().name()).append(" ").append(appliesTo.version()).append("\n");
+                    appliesToText.append(appliesTo.lifeCycle().name());
+                    if (appliesTo.version().isEmpty() == false) {
+                        appliesToText.append(" ").append(appliesTo.version());
+                    }
+                    appliesToText.append("\n");
+                    if (appliesTo.description().isEmpty() == false) {
+                        appliesToText.append(appliesTo.description()).append("\n\n");
+                    }
                 }
             }
             return appliesToText.toString();
@@ -740,7 +780,6 @@ public abstract class DocsV3Support {
     }
 
     protected String buildFunctionSignatureSvg() throws IOException {
-        FunctionDefinition definition = definition(name);
         return (definition != null) ? RailRoadDiagram.functionSignature(definition) : null;
     }
 

@@ -377,6 +377,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test schedule_now on an already started transform}
   issue: https://github.com/elastic/elasticsearch/issues/120720
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests
+  method: testIORateIsAdjustedForRunningMergeTasks
+  issue: https://github.com/elastic/elasticsearch/issues/125842
 
 # Examples:
 #

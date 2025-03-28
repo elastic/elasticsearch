@@ -386,6 +386,9 @@ tests:
 - class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
   method: testRecreateTemplateWhenDeleted
   issue: https://github.com/elastic/elasticsearch/issues/123232
+- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
+  method: testSearchableSnapshotAction
+  issue: https://github.com/elastic/elasticsearch/issues/125867
 
 # Examples:
 #

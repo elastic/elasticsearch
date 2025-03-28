@@ -35,7 +35,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
@@ -163,7 +162,7 @@ final class CefParser {
         Sets.union(FIELD_MAPPINGS.keySet(), Set.copyOf(FIELD_MAPPINGS.values()))
     );
 
-    private static final Map<String, DataType> FIELDS = Map.<String, DataType>ofEntries(
+    private static final Map<String, DataType> FIELDS_WITH_TYPES = Map.<String, DataType>ofEntries(
         entry("@timestamp", DataType.TimestampType),
         entry("destination.bytes", DataType.LongType),
         entry("destination.domain", DataType.StringType),
@@ -348,13 +347,15 @@ final class CefParser {
         }
 
         // Translate extensions to possible ECS fields
-        Map<String, Object> translatedFields = extensions.entrySet()
-            .stream()
-            .filter(entry -> FIELD_MAPPINGS.containsKey(entry.getKey()))
-            .collect(Collectors.toMap(entry -> FIELD_MAPPINGS.get(entry.getKey()), entry -> {
-                DataType fieldType = FIELDS.get(FIELD_MAPPINGS.get(entry.getKey()));
-                return convertValueToType(entry.getValue(), fieldType);
-            }));
+        Map<String, Object> translatedFields = new HashMap<>();
+        for (Map.Entry<String, String> entry : extensions.entrySet()) {
+            if (FIELD_MAPPINGS.containsKey(entry.getKey())) {
+                String mappedKey = FIELD_MAPPINGS.get(entry.getKey());
+                DataType fieldType = FIELDS_WITH_TYPES.get(mappedKey);
+                translatedFields.put(mappedKey, convertValueToType(entry.getValue(), fieldType));
+            }
+        }
+
         // Add ECS translations to the root of the document
         if (translatedFields.isEmpty() == false) {
             translatedFields.forEach(event::addRootMapping);

@@ -30,6 +30,8 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
         service.infer(
             model,
             model.getTaskType().equals(TaskType.RERANK) ? QUERY : null,
+            null,
+            null,
             TEST_INPUT,
             false,
             Map.of(),

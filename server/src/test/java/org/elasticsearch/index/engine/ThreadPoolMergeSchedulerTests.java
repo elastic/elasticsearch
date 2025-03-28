@@ -174,7 +174,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
     }
 
-    public void testIndexingThrottling() {
+    public void testIndexingThrottlingWhileMergesAreRunning() {
         final int maxThreadCount = randomIntBetween(1, 5);
         // settings validation requires maxMergeCount >= maxThreadCount
         final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
@@ -198,23 +198,10 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         int mergesToSubmit = maxMergeCount + mergesToRun + excessMerges;
         int mergesOutstanding = 0;
         boolean expectIndexThrottling = false;
-        // simulate merge load, while also scheduling and running merges
-        while (mergesToSubmit > 0 || mergesToRun > 0) {
-            // simulate that the {@link ThreadPoolMergeExecutorService} maybe peaked IO un-throttling
+        // merges are submitted, while some are also scheduled and run
+        while (mergesToSubmit > 0) {
             isUsingMaxTargetIORate.set(randomBoolean());
-            if (mergesToRun > 0 && scheduledToRunMergeTasks.isEmpty() == false && randomBoolean()) {
-                // maybe run one scheduled merge
-                MergeTask mergeTask = randomFrom(scheduledToRunMergeTasks);
-                scheduledToRunMergeTasks.remove(mergeTask);
-                mergeTask.run();
-                mergesToRun--;
-                mergesOutstanding--;
-                if (isUsingMaxTargetIORate.get() && mergesOutstanding > maxMergeCount) {
-                    expectIndexThrottling = true;
-                } else if (mergesOutstanding <= maxMergeCount) {
-                    expectIndexThrottling = false;
-                }
-            } else if (submittedMergeTasks.isEmpty() == false && (mergesToSubmit == 0 || randomBoolean())) {
+            if (submittedMergeTasks.isEmpty() == false && randomBoolean()) {
                 // maybe schedule one submitted merge
                 MergeTask mergeTask = randomFrom(submittedMergeTasks);
                 submittedMergeTasks.remove(mergeTask);
@@ -222,16 +209,25 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 if (schedule == Schedule.RUN) {
                     scheduledToRunMergeTasks.add(mergeTask);
                 }
-            } else if (mergesToSubmit > 0) {
-                // submit one merge
-                MergeSource mergeSource = mock(MergeSource.class);
-                OneMerge oneMerge = mock(OneMerge.class);
-                when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
-                when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
-                when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
-                threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
-                mergesToSubmit--;
-                mergesOutstanding++;
+            } else {
+                if (mergesToRun > 0 && scheduledToRunMergeTasks.isEmpty() == false && randomBoolean()) {
+                    // maybe run one scheduled merge
+                    MergeTask mergeTask = randomFrom(scheduledToRunMergeTasks);
+                    scheduledToRunMergeTasks.remove(mergeTask);
+                    mergeTask.run();
+                    mergesToRun--;
+                    mergesOutstanding--;
+                } else {
+                    // submit one merge
+                    MergeSource mergeSource = mock(MergeSource.class);
+                    OneMerge oneMerge = mock(OneMerge.class);
+                    when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+                    when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+                    when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+                    threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+                    mergesToSubmit--;
+                    mergesOutstanding++;
+                }
                 if (isUsingMaxTargetIORate.get() && mergesOutstanding > maxMergeCount) {
                     expectIndexThrottling = true;
                 } else if (mergesOutstanding <= maxMergeCount) {
@@ -242,7 +238,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(expectIndexThrottling));
         }
         // execute all remaining merges (submitted or scheduled)
-        while (submittedMergeTasks.isEmpty() == false || scheduledToRunMergeTasks.isEmpty() == false) {
+        while (mergesToRun > 0 || submittedMergeTasks.isEmpty() == false || scheduledToRunMergeTasks.isEmpty() == false) {
             // simulate that the {@link ThreadPoolMergeExecutorService} maybe peaked IO un-throttling
             isUsingMaxTargetIORate.set(randomBoolean());
             if (submittedMergeTasks.isEmpty() == false && (scheduledToRunMergeTasks.isEmpty() || randomBoolean())) {
@@ -258,6 +254,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 MergeTask mergeTask = randomFrom(scheduledToRunMergeTasks);
                 scheduledToRunMergeTasks.remove(mergeTask);
                 mergeTask.run();
+                mergesToRun--;
                 mergesOutstanding--;
                 if (isUsingMaxTargetIORate.get() && mergesOutstanding > maxMergeCount) {
                     expectIndexThrottling = true;

@@ -13,11 +13,8 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.settings.ProjectSecrets;
-import org.elasticsearch.common.settings.SecureString;
 
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -53,11 +50,6 @@ public final class ProjectState {
 
     public ClusterBlocks blocks() {
         return cluster().blocks();
-    }
-
-    public Optional<SecureString> getSecret(String key) {
-        return Optional.ofNullable(metadata().<ProjectSecrets>custom(ProjectSecrets.TYPE))
-            .map(secrets -> secrets.getSettings().getString(key));
     }
 
     @Override

@@ -78,6 +78,9 @@ setup:
       indices.forcemerge:
         index: bbq_hnsw
         max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
 ---
 "Test knn search":
   - requires:

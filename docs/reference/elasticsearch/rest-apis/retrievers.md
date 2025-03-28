@@ -666,7 +666,7 @@ Follow these steps:
     }
     ```
 
-    1. [Adaptive allocations](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-auto-scale.md#nlp-model-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
+    1. [Adaptive allocations](docs-content://deploy-manage/autoscaling/trained-model-autoscaling.md#enabling-autoscaling-through-apis-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
 
 2. Define a `text_similarity_rerank` retriever:
 

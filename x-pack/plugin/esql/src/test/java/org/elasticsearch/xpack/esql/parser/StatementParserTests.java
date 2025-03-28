@@ -637,7 +637,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectDoubleColonErrorWithLineNumber(command, "*:*::failures", parseLineNumber + 3);
 
                 // Too many colons
-                expectInvalidIndexNameErrorWithLineNumber(command, "\"index:::data\"", lineNumber, "index:", "must not contain ':'");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"index:::data\"",
+                    lineNumber,
+                    "index:::data",
+                    "Selectors are not yet supported on remote cluster patterns"
+                );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "\"index::::data\"",
@@ -3380,10 +3386,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDoubleParamsForIdentifier() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         // There are three variations of double parameters - named, positional or anonymous, e.g. ??n, ??1 or ??, covered.
         // Each query is executed three times with the three variations.
 
@@ -3852,10 +3855,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMixedSingleDoubleParams() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         // This is a subset of testDoubleParamsForIdentifier, with single and double parameter markers mixed in the queries
         // Single parameter markers represent a constant value or pattern
         // double parameter markers represent identifiers - field or function names
@@ -4038,10 +4038,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidDoubleParamsNames() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         expectError(
             "from test | where x < ??n1 | eval y = ??n2",
             List.of(paramAsConstant("n1", "f1"), paramAsConstant("n3", "f2")),
@@ -4058,10 +4055,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidDoubleParamsPositions() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         expectError(
             "from test | where x < ??0",
             List.of(paramAsConstant(null, "f1")),
@@ -4089,10 +4083,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidDoubleParamsType() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         // double parameter markers cannot be declared as identifier patterns
         String error = "Query parameter [??f1][f1] declared as a pattern, cannot be used as an identifier";
         List<String> commandWithDoubleParams = List.of(

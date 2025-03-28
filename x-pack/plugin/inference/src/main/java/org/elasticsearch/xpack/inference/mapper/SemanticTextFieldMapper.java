@@ -323,8 +323,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 builder.setModelSettings(modelSettings.getValue());
             }
             builder.setChunkingSettings(mapper.fieldType().getChunkingSettings());
-            returnedMapper = builder.build(mapperMergeContext.getMapperBuilderContext());
-            return returnedMapper;
+            return builder.build(mapperMergeContext.getMapperBuilderContext());
         }
     }
 

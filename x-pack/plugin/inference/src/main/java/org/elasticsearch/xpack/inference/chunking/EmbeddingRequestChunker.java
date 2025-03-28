@@ -44,12 +44,6 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         public String chunkText() {
             return inputs.get(inputIndex).input().substring(chunk.start(), chunk.end());
         }
-
-        public ChunkInferenceInput chunkInput() {
-            ChunkInferenceInput chunkInferenceInput = inputs.get(inputIndex);
-            String chunkText = chunkInferenceInput.input().substring(chunk.start(), chunk.end());
-            return new ChunkInferenceInput(chunkText, chunkInferenceInput.chunkingSettings());
-        }
     }
 
     public record BatchRequest(List<Request> requests) {
@@ -62,8 +56,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     public record BatchRequestAndListener(BatchRequest batch, ActionListener<InferenceServiceResults> listener) {}
 
-    private static final int DEFAULT_WORDS_PER_CHUNK = 250;
-    private static final int DEFAULT_CHUNK_OVERLAP = 100;
+    private static final ChunkingSettings DEFAULT_CHUNKING_SETTINGS = new WordBoundaryChunkingSettings(250, 100);
 
     // The maximum number of chunks that is stored for any input text.
     // If the configured chunker chunks the text into more chunks, each
@@ -99,7 +92,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         this.resultsErrors = new AtomicArray<>(inputs.size());
 
         if (defaultChunkingSettings == null) {
-            defaultChunkingSettings = new WordBoundaryChunkingSettings(DEFAULT_WORDS_PER_CHUNK, DEFAULT_CHUNK_OVERLAP);
+            defaultChunkingSettings = DEFAULT_CHUNKING_SETTINGS;
         }
 
         List<Request> allRequests = new ArrayList<>();

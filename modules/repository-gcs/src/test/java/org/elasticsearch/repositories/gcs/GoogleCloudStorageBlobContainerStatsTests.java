@@ -15,6 +15,7 @@ import fixture.gcs.GoogleCloudStorageHttpHandler;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
@@ -31,6 +32,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +49,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
@@ -111,14 +112,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        isServerless = randomBoolean();
-        Settings settings;
-        if (isServerless) {
-            settings = Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build();
-        } else {
-            settings = Settings.EMPTY;
-        }
-        googleCloudStorageService = new GoogleCloudStorageService(settings);
+        googleCloudStorageService = new GoogleCloudStorageService();
         googleCloudStorageHttpHandler = new GoogleCloudStorageHttpHandler(BUCKET);
         httpServer.createContext("/", googleCloudStorageHttpHandler);
         httpServer.createContext("/token", new FakeOAuth2HttpHandler());
@@ -271,7 +265,9 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             googleCloudStorageService,
             BigArrays.NON_RECYCLING_INSTANCE,
             Math.toIntExact(BUFFER_SIZE.getBytes()),
-            BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(10), 10)
+            BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(10), 10),
+            new RepositoryMetadata(repositoryName, "gcs", Settings.EMPTY),
+            RepositoriesMetrics.NOOP
         );
         final GoogleCloudStorageBlobContainer googleCloudStorageBlobContainer = new GoogleCloudStorageBlobContainer(
             BlobPath.EMPTY,

@@ -127,7 +127,7 @@ PERCENT : '%';
 LEFT_BRACES : '{';
 RIGHT_BRACES : '}';
 
-DOUBLE_PARAMS: {this.isDevVersion()}? '??';
+DOUBLE_PARAMS: '??';
 
 NESTED_WHERE : WHERE -> type(WHERE);
 

@@ -157,7 +157,7 @@ identifier
 identifierPattern
     : ID_PATTERN
     | parameter
-    | {this.isDevVersion()}? doubleParameter
+    | doubleParameter
     ;
 
 parameter
@@ -173,7 +173,7 @@ doubleParameter
 identifierOrParameter
     : identifier
     | parameter
-    | {this.isDevVersion()}? doubleParameter
+    | doubleParameter
     ;
 
 limitCommand

@@ -33,16 +33,21 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -51,11 +56,11 @@ import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_IN
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
 public class ES87TSDBDocValuesProducer extends DocValuesProducer {
-    private final Map<String, NumericEntry> numerics;
-    private final Map<String, BinaryEntry> binaries;
-    private final Map<String, SortedEntry> sorted;
-    private final Map<String, SortedSetEntry> sortedSets;
-    private final Map<String, SortedNumericEntry> sortedNumerics;
+    private final Map<String, EntryOrBytes<NumericEntry>> numerics;
+    private final Map<String, EntryOrBytes<BinaryEntry>> binaries;
+    private final Map<String, EntryOrBytes<SortedEntry>> sorted;
+    private final Map<String, EntryOrBytes<SortedSetEntry>> sortedSets;
+    private final Map<String, EntryOrBytes<SortedNumericEntry>> sortedNumerics;
     private final Map<String, DocValuesSkipperEntry> skippers;
     private final IndexInput data;
     private final int maxDoc;
@@ -72,7 +77,6 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         this.skippers = new HashMap<>();
         this.maxDoc = state.segmentInfo.maxDoc();
         this.merging = false;
-
         // read in the entries from the metadata file.
         int version = -1;
         String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
@@ -130,11 +134,11 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private ES87TSDBDocValuesProducer(
-        Map<String, NumericEntry> numerics,
-        Map<String, BinaryEntry> binaries,
-        Map<String, SortedEntry> sorted,
-        Map<String, SortedSetEntry> sortedSets,
-        Map<String, SortedNumericEntry> sortedNumerics,
+        Map<String, EntryOrBytes<NumericEntry>> numerics,
+        Map<String, EntryOrBytes<BinaryEntry>> binaries,
+        Map<String, EntryOrBytes<SortedEntry>> sorted,
+        Map<String, EntryOrBytes<SortedSetEntry>> sortedSets,
+        Map<String, EntryOrBytes<SortedNumericEntry>> sortedNumerics,
         Map<String, DocValuesSkipperEntry> skippers,
         IndexInput data,
         int maxDoc,
@@ -160,13 +164,19 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public NumericDocValues getNumeric(FieldInfo field) throws IOException {
-        NumericEntry entry = numerics.get(field.name);
+        final NumericEntry entry = getNumericEntry(field);
+        if (entry == null) {
+            return null;
+        }
         return getNumeric(entry, -1);
     }
 
     @Override
     public BinaryDocValues getBinary(FieldInfo field) throws IOException {
-        BinaryEntry entry = binaries.get(field.name);
+        final BinaryEntry entry = getBinaryEntry(field);
+        if (entry == null) {
+            return null;
+        }
         if (entry.docsWithFieldOffset == -2) {
             return DocValues.emptyBinary();
         }
@@ -320,8 +330,27 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public SortedDocValues getSorted(FieldInfo field) throws IOException {
-        SortedEntry entry = sorted.get(field.name);
+        final SortedEntry entry = getSortedEntry(field);
+        if (entry == null) {
+            return null;
+        }
         return getSorted(entry);
+    }
+
+    private SortedEntry getSortedEntry(FieldInfo field) throws IOException {
+        var wrappedEntry = sorted.get(field.name);
+        if (wrappedEntry == null) {
+            return null;
+        }
+        final SortedEntry entry;
+        final var entryOrBytes = wrappedEntry.v;
+        if (entryOrBytes instanceof byte[] bytes) {
+            entry = readSorted(new ByteArrayIndexInput("sorted", bytes));
+            wrappedEntry.v = entry;
+        } else {
+            entry = (SortedEntry) entryOrBytes;
+        }
+        return entry;
     }
 
     private SortedDocValues getSorted(SortedEntry entry) throws IOException {
@@ -675,13 +704,36 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-        SortedNumericEntry entry = sortedNumerics.get(field.name);
+        final SortedNumericEntry entry = getSortedNumericEntry(field);
+        if (entry == null) {
+            return null;
+        }
         return getSortedNumeric(entry, -1);
+    }
+
+    private SortedNumericEntry getSortedNumericEntry(FieldInfo field) throws IOException {
+        var wrappedEntry = sortedNumerics.get(field.name);
+        if (wrappedEntry == null) {
+            return null;
+        }
+        final SortedNumericEntry entry;
+        final var entryOrBytes = wrappedEntry.v;
+        if (entryOrBytes instanceof byte[] bytes) {
+            entry = readSortedNumeric(new ByteArrayIndexInput("sorted_numeric", bytes));
+            wrappedEntry.v = entry;
+        } else {
+            entry = (SortedNumericEntry) entryOrBytes;
+        }
+        return entry;
     }
 
     @Override
     public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
-        SortedSetEntry entry = sortedSets.get(field.name);
+        final SortedSetEntry entry = getSortedSetEntry(field);
+        if (entry == null) {
+            return null;
+        }
+
         if (entry.singleValueEntry != null) {
             return DocValues.singleton(getSorted(entry.singleValueEntry));
         }
@@ -739,6 +791,22 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 return ords.cost();
             }
         };
+    }
+
+    private SortedSetEntry getSortedSetEntry(FieldInfo field) throws IOException {
+        var wrappedEntry = sortedSets.get(field.name);
+        if (wrappedEntry == null) {
+            return null;
+        }
+        final SortedSetEntry entry;
+        final var entryOrBytes = wrappedEntry.v;
+        if (entryOrBytes instanceof byte[] bytes) {
+            entry = readSortedSet(new ByteArrayIndexInput("sorted_set", bytes));
+            wrappedEntry.v = entry;
+        } else {
+            entry = (SortedSetEntry) entryOrBytes;
+        }
+        return entry;
     }
 
     @Override
@@ -861,36 +929,83 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         data.close();
     }
 
-    private void readFields(IndexInput meta, FieldInfos infos) throws IOException {
-        for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
-            FieldInfo info = infos.fieldInfo(fieldNumber);
-            if (info == null) {
-                throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
+    private static class StoringBytesIndexInput extends FilterIndexInput {
+        final BytesRefBuilder buffer = new BytesRefBuilder();
+        boolean tracking = false;
+
+        StoringBytesIndexInput(IndexInput in) {
+            super("storing_bytes", in);
+        }
+
+        void startTracking() {
+            buffer.clear();
+            tracking = true;
+        }
+
+        byte[] endTracking() {
+            tracking = false;
+            BytesRef out = buffer.get();
+            return Arrays.copyOf(out.bytes, out.length);
+        }
+
+        @Override
+        public byte readByte() throws IOException {
+            byte b = super.readByte();
+            if (tracking) {
+                buffer.append(b);
             }
-            byte type = meta.readByte();
-            if (info.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
-                skippers.put(info.name, readDocValueSkipperMeta(meta));
+            return b;
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) throws IOException {
+            super.readBytes(b, offset, len);
+            if (tracking) {
+                buffer.append(b, offset, len);
             }
-            if (type == ES87TSDBDocValuesFormat.NUMERIC) {
-                numerics.put(info.name, readNumeric(meta));
-            } else if (type == ES87TSDBDocValuesFormat.BINARY) {
-                binaries.put(info.name, readBinary(meta));
-            } else if (type == ES87TSDBDocValuesFormat.SORTED) {
-                sorted.put(info.name, readSorted(meta));
-            } else if (type == ES87TSDBDocValuesFormat.SORTED_SET) {
-                sortedSets.put(info.name, readSortedSet(meta));
-            } else if (type == ES87TSDBDocValuesFormat.SORTED_NUMERIC) {
-                sortedNumerics.put(info.name, readSortedNumeric(meta));
-            } else {
-                throw new CorruptIndexException("invalid type: " + type, meta);
+        }
+
+        @Override
+        public void skipBytes(long numBytes) throws IOException {
+            super.skipBytes(numBytes);
+            if (tracking) {
+                byte[] empty = new byte[Math.toIntExact(numBytes)];
+                buffer.append(empty, 0, empty.length);
             }
         }
     }
 
-    private static NumericEntry readNumeric(IndexInput meta) throws IOException {
-        NumericEntry entry = new NumericEntry();
-        readNumeric(meta, entry);
-        return entry;
+    private void readFields(IndexInput meta, FieldInfos infos) throws IOException {
+        StoringBytesIndexInput input = new StoringBytesIndexInput(meta);
+        for (int fieldNumber = input.readInt(); fieldNumber != -1; fieldNumber = input.readInt()) {
+            FieldInfo info = infos.fieldInfo(fieldNumber);
+            if (info == null) {
+                throw new CorruptIndexException("Invalid field number: " + fieldNumber, input);
+            }
+            byte type = input.readByte();
+            if (info.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
+                skippers.put(info.name, readDocValueSkipperMeta(input));
+            }
+            input.startTracking();
+            if (type == ES87TSDBDocValuesFormat.NUMERIC) {
+                readNumeric(input);
+                numerics.put(info.name, new EntryOrBytes<>(input.endTracking()));
+            } else if (type == ES87TSDBDocValuesFormat.BINARY) {
+                readBinary(input);
+                binaries.put(info.name, new EntryOrBytes<>(input.endTracking()));
+            } else if (type == ES87TSDBDocValuesFormat.SORTED) {
+                readSorted(input);
+                sorted.put(info.name, new EntryOrBytes<>(input.endTracking()));
+            } else if (type == ES87TSDBDocValuesFormat.SORTED_SET) {
+                readSortedSet(input);
+                sortedSets.put(info.name, new EntryOrBytes<>(input.endTracking()));
+            } else if (type == ES87TSDBDocValuesFormat.SORTED_NUMERIC) {
+                readSortedNumeric(input);
+                sortedNumerics.put(info.name, new EntryOrBytes<>(input.endTracking()));
+            } else {
+                throw new CorruptIndexException("invalid type: " + type, input);
+            }
+        }
     }
 
     private static DocValuesSkipperEntry readDocValueSkipperMeta(IndexInput meta) throws IOException {
@@ -902,6 +1017,12 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         int maxDocID = meta.readInt();
 
         return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID);
+    }
+
+    private static NumericEntry readNumeric(IndexInput meta) throws IOException {
+        NumericEntry entry = new NumericEntry();
+        readNumeric(meta, entry);
+        return entry;
     }
 
     private static void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
@@ -1416,6 +1537,37 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     private record DocValuesSkipperEntry(long offset, long length, long minValue, long maxValue, int docCount, int maxDocId) {}
 
+    private NumericEntry getNumericEntry(FieldInfo field) throws IOException {
+        var wrappedEntry = numerics.get(field.name);
+        if (wrappedEntry == null) {
+            return null;
+        }
+        final NumericEntry entry;
+        final var entryOrBytes = wrappedEntry.v;
+        if (entryOrBytes instanceof byte[] bytes) {
+            entry = readNumeric(new ByteArrayIndexInput("numeric", bytes));
+            wrappedEntry.v = entry;
+        } else {
+            entry = (NumericEntry) entryOrBytes;
+        }
+        return entry;
+    }
+
+    private BinaryEntry getBinaryEntry(FieldInfo field) throws IOException {
+        var wrappedEntry = binaries.get(field.name);
+        if (wrappedEntry == null) {
+            return null;
+        }
+        final var entryOrBytes = wrappedEntry.v;
+        if (entryOrBytes instanceof byte[] bytes) {
+            var entry = readBinary(new ByteArrayIndexInput("binary", bytes));
+            wrappedEntry.v = entry;
+            return entry;
+        } else {
+            return (BinaryEntry) entryOrBytes;
+        }
+    }
+
     private static class NumericEntry {
         long docsWithFieldOffset;
         long docsWithFieldLength;
@@ -1478,6 +1630,33 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         long termsIndexAddressesLength;
 
         int maxBlockLength;
+    }
+
+    private static class EntryOrBytes<E> {
+        private Object v;
+
+        EntryOrBytes(E v) {
+            this.v = v;
+        }
+
+        EntryOrBytes(byte[] v) {
+            this.v = v;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <E> E getOrDecode(EntryOrBytes<E> entry, CheckedFunction<byte[], E, IOException> decoder) throws IOException {
+        if (entry == null) {
+            return null;
+        }
+        final Object current = entry.v;
+        assert current != null;
+        if (current instanceof byte[] bytes) {
+            E e = decoder.apply(bytes);
+            entry.v = e;
+            return e;
+        }
+        return (E) current;
     }
 
 }

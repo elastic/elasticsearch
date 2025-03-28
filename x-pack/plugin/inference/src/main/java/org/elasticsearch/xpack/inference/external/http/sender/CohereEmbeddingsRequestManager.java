@@ -51,7 +51,7 @@ public class CohereEmbeddingsRequestManager extends CohereRequestManager {
         ActionListener<InferenceServiceResults> listener
     ) {
         EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
-        List<String> docsInput = input.getInputs();
+        List<String> docsInput = input.getStringInputs();
         InputType inputType = input.getInputType();
 
         CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(docsInput, inputType, model);

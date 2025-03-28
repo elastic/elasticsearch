@@ -52,7 +52,7 @@ public class TruncatingRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsInput = inferenceInputs.castTo(EmbeddingsInput.class).getInputs();
+        var docsInput = inferenceInputs.castTo(EmbeddingsInput.class).getStringInputs();
         var truncatedInput = truncate(docsInput, maxInputTokens);
         var request = requestCreator.apply(truncatedInput);
 

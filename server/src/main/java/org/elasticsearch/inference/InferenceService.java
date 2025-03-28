@@ -133,18 +133,18 @@ public interface InferenceService extends Closeable {
     /**
      * Chunk long text.
      *
-     * @param model           The model
-     * @param query           Inference query, mainly for re-ranking
-     * @param input           Inference input
-     * @param taskSettings    Settings in the request to override the model's defaults
-     * @param inputType       For search, ingest etc
-     * @param timeout         The timeout for the request
-     * @param listener        Chunked Inference result listener
+     * @param model            The model
+     * @param query            Inference query, mainly for re-ranking
+     * @param input            Inference input
+     * @param taskSettings     Settings in the request to override the model's defaults
+     * @param inputType        For search, ingest etc
+     * @param timeout          The timeout for the request
+     * @param listener         Chunked Inference result listener
      */
     void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,

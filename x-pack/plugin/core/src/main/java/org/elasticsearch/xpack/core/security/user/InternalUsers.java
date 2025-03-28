@@ -36,9 +36,11 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -158,14 +160,18 @@ public class InternalUsers {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
                     .privileges(
-                        "delete_index",
-                        RolloverAction.NAME,
-                        ForceMergeAction.NAME + "*",
-                        // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME + "*",
-                        TransportUpdateSettingsAction.TYPE.name(),
-                        DownsampleAction.NAME,
-                        TransportAddIndexBlockAction.TYPE.name()
+                        filterNonNull(
+                            // needed to rollover failure store
+                            DataStream.isFailureStoreFeatureFlagEnabled() ? "manage_failure_store" : null,
+                            "delete_index",
+                            RolloverAction.NAME,
+                            ForceMergeAction.NAME + "*",
+                            // indices stats is used by rollover, so we need to grant it here
+                            IndicesStatsAction.NAME + "*",
+                            TransportUpdateSettingsAction.TYPE.name(),
+                            DownsampleAction.NAME,
+                            TransportAddIndexBlockAction.TYPE.name()
+                        )
                     )
                     .allowRestrictedIndices(false)
                     .build(),
@@ -177,14 +183,18 @@ public class InternalUsers {
                         ".fleet-fileds*"
                     )
                     .privileges(
-                        "delete_index",
-                        RolloverAction.NAME,
-                        ForceMergeAction.NAME + "*",
-                        // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME + "*",
-                        TransportUpdateSettingsAction.TYPE.name(),
-                        DownsampleAction.NAME,
-                        TransportAddIndexBlockAction.TYPE.name()
+                        filterNonNull(
+                            // needed to rollover failure store
+                            DataStream.isFailureStoreFeatureFlagEnabled() ? "manage_failure_store" : null,
+                            "delete_index",
+                            RolloverAction.NAME,
+                            ForceMergeAction.NAME + "*",
+                            // indices stats is used by rollover, so we need to grant it here
+                            IndicesStatsAction.NAME + "*",
+                            TransportUpdateSettingsAction.TYPE.name(),
+                            DownsampleAction.NAME,
+                            TransportAddIndexBlockAction.TYPE.name()
+                        )
                     )
                     .allowRestrictedIndices(true)
                     .build() },
@@ -248,25 +258,18 @@ public class InternalUsers {
         new RoleDescriptor(
             UsernamesField.LAZY_ROLLOVER_ROLE,
             new String[] {},
-            DataStream.isFailureStoreFeatureFlagEnabled()
-                ? new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder()
-                        .indices("*")
-                        .privileges(LazyRolloverAction.NAME)
-                        .allowRestrictedIndices(true)
-                        .build(),
-                    RoleDescriptor.IndicesPrivileges.builder()
-                        .indices("*")
-                        // needed to rollover failure store
-                        .privileges("manage_failure_store")
-                        .allowRestrictedIndices(true)
-                        .build() }
-                : new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder()
-                        .indices("*")
-                        .privileges(LazyRolloverAction.NAME)
-                        .allowRestrictedIndices(true)
-                        .build(), },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("*")
+                    .privileges(
+                        filterNonNull(
+                            // needed to rollover failure store
+                            DataStream.isFailureStoreFeatureFlagEnabled() ? "manage_failure_store" : null,
+                            LazyRolloverAction.NAME
+                        )
+                    )
+                    .allowRestrictedIndices(true)
+                    .build() },
             null,
             null,
             new String[] {},
@@ -323,5 +326,9 @@ public class InternalUsers {
             throw new IllegalStateException("user [" + username + "] is not internal");
         }
         return instance;
+    }
+
+    private static String[] filterNonNull(String... privileges) {
+        return Arrays.stream(privileges).filter(Objects::nonNull).toArray(String[]::new);
     }
 }

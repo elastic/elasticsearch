@@ -100,10 +100,13 @@ public interface AuthorizationDenialMessages {
                         + "]";
                 }
             } else if (isIndexAction(action)) {
+                // this includes `all`
                 final Collection<String> privileges = findIndexPrivilegesThatGrant(
                     action,
                     p -> p.getSelectorPredicate().test(IndexComponentSelector.DATA)
                 );
+                // this is an invariant since `all` is included in the above so the only way
+                // we can get an empty result here is a bogus action, which will never be covered by a failures privilege
                 assert false == privileges.isEmpty()
                     || findIndexPrivilegesThatGrant(
                         action,

@@ -256,6 +256,11 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
             }
 
             // Equals OR Range
+            /*
+            NB: this loop is probably dead code. There's no syntax for ranges, so the parser never produces them.  This
+            rule can create ranges, but only in this loop, which iterates over the existing ranges. In short,
+            ranges.size() should always be zero at this point.
+             */
             for (int i = 0; i < ranges.size(); i++) { // might modify list, so use index loop
                 Range range = ranges.get(i);
                 if (eq.left().semanticEquals(range.value())) {

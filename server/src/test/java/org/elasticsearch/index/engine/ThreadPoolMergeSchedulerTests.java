@@ -617,7 +617,10 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
     }
 
-    static ThreadPoolMergeExecutorService mockThreadPoolMergeExecutorService(List<MergeTask> submittedMergeTasks, AtomicBoolean isUsingMaxTargetIORate) {
+    static ThreadPoolMergeExecutorService mockThreadPoolMergeExecutorService(
+        List<MergeTask> submittedMergeTasks,
+        AtomicBoolean isUsingMaxTargetIORate
+    ) {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         doAnswer(invocation -> {
             MergeTask mergeTask = (MergeTask) invocation.getArguments()[0];

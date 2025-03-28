@@ -86,7 +86,7 @@ public abstract class SenderService implements InferenceService {
         @Nullable Integer topN,
         boolean stream
     ) {
-        List<String> textInput = ChunkInferenceInput.asStrings(input);
+        List<String> textInput = ChunkInferenceInput.inputs(input);
         return switch (model.getTaskType()) {
             case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(textInput, stream);
             case RERANK -> {

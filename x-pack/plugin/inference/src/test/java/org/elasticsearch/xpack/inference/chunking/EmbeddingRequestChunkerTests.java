@@ -138,12 +138,12 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertEquals("input 0", batches.get(0).batch().inputs().get(0).input());
         assertEquals("input 9", batches.get(0).batch().inputs().get(9).input());
         assertThat(
-            ChunkInferenceInput.asStrings(batches.get(1).batch().inputs()),
+            ChunkInferenceInput.inputs(batches.get(1).batch().inputs()),
             contains("input 10", "input 11", "input 12", "input 13", "input 14", "input 15", "input 16", "input 17", "input 18", "input 19")
         );
         assertEquals("input 20", batches.get(2).batch().inputs().get(0).input());
         assertEquals("input 29", batches.get(2).batch().inputs().get(9).input());
-        assertThat(ChunkInferenceInput.asStrings(batches.get(3).batch().inputs()), contains("input 30"));
+        assertThat(ChunkInferenceInput.inputs(batches.get(3).batch().inputs()), contains("input 30"));
 
         List<EmbeddingRequestChunker.Request> requests = batches.get(0).batch().requests();
         for (int i = 0; i < requests.size(); i++) {
@@ -174,12 +174,12 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertEquals("input 0", batches.get(0).batch().inputs().get(0).input());
         assertEquals("input 9", batches.get(0).batch().inputs().get(9).input());
         assertThat(
-            ChunkInferenceInput.asStrings(batches.get(1).batch().inputs()),
+            ChunkInferenceInput.inputs(batches.get(1).batch().inputs()),
             contains("input 10", "input 11", "input 12", "input 13", "input 14", "input 15", "input 16", "input 17", "input 18", "input 19")
         );
         assertEquals("input 20", batches.get(2).batch().inputs().get(0).input());
         assertEquals("input 29", batches.get(2).batch().inputs().get(9).input());
-        assertThat(ChunkInferenceInput.asStrings(batches.get(3).batch().inputs()), contains("input 30"));
+        assertThat(ChunkInferenceInput.inputs(batches.get(3).batch().inputs()), contains("input 30"));
 
         List<EmbeddingRequestChunker.Request> requests = batches.get(0).batch().requests();
         for (int i = 0; i < requests.size(); i++) {

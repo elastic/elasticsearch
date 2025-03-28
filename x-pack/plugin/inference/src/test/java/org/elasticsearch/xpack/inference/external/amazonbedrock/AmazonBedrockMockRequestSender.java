@@ -84,7 +84,7 @@ public class AmazonBedrockMockRequestSender implements Sender {
     ) {
         sendCounter++;
         if (inferenceInputs instanceof EmbeddingsInput docsInput) {
-            inputs.add(ChunkInferenceInput.asStrings(docsInput.getInputs()));
+            inputs.add(ChunkInferenceInput.inputs(docsInput.getInputs()));
             if (docsInput.getInputType() != null) {
                 inputTypes.add(docsInput.getInputType());
             }

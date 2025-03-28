@@ -206,13 +206,25 @@ public class S3HttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
                 final var upload = uploads.remove(params.get("uploadId"));
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
-
             } else if (Regex.simpleMatch("PUT /" + path + "/*", request)) {
-                final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                blobs.put(requestComponents.uri(), blob.v2());
-                exchange.getResponseHeaders().add("ETag", blob.v1());
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                // copy request
+                final var sourceBlobName = exchange.getRequestHeaders().get("X-amz-copy-source");
+                if (sourceBlobName != null) {
+                    var sourceBlob = blobs.get(sourceBlobName.getFirst());
+                    blobs.put(requestComponents.uri(), sourceBlob);
 
+                    byte[] response = ("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <CopyObjectResult></CopyObjectResult>""").getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
+                } else {
+                    final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                    blobs.put(requestComponents.uri(), blob.v2());
+                    exchange.getResponseHeaders().add("ETag", blob.v1());
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                }
             } else if (isListObjectsRequest(request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);

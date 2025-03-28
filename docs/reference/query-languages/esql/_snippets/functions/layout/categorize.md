@@ -7,6 +7,7 @@ may be changed or removed in a future release. Elastic will work to fix any issu
 are not subject to the support SLA of official GA features.
 :::
 
+
 **Syntax**
 
 :::{image} ../../../images/functions/categorize.svg

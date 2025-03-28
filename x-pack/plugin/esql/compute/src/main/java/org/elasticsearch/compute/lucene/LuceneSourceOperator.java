@@ -232,12 +232,13 @@ public class LuceneSourceOperator extends LuceneOperator {
         if (docs.getPositionCount() == upToPositions) {
             return docs;
         }
-        try (var slice = blockFactory.newIntVectorFixedBuilder(upToPositions)) {
-            for (int i = 0; i < upToPositions; i++) {
-                slice.appendInt(docs.getInt(i));
+        try (docs) {
+            try (var slice = blockFactory.newIntVectorFixedBuilder(upToPositions)) {
+                for (int i = 0; i < upToPositions; i++) {
+                    slice.appendInt(docs.getInt(i));
+                }
+                return slice.build();
             }
-            docs.close();
-            return slice.build();
         }
     }
 
@@ -247,12 +248,13 @@ public class LuceneSourceOperator extends LuceneOperator {
         if (scores.getPositionCount() == upToPositions) {
             return scores;
         }
-        try (var slice = blockFactory.newDoubleVectorBuilder(upToPositions)) {
-            for (int i = 0; i < upToPositions; i++) {
-                slice.appendDouble(scores.getDouble(i));
+        try (scores) {
+            try (var slice = blockFactory.newDoubleVectorBuilder(upToPositions)) {
+                for (int i = 0; i < upToPositions; i++) {
+                    slice.appendDouble(scores.getDouble(i));
+                }
+                return slice.build();
             }
-            scores.close();
-            return slice.build();
         }
     }
 

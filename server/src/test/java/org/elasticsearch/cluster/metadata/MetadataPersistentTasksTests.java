@@ -36,8 +36,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
@@ -47,11 +49,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MetadataPersistentTasksTests extends ESTestCase {
 
+    private Set<Long> assignedAllocationIds;
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedWriteableRegistry namedWriteableRegistryBwc;
 
     @Before
     public void initializeRegistries() {
+        assignedAllocationIds = new HashSet<>();
         new PersistentTasksExecutorRegistry(
             List.of(
                 new TestClusterPersistentTasksExecutor(TestClusterPersistentTasksParams.NAME, null),
@@ -191,12 +195,18 @@ public class MetadataPersistentTasksTests extends ESTestCase {
         );
     }
 
-    private static <T extends PersistentTasks> T mutatePersistentTasks(
+    private long randomUniqueAllocationIdBetween(long min, long max) {
+        final long allocationId = randomValueOtherThanMany(id -> assignedAllocationIds.contains(id), () -> randomLongBetween(min, max));
+        assignedAllocationIds.add(allocationId);
+        return allocationId;
+    }
+
+    private <T extends PersistentTasks> T mutatePersistentTasks(
         PersistentTasks persistentTasks,
         BiFunction<String, Long, PersistentTask<?>> oneTaskFunc,
         BiFunction<Long, Map<String, PersistentTask<?>>, T> tasksFunc
     ) {
-        final long updatedAllocationId = persistentTasks.getLastAllocationId() + randomLongBetween(100, 1000);
+        final long updatedLastAllocationId = persistentTasks.getLastAllocationId() + randomLongBetween(100, 1000);
         final Map<String, PersistentTask<?>> tasks = persistentTasks.taskMap();
 
         final var updatedTasks = new HashMap<>(tasks);
@@ -206,7 +216,10 @@ public class MetadataPersistentTasksTests extends ESTestCase {
                 final String taskId = randomTaskId();
                 updatedTasks.put(
                     taskId,
-                    oneTaskFunc.apply(taskId, randomLongBetween(persistentTasks.getLastAllocationId() + i + 1, updatedAllocationId))
+                    oneTaskFunc.apply(
+                        taskId,
+                        randomUniqueAllocationIdBetween(persistentTasks.getLastAllocationId() + i + 1, updatedLastAllocationId)
+                    )
                 );
             });
         } else {
@@ -215,14 +228,14 @@ public class MetadataPersistentTasksTests extends ESTestCase {
                 updatedTasks.remove(randomFrom(updatedTasks.keySet()));
             }
         }
-        return tasksFunc.apply(updatedAllocationId, updatedTasks);
+        return tasksFunc.apply(updatedLastAllocationId, updatedTasks);
     }
 
     private static String randomTaskId() {
         return randomAlphaOfLength(15);
     }
 
-    private static Metadata randomMetadataWithPersistentTasks() {
+    private Metadata randomMetadataWithPersistentTasks() {
         final long lastAllocationIdCluster = randomLongBetween(0, Long.MAX_VALUE / 2);
         final var clusterPersistentTasksCustomMetadata = new ClusterPersistentTasksCustomMetadata(
             lastAllocationIdCluster,
@@ -268,26 +281,26 @@ public class MetadataPersistentTasksTests extends ESTestCase {
         );
     }
 
-    public static Map<String, PersistentTask<?>> randomClusterPersistentTasks(long allocationId) {
+    private Map<String, PersistentTask<?>> randomClusterPersistentTasks(long allocationId) {
         return randomMap(0, 5, () -> {
             final String taskId = randomTaskId();
-            return new Tuple<>(taskId, oneClusterPersistentTask(taskId, randomLongBetween(0, allocationId)));
+            return new Tuple<>(taskId, oneClusterPersistentTask(taskId, randomUniqueAllocationIdBetween(0, allocationId)));
         });
     }
 
-    public static Map<String, PersistentTask<?>> randomProjectPersistentTasks(long allocationId) {
+    private Map<String, PersistentTask<?>> randomProjectPersistentTasks(long allocationId) {
         return randomMap(0, 5, () -> {
             final String taskId = randomTaskId();
-            return new Tuple<>(taskId, oneProjectPersistentTask(taskId, randomLongBetween(0, allocationId)));
+            return new Tuple<>(taskId, oneProjectPersistentTask(taskId, randomUniqueAllocationIdBetween(0, allocationId)));
         });
     }
 
-    public static Tuple<Metadata, Metadata> randomMetadataAndUpdate() {
+    private Tuple<Metadata, Metadata> randomMetadataAndUpdate() {
         final Metadata before = randomMetadataWithPersistentTasks();
         final Metadata after = Metadata.builder(before)
             .putCustom(
                 ClusterPersistentTasksCustomMetadata.TYPE,
-                MetadataPersistentTasksTests.<ClusterPersistentTasksCustomMetadata>mutatePersistentTasks(
+                this.<ClusterPersistentTasksCustomMetadata>mutatePersistentTasks(
                     ClusterPersistentTasksCustomMetadata.get(before),
                     MetadataPersistentTasksTests::oneClusterPersistentTask,
                     ClusterPersistentTasksCustomMetadata::new

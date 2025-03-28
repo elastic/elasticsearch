@@ -215,7 +215,6 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             watches = in.readCollectionAsList(Item::new);
             watchTotalCount = in.readVLong();
         }

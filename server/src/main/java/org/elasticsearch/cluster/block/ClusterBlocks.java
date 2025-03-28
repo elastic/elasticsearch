@@ -438,7 +438,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     public static ClusterBlocks readFrom(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
             final Set<ClusterBlock> global = readBlockSet(in);
-            final Map<ProjectId, ProjectBlocks> projectBlocksMap = in.readImmutableMap(ProjectId::new, ProjectBlocks::readFrom);
+            final Map<ProjectId, ProjectBlocks> projectBlocksMap = in.readImmutableMap(ProjectId::readFrom, ProjectBlocks::readFrom);
             if (global.isEmpty()
                 && noProjectOrDefaultProjectOnly(projectBlocksMap)
                 && projectBlocksMap.getOrDefault(Metadata.DEFAULT_PROJECT_ID, ProjectBlocks.EMPTY).indices().isEmpty()) {

@@ -142,7 +142,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         try {
             SpecialPermission.check();
             return AccessController.doPrivileged((PrivilegedExceptionAction<BedrockRuntimeAsyncClient>) () -> {
-                var credentials = AwsBasicCredentials.create(secretSettings.accessKey.toString(), secretSettings.secretKey.toString());
+                var credentials = AwsBasicCredentials.create(secretSettings.accessKey().toString(), secretSettings.secretKey().toString());
                 var credentialsProvider = StaticCredentialsProvider.create(credentials);
                 var clientConfig = timeout == null
                     ? NettyNioAsyncHttpClient.builder().connectionTimeout(DEFAULT_CLIENT_TIMEOUT_MS)

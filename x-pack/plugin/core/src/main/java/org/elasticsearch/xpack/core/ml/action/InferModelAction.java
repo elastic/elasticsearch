@@ -384,7 +384,6 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             this.isLicensed = in.readBoolean();
             this.id = in.readOptionalString();

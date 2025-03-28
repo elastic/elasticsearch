@@ -88,7 +88,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
     // TODO multi-project: verify that usages are really expected to work on the default project only,
     // and that they are not a stop-gap solution to make the tests pass
-    public static final ProjectId DEFAULT_PROJECT_ID = new ProjectId("default");
+    public static final ProjectId DEFAULT_PROJECT_ID = ProjectId.DEFAULT;
 
     public enum XContentContext {
         /* Custom metadata should be returned as part of API call */
@@ -397,7 +397,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     reservedStateMetadata
                 );
         } else {
-            throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
+            throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
         }
     }
 
@@ -683,10 +683,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
-        XContentContext context = XContentContext.from(p);
+        final XContentContext context = XContentContext.from(p);
         final Iterator<? extends ToXContent> start = context == XContentContext.API
             ? ChunkedToXContentHelper.startObject("metadata")
             : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
+
+        final Iterator<? extends ToXContent> clusterCoordination = Iterators.single((builder, params) -> {
+            builder.field("cluster_uuid", clusterUUID);
+            builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+            builder.startObject("cluster_coordination");
+            coordinationMetadata().toXContent(builder, params);
+            return builder.endObject();
+        });
 
         final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
             ? Iterators.single((builder, params) -> {
@@ -696,75 +704,98 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             })
             : Collections.emptyIterator();
 
-        // use a tree map so the order is deterministic
-        Map<String, ReservedStateMetadata> clusterReservedState = new TreeMap<>(reservedStateMetadata);
-
         @FixForMultiProject
         // Need to revisit whether this should be a param or something else.
         final boolean multiProject = p.paramAsBoolean("multi-project", false);
         if (multiProject) {
-            return Iterators.concat(start, Iterators.single((builder, params) -> {
-                builder.field("cluster_uuid", clusterUUID);
-                builder.field("cluster_uuid_committed", clusterUUIDCommitted);
-                builder.startObject("cluster_coordination");
-                coordinationMetadata().toXContent(builder, params);
-                return builder.endObject();
-            }),
-                persistentSettings,
-                ChunkedToXContentHelper.array(
-                    "projects",
-                    Iterators.flatMap(
-                        projectMetadata.entrySet().iterator(),
-                        e -> Iterators.concat(
-                            ChunkedToXContentHelper.startObject(),
-                            Iterators.single((builder, params) -> builder.field("id", e.getKey())),
-                            e.getValue().toXContentChunked(p),
-                            ChunkedToXContentHelper.endObject()
-                        )
-                    )
-                ),
-                Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
-                        : Collections.emptyIterator()
-                ),
-                ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator()),
-                ChunkedToXContentHelper.endObject()
-            );
+            return toXContentChunkedWithMultiProjectFormat(p, context, start, clusterCoordination, persistentSettings);
         } else {
-            if (projectMetadata.size() != 1) {
-                throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
-            }
-            // Need to rethink what to do here. This might be right, but maybe not...
-            @FixForMultiProject
-            final ProjectMetadata project = projectMetadata.values().iterator().next();
-
-            // need to combine reserved state together into a single block so we don't get duplicate keys
-            // and not include it in the project xcontent output (through the lack of multi-project params)
-            clusterReservedState.putAll(project.reservedStateMetadata());
-
-            @FixForMultiProject(description = "consider include cluster-scoped persistent tasks")
-            final var iterators = Iterators.concat(start, Iterators.single((builder, params) -> {
-                builder.field("cluster_uuid", clusterUUID);
-                builder.field("cluster_uuid_committed", clusterUUIDCommitted);
-                builder.startObject("cluster_coordination");
-                coordinationMetadata().toXContent(builder, params);
-                return builder.endObject();
-            }),
-                persistentSettings,
-                project.toXContentChunked(p),
-                Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
-                        : Collections.emptyIterator()
-                ),
-                ChunkedToXContentHelper.object("reserved_state", clusterReservedState.values().iterator()),
-                ChunkedToXContentHelper.endObject()
-            );
-            return iterators;
+            return toXContentChunkedWithSingleProjectFormat(p, context, start, clusterCoordination, persistentSettings);
         }
+    }
+
+    private Iterator<? extends ToXContent> toXContentChunkedWithMultiProjectFormat(
+        ToXContent.Params p,
+        XContentContext context,
+        Iterator<? extends ToXContent> start,
+        Iterator<? extends ToXContent> clusterCoordination,
+        Iterator<? extends ToXContent> persistentSettings
+    ) {
+        return Iterators.concat(
+            start,
+            clusterCoordination,
+            persistentSettings,
+            ChunkedToXContentHelper.array(
+                "projects",
+                Iterators.flatMap(
+                    projectMetadata.entrySet().iterator(),
+                    e -> Iterators.concat(
+                        ChunkedToXContentHelper.startObject(),
+                        Iterators.single((builder, params) -> builder.field("id", e.getKey())),
+                        e.getValue().toXContentChunked(p),
+                        ChunkedToXContentHelper.endObject()
+                    )
+                )
+            ),
+            Iterators.flatMap(
+                customs.entrySet().iterator(),
+                entry -> entry.getValue().context().contains(context)
+                    ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
+                    : Collections.emptyIterator()
+            ),
+            ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator()),
+            ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    private Iterator<? extends ToXContent> toXContentChunkedWithSingleProjectFormat(
+        ToXContent.Params p,
+        XContentContext context,
+        Iterator<? extends ToXContent> start,
+        Iterator<? extends ToXContent> clusterCoordination,
+        Iterator<? extends ToXContent> persistentSettings
+    ) {
+        if (projectMetadata.size() != 1) {
+            throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
+        }
+        // Need to rethink what to do here. This might be right, but maybe not...
+        @FixForMultiProject
+        final ProjectMetadata project = projectMetadata.values().iterator().next();
+
+        // need to combine reserved state together into a single block so we don't get duplicate keys
+        // and not include it in the project xcontent output (through the lack of multi-project params)
+        // use a tree map so the order is deterministic
+        final Map<String, ReservedStateMetadata> clusterReservedState = new TreeMap<>(reservedStateMetadata);
+        clusterReservedState.putAll(project.reservedStateMetadata());
+
+        // Similarly, combine cluster and project persistent tasks and report them under a single key
+        Iterator<ToXContent> customs = Iterators.flatMap(customs().entrySet().iterator(), entry -> {
+            if (entry.getValue().context().contains(context) && ClusterPersistentTasksCustomMetadata.TYPE.equals(entry.getKey()) == false) {
+                return ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p));
+            } else {
+                return Collections.emptyIterator();
+            }
+        });
+        final var combinedTasks = PersistentTasksCustomMetadata.combine(
+            ClusterPersistentTasksCustomMetadata.get(this),
+            PersistentTasksCustomMetadata.get(project)
+        );
+        if (combinedTasks != null) {
+            customs = Iterators.concat(
+                customs,
+                ChunkedToXContentHelper.object(PersistentTasksCustomMetadata.TYPE, combinedTasks.toXContentChunked(p))
+            );
+        }
+
+        return Iterators.concat(
+            start,
+            clusterCoordination,
+            persistentSettings,
+            project.toXContentChunked(p),
+            customs,
+            ChunkedToXContentHelper.object("reserved_state", clusterReservedState.values().iterator()),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     private static final DiffableUtils.KeySerializer<ProjectId> PROJECT_ID_SERIALIZER = DiffableUtils.getWriteableKeySerializer(
@@ -1154,7 +1185,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
 
-            builder.projectMetadata(in.readMap(ProjectId::new, ProjectMetadata::readFrom));
+            builder.projectMetadata(in.readMap(ProjectId::readFrom, ProjectMetadata::readFrom));
         }
         return builder.build();
     }
@@ -1310,7 +1341,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             if (projectMetadata.isEmpty()) {
                 createDefaultProject();
             } else if (projectMetadata.size() != 1) {
-                throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
+                throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
             }
             return projectMetadata.values().iterator().next();
         }

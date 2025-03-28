@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -85,7 +85,7 @@ public class VerifierTests extends ESTestCase {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";
 
-        EsField unsupportedField = new UnsupportedEsField(unsupported, "flattened");
+        EsField unsupportedField = new UnsupportedEsField(unsupported, List.of("flattened"));
         // Use linked maps/sets to fix the order in the error message.
         LinkedHashSet<String> ipIndices = new LinkedHashSet<>();
         ipIndices.add("test1");
@@ -1014,6 +1014,17 @@ public class VerifierTests extends ESTestCase {
             line 1:23: Unknown column [avg]""", error("from test | stats c = avg by missing + 1, not_found"));
     }
 
+    public void testMultipleAggsOutsideStats() {
+        assertEquals(
+            """
+                1:71: aggregate function [avg(salary)] not allowed outside STATS command
+                line 1:96: aggregate function [median(emp_no)] not allowed outside STATS command
+                line 1:22: aggregate function [sum(salary)] not allowed outside STATS command
+                line 1:39: aggregate function [avg(languages)] not allowed outside STATS command""",
+            error("from test | eval s = sum(salary), l = avg(languages) | where salary > avg(salary) and emp_no > median(emp_no)")
+        );
+    }
+
     public void testSpatialSort() {
         String prefix = "ROW wkt = [\"POINT(42.9711 -14.7553)\", \"POINT(75.8093 22.7277)\"] | MV_EXPAND wkt ";
         assertEquals("1:130: cannot sort on geo_point", error(prefix + "| EVAL shape = TO_GEOPOINT(wkt) | limit 5 | sort shape"));
@@ -1125,45 +1136,41 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         assertThat(
             error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
-            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
-        );
-        assertThat(
-            error("METRICS tests | STATS sum(rate(network.bytes_in))", tsdb),
-            equalTo("1:27: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used with the metrics command")
         );
         assertThat(
             error("FROM tests | STATS rate(network.bytes_in)", tsdb),
-            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used with the metrics command")
         );
         assertThat(
             error("FROM tests | EVAL r = rate(network.bytes_in)", tsdb),
-            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside METRICS command")
+            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside STATS command")
         );
     }
 
     public void testRateNotEnclosedInAggregate() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         assertThat(
-            error("METRICS tests rate(network.bytes_in)", tsdb),
+            error("METRICS tests | STATS rate(network.bytes_in)", tsdb),
             equalTo(
-                "1:15: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+                "1:23: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command and inside another aggregate"
             )
         );
         assertThat(
-            error("METRICS tests avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
+            error("METRICS tests | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
             equalTo(
-                "1:44: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+                "1:52: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command and inside another aggregate"
             )
         );
-        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+        assertThat(error("METRICS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:27: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
              [max(avg(rate(network.bytes_in)))]
-            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+            line 1:31: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command\
              and inside another aggregate"""));
-        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+        assertThat(error("METRICS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:27: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
              [max(avg(rate(network.bytes_in)))]
-            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+            line 1:31: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command\
              and inside another aggregate"""));
     }
 
@@ -1409,10 +1416,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
         assertEquals(
-            "1:19: argument of [qstr(first_name)] must be a constant, received [first_name]",
+            "1:19: first argument of [qstr(first_name)] must be a constant, received [first_name]",
             error("from test | where qstr(first_name)")
         );
-        assertEquals("1:19: argument of [qstr(null)] cannot be null, received [null]", error("from test | where qstr(null)"));
+        assertEquals("1:19: first argument of [qstr(null)] cannot be null, received [null]", error("from test | where qstr(null)"));
         // Other value types are tested in QueryStringFunctionTests
     }
 
@@ -1466,11 +1473,12 @@ public class VerifierTests extends ESTestCase {
     private void checkWithFullTextFunctionsDisjunctions(String functionInvocation) {
 
         // Disjunctions with non-pushable functions - scoring
-        checkdisjunctionScoringError("1:35", functionInvocation + " or length(first_name) > 10");
-        checkdisjunctionScoringError("1:35", "match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
-        checkdisjunctionScoringError(
-            "1:35",
-            "(" + functionInvocation + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
+        query("from test | where " + functionInvocation + " or length(first_name) > 10");
+        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
+        query(
+            "from test | where ("
+                + functionInvocation
+                + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
         );
 
         // Disjunctions with non-pushable functions - no scoring
@@ -1500,19 +1508,6 @@ public class VerifierTests extends ESTestCase {
             "from test metadata _score | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))"
         );
 
-    }
-
-    private void checkdisjunctionScoringError(String position, String expression) {
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "{}: Invalid condition when using METADATA _score [{}]. Full text functions can be used in an OR condition, "
-                    + "but only if just full text functions are used in the OR condition",
-                position,
-                expression
-            ),
-            error("from test metadata _score | where " + expression)
-        );
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {
@@ -2123,10 +2118,53 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testSortByAggregate() {
-        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT count(*)"));
-        assertEquals("1:28: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT to_string(count(*))"));
-        assertEquals("1:22: Aggregate functions are not allowed in SORT [MAX]", error("ROW a = 1 | SORT 1 + max(a)"));
-        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("FROM test | SORT count(*)"));
+        assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 | SORT count(*)"));
+        assertEquals(
+            "1:28: aggregate function [count(*)] not allowed outside STATS command",
+            error("ROW a = 1 | SORT to_string(count(*))")
+        );
+        assertEquals("1:22: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | SORT 1 + max(a)"));
+        assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("FROM test | SORT count(*)"));
+    }
+
+    public void testFilterByAggregate() {
+        assertEquals("1:19: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 | WHERE count(*) > 0"));
+        assertEquals(
+            "1:29: aggregate function [count(*)] not allowed outside STATS command",
+            error("ROW a = 1 | WHERE to_string(count(*)) IS NOT NULL")
+        );
+        assertEquals("1:23: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | WHERE 1 + max(a) > 0"));
+        assertEquals(
+            "1:24: aggregate function [min(languages)] not allowed outside STATS command",
+            error("FROM employees | WHERE min(languages) > 2")
+        );
+    }
+
+    public void testDissectByAggregate() {
+        assertEquals(
+            "1:21: aggregate function [min(first_name)] not allowed outside STATS command",
+            error("from test | dissect min(first_name) \"%{foo}\"")
+        );
+        assertEquals(
+            "1:21: aggregate function [avg(salary)] not allowed outside STATS command",
+            error("from test | dissect avg(salary) \"%{foo}\"")
+        );
+    }
+
+    public void testGrokByAggregate() {
+        assertEquals(
+            "1:18: aggregate function [max(last_name)] not allowed outside STATS command",
+            error("from test | grok max(last_name) \"%{WORD:foo}\"")
+        );
+        assertEquals(
+            "1:18: aggregate function [sum(salary)] not allowed outside STATS command",
+            error("from test | grok sum(salary) \"%{WORD:foo}\"")
+        );
+    }
+
+    public void testAggregateInRow() {
+        assertEquals("1:13: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 + count(*)"));
+        assertEquals("1:9: aggregate function [avg(2)] not allowed outside STATS command", error("ROW a = avg(2)"));
     }
 
     public void testLookupJoinDataTypeMismatch() {
@@ -2205,6 +2243,84 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | WHERE match(first_name, \"Jean\", {\"unknown_option\": true})"),
             containsString(
                 "1:19: Invalid option [unknown_option] in [match(first_name, \"Jean\", {\"unknown_option\": true})]," + " expected one of "
+            )
+        );
+    }
+
+    public void testQueryStringOptions() {
+        // Check positive cases
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"analyzer\": \"standard\"})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"allow_leading_wildcard\": false})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"analyze_wildcard\": false})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"boost\": 2.1})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"default_field\": \"field1\"})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"default_operator\": \"AND\"})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"enable_position_increments\": false})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzziness\": 2})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzziness\": \"AUTO\"})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzzy_prefix_length\": 5})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzzy_transpositions\": false})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"lenient\": false})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"max_determinized_states\": 10})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"minimum_should_match\": \"2\"})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"quote_analyzer\": \"qnalyzer_1\"})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"quote_field_suffix\": \"q_suffix\"})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"phrase_slop\": 10})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"rewrite\": \"r1\"})");
+        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"time_zone\": \"time_zone\"})");
+
+        // Check all data types for available options
+        DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
+        for (Map.Entry<String, DataType> allowedOptions : QueryString.ALLOWED_OPTIONS.entrySet()) {
+            String optionName = allowedOptions.getKey();
+            DataType optionType = allowedOptions.getValue();
+            // Check every possible type for the option - we'll try to convert it to the expected type
+            for (DataType currentType : optionTypes) {
+                String optionValue = switch (currentType) {
+                    case BOOLEAN -> String.valueOf(randomBoolean());
+                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
+                    case LONG -> String.valueOf(randomLong());
+                    case FLOAT -> String.valueOf(randomFloat());
+                    case DOUBLE -> String.valueOf(randomDouble());
+                    case KEYWORD -> randomAlphaOfLength(10);
+                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
+                };
+                String queryOptionValue = optionValue;
+                if (currentType == KEYWORD) {
+                    queryOptionValue = "\"" + optionValue + "\"";
+                }
+
+                String query = "FROM test | WHERE QSTR(\"first_name: Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
+                try {
+                    // Check conversion is possible
+                    DataTypeConverter.convert(optionValue, optionType);
+                    // If no exception was thrown, conversion is possible and should be done
+                    query(query);
+                } catch (InvalidArgumentException e) {
+                    // Conversion is not possible, query should fail
+                    assertEquals(
+                        "1:19: Invalid option ["
+                            + optionName
+                            + "] in [QSTR(\"first_name: Jean\", {\""
+                            + optionName
+                            + "\": "
+                            + queryOptionValue
+                            + "})], cannot cast ["
+                            + optionValue
+                            + "] to ["
+                            + optionType.typeName()
+                            + "]",
+                        error(query)
+                    );
+                }
+            }
+        }
+
+        assertThat(
+            error("FROM test |  WHERE QSTR(\"first_name: Jean\", {\"unknown_option\": true})"),
+            containsString(
+                "1:20: Invalid option [unknown_option] in [QSTR(\"first_name: Jean\", {\"unknown_option\": true})]," + " expected one of "
             )
         );
     }

@@ -61,9 +61,9 @@ public final class TimeSeriesAggregationOperatorFactories {
                 aggregators.add(f.supplier.groupingAggregatorFactory(AggregatorMode.INITIAL, f.channels));
             }
             aggregators.addAll(valuesAggregatorForGroupings(groupings, timeBucketChannel));
-            return new HashAggregationOperator(
+            return new TimeSeriesAggregationOperator(
                 aggregators,
-                () -> new TimeSeriesBlockHash(tsHashChannel, timeBucketChannel, driverContext),
+                () -> new TimeSeriesBlockHash(tsHashChannel, timeBucketChannel, driverContext.blockFactory()),
                 driverContext
             );
         }
@@ -96,9 +96,9 @@ public final class TimeSeriesAggregationOperatorFactories {
                 new BlockHash.GroupSpec(tsHashChannel, ElementType.BYTES_REF),
                 new BlockHash.GroupSpec(timeBucketChannel, ElementType.LONG)
             );
-            return new HashAggregationOperator(
+            return new TimeSeriesAggregationOperator(
                 aggregators,
-                () -> BlockHash.build(hashGroups, driverContext.blockFactory(), maxPageSize, false),
+                () -> BlockHash.build(hashGroups, driverContext.blockFactory(), maxPageSize, true),
                 driverContext
             );
         }

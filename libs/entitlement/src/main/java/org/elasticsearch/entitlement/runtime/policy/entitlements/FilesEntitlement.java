@@ -10,7 +10,9 @@
 package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
 import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.FileUtils;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
+import org.elasticsearch.entitlement.runtime.policy.Platform;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
 import java.nio.file.Path;
@@ -22,8 +24,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
-
-import static java.lang.Character.isLetter;
 
 /**
  * Describes a file entitlement with a path and mode.
@@ -42,31 +42,6 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         DATA,
         SHARED_REPO,
         HOME
-    }
-
-    public enum Platform {
-        LINUX,
-        MACOS,
-        WINDOWS;
-
-        private static final Platform current = findCurrent();
-
-        private static Platform findCurrent() {
-            String os = System.getProperty("os.name");
-            if (os.startsWith("Linux")) {
-                return LINUX;
-            } else if (os.startsWith("Mac OS")) {
-                return MACOS;
-            } else if (os.startsWith("Windows")) {
-                return WINDOWS;
-            } else {
-                throw new AssertionError("Unsupported platform [" + os + "]");
-            }
-        }
-
-        public boolean isCurrent() {
-            return this == current;
-        }
     }
 
     public sealed interface FileData {
@@ -93,50 +68,6 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         static FileData ofPathSetting(String setting, BaseDir baseDir, Mode mode) {
             return new PathSettingFileData(setting, baseDir, mode, null, false);
-        }
-
-        /**
-         * Tests if a path is absolute or relative, taking into consideration both Unix and Windows conventions.
-         * Note that this leads to a conflict, resolved in favor of Unix rules: `/foo` can be either a Unix absolute path, or a Windows
-         * relative path with "wrong" directory separator (using non-canonical slash in Windows).
-         */
-        static boolean isAbsolutePath(String path) {
-            if (path.isEmpty()) {
-                return false;
-            }
-            if (path.charAt(0) == '/') {
-                // Unix/BSD absolute
-                return true;
-            }
-            return isWindowsAbsolutePath(path);
-        }
-
-        private static boolean isSlash(char c) {
-            return (c == '\\') || (c == '/');
-        }
-
-        private static boolean isWindowsAbsolutePath(String input) {
-            // if a prefix is present, we expected (long) UNC or (long) absolute
-            if (input.startsWith("\\\\?\\")) {
-                return true;
-            }
-
-            if (input.length() > 1) {
-                char c0 = input.charAt(0);
-                char c1 = input.charAt(1);
-                char c = 0;
-                int next = 2;
-                if (isSlash(c0) && isSlash(c1)) {
-                    // Two slashes or more: UNC
-                    return true;
-                }
-                if (isLetter(c0) && c1 == ':') {
-                    // A drive: absolute
-                    return true;
-                }
-            }
-            // Otherwise relative
-            return false;
         }
     }
 
@@ -233,7 +164,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
             Stream<String> result = pathLookup.settingResolver()
                 .apply(setting)
-                .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false);
+                .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false)
+                .distinct();
             return result.map(Path::of);
         }
 
@@ -367,13 +299,13 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 }
                 BaseDir baseDir = parseBaseDir(relativeTo);
                 Path relativePath = Path.of(relativePathAsString);
-                if (FileData.isAbsolutePath(relativePathAsString)) {
+                if (FileUtils.isAbsolutePath(relativePathAsString)) {
                     throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
                 }
                 fileData = FileData.ofRelativePath(relativePath, baseDir, mode);
             } else if (pathAsString != null) {
                 Path path = Path.of(pathAsString);
-                if (FileData.isAbsolutePath(pathAsString) == false) {
+                if (FileUtils.isAbsolutePath(pathAsString) == false) {
                     throw new PolicyValidationException("'path' [" + pathAsString + "] must be absolute");
                 }
                 fileData = FileData.ofPath(path, mode);

@@ -1,6 +1,0 @@
-pr: 113413
-summary: Fixed a `NullPointerException` in `_capabilities` API when the `path` parameter is null.
-area: Infra/REST API
-type: bug
-issues:
-  - 113413

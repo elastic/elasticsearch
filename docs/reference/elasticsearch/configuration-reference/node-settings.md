@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Node settings [modules-node]
@@ -46,7 +49,7 @@ The following additional roles are available:
 
 * `voting_only`
 
-$$$coordinating-only-node$$$If you leave `node.roles` unset, then the node is considered to be a [coordinating only node](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#coordinating-only-node-role).
+$$$coordinating-only-node$$$If If you set `node.roles` to an empty array (`node.roles: [ ]`), then the node is considered to be a [coordinating only node](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#coordinating-only-node-role).
 
 ::::{important}
 If you set `node.roles`, ensure you specify every node role your cluster needs. Every cluster requires the following node roles:

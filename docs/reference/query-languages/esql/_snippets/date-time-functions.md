@@ -7,21 +7,21 @@
 :::
 
 
-:::{include} functions/date_diff.md
+:::{include} functions/layout/date_diff.md
 :::
 
-:::{include} functions/date_extract.md
+:::{include} functions/layout/date_extract.md
 :::
 
-:::{include} functions/date_format.md
+:::{include} functions/layout/date_format.md
 :::
 
-:::{include} functions/date_parse.md
+:::{include} functions/layout/date_parse.md
 :::
 
-:::{include} functions/date_trunc.md
+:::{include} functions/layout/date_trunc.md
 :::
 
-:::{include} functions/now.md
+:::{include} functions/layout/now.md
 :::
 

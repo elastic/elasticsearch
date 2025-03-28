@@ -100,7 +100,7 @@ public class EqlInfoTransportActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var usageAction = new EqlUsageTransportAction(transportService, clusterService, threadPool, mock(ActionFilters.class), client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(mock(Task.class), null, null, future);
+        usageAction.localClusterStateOperation(mock(Task.class), null, null, future);
         EqlFeatureSetUsage eqlUsage = (EqlFeatureSetUsage) future.get().getUsage();
 
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", eqlUsage.stats());

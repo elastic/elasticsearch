@@ -29,11 +29,7 @@ public class SpatialFeatureSetUsage extends XPackFeatureUsage {
 
     public SpatialFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            this.statsResponse = new SpatialStatsAction.Response(input);
-        } else {
-            this.statsResponse = null;
-        }
+        this.statsResponse = new SpatialStatsAction.Response(input);
     }
 
     @Override
@@ -48,9 +44,7 @@ public class SpatialFeatureSetUsage extends XPackFeatureUsage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            this.statsResponse.writeTo(out);
-        }
+        this.statsResponse.writeTo(out);
     }
 
     @Override

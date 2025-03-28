@@ -89,12 +89,6 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             private final AssignmentStats deploymentStats;
             private final int pipelineCount;
 
-            private static final IngestStats EMPTY_INGEST_STATS = new IngestStats(
-                new IngestStats.Stats(0, 0, 0, 0),
-                Collections.emptyList(),
-                Collections.emptyMap()
-            );
-
             public TrainedModelStats(
                 String modelId,
                 TrainedModelSizeStats modelSizeStats,
@@ -105,7 +99,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             ) {
                 this.modelId = Objects.requireNonNull(modelId);
                 this.modelSizeStats = modelSizeStats;
-                this.ingestStats = ingestStats == null ? EMPTY_INGEST_STATS : ingestStats;
+                this.ingestStats = ingestStats == null ? IngestStats.IDENTITY : ingestStats;
                 if (pipelineCount < 0) {
                     throw new ElasticsearchException("[{}] must be a greater than or equal to 0", PIPELINE_COUNT.getPreferredName());
                 }

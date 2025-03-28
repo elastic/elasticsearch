@@ -14,9 +14,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,9 +26,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Make sure the failures on the data node come back as failures over the wire.
@@ -119,7 +125,53 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
                     assertThat(id, in(okIds));
                     assertTrue(actualIds.add(id));
                 }
+                EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+                assertThat(localInfo.getFailures(), not(empty()));
+                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+                assertThat(localInfo.getFailures().get(0).reason(), containsString("Accessing failing field"));
             }
+        }
+    }
+
+    public void testDefaultPartialResults() throws Exception {
+        Set<String> okIds = populateIndices();
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+                .setPersistentSettings(Settings.builder().put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), true))
+        );
+        try {
+            // allow_partial_results = default
+            {
+                EsqlQueryRequest request = new EsqlQueryRequest();
+                request.query("FROM fail,ok | LIMIT 100");
+                request.pragmas(randomPragmas());
+                if (randomBoolean()) {
+                    request.allowPartialResults(true);
+                }
+                try (EsqlQueryResponse resp = run(request)) {
+                    assertTrue(resp.isPartial());
+                    List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                    assertThat(rows.size(), lessThanOrEqualTo(okIds.size()));
+                }
+            }
+            // allow_partial_results = false
+            {
+                EsqlQueryRequest request = new EsqlQueryRequest();
+                request.query("FROM fail,ok | LIMIT 100");
+                request.pragmas(randomPragmas());
+                request.allowPartialResults(false);
+                IllegalStateException e = expectThrows(IllegalStateException.class, () -> run(request).close());
+                assertThat(e.getMessage(), equalTo("Accessing failing field"));
+            }
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+                    .setPersistentSettings(Settings.builder().putNull(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey()))
+            );
         }
     }
 }

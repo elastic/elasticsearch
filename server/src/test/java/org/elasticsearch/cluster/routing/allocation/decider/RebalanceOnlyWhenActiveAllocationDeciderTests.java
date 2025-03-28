@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
@@ -74,7 +73,7 @@ public class RebalanceOnlyWhenActiveAllocationDeciderTests extends ESAllocationT
         final Iterator<String> nodeItr = Iterators.cycling(nodeIds);
         for (int p = 1; p <= numberOfProjects; p++) {
             final int numberOfIndices = randomIntBetween(1, 3);
-            var project = ProjectMetadata.builder(new ProjectId(randomUUID()));
+            var project = ProjectMetadata.builder(randomUniqueProjectId());
             var rt = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
             for (int i = 1; i <= numberOfIndices; i++) {
                 final int numberOfShards = randomIntBetween(1, 5);

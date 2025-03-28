@@ -127,7 +127,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         var projectId = state.metadata().projects().keySet().iterator().next();
         // Randomly add an extra project.
         if (randomBoolean()) {
-            state = ClusterState.builder(state).putProjectMetadata(ProjectMetadata.builder(new ProjectId(randomUUID())).build()).build();
+            state = ClusterState.builder(state).putProjectMetadata(ProjectMetadata.builder(randomUniqueProjectId()).build()).build();
         }
         setState(clusterService, state);
 
@@ -183,7 +183,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
         RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        ProjectId projectId = new ProjectId(randomUUID());
+        ProjectId projectId = randomUniqueProjectId();
         ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
         for (int i = randomInt(4); i >= 0; i--) {
             int numberOfShards = randomInt(3) + 1;
@@ -215,7 +215,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnIndexCreation() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        var projectId = new ProjectId(randomUUID());
+        var projectId = randomUniqueProjectId();
         final List<ClusterState> clusterStates = simulateIndexCreationStates(indexName, false, projectId);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is always YELLOW, up until the last state where it should be GREEN
@@ -232,7 +232,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnIndexCreationWithFailedAllocations() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        var projectId = new ProjectId(randomUUID());
+        var projectId = randomUniqueProjectId();
         final List<ClusterState> clusterStates = simulateIndexCreationStates(indexName, true, projectId);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, which contains primary shard
@@ -250,7 +250,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnClusterRecovery() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        var projectId = new ProjectId(randomUUID());
+        var projectId = randomUniqueProjectId();
         final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, false, false, projectId);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, when it turns GREEN
@@ -267,7 +267,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnClusterRecoveryWithFailures() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        var projectId = new ProjectId(randomUUID());
+        var projectId = randomUniqueProjectId();
         final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, false, true, projectId);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, which contains primary shard
@@ -285,7 +285,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnClusterRecoveryWithPreviousAllocationIds() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        var projectId = new ProjectId(randomUUID());
+        var projectId = randomUniqueProjectId();
         final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, true, false, projectId);
         for (int i = 0; i < clusterStates.size(); i++) {
             // because there were previous allocation ids, we should be RED until the primaries are started,
@@ -309,7 +309,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnClusterRecoveryWithPreviousAllocationIdsAndAllocationFailures() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        var projectId = new ProjectId(randomUUID());
+        var projectId = randomUniqueProjectId();
         for (final ClusterState clusterState : simulateClusterRecoveryStates(indexName, true, true, projectId)) {
             final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, projectId);
             // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated)
@@ -350,7 +350,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata));
         final int nrOfProjects = randomIntBetween(0, 5);
         for (int i = 0; i < nrOfProjects; i++) {
-            var id = new ProjectId(randomUUID());
+            var id = randomUniqueProjectId();
             mdBuilder.put(ProjectMetadata.builder(id).build());
             rtBuilder.put(id, RoutingTable.EMPTY_ROUTING_TABLE);
         }
@@ -393,7 +393,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata));
         final int nrOfProjects = randomIntBetween(0, 5);
         for (int i = 0; i < nrOfProjects; i++) {
-            var id = new ProjectId(randomUUID());
+            var id = randomUniqueProjectId();
             mdBuilder.put(ProjectMetadata.builder(id).build());
             rtBuilder.put(id, RoutingTable.EMPTY_ROUTING_TABLE);
         }

@@ -107,7 +107,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
 
     public void testGetClusterStateForOneProjectOfMany() throws Exception {
         final Set<String> indexNames = randomSet(1, 8, () -> randomAlphaOfLengthBetween(4, 12));
-        final ProjectId projectId = new ProjectId(randomUUID());
+        final ProjectId projectId = randomUniqueProjectId();
 
         final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
         final ClusterStateRequest request = buildRandomRequest(indexNames);
@@ -117,7 +117,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         final ProjectMetadata.Builder[] projects = new ProjectMetadata.Builder[numberOfProjects];
         projects[0] = projectBuilder(projectId, indexNames);
         for (int i = 1; i < numberOfProjects; i++) {
-            projects[i] = projectBuilder(new ProjectId(randomUUID()), randomSet(0, 12, () -> randomAlphaOfLengthBetween(4, 12)));
+            projects[i] = projectBuilder(randomUniqueProjectId(), randomSet(0, 12, () -> randomAlphaOfLengthBetween(4, 12)));
         }
         final ClusterState state = buildClusterState(projects);
 
@@ -133,7 +133,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         final ProjectId[] projectIds = new ProjectId[numberOfProjects];
         final Set<String> indexNames = randomSet(5, 20, () -> randomAlphaOfLengthBetween(4, 12));
         for (int i = 0; i < numberOfProjects; i++) {
-            projectIds[i] = new ProjectId(randomUUID());
+            projectIds[i] = randomUniqueProjectId();
             projects[i] = projectBuilder(projectIds[i], randomSubsetOf(indexNames));
         }
         final ClusterState state = buildClusterState(projects);

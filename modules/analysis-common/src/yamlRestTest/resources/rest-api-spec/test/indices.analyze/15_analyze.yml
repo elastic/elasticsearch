@@ -64,11 +64,11 @@
 "Custom analyzer is not buildable":
   - requires:
       test_runner_features: [ capabilities ]
-      reason: This capability required to run test
       capabilities:
-        - method: GET
-          path: /_analyze
-          capabilities: [ wrong_custom_analyzer_returns_400 ]
+        - method: PUT
+          path: /{index}
+          capabilities: [ hunspell_dict_400 ]
+      reason: "bugfix 'hunspell_dict_400' capability required"
 
   - do:
       catch: bad_request
@@ -80,7 +80,3 @@
           filter:
             type: hunspell
             locale: en_US
-
-  - match: { status: 400 }
-  - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Can not build a custom analyzer" }

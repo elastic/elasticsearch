@@ -7,15 +7,15 @@ Conditional functions return one of their arguments by evaluating in an if-else 
 :::
 
 
-:::{include} functions/case.md
+:::{include} functions/layout/case.md
 :::
 
-:::{include} functions/coalesce.md
+:::{include} functions/layout/coalesce.md
 :::
 
-:::{include} functions/greatest.md
+:::{include} functions/layout/greatest.md
 :::
 
-:::{include} functions/least.md
+:::{include} functions/layout/least.md
 :::
 

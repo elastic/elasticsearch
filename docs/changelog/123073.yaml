@@ -1,5 +1,0 @@
-pr: 123073
-summary: Speed up VALUES for many buckets
-area: ES|QL
-type: bug
-issues: []

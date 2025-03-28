@@ -1,0 +1,25 @@
+{
+  "esql.list_queries": {
+    "documentation": {
+      "description": "Executes a list ESQL queries request"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/queries",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

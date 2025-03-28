@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.apache.http.HttpEntity;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -39,6 +41,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -857,5 +860,17 @@ public final class EsqlTestUtils {
     public static <T> T singleValue(Collection<T> collection) {
         assertThat(collection, hasSize(1));
         return collection.iterator().next();
+    }
+
+    public static Map<String, Object> jsonEntityToMap(HttpEntity entity) throws IOException {
+        return entityToMap(entity, XContentType.JSON);
+    }
+
+    public static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {
+        try (InputStream content = entity.getContent()) {
+            XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+            assertEquals(expectedContentType, xContentType);
+            return XContentHelper.convertToMap(xContentType.xContent(), content, false /* ordered */);
+        }
     }
 }

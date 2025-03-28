@@ -218,7 +218,7 @@ Slow log thresholds being met does not guarantee cluster performance issues. In 
 
 If you’re experiencing search performance issues, then you might also consider investigating searches flagged for their query durations using the [profile API](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-profile.html). You can then use the profiled query to investigate optimization options using the [query profiler](docs-content://explore-analyze/query-filter/tools/search-profiler.md). This type of investigation should usually take place in a non-production environment.
 
-Slow logging checks each event against the reporting threshold when the event is complete. This means that it can’t report if events trigger [circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md). If suspect circuit breaker errors, then you should also consider enabling [audit logging](docs-content://deploy-manage/monitor/logging-configuration/enabling-audit-logs.md), which logs events before they are executed.
+Slow logging checks each event against the reporting threshold when the event is complete. This means that it can’t report if events trigger [circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md). If suspect circuit breaker errors, then you should also consider enabling [audit logging](docs-content://deploy-manage/security/logging-configuration/enabling-audit-logs.md), which logs events before they are executed.
 
 
 ## Learn more [_learn_more]

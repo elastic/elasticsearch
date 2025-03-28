@@ -67,13 +67,11 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
             // Project[field1, field2, field3] <- keeps the ordering intact
             // \_Eval[field1 = null, field3 = null]
             // \_EsRelation[field2]
-            // TODO: Double check that we test when there are 0 fields remaining
-            List<Attribute> initialOutput = relation.output();
-            List<Attribute> remainingFields = new ArrayList<>(initialOutput.size());
+            List<Attribute> relationOutput = relation.output();
             Map<DataType, Alias> nullLiterals = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
-            List<NamedExpression> newProjections = new ArrayList<>(initialOutput.size());
-            for (int i = 0, size = initialOutput.size(); i < size; i++) {
-                Attribute attr = initialOutput.get(i);
+            List<NamedExpression> newProjections = new ArrayList<>(relationOutput.size());
+            for (int i = 0, size = relationOutput.size(); i < size; i++) {
+                Attribute attr = relationOutput.get(i);
                 NamedExpression projection;
                 if (attr instanceof FieldAttribute f && (shouldBeRetained.test(f) == false)) {
                     DataType dt = f.dataType();
@@ -90,18 +88,16 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                         projection = new Alias(f.source(), f.name(), nullAlias.toAttribute(), f.id());
                     }
                 } else {
-                    remainingFields.add(attr);
                     projection = attr;
                 }
                 newProjections.add(projection);
             }
 
-            if (remainingFields.size() == initialOutput.size()) {
+            if (nullLiterals.size() == 0) {
                 return plan;
             }
 
-            EsRelation newRelation = relation.withAttributes(remainingFields);
-            Eval eval = new Eval(plan.source(), newRelation, new ArrayList<>(nullLiterals.values()));
+            Eval eval = new Eval(plan.source(), relation, new ArrayList<>(nullLiterals.values()));
             // This projection is redundant if there's another projection downstream (and no commands depend on the order until we hit it).
             return new Project(plan.source(), eval, newProjections);
         }

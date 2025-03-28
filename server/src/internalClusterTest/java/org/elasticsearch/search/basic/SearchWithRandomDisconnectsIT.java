@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search.basic;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -41,7 +42,9 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
             .build();
         for (String indexName : indexNames) {
-            createIndex(indexName, indexSettings);
+            try {
+                createIndex(indexName, indexSettings);
+            } catch (ResourceAlreadyExistsException e) {}
         }
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (String indexName : indexNames) {

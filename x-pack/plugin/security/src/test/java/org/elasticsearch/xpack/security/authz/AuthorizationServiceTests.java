@@ -1001,15 +1001,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 )
             )
         );
-        assertThat(
-            securityException,
-            throwableWithMessage(
-                containsString(
-                    "this action is granted by the index privileges [read,all] for data access"
-                        + ", or [read_failure_store,all] for access via the failures selector"
-                )
-            )
-        );
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
@@ -1055,15 +1047,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             throwableWithMessage(containsString("[" + action + "] is unauthorized for service account [" + serviceUser.principal() + "]"))
         );
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
-        assertThat(
-            securityException,
-            throwableWithMessage(
-                containsString(
-                    "this action is granted by the index privileges [read,all] for data access"
-                        + ", or [read_failure_store,all] for access via the failures selector"
-                )
-            )
-        );
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1113,15 +1097,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 containsString("[" + action + "] is unauthorized" + " for user [test user]" + " with effective roles [no_indices]")
             )
         );
-        assertThat(
-            securityException,
-            throwableWithMessage(
-                containsString(
-                    "this action is granted by the index privileges [read,all] for data access"
-                        + ", or [read_failure_store,all] for access via the failures selector"
-                )
-            )
-        );
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
         verify(auditTrail).accessDenied(
             eq(requestId),

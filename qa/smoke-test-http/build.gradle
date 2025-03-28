@@ -7,15 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-//apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  javaRestTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  javaRestTestImplementation project(':modules:rest-root')
-}
-
-testClusters.configureEach {
-  module ':modules:rest-root'
-  setting 'xpack.security.enabled', 'false'
+  internalClusterTestImplementation project(":test:framework")
+  internalClusterTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  internalClusterTestImplementation project(':modules:rest-root')
+  clusterModules project(":modules:rest-root")
 }

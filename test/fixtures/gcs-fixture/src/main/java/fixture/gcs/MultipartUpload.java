@@ -145,7 +145,7 @@ record MultipartUpload(String bucket, String name, String generation, String crc
     /**
      * Read bytes from stream into buffer until reach given delimiter. The delimiter is consumed too.
      */
-    static BytesReference readByDelimiter(InputStream is, byte[] delimiter) throws IOException {
+    static BytesReference readUntilDelimiter(InputStream is, byte[] delimiter) throws IOException {
         var out = new ByteArrayOutputStream(1024);
         var delimiterMatchLen = 0;
         while (true) {

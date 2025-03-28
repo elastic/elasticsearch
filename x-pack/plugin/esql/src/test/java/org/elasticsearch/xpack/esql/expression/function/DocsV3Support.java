@@ -256,7 +256,7 @@ public abstract class DocsV3Support {
     private TempFileWriter tempFileWriter;
 
     private DocsV3Support(String category, String name, Class<?> testClass, Supplier<Map<List<DataType>, DataType>> signatures) {
-        this(category, name, definition(name), testClass, signatures);
+        this(category, name, null, testClass, signatures);
     }
 
     private DocsV3Support(

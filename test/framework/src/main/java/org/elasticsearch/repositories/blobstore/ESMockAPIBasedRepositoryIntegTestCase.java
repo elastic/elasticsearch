@@ -375,7 +375,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         }
 
         protected synchronized void trackRequest(final String requestType) {
-            operationCount.put(requestType, operationCount.getOrDefault(requestType, 0L) + 1);
+            operationCount.put(requestType, operationCount.get(requestType) + 1);
         }
 
         @Override

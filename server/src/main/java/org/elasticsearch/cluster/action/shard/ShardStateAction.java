@@ -283,16 +283,14 @@ public class ShardStateAction {
             ClusterService clusterService,
             ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor
         ) {
-            taskQueue = clusterService.createTaskQueue(TASK_SOURCE, Priority.HIGH, shardFailedClusterStateTaskExecutor);
+            taskQueue = clusterService.createTaskQueue("shard-failed", Priority.HIGH, shardFailedClusterStateTaskExecutor);
         }
-
-        private static final String TASK_SOURCE = "shard-failed";
 
         @Override
         public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) {
             logger.debug(() -> format("%s received shard failed for [%s]", request.getShardId(), request), request.failure);
             taskQueue.submitTask(
-                TASK_SOURCE,
+                "shard-failed " + request.toStringNoFailureStackTrace(),
                 new FailedShardUpdateTask(request, new ChannelActionListener<>(channel).map(ignored -> TransportResponse.Empty.INSTANCE)),
                 null
             );
@@ -501,6 +499,14 @@ public class ShardStateAction {
 
         @Override
         public String toString() {
+            return toString(true);
+        }
+
+        public String toStringNoFailureStackTrace() {
+            return toString(false);
+        }
+
+        private String toString(boolean includeStackTrace) {
             return Strings.format(
                 "FailedShardEntry{shardId [%s], allocationId [%s], primary term [%d], message [%s], markAsStale [%b], failure [%s]}",
                 shardId,
@@ -508,7 +514,7 @@ public class ShardStateAction {
                 primaryTerm,
                 message,
                 markAsStale,
-                failure != null ? ExceptionsHelper.stackTrace(failure) : null
+                failure == null ? null : (includeStackTrace ? ExceptionsHelper.stackTrace(failure) : failure.getMessage())
             );
         }
 

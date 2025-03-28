@@ -291,7 +291,7 @@ public class DocsV3SupportTests extends ESTestCase {
             :::
 
             :::{note}
-            ###### Serverless: GA, Stateful: COMING 9.1.0
+            ###### Serverless: GA, Elastic Stack: COMING 9.1.0
             Support for optional named parameters is only available from 9.1.0
 
             ###### DEVELOPMENT

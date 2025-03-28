@@ -2,7 +2,7 @@
 
 ## `TO_LOWER` [esql-to_lower]
 :::{note}
-###### Serverless: GA, Stateful: COMING 9.1.0
+###### Serverless: GA, Elastic Stack: COMING 9.1.0
 Support for multivalued parameters is only available from 9.1.0
 :::
 

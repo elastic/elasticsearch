@@ -8,7 +8,7 @@ are not subject to the support SLA of official GA features.
 :::
 
 :::{note}
-###### Serverless: GA, Stateful: COMING
+###### Serverless: GA, Elastic Stack: COMING
 Support for optional named parameters is only available in serverless, or in a future {{es}} release
 :::
 

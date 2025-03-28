@@ -567,7 +567,7 @@ public abstract class DocsV3Support {
                 for (FunctionAppliesTo appliesTo : functionAppliesTos) {
                     appliesToText.append("###### ");
                     if (appliesTo.serverless() && appliesTo.lifeCycle().serverlessLifecycle() == GA) {
-                        appliesToText.append("Serverless: ").append(GA).append(", Stateful: ");
+                        appliesToText.append("Serverless: ").append(GA).append(", Elastic Stack: ");
                     }
                     appendLifeCycleAndVersion(appliesToText, appliesTo);
                     appliesToText.append("\n");

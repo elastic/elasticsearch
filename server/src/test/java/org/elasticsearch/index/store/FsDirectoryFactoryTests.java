@@ -54,17 +54,17 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) FilterDirectory.unwrap(directory);
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.nvd", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tim", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tip", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.cfs", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dim", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdd", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
-            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
+            assertNotNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
+            assertNotNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.nvd", newIOContext(random())));
+            assertNotNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tim", newIOContext(random())));
+            assertNotNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tip", newIOContext(random())));
+            assertNotNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.cfs", newIOContext(random())));
+            assertNotNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dim", newIOContext(random())));
+            assertNotNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdd", newIOContext(random())));
+            assertNotNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
+            assertNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
+            assertNotNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
+            assertNotNull(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(MMapDirectory.class));
             var func = fsDirectoryFactory.preLoadFuncMap.get(delegate);

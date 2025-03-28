@@ -30,6 +30,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.hnsw.HnswGraph;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -124,7 +125,9 @@ public class ES818HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+        // mark the flat vectors format as using direct io to HybridDirectory
+        var flatVectorState = new SegmentReadState(state, state.segmentSuffix + FsDirectoryFactory.DIRECT_IO_KEY);
+        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(flatVectorState));
     }
 
     @Override

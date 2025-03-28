@@ -107,8 +107,20 @@ public interface Layout {
             Map<NameId, ChannelAndType> layout = new HashMap<>();
             int numberOfChannels = 0;
             for (ChannelSet set : channels) {
-                int channel = numberOfChannels++;
+                boolean createNewChannel = true;
+                int channel = 0;
                 for (NameId id : set.nameIds) {
+                    if (layout.containsKey(id)) {
+                        // If a NameId already exists in the map, do not increase the numberOfChannels, it can cause inverse() to create
+                        // a null in the list of channels, and NullPointerException when build() is called.
+                        // TODO avoid adding duplicated attributes with the same id in the plan, ReplaceMissingFieldWithNull may add nulls
+                        // with the same ids as the missing field ids.
+                        continue;
+                    }
+                    if (createNewChannel) {
+                        channel = numberOfChannels++;
+                        createNewChannel = false;
+                    }
                     ChannelAndType next = new ChannelAndType(channel, set.type);
                     ChannelAndType prev = layout.put(id, next);
                     // Do allow multiple name to point to the same channel - see https://github.com/elastic/elasticsearch/pull/100238

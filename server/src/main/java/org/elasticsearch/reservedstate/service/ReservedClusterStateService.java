@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.BuildVersion;
@@ -187,7 +188,7 @@ public class ReservedClusterStateService {
         process(namespace, stateChunk, versionCheck, errorListener);
     }
 
-    ReservedStateChunk parse(ProjectId projectId, String namespace, XContentParser parser) {
+    public ReservedStateChunk parse(ProjectId projectId, String namespace, XContentParser parser) {
         try {
             return stateChunkParser.apply(parser, null);
         } catch (Exception e) {
@@ -377,6 +378,7 @@ public class ReservedClusterStateService {
      * @param projectId the project state to modify
      * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
      * @param reservedStateChunk a {@link ReservedStateChunk} composite state object to process
+     * @param versionCheck  Enum representing whether a reserved state should be processed based on the current and new versions
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or the state failed to apply because of incompatible version.
      */
@@ -387,17 +389,41 @@ public class ReservedClusterStateService {
         ReservedStateVersionCheck versionCheck,
         Consumer<Exception> errorListener
     ) {
-        Map<String, Object> reservedState = reservedStateChunk.state();
-        ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
+        process(projectId, namespace, List.of(reservedStateChunk), versionCheck, errorListener);
+    }
 
+    /**
+     * Saves and reserves a chunk of the cluster state under a given 'namespace' from {@link XContentParser} by combining several chunks
+     * into one
+     *
+     * @param projectId the project state to modify
+     * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
+     * @param reservedStateChunks a list of {@link ReservedStateChunk} composite state objects to process
+     * @param versionCheck  Enum representing whether a reserved state should be processed based on the current and new versions
+     * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
+     *        cluster state cannot be correctly applied, null if successful or the state failed to apply because of incompatible version.
+     */
+    public void process(
+        ProjectId projectId,
+        String namespace,
+        List<ReservedStateChunk> reservedStateChunks,
+        ReservedStateVersionCheck versionCheck,
+        Consumer<Exception> errorListener
+    ) {
+        ReservedStateChunk reservedStateChunk;
+        ReservedStateVersion reservedStateVersion;
         LinkedHashSet<String> orderedHandlers;
+
         try {
+            reservedStateChunk = mergeReservedStateChunks(reservedStateChunks);
+            Map<String, Object> reservedState = reservedStateChunk.state();
+            reservedStateVersion = reservedStateChunk.metadata();
             orderedHandlers = orderedProjectStateHandlers(reservedState.keySet());
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(
                 projectId,
                 namespace,
-                reservedStateVersion.version(),
+                reservedStateChunks.isEmpty() ? EMPTY_VERSION : reservedStateChunks.getFirst().metadata().version(),
                 versionCheck,
                 e,
                 ReservedStateErrorMetadata.ErrorKind.PARSING
@@ -476,6 +502,36 @@ public class ReservedClusterStateService {
         );
     }
 
+    private static ReservedStateChunk mergeReservedStateChunks(List<ReservedStateChunk> chunks) {
+        if (chunks.isEmpty()) {
+            throw new IllegalArgumentException("No chunks provided");
+        }
+
+        if (chunks.size() == 1) {
+            return chunks.getFirst();
+        }
+
+        ReservedStateVersion reservedStateVersion = chunks.getFirst().metadata();
+        Map<String, Object> mergedChunks = new HashMap<>(chunks.size());
+        for (var chunk : chunks) {
+            Set<String> duplicateKeys = Sets.intersection(chunk.state().keySet(), mergedChunks.keySet());
+            if (chunk.metadata().equals(reservedStateVersion) == false) {
+                throw new IllegalStateException(
+                    "Failed to merge reserved state chunks because of version mismatch: ["
+                        + reservedStateVersion
+                        + "] != ["
+                        + chunk.metadata()
+                        + "]"
+                );
+            } else if (duplicateKeys.isEmpty() == false) {
+                throw new IllegalStateException("Failed to merge reserved state chunks because of duplicate keys: " + duplicateKeys);
+            }
+            mergedChunks.putAll(chunk.state());
+        }
+
+        return new ReservedStateChunk(mergedChunks, reservedStateVersion);
+    }
+
     // package private for testing
     Exception checkAndReportError(
         Optional<ProjectId> projectId,
@@ -515,6 +571,11 @@ public class ReservedClusterStateService {
         // optimistic check here - the cluster state might change after this, so also need to re-check later
         if (checkErrorVersion(clusterService.state(), errorState) == false) {
             // nothing to update
+            return;
+        }
+
+        if (errorState.projectId().isPresent() && clusterService.state().metadata().hasProject(errorState.projectId().get()) == false) {
+            // Can't update error state for a project that doesn't exist yet
             return;
         }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -63,7 +64,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
-import java.util.function.BiFunction;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
@@ -103,23 +103,13 @@ public class SearchTransportService {
 
     private final TransportService transportService;
     private final NodeClient client;
-    private final BiFunction<
-        Transport.Connection,
-        ActionListener<? super SearchPhaseResult>,
-        ActionListener<? super SearchPhaseResult>> responseWrapper;
+    private final ResponseCollectorService responseCollectorService;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    public SearchTransportService(
-        TransportService transportService,
-        NodeClient client,
-        BiFunction<
-            Transport.Connection,
-            ActionListener<? super SearchPhaseResult>,
-            ActionListener<? super SearchPhaseResult>> responseWrapper
-    ) {
+    public SearchTransportService(TransportService transportService, NodeClient client, ResponseCollectorService responseCollectorService) {
         this.transportService = transportService;
         this.client = client;
-        this.responseWrapper = responseWrapper;
+        this.responseCollectorService = responseCollectorService;
     }
 
     public void sendFreeContext(
@@ -188,13 +178,27 @@ public class SearchTransportService {
             && (request.source() == null || request.source().rankBuilder() == null);
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : in -> new QuerySearchResult(in, true);
 
-        final ActionListener<? super SearchPhaseResult> handler = responseWrapper.apply(connection, listener);
+        final long startNanos = System.nanoTime();
         transportService.sendChildRequest(
             connection,
             QUERY_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(handler, reader, connection)
+            new ConnectionCountingHandler<>(listener, reader, connection) {
+                @Override
+                public void handleResponse(SearchPhaseResult response) {
+                    QuerySearchResult queryResult = response.queryResult();
+                    if (queryResult != null) {
+                        final long serviceTimeEWMA = queryResult.serviceTimeEWMA();
+                        final int queueSize = queryResult.nodeQueueSize();
+                        // EWMA/queue size may be -1 if the query node doesn't support capturing it
+                        if (serviceTimeEWMA > 0 && queueSize >= 0) {
+                            responseCollectorService.addNodeStatistics(nodeId, queueSize, System.nanoTime() - startNanos, serviceTimeEWMA);
+                        }
+                    }
+                    super.handleResponse(response);
+                }
+            }
         );
     }
 
@@ -568,8 +572,8 @@ public class SearchTransportService {
         }
     }
 
-    private final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
-        private final String nodeId;
+    private class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
+        protected final String nodeId;
 
         ConnectionCountingHandler(
             final ActionListener<? super Response> listener,

@@ -88,6 +88,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
                 currentDiskUsage += shardSize;
             }
             float currentNodeWeight = weightFunction.calculateNodeWeight(
+                node,
                 shards,
                 avgShardsPerNode,
                 forecastedWriteLoad,

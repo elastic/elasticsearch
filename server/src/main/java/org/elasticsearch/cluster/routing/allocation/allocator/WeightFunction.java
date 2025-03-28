@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.index.shard.ShardId;
@@ -26,6 +27,7 @@ public interface WeightFunction {
     );
 
     float calculateNodeWeight(
+        RoutingNode node,
         int nodeNumShards,
         float avgShardsPerNode,
         double nodeWriteLoad,
@@ -34,7 +36,7 @@ public interface WeightFunction {
         double avgDiskUsageInBytesPerNode
     );
 
-    float minWeightDelta(float shardWriteLoad, float shardSizeBytes);
+    float minWeightDelta(BalancedShardsAllocator.ModelNode targetNode, float shardWriteLoad, float shardSizeBytes);
 
     static float avgShardPerNode(Metadata metadata, RoutingNodes routingNodes) {
         return ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.ProjectIndex;
 
 /**
@@ -61,6 +62,7 @@ public class SingleWeightFunction implements WeightFunction {
     ) {
         final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
         final float nodeWeight = calculateNodeWeight(
+            node.getRoutingNode(),
             node.numShards(),
             balancer.avgShardsPerNode(),
             node.writeLoad(),
@@ -73,6 +75,7 @@ public class SingleWeightFunction implements WeightFunction {
 
     @Override
     public float calculateNodeWeight(
+        RoutingNode routingNode,
         int nodeNumShards,
         float avgShardsPerNode,
         double nodeWriteLoad,
@@ -87,7 +90,7 @@ public class SingleWeightFunction implements WeightFunction {
     }
 
     @Override
-    public float minWeightDelta(float shardWriteLoad, float shardSizeBytes) {
+    public float minWeightDelta(BalancedShardsAllocator.ModelNode modelNode, float shardWriteLoad, float shardSizeBytes) {
         return theta0 * 1 + theta1 * 1 + theta2 * shardWriteLoad + theta3 * shardSizeBytes;
     }
 }

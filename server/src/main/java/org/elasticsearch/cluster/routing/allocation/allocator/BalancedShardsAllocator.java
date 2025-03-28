@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -198,6 +199,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         for (var entry : balancer.nodes.entrySet()) {
             var node = entry.getValue();
             var nodeWeight = weightFunction.calculateNodeWeight(
+                node.routingNode,
                 node.numShards(),
                 balancer.avgShardsPerNode(),
                 node.writeLoad(),
@@ -499,7 +501,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // then even though the node we are examining has a better weight and may make the cluster balance
                     // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
                     // the gains make it worth it, as defined by the threshold
-                    final float localThreshold = sorter.minWeightDelta() * threshold;
+                    final float localThreshold = sorter.minWeightDelta(node) * threshold;
                     boolean deltaAboveThreshold = lessThan(currentDelta, localThreshold) == false;
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
@@ -612,10 +614,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 sorter.reset(index, 0, relevantNodes);
                 int lowIdx = 0;
                 int highIdx = relevantNodes - 1;
-                final float localThreshold = sorter.minWeightDelta() * threshold;
                 while (true) {
                     final ModelNode minNode = modelNodes[lowIdx];
                     final ModelNode maxNode = modelNodes[highIdx];
+                    final float localThreshold = sorter.minWeightDelta(minNode) * threshold;
                     advance_range: if (maxNode.numShards(index) > 0) {
                         final float delta = absDelta(weights[lowIdx], weights[highIdx]);
                         if (lessThan(delta, localThreshold)) {
@@ -1204,6 +1206,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final ClusterInfo clusterInfo;
         private final RoutingNode routingNode;
         private final Map<ProjectIndex, ModelIndex> indices;
+        private final NodeType nodeType;
+
+        enum NodeType {
+            INDEXING,
+            SEARCH,
+            UNKNOWN
+        }
 
         ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, ClusterInfo clusterInfo, RoutingNode routingNode) {
             this.writeLoadForecaster = writeLoadForecaster;
@@ -1211,6 +1220,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.clusterInfo = clusterInfo;
             this.routingNode = routingNode;
             this.indices = Maps.newMapWithExpectedSize(routingNode.size() + 10);// some extra to account for shard movements
+            this.nodeType = determineNodeType(routingNode);
+        }
+
+        private static NodeType determineNodeType(RoutingNode routingNode) {
+            final DiscoveryNode node = routingNode.node();
+            if (node == null) {
+                return NodeType.UNKNOWN;
+            } else if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
+                return NodeType.INDEXING;
+            } else if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
+                return NodeType.SEARCH;
+            } else {
+                return NodeType.UNKNOWN;
+            }
         }
 
         public ModelIndex getIndex(ProjectIndex index) {
@@ -1289,6 +1312,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             projIndex.assertMatch(shard);
             ModelIndex index = getIndex(projIndex);
             return index != null && index.containsShard(shard);
+        }
+
+        public NodeType nodeType() {
+            return nodeType;
         }
     }
 
@@ -1375,8 +1402,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return function.calculateNodeWeightWithIndex(balancer, node, index);
         }
 
-        public float minWeightDelta() {
-            return function.minWeightDelta(balancer.getShardWriteLoad(index), balancer.maxShardSizeBytes(index));
+        public float minWeightDelta(ModelNode targetNode) {
+            return function.minWeightDelta(targetNode, balancer.getShardWriteLoad(index), balancer.maxShardSizeBytes(index));
         }
 
         @Override

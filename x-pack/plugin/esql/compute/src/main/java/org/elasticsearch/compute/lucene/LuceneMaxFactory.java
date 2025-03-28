@@ -121,7 +121,15 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
         NumberType numberType,
         int limit
     ) {
-        super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, ScoreMode.COMPLETE_NO_SCORES);
+        super(
+            contexts,
+            queryFunction,
+            dataPartitioning,
+            query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+            taskConcurrency,
+            limit,
+            ScoreMode.COMPLETE_NO_SCORES
+        );
         this.fieldName = fieldName;
         this.numberType = numberType;
     }

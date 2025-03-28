@@ -209,7 +209,7 @@ public class DataStreamAutoShardingService {
      * <p>The NO_CHANGE_REQUIRED type will potentially report the remaining cooldown always report a cool down period of TimeValue.ZERO (as
      * there'll be no new auto sharding event)
      */
-    public AutoShardingResult calculate(ProjectState state, DataStream dataStream, IndexStats writeIndexStats) {
+    public AutoShardingResult calculate(ProjectState state, DataStream dataStream, @Nullable IndexStats writeIndexStats) {
         if (isAutoShardingEnabled == false) {
             logger.debug("Data stream auto-sharding service is not enabled.");
             return NOT_APPLICABLE_RESULT;

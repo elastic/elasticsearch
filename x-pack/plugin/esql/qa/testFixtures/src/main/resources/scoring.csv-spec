@@ -114,6 +114,20 @@ book_no:keyword | title:text                                                    
 6151            | Pop! Went Another Balloon: A Magical Counting Storybook (Magical Counting Storybooks) | [Keith Faulkner, Rory Tyger]      | 5.975414276123047 
 ;
 
+testMultiMatchWithScore
+required_capability: multi_match_function
+required_capability: metadata_score
+
+from books metadata _score
+| where multi_match("Mark", "author", "title", {"fuzziness": 1})
+| keep book_no, title, author, _score;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                                            | author:text                       | _score:double
+3535            | Rainbow's End: A Magical Story and Moneybox                                           | [Beverlie Manson, Keith Faulkner] | 6.5579609870910645
+6151            | Pop! Went Another Balloon: A Magical Counting Storybook (Magical Counting Storybooks) | [Keith Faulkner, Rory Tyger]      | 5.975414276123047 
+;
+
 multipleWhereWithMatchScoringNoSort
 required_capability: metadata_score
 required_capability: match_operator_colon

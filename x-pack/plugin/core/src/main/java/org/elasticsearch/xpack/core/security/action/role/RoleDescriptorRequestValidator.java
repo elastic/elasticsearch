@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -52,6 +53,15 @@ public class RoleDescriptorRequestValidator {
                     IndexPrivilege.resolveBySelectorAccess(Set.of(idp.getPrivileges()));
                 } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
+                }
+                for (final String indexName : idp.getIndices()) {
+                    if (IndexNameExpressionResolver.hasSelectorSuffix(indexName)) {
+                        validationException = addValidationError(
+                            IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR
+                                + " selectors are not allowed in the index name expression",
+                            validationException
+                        );
+                    }
                 }
             }
         }

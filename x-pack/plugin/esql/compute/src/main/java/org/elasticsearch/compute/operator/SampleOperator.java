@@ -31,9 +31,8 @@ public class SampleOperator implements Operator {
     private final Deque<Page> outputPages;
     private final RandomSamplingQuery.RandomSamplingIterator randomSamplingIterator;
 
-    private int pagesCollected = 0;
-    private int pagesEmitted = 0;
-    private int rowsCollected = 0;
+    private int pagesProcessed = 0;
+    private int rowsReceived = 0;
     private int rowsEmitted = 0;
 
     private long collectNanos;
@@ -76,19 +75,19 @@ public class SampleOperator implements Operator {
      */
     @Override
     public void addInput(Page page) {
-        final var addStart = System.nanoTime();
+        long startTime = System.nanoTime();
         createOutputPage(page);
-        rowsCollected += page.getPositionCount();
-        pagesCollected++;
+        rowsReceived += page.getPositionCount();
         page.releaseBlocks();
-        collectNanos += System.nanoTime() - addStart;
+        pagesProcessed++;
+        collectNanos += System.nanoTime() - startTime;
     }
 
     private void createOutputPage(Page page) {
         final int[] sampledPositions = new int[page.getPositionCount()];
         int sampledIdx = 0;
-        for (int i = randomSamplingIterator.docID(); i - rowsCollected < page.getPositionCount(); i = randomSamplingIterator.nextDoc()) {
-            sampledPositions[sampledIdx++] = i - rowsCollected;
+        for (int i = randomSamplingIterator.docID(); i - rowsReceived < page.getPositionCount(); i = randomSamplingIterator.nextDoc()) {
+            sampledPositions[sampledIdx++] = i - rowsReceived;
         }
         if (sampledIdx > 0) {
             outputPages.add(page.filter(Arrays.copyOf(sampledPositions, sampledIdx)));
@@ -119,7 +118,6 @@ public class SampleOperator implements Operator {
             page = null;
         } else {
             page = outputPages.removeFirst();
-            pagesEmitted++;
             rowsEmitted += page.getPositionCount();
         }
         emitNanos += System.nanoTime() - emitStart;
@@ -139,15 +137,15 @@ public class SampleOperator implements Operator {
 
     @Override
     public String toString() {
-        return "SampleOperator[sampled = " + rowsEmitted + "/" + rowsCollected + "]";
+        return "SampleOperator[sampled = " + rowsEmitted + "/" + rowsReceived + "]";
     }
 
     @Override
     public Operator.Status status() {
-        return new Status(collectNanos, emitNanos, pagesCollected, pagesEmitted, rowsCollected, rowsEmitted);
+        return new Status(collectNanos, emitNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
-    private record Status(long collectNanos, long emitNanos, int pagesCollected, int pagesEmitted, int rowsCollected, int rowsEmitted)
+    private record Status(long collectNanos, long emitNanos, int pagesProcessed, int rowsReceived, int rowsEmitted)
         implements
             Operator.Status {
 
@@ -158,23 +156,15 @@ public class SampleOperator implements Operator {
         );
 
         Status(StreamInput streamInput) throws IOException {
-            this(
-                streamInput.readVLong(),
-                streamInput.readVLong(),
-                streamInput.readVInt(),
-                streamInput.readVInt(),
-                streamInput.readVInt(),
-                streamInput.readVInt()
-            );
+            this(streamInput.readVLong(), streamInput.readVLong(), streamInput.readVInt(), streamInput.readVInt(), streamInput.readVInt());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(collectNanos);
             out.writeVLong(emitNanos);
-            out.writeVInt(pagesCollected);
-            out.writeVInt(pagesEmitted);
-            out.writeVInt(rowsCollected);
+            out.writeVInt(pagesProcessed);
+            out.writeVInt(rowsReceived);
             out.writeVInt(rowsEmitted);
         }
 
@@ -194,9 +184,8 @@ public class SampleOperator implements Operator {
             if (builder.humanReadable()) {
                 builder.field("emit_time", TimeValue.timeValueNanos(emitNanos));
             }
-            builder.field("pages_collected", pagesCollected);
-            builder.field("pages_emitted", pagesEmitted);
-            builder.field("rows_collected", rowsCollected);
+            builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
         }
@@ -208,15 +197,14 @@ public class SampleOperator implements Operator {
             Status other = (Status) o;
             return collectNanos == other.collectNanos
                 && emitNanos == other.emitNanos
-                && pagesCollected == other.pagesCollected
-                && pagesEmitted == other.pagesEmitted
-                && rowsCollected == other.rowsCollected
+                && pagesProcessed == other.pagesProcessed
+                && rowsReceived == other.rowsReceived
                 && rowsEmitted == other.rowsEmitted;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(collectNanos, emitNanos, pagesCollected, pagesEmitted, rowsCollected, rowsEmitted);
+            return Objects.hash(collectNanos, emitNanos, pagesProcessed, rowsReceived, rowsEmitted);
         }
 
         @Override

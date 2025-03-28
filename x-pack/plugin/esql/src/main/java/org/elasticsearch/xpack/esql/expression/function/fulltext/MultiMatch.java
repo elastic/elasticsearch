@@ -311,7 +311,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
                 )
             )
             .reduce(TypeResolution::and)
-            .get();
+            .orElse(null);
     }
 
     private TypeResolution resolveOptions() {

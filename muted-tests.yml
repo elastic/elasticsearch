@@ -504,3 +504,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
   method: testAlreadyUpgraded
   issue: https://github.com/elastic/elasticsearch/issues/125585
+- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
+  method: testHFEmbeddings {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/125551

@@ -1227,4 +1227,31 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
         }
     }
+
+    public void testFieldApiPathSyntax() {
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        doc.setFieldValue("$('foo.bar.baz')", "qux");
+        assertThat(doc.getFieldValue("foo.bar.baz", String.class), equalTo("qux"));
+        assertThat(doc.getFieldValue("$(\"foo.bar.baz\")", String.class), equalTo("qux"));
+
+        doc.appendFieldValue("$('foo.bar.baz')", "quux");
+        assertThat(doc.getFieldValue("foo.bar.baz", List.class), equalTo(List.of("qux", "quux")));
+        doc.appendFieldValue("$('foo.bar.baz')", "quux", false);
+        assertThat(doc.getFieldValue("foo.bar.baz", List.class), equalTo(List.of("qux", "quux")));
+
+        IllegalArgumentException e;
+        e = expectThrows(IllegalArgumentException.class, () -> document.getFieldValue("$('foo.missing')", String.class, false));
+        assertThat(e.getMessage(), is("no field found for path $('foo.missing')"));
+
+        doc.getSource().put("host.name", "localhost");
+        assertTrue(doc.hasField("$('foo.bar.baz')"));
+        assertThat(doc.getFieldValue("$('host.name')", String.class), equalTo("localhost"));
+
+        doc.removeField("$('foo.bar.baz')");
+        assertFalse(doc.hasField("$('foo.bar.baz')"));
+        // when removing the same field again, it should throw an exception
+        e = expectThrows(IllegalArgumentException.class, () -> doc.removeField("$('foo.bar.baz')"));
+        assertThat(e.getMessage(), is("no field found for path $('foo.bar.baz')"));
+    }
 }

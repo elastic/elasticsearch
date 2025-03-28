@@ -212,7 +212,7 @@ setup:
             fields:
               inference_field:
                 type: "semantic"
-                number_of_fragments: 2
+                number_of_fragments: 3
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
@@ -231,13 +231,14 @@ setup:
             fields:
               inference_field:
                 type: "semantic"
-                number_of_fragments: 2
+                number_of_fragments: 3
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_2" }
-  - length: { hits.hits.0.highlight.inference_field: 2 }
+  - length: { hits.hits.0.highlight.inference_field: 3 }
   - match: { hits.hits.0.highlight.inference_field.0: "Elasticsearch is an open source, distributed, RESTful, search engine which" }
   - match: { hits.hits.0.highlight.inference_field.1: " which is built on top of Lucene internally and enjoys" }
+  - match: { hits.hits.0.highlight.inference_field.2: " enjoys all the features it provides." }
 
 ---
 "We return different chunks based on configured chunking overrides or model defaults for dense embeddings":
@@ -327,18 +328,19 @@ setup:
             fields:
               default_chunked_inference_field:
                 type: "semantic"
-                number_of_fragments: 2
+                number_of_fragments: 3
               customized_chunked_inference_field:
                 type: "semantic"
-                number_of_fragments: 2
+                number_of_fragments: 3
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - length: { hits.hits.0.highlight.default_chunked_inference_field: 1 }
   - match: { hits.hits.0.highlight.default_chunked_inference_field.0: "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
-  - length: { hits.hits.0.highlight.customized_chunked_inference_field: 2 }
+  - length: { hits.hits.0.highlight.customized_chunked_inference_field: 3 }
   - match: { hits.hits.0.highlight.customized_chunked_inference_field.0: "Elasticsearch is an open source, distributed, RESTful, search engine which" }
   - match: { hits.hits.0.highlight.customized_chunked_inference_field.1: " which is built on top of Lucene internally and enjoys" }
+  - match: { hits.hits.0.highlight.customized_chunked_inference_field.2: " enjoys all the features it provides." }
 
 ---
 "Bulk requests are handled appropriately":
@@ -394,7 +396,7 @@ setup:
             fields:
               inference_field:
                 type: "semantic"
-                number_of_fragments: 2
+                number_of_fragments: 3
 
   - match: { hits.total.value: 3 }
 
@@ -404,9 +406,10 @@ setup:
   - match: { hits.hits.0.highlight.inference_field.1: " analytics tool that stores and indexes data." }
 
   - match: { hits.hits.1._id: "doc_1" }
-  - length: { hits.hits.1.highlight.inference_field: 2 }
+  - length: { hits.hits.1.highlight.inference_field: 3 }
   - match: { hits.hits.1.highlight.inference_field.0: "Elasticsearch is an open source, distributed, RESTful, search engine which" }
   - match: { hits.hits.1.highlight.inference_field.1: " which is built on top of Lucene internally and enjoys" }
+  - match: { hits.hits.1.highlight.inference_field.2: " enjoys all the features it provides." }
 
   - match: { hits.hits.2._id: "doc_2" }
   - length: { hits.hits.2.highlight.inference_field: 1 }

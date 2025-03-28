@@ -175,7 +175,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>(chunkedInput.stream().map(c -> {
                     var tokens = new ArrayList<WeightedToken>();
                     for (int i = 0; i < 5; i++) {
-                        tokens.add(new WeightedToken("feature_" + i, generateEmbedding(input, i)));
+                        tokens.add(new WeightedToken("feature_" + i, generateEmbedding(c.input(), i)));
                     }
                     var embeddings = new SparseEmbeddingResults.Embedding(tokens, false);
                     return new SparseEmbeddingResults.Chunk(embeddings, new ChunkedInference.TextOffset(c.startOffset(), c.endOffset()));

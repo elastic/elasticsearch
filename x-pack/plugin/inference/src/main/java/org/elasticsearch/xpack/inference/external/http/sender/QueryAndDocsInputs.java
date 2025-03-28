@@ -61,7 +61,8 @@ public class QueryAndDocsInputs extends InferenceInputs {
         return topN;
     }
 
-    public int inputSize() {
-        return chunks.size();
+    @Override
+    public boolean isSingleInput() {
+        return chunks.size() == 1;
     }
 }

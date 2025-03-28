@@ -52,7 +52,10 @@ public class EmbeddingsInput extends InferenceInputs {
         return this.inputType;
     }
 
-    public int inputSize() {
-        return listSupplier.get().size(); // TODO avoid this call
+    @Override
+    public boolean isSingleInput() {
+        // We can't measure the size of the input list without executing
+        // the supplier.
+        return false;
     }
 }

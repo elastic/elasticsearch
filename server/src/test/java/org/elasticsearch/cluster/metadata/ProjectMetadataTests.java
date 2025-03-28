@@ -371,6 +371,8 @@ public class ProjectMetadataTests extends ESTestCase {
                 chunkCount += checkChunkSize(custom, params, 2 + ingestMetadata.getPipelines().size());
             } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
                 chunkCount += checkChunkSize(custom, params, 3 + persistentTasksCustomMetadata.tasks().size());
+            } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
+                chunkCount += checkChunkSize(custom, params, repositoriesMetadata.repositories().size());
             } else {
                 // could be anything, we have to just try it
                 chunkCount += count(custom.toXContentChunked(params));

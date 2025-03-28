@@ -38,7 +38,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -180,9 +179,11 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
         List<MergeTask> submittedMergeTasks = new ArrayList<>();
         List<MergeTask> scheduledToRunMergeTasks = new ArrayList<>();
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mockThreadPoolMergeExecutorService(submittedMergeTasks);
         AtomicBoolean isUsingMaxTargetIORate = new AtomicBoolean(false);
-        doAnswer(invocation -> isUsingMaxTargetIORate.get()).when(threadPoolMergeExecutorService).usingMaxTargetIORateBytesPerSec();
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mockThreadPoolMergeExecutorService(
+            submittedMergeTasks,
+            isUsingMaxTargetIORate
+        );
         Settings mergeSchedulerSettings = Settings.builder()
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount)
             .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount)
@@ -616,7 +617,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
     }
 
-    static ThreadPoolMergeExecutorService mockThreadPoolMergeExecutorService(List<MergeTask> submittedMergeTasks) {
+    static ThreadPoolMergeExecutorService mockThreadPoolMergeExecutorService(List<MergeTask> submittedMergeTasks, AtomicBoolean isUsingMaxTargetIORate) {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         doAnswer(invocation -> {
             MergeTask mergeTask = (MergeTask) invocation.getArguments()[0];
@@ -628,6 +629,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             submittedMergeTasks.add(mergeTask);
             return null;
         }).when(threadPoolMergeExecutorService).reEnqueueBackloggedMergeTask(any(MergeTask.class));
+        doAnswer(invocation -> isUsingMaxTargetIORate.get()).when(threadPoolMergeExecutorService).usingMaxTargetIORateBytesPerSec();
         return threadPoolMergeExecutorService;
     }
 }

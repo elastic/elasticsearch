@@ -28,7 +28,8 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final String META_CODEC = "ES87TSDBDocValuesMetadata";
     static final String META_EXTENSION = "dvm";
     static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_START;
+    static final int VERSION_DISI_CHANGE = 1;
+    static final int VERSION_CURRENT = VERSION_DISI_CHANGE;
     static final byte NUMERIC = 0;
     static final byte BINARY = 1;
     static final byte SORTED = 2;

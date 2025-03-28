@@ -15,10 +15,6 @@ public record ProjectIndexName(ProjectId projectId, String indexName) implements
     // VisibleForTesting
     public static final String DELIMITER = "/";
 
-    public static ProjectIndexName defaultProjectIndex(String indexName) {
-        return new ProjectIndexName(ProjectId.DEFAULT, indexName);
-    }
-
     @Override
     public String toString() {
         return toString(true);

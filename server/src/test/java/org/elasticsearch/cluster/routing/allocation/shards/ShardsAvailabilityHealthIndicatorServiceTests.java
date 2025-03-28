@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -48,7 +49,6 @@ import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHea
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -123,7 +123,6 @@ import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.node.ProjectIndexName.defaultProjectIndex;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1004,7 +1003,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     defaultProjectIndex("regular-index")
                 ),
                 10,
-                projectResolver
+                projectResolver.supportsMultipleProjects()
             );
 
             assertThat(affectedResources.size(), is(2));
@@ -1028,7 +1027,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     defaultProjectIndex("regular-index")
                 ),
                 0,
-                projectResolver
+                projectResolver.supportsMultipleProjects()
             );
 
             assertThat(affectedResources.size(), is(2));
@@ -2248,7 +2247,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             clusterState,
             Collections.emptyMap(),
             new SystemIndices(List.of()),
-            testResolverSupportingMultipleProjects
+            TestProjectResolvers.allProjects()
         );
 
         List<String> indexDisplayNames = Stream.of(
@@ -2724,18 +2723,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
     }
 
-    private static ProjectResolver testResolverSupportingMultipleProjects = new ProjectResolver() {
-        @Override
-        public boolean supportsMultipleProjects() {
-            return true;
-        }
-
-        @Override
-        public ProjectId getProjectId() {
-            return null;
-        }
-
-        @Override
-        public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {}
-    };
+    private static ProjectIndexName defaultProjectIndex(String indexName) {
+        return new ProjectIndexName(ProjectId.DEFAULT, indexName);
+    }
 }

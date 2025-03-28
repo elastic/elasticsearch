@@ -1183,7 +1183,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                                     systemIndices,
                                     restoreFromSnapshotIndices,
                                     maxAffectedResourcesCount,
-                                    projectResolver
+                                    projectResolver.supportsMultipleProjects()
                                 );
                             }
                         } else {
@@ -1223,18 +1223,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             SystemIndices systemIndices,
             Set<ProjectIndexName> restoreFromSnapshotIndices,
             int maxAffectedResourcesCount,
-            ProjectResolver projectResolver
+            boolean supportsMultipleProjects
         ) {
             List<Diagnosis.Resource> affectedResources = new ArrayList<>(2);
             Set<ProjectId> affectedProjects = restoreFromSnapshotIndices.stream().map(ProjectIndexName::projectId).collect(toSet());
             Set<ProjectIndexName> affectedIndices = new HashSet<>(restoreFromSnapshotIndices);
             Set<String> affectedFeatureStates = new HashSet<>();
 
-            Map<String, Set<ProjectIndexName>> featureToSystemIndices = systemIndices.getFeatures()
-                .stream()
-                .collect(
-                    toMap(SystemIndices.Feature::getName, feature -> getProjectIndicesForFeature(feature, affectedProjects, metadata))
-                );
+            Map<String, Set<ProjectIndexName>> featureToSystemIndices =
+                getSystemIndicesForProjects(systemIndices, affectedProjects, metadata);
 
             for (Map.Entry<String, Set<ProjectIndexName>> featureToIndices : featureToSystemIndices.entrySet()) {
                 for (ProjectIndexName featureIndex : featureToIndices.getValue()) {
@@ -1245,14 +1242,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
             }
 
-            Map<String, Set<ProjectIndexName>> featureToDsBackingIndices = systemIndices.getFeatures()
-                .stream()
-                .collect(
-                    toMap(
-                        SystemIndices.Feature::getName,
-                        feature -> getProjectDsBackingIndicesForFeature(feature, affectedProjects, metadata)
-                    )
-                );
+            Map<String, Set<ProjectIndexName>> featureToDsBackingIndices =
+                getSystemDsBackingIndicesForProjects(systemIndices, affectedProjects, metadata);
 
             // the shards_availability indicator works with indices so let's remove the feature states data streams backing indices from
             // the list of affected indices (the feature state will cover the restore of these indices too)
@@ -1270,7 +1261,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     new Diagnosis.Resource(
                         INDEX,
                         affectedIndices.stream()
-                            .map(index -> HealthIndicatorDisplayValues.toDisplayValue(index, projectResolver.supportsMultipleProjects()))
+                            .sorted(
+                                indicesComparatorByPriorityAndProjectIndex(
+                                    metadata,
+                                    supportsMultipleProjects
+                                )
+                            )
+                            .map(index -> toDisplayValue(index, supportsMultipleProjects))
                             .limit(maxAffectedResourcesCount)
                             .toList()
                     )
@@ -1284,42 +1281,52 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             return affectedResources;
         }
 
-        private static Set<ProjectIndexName> getProjectIndicesForFeature(
-            SystemIndices.Feature feature,
+        /**
+         * Retrieve the system indices for the projects and group them by Feature
+         */
+        private static Map<String, Set<ProjectIndexName>> getSystemIndicesForProjects(
+            SystemIndices systemIndices,
             Set<ProjectId> projects,
             Metadata metadata
         ) {
-            return feature.getIndexDescriptors()
-                .stream()
-                .flatMap(
-                    descriptor -> projects.stream()
-                        .flatMap(
-                            projectId -> descriptor.getMatchingIndices(metadata.getProject(projectId))
-                                .stream()
-                                .map(index -> new ProjectIndexName(projectId, index))
+            return systemIndices.getFeatures().stream()
+                .collect(Collectors.toMap(
+                    SystemIndices.Feature::getName,
+                    feature -> feature.getIndexDescriptors().stream()
+                        .flatMap(descriptor -> projects.stream()
+                            .flatMap(projectId ->
+                                descriptor.getMatchingIndices(metadata.getProject(projectId)).stream()
+                                    .map(index -> new ProjectIndexName(projectId, index))
+                            )
                         )
-                )
-                .collect(Collectors.toSet());
+                        .collect(Collectors.toSet())
+                ));
         }
 
-        private static Set<ProjectIndexName> getProjectDsBackingIndicesForFeature(
-            SystemIndices.Feature feature,
+        /**
+         * Retrieve the backing indices for system data stream for the projects and group them by Feature
+         */
+        private static Map<String, Set<ProjectIndexName>> getSystemDsBackingIndicesForProjects(
+            SystemIndices systemIndices,
             Set<ProjectId> projects,
             Metadata metadata
         ) {
-            return feature.getDataStreamDescriptors()
-                .stream()
-                .flatMap(
-                    descriptor -> projects.stream()
-                        .flatMap(
-                            projectId -> descriptor.getBackingIndexNames(metadata.getProject(projectId))
-                                .stream()
-                                .map(index -> new ProjectIndexName(projectId, index))
-                        )
-                )
-                .collect(Collectors.toSet());
+            return systemIndices.getFeatures().stream()
+                .collect(
+                    toMap(
+                        SystemIndices.Feature::getName,
+                        feature -> feature.getDataStreamDescriptors().stream()
+                            .flatMap(
+                                descriptor -> projects.stream()
+                                    .flatMap(
+                                        projectId -> descriptor.getBackingIndexNames(metadata.getProject(projectId)).stream()
+                                            .map(index -> new ProjectIndexName(projectId, index))
+                                    )
+                            )
+                            .collect(Collectors.toSet())
+                    )
+                );
         }
-
     }
 
     public static class SearchableSnapshotsState {

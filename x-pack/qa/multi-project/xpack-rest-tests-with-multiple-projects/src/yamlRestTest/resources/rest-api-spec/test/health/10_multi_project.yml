@@ -1,9 +1,12 @@
 ---
 "Health indicator shards_availability for multi-project enabled cluster":
   - requires:
-      cluster_features: "gte_v9.0.0"
-      reason: "multi-project is added after version 9.x"
-
+      test_runner_features: capabilities
+      capabilities:
+        - method: GET
+          path: /_health_report
+          capabilities: [ multi_project_shards_availability ]
+      reason: Capability required to run test
   - do:
       health_report:
         feature: master_is_stable

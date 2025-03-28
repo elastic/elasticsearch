@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
@@ -29,7 +30,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -94,22 +97,15 @@ class RequestExecutorService implements RequestExecutor {
         RateLimiter create(double accumulatedTokensLimit, double tokensPerTimeUnit, TimeUnit unit);
     }
 
-    // TODO: for later (after 8.18)
-    // TODO: pass in divisor to RateLimiterCreator
-    // TODO: another map for service/task-type-key -> set of RateLimitingEndpointHandler (used for updates; update divisor and then update
-    // all endpoint handlers)
-    // TODO: one map for service/task-type-key -> divisor (this gets also read when we create an inference endpoint)
-    // TODO: divisor value read/writes need to be synchronized in some way
-
     // default for testing
     static final RateLimiterCreator DEFAULT_RATE_LIMIT_CREATOR = RateLimiter::new;
     private static final Logger logger = LogManager.getLogger(RequestExecutorService.class);
     private static final TimeValue RATE_LIMIT_GROUP_CLEANUP_INTERVAL = TimeValue.timeValueDays(1);
 
-    private final ConcurrentMap<Object, RateLimitingEndpointHandler> rateLimitGroupings = new ConcurrentHashMap<>();
-    // TODO: add one atomic integer (number of nodes); also explain the assumption and why this works
-    // TODO: document that this impacts chat completion (and increase the default rate limit)
-    private final AtomicInteger rateLimitDivisor = new AtomicInteger(1);
+    private final ConcurrentMap<String, ConcurrentMap<TaskType, AtomicInteger>> rateLimitDivisors = new ConcurrentHashMap<>();
+    private final ConcurrentMap<
+        String,
+        ConcurrentMap<TaskType, ConcurrentMap<Object, RateLimitingEndpointHandler>>> rateLimitEndpointHandlers = new ConcurrentHashMap<>();
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
@@ -183,20 +179,29 @@ class RequestExecutorService implements RequestExecutor {
     }
 
     public int queueSize() {
-        return rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
+        return rateLimitEndpointHandlers.values()
+            .stream()
+            .flatMap(taskTypeMap -> taskTypeMap.values().stream())
+            .flatMap(objectMap -> objectMap.values().stream())
+            .mapToInt(RateLimitingEndpointHandler::queueSize)
+            .sum();
     }
 
     @Override
-    public void updateRateLimitDivisor(int numResponsibleNodes) {
+    public void updateRateLimitDivisor(String serviceName, TaskType taskType, int numResponsibleNodes) {
         // in the unlikely case where we get an invalid value, we'll just ignore it
         if (numResponsibleNodes <= 0) {
             return;
         }
 
-        rateLimitDivisor.set(numResponsibleNodes);
-        for (var rateLimitingEndpointHandler : rateLimitGroupings.values()) {
-            rateLimitingEndpointHandler.updateTokensPerTimeUnit(rateLimitDivisor.get());
-        }
+        rateLimitDivisors.computeIfAbsent(serviceName, key -> new ConcurrentHashMap<>())
+            .computeIfAbsent(taskType, key -> new AtomicInteger())
+            .set(numResponsibleNodes);
+
+        rateLimitEndpointHandlers.computeIfAbsent(serviceName, serviceNameKey -> new ConcurrentHashMap<>())
+            .computeIfAbsent(taskType, taskTypeKey -> new ConcurrentHashMap<>())
+            .values()
+            .forEach(endpointHandler -> endpointHandler.updateTokensPerTimeUnit(rateLimitDivisors.get(serviceName).get(taskType).get()));
     }
 
     /**
@@ -245,21 +250,39 @@ class RequestExecutorService implements RequestExecutor {
     // default for testing
     void removeStaleGroupings() {
         var now = Instant.now(clock);
-        for (var iter = rateLimitGroupings.values().iterator(); iter.hasNext();) {
-            var endpoint = iter.next();
+        for (java.util.Map.Entry<
+            String,
+            ConcurrentMap<TaskType, ConcurrentMap<Object, RateLimitingEndpointHandler>>> taskTypeMapEntry : rateLimitEndpointHandlers
+                .entrySet()) {
+            ConcurrentMap<TaskType, ConcurrentMap<Object, RateLimitingEndpointHandler>> taskTypeMap = taskTypeMapEntry.getValue();
 
-            // if the current time is after the last time the endpoint enqueued a request + allowed stale period then we'll remove it
-            if (now.isAfter(endpoint.timeOfLastEnqueue().plus(settings.getRateLimitGroupStaleDuration()))) {
-                endpoint.close();
-                iter.remove();
+            for (java.util.Map.Entry<TaskType, ConcurrentMap<Object, RateLimitingEndpointHandler>> objectMapEntry : taskTypeMap
+                .entrySet()) {
+                ConcurrentMap<Object, RateLimitingEndpointHandler> objectMap = objectMapEntry.getValue();
+
+                for (var handlerIter = objectMap.values().iterator(); handlerIter.hasNext();) {
+                    var endpoint = handlerIter.next();
+
+                    // if the current time is after the last time the endpoint enqueued a request + allowed stale period then remove it
+                    if (now.isAfter(endpoint.timeOfLastEnqueue().plus(settings.getRateLimitGroupStaleDuration()))) {
+                        endpoint.close();
+                        handlerIter.remove();
+                    }
+                }
             }
         }
     }
 
     private void handleTasks() throws InterruptedException {
         var timeToWait = settings.getTaskPollFrequency();
-        for (var endpoint : rateLimitGroupings.values()) {
-            timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
+
+        // Iterate through all levels to reach each endpoint handler
+        for (ConcurrentMap<TaskType, ConcurrentMap<Object, RateLimitingEndpointHandler>> taskTypeMap : rateLimitEndpointHandlers.values()) {
+            for (ConcurrentMap<Object, RateLimitingEndpointHandler> objectMap : taskTypeMap.values()) {
+                for (RateLimitingEndpointHandler endpoint : objectMap.values()) {
+                    timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
+                }
+            }
         }
 
         sleeper.sleep(timeToWait);
@@ -268,25 +291,31 @@ class RequestExecutorService implements RequestExecutor {
     private void notifyRequestsOfShutdown() {
         assert isShutdown() : "Requests should only be notified if the executor is shutting down";
 
-        for (var endpoint : rateLimitGroupings.values()) {
-            endpoint.notifyRequestsOfShutdown();
+        for (ConcurrentMap<TaskType, ConcurrentMap<Object, RateLimitingEndpointHandler>> taskTypeMap : rateLimitEndpointHandlers.values()) {
+            for (ConcurrentMap<Object, RateLimitingEndpointHandler> objectMap : taskTypeMap.values()) {
+                for (RateLimitingEndpointHandler endpoint : objectMap.values()) {
+                    endpoint.notifyRequestsOfShutdown();
+                }
+            }
         }
     }
 
     // default for testing
     Integer remainingQueueCapacity(RequestManager requestManager) {
-        var endpoint = rateLimitGroupings.get(requestManager.rateLimitGrouping());
+        String serviceName = requestManager.service();
+        TaskType taskType = requestManager.taskType();
+        Object rateLimitGrouping = requestManager.rateLimitGrouping();
 
-        if (endpoint == null) {
-            return null;
-        }
-
-        return endpoint.remainingCapacity();
+        return Optional.ofNullable(rateLimitEndpointHandlers.get(serviceName))
+            .flatMap(taskTypeMap -> Optional.ofNullable(taskTypeMap.get(taskType)))
+            .flatMap(groupingMap -> Optional.ofNullable(groupingMap.get(rateLimitGrouping)))
+            .map(RateLimitingEndpointHandler::remainingCapacity)
+            .orElse(null);
     }
 
     // default for testing
     int numberOfRateLimitGroups() {
-        return rateLimitGroupings.size();
+        return rateLimitEndpointHandlers.values().stream().flatMap(taskTypeMap -> taskTypeMap.values().stream()).mapToInt(Map::size).sum();
     }
 
     /**
@@ -314,25 +343,26 @@ class RequestExecutorService implements RequestExecutor {
             // the thread contexts correctly to avoid accidentally retrieving the credentials for the wrong user
             ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext())
         );
+        var serviceName = requestManager.service();
+        var taskType = requestManager.taskType();
 
-        var endpoint = rateLimitGroupings.computeIfAbsent(requestManager.rateLimitGrouping(), key -> {
-            var endpointHandler = new RateLimitingEndpointHandler(
-                Integer.toString(requestManager.rateLimitGrouping().hashCode()),
-                queueCreator,
-                settings,
-                requestSender,
-                clock,
-                requestManager.rateLimitSettings(),
-                this::isShutdown,
-                rateLimiterCreator,
-                rateLimitDivisor.get()
-            );
-
-            // TODO: add or create/compute if absent set for new map (service/task-type-key -> rate limit endpoint handler)
-
-            endpointHandler.init();
-            return endpointHandler;
-        });
+        var endpoint = rateLimitEndpointHandlers.computeIfAbsent(serviceName, serviceNameKey -> new ConcurrentHashMap<>())
+            .computeIfAbsent(taskType, taskTypeKey -> new ConcurrentHashMap<>())
+            .computeIfAbsent(requestManager.rateLimitGrouping(), (groupingKey -> {
+                var endpointHandler = new RateLimitingEndpointHandler(
+                    Integer.toString(requestManager.rateLimitGrouping().hashCode()),
+                    queueCreator,
+                    settings,
+                    requestSender,
+                    clock,
+                    requestManager.rateLimitSettings(), // Assuming settings might be specific to the request/service
+                    this::isShutdown,
+                    rateLimiterCreator,
+                    rateLimitDivisors.get(serviceName).get(taskType).get()
+                );
+                endpointHandler.init(); // Initialize the new handler
+                return endpointHandler; // Return the newly created and initialized handler
+            }));
 
         endpoint.enqueue(task);
     }

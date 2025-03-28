@@ -15,7 +15,14 @@ import java.util.Objects;
 abstract class AlibabaCloudSearchRequestManager extends BaseRequestManager {
 
     protected AlibabaCloudSearchRequestManager(ThreadPool threadPool, AlibabaCloudSearchModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            AlibabaCloudSearchRequestManager.RateLimitGrouping.of(model),
+            model.rateLimitServiceSettings().rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
     }
 
     record RateLimitGrouping(int apiKeyHash) {

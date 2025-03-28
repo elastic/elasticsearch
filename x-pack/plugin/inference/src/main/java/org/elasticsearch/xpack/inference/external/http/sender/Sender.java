@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -27,7 +28,7 @@ public interface Sender extends Closeable {
         ActionListener<InferenceServiceResults> listener
     );
 
-    void updateRateLimitDivisor(int rateLimitDivisor);
+    void updateRateLimitDivisor(String serviceName, TaskType taskType, int rateLimitDivisor);
 
     void sendWithoutQueuing(
         Logger logger,

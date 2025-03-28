@@ -21,16 +21,30 @@ import org.elasticsearch.xpack.inference.action.BaseTransportInferenceAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.SenderService;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
+import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
+import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.PriorityQueue;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -60,13 +74,6 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements InferenceSe
      * - Which task types support request re-routing and "node-local" rate limit calculation
      * - How many nodes should handle requests for each task type, based on cluster size (dynamically calculated or statically provided)
      **/
-    static final Map<String, Collection<NodeLocalRateLimitConfig>> SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS = Map.of(
-        ElasticInferenceService.NAME,
-        // TODO: should probably be a map/set
-        List.of(new NodeLocalRateLimitConfig(TaskType.SPARSE_EMBEDDING, (numNodesInCluster) -> DEFAULT_MAX_NODES_PER_GROUPING))
-    );
-
-    record NodeLocalRateLimitConfig(TaskType taskType, MaxNodesPerGroupingStrategy maxNodesPerGroupingStrategy) {}
 
     @FunctionalInterface
     private interface MaxNodesPerGroupingStrategy {
@@ -81,11 +88,165 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements InferenceSe
 
     private final ConcurrentHashMap<String, Map<TaskType, RateLimitAssignment>> serviceAssignments;
 
+    private final SortedMap<String, SortedMap<TaskType, MaxNodesPerGroupingStrategy>> serviceNodeLocalRateLimitConfigs;
+
     @Inject
     public InferenceServiceNodeLocalRateLimitCalculator(ClusterService clusterService, InferenceServiceRegistry serviceRegistry) {
         clusterService.addListener(this);
         this.serviceRegistry = serviceRegistry;
         this.serviceAssignments = new ConcurrentHashMap<>();
+        this.serviceNodeLocalRateLimitConfigs = createServiceNodeLocalRateLimitConfigs();
+    }
+
+    private SortedMap<String, SortedMap<TaskType, MaxNodesPerGroupingStrategy>> createServiceNodeLocalRateLimitConfigs() {
+        TreeMap<String, TreeMap<TaskType, MaxNodesPerGroupingStrategy>> serviceNodeLocalRateLimitConfigs = new TreeMap<>();
+
+        MaxNodesPerGroupingStrategy defaultStrategy = (numNodesInCluster) -> DEFAULT_MAX_NODES_PER_GROUPING;
+
+        // Alibaba Cloud Search
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> alibabaCloudSearchConfigs = new TreeMap<>();
+        var alibabaCloudSearchService = serviceRegistry.getService(AlibabaCloudSearchService.NAME);
+        if (alibabaCloudSearchService.isPresent()) {
+            var alibabaCloudSearchTaskTypes = alibabaCloudSearchService.get().supportedTaskTypes();
+            for (TaskType taskType : alibabaCloudSearchTaskTypes) {
+                alibabaCloudSearchConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(AlibabaCloudSearchService.NAME, alibabaCloudSearchConfigs);
+
+        // Amazon Bedrock
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> amazonBedrockConfigs = new TreeMap<>();
+        var amazonBedrockService = serviceRegistry.getService(AmazonBedrockService.NAME);
+        if (amazonBedrockService.isPresent()) {
+            var amazonBedrockTaskTypes = amazonBedrockService.get().supportedTaskTypes();
+            for (TaskType taskType : amazonBedrockTaskTypes) {
+                amazonBedrockConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(AmazonBedrockService.NAME, amazonBedrockConfigs);
+
+        // Anthropic
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> anthropicConfigs = new TreeMap<>();
+        var anthropicService = serviceRegistry.getService(AnthropicService.NAME);
+        if (anthropicService.isPresent()) {
+            var anthropicTaskTypes = anthropicService.get().supportedTaskTypes();
+            for (TaskType taskType : anthropicTaskTypes) {
+                anthropicConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(AnthropicService.NAME, anthropicConfigs);
+
+        // Azure AI Studio
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> azureAiStudioConfigs = new TreeMap<>();
+        var azureAiStudioService = serviceRegistry.getService(AzureAiStudioService.NAME);
+        if (azureAiStudioService.isPresent()) {
+            var azureAiStudioTaskTypes = azureAiStudioService.get().supportedTaskTypes();
+            for (TaskType taskType : azureAiStudioTaskTypes) {
+                azureAiStudioConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(AzureAiStudioService.NAME, azureAiStudioConfigs);
+
+        // Cohere
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> cohereConfigs = new TreeMap<>();
+        var cohereService = serviceRegistry.getService(CohereService.NAME);
+        if (cohereService.isPresent()) {
+            var cohereTaskTypes = cohereService.get().supportedTaskTypes();
+            for (TaskType taskType : cohereTaskTypes) {
+                cohereConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(CohereService.NAME, cohereConfigs);
+
+        // DeepSeek
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> deepSeekConfigs = new TreeMap<>();
+        var deepSeekService = serviceRegistry.getService(DeepSeekService.NAME);
+        if (deepSeekService.isPresent()) {
+            var deepSeekTaskTypes = deepSeekService.get().supportedTaskTypes();
+            for (TaskType taskType : deepSeekTaskTypes) {
+                deepSeekConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(DeepSeekService.NAME, deepSeekConfigs);
+
+        // Elastic Inference Service (EIS)
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> elasticInferenceConfigs = new TreeMap<>();
+        var elasticInferenceService = serviceRegistry.getService(ElasticInferenceService.NAME);
+        if (elasticInferenceService.isPresent()) {
+            var elasticInferenceTaskTypes = elasticInferenceService.get().supportedTaskTypes();
+            for (TaskType taskType : elasticInferenceTaskTypes) {
+                elasticInferenceConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(ElasticInferenceService.NAME, elasticInferenceConfigs);
+
+        // Google AI Studio
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> googleAiStudioConfigs = new TreeMap<>();
+        var googleAiStudioService = serviceRegistry.getService(GoogleAiStudioService.NAME);
+        if (googleAiStudioService.isPresent()) {
+            var googleAiStudioTaskTypes = googleAiStudioService.get().supportedTaskTypes();
+            for (TaskType taskType : googleAiStudioTaskTypes) {
+                googleAiStudioConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(GoogleAiStudioService.NAME, googleAiStudioConfigs);
+
+        // Google Vertex AI
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> googleVertexAiConfigs = new TreeMap<>();
+        var googleVertexAiService = serviceRegistry.getService(GoogleVertexAiService.NAME);
+        if (googleVertexAiService.isPresent()) {
+            var googleVertexAiTaskTypes = googleVertexAiService.get().supportedTaskTypes();
+            for (TaskType taskType : googleVertexAiTaskTypes) {
+                googleVertexAiConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(GoogleVertexAiService.NAME, googleVertexAiConfigs);
+
+        // HuggingFace
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> huggingFaceConfigs = new TreeMap<>();
+        var huggingFaceService = serviceRegistry.getService(HuggingFaceService.NAME);
+        if (huggingFaceService.isPresent()) {
+            var huggingFaceTaskTypes = huggingFaceService.get().supportedTaskTypes();
+            for (TaskType taskType : huggingFaceTaskTypes) {
+                huggingFaceConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(HuggingFaceService.NAME, huggingFaceConfigs);
+
+        // IBM Watson X
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> ibmWatsonxConfigs = new TreeMap<>();
+        var ibmWatsonxService = serviceRegistry.getService(IbmWatsonxService.NAME);
+        if (ibmWatsonxService.isPresent()) {
+            var ibmWatsonxTaskTypes = ibmWatsonxService.get().supportedTaskTypes();
+            for (TaskType taskType : ibmWatsonxTaskTypes) {
+                ibmWatsonxConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(IbmWatsonxService.NAME, ibmWatsonxConfigs);
+
+        // Jina AI
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> jinaAiConfigs = new TreeMap<>();
+        var jinaAiService = serviceRegistry.getService(JinaAIService.NAME);
+        if (jinaAiService.isPresent()) {
+            var jinaAiTaskTypes = jinaAiService.get().supportedTaskTypes();
+            for (TaskType taskType : jinaAiTaskTypes) {
+                jinaAiConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(JinaAIService.NAME, jinaAiConfigs);
+
+        // Mistral
+        TreeMap<TaskType, MaxNodesPerGroupingStrategy> mistralConfigs = new TreeMap<>();
+        var mistralService = serviceRegistry.getService(MistralService.NAME);
+        if (mistralService.isPresent()) {
+            var mistralTaskTypes = mistralService.get().supportedTaskTypes();
+            for (TaskType taskType : mistralTaskTypes) {
+                mistralConfigs.put(taskType, defaultStrategy);
+            }
+        }
+        serviceNodeLocalRateLimitConfigs.put(MistralService.NAME, mistralConfigs);
+
+        return Collections.unmodifiableSortedMap(serviceNodeLocalRateLimitConfigs);
     }
 
     @Override
@@ -100,9 +261,8 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements InferenceSe
     }
 
     public boolean isTaskTypeReroutingSupported(String serviceName, TaskType taskType) {
-        return SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.getOrDefault(serviceName, Collections.emptyList())
-            .stream()
-            .anyMatch(rateLimitConfig -> taskType.equals(rateLimitConfig.taskType));
+        Map<TaskType, MaxNodesPerGroupingStrategy> serviceConfigs = serviceNodeLocalRateLimitConfigs.get(serviceName);
+        return serviceConfigs != null && serviceConfigs.containsKey(taskType);
     }
 
     public RateLimitAssignment getRateLimitAssignment(String service, TaskType taskType) {
@@ -126,27 +286,28 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements InferenceSe
 
         // Sort nodes by id (every node lands on the same result)
         var sortedNodes = nodes.stream().sorted(Comparator.comparing(DiscoveryNode::getId)).toList();
+        PriorityQueue<Map.Entry<Integer, DiscoveryNode>> nodeAssignmentCounts = createNodeAssignmentPriorityQueue(sortedNodes);
 
         // Sort inference services by name (every node lands on the same result)
         var sortedServices = new ArrayList<>(serviceRegistry.getServices().values());
         sortedServices.sort(Comparator.comparing(InferenceService::name));
 
-        for (String serviceName : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet()) {
+        for (String serviceName : serviceNodeLocalRateLimitConfigs.keySet()) {
             Optional<InferenceService> service = serviceRegistry.getService(serviceName);
 
             if (service.isPresent()) {
                 var inferenceService = service.get();
 
-                for (NodeLocalRateLimitConfig rateLimitConfig : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName)) {
+                for (TaskType taskType : serviceNodeLocalRateLimitConfigs.get(serviceName).keySet()) {
                     Map<TaskType, RateLimitAssignment> perTaskTypeAssignments = new HashMap<>();
-                    TaskType taskType = rateLimitConfig.taskType();
+                    var maxNodesPerGroupingStrategy = serviceNodeLocalRateLimitConfigs.get(serviceName).get(taskType);
 
                     // Calculate node assignments needed for re-routing
-                    var assignedNodes = calculateServiceAssignment(rateLimitConfig.maxNodesPerGroupingStrategy(), sortedNodes);
+                    var assignedNodes = calculateServiceTaskTypeAssignment(maxNodesPerGroupingStrategy, nodeAssignmentCounts);
 
                     // Update rate limits to be "node-local"
                     var numAssignedNodes = assignedNodes.size();
-                    updateRateLimits(inferenceService, numAssignedNodes);
+                    updateRateLimits(inferenceService, taskType, numAssignedNodes);
 
                     perTaskTypeAssignments.put(taskType, new RateLimitAssignment(assignedNodes));
                     serviceAssignments.put(serviceName, perTaskTypeAssignments);
@@ -160,38 +321,61 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements InferenceSe
         }
     }
 
-    private List<DiscoveryNode> calculateServiceAssignment(
+    private PriorityQueue<Map.Entry<Integer, DiscoveryNode>> createNodeAssignmentPriorityQueue(List<DiscoveryNode> sortedNodes) {
+        PriorityQueue<Map.Entry<Integer, DiscoveryNode>> nodeAssignmentCounts = new PriorityQueue<>(
+            Comparator.comparingInt((Map.Entry<Integer, DiscoveryNode> o) -> o.getKey()).thenComparing(o -> o.getValue().getId())
+        );
+
+        for (DiscoveryNode node : sortedNodes) {
+            nodeAssignmentCounts.add(Map.entry(0, node));
+        }
+        return nodeAssignmentCounts;
+    }
+
+    private List<DiscoveryNode> calculateServiceTaskTypeAssignment(
         MaxNodesPerGroupingStrategy maxNodesPerGroupingStrategy,
-        List<DiscoveryNode> sortedNodes
+        PriorityQueue<Map.Entry<Integer, DiscoveryNode>> nodeAssignmentCounts
     ) {
-        int numberOfNodes = sortedNodes.size();
+        // Use a priority queue to prioritize nodes with the fewest assignments
+        int numberOfNodes = nodeAssignmentCounts.size();
         int nodesPerGrouping = Math.min(numberOfNodes, maxNodesPerGroupingStrategy.calculate(numberOfNodes));
 
         List<DiscoveryNode> assignedNodes = new ArrayList<>();
 
-        // TODO: here we can probably be smarter: if |num nodes in cluster| > |num nodes per task types|
-        // -> make sure a service provider is not assigned the same nodes for all task types; only relevant as soon as we support more task
-        // types
+        // Assign nodes by repeatedly picking the one with the fewest assignments
         for (int j = 0; j < nodesPerGrouping; j++) {
-            var assignedNode = sortedNodes.get(j % numberOfNodes);
-            assignedNodes.add(assignedNode);
+            Map.Entry<Integer, DiscoveryNode> fewestAssignments = nodeAssignmentCounts.poll();
+
+            if (fewestAssignments == null) {
+                logger.warn("Node assignment queue is empty. Stopping node local rate limiting assignment.");
+                break;
+            }
+
+            DiscoveryNode nodeToAssign = fewestAssignments.getValue();
+            int currentAssignmentCount = fewestAssignments.getKey();
+
+            assignedNodes.add(nodeToAssign);
+            nodeAssignmentCounts.add(Map.entry(currentAssignmentCount + 1, nodeToAssign));
         }
 
         return assignedNodes;
     }
 
-    private void updateRateLimits(InferenceService service, int responsibleNodes) {
+    private void updateRateLimits(InferenceService service, TaskType taskType, int responsibleNodes) {
         if ((service instanceof SenderService) == false) {
             return;
         }
 
         SenderService senderService = (SenderService) service;
         Sender sender = senderService.getSender();
-        // TODO: this needs to take in service and task type as soon as multiple services/task types are supported
-        sender.updateRateLimitDivisor(responsibleNodes);
+        sender.updateRateLimitDivisor(service.name(), taskType, responsibleNodes);
     }
 
     InferenceServiceRegistry serviceRegistry() {
         return serviceRegistry;
+    }
+
+    SortedMap<String, SortedMap<TaskType, MaxNodesPerGroupingStrategy>> serviceNodeLocalRateLimitConfigs() {
+        return serviceNodeLocalRateLimitConfigs;
     }
 }

@@ -72,7 +72,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 
 public class AzureAiStudioService extends SenderService {
 
-    static final String NAME = "azureaistudio";
+    public static final String NAME = "azureaistudio";
 
     private static final String SERVICE_NAME = "Azure AI Studio";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);

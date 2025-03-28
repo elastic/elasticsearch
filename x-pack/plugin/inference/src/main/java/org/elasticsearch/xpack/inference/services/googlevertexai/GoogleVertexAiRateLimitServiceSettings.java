@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 public interface GoogleVertexAiRateLimitServiceSettings {
 
+    String modelId();
+
     RateLimitSettings rateLimitSettings();
 
 }

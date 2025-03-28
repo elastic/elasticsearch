@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockRequestExecutorService;
@@ -89,8 +90,8 @@ public class AmazonBedrockRequestSender implements Sender {
     }
 
     @Override
-    public void updateRateLimitDivisor(int rateLimitDivisor) {
-        executorService.updateRateLimitDivisor(rateLimitDivisor);
+    public void updateRateLimitDivisor(String serviceName, TaskType taskType, int rateLimitDivisor) {
+        executorService.updateRateLimitDivisor(serviceName, taskType, rateLimitDivisor);
     }
 
     @Override

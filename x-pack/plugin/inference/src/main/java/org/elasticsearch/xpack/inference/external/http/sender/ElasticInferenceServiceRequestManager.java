@@ -20,7 +20,14 @@ public abstract class ElasticInferenceServiceRequestManager extends BaseRequestM
     private final ElasticInferenceServiceRequestMetadata requestMetadata;
 
     protected ElasticInferenceServiceRequestManager(ThreadPool threadPool, ElasticInferenceServiceModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            ElasticInferenceServiceRequestManager.RateLimitGrouping.of(model),
+            model.rateLimitServiceSettings().rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
         this.requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
     }
 

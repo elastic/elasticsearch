@@ -15,7 +15,14 @@ import java.util.Objects;
 abstract class JinaAIRequestManager extends BaseRequestManager {
 
     protected JinaAIRequestManager(ThreadPool threadPool, JinaAIModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            JinaAIRequestManager.RateLimitGrouping.of(model),
+            model.rateLimitServiceSettings().rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
     }
 
     record RateLimitGrouping(int apiKeyHash) {

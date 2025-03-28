@@ -10,9 +10,26 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
 
+import java.util.Objects;
+
 public abstract class GoogleVertexAiRequestManager extends BaseRequestManager {
 
     GoogleVertexAiRequestManager(ThreadPool threadPool, GoogleVertexAiModel model, Object rateLimitGroup) {
-        super(threadPool, model.getInferenceEntityId(), rateLimitGroup, model.rateLimitServiceSettings().rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            GoogleVertexAiRequestManager.RateLimitGrouping.of(model),
+            model.rateLimitServiceSettings().rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
+    }
+
+    record RateLimitGrouping(int modelIdHash) {
+        public static GoogleVertexAiRequestManager.RateLimitGrouping of(GoogleVertexAiModel model) {
+            Objects.requireNonNull(model);
+
+            return new GoogleVertexAiRequestManager.RateLimitGrouping(model.rateLimitServiceSettings().modelId().hashCode());
+        }
     }
 }

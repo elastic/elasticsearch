@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -22,11 +23,14 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 public class BaseRequestManagerTests extends ESTestCase {
+    private final String serviceName = "elastic";
+    private final TaskType taskType = TaskType.ANY;
+
     public void testRateLimitGrouping_DifferentObjectReferences_HaveSameGroup() {
         int val1 = 1;
         int val2 = 1;
 
-        var manager1 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1)) {
+        var manager1 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1), serviceName, taskType) {
             @Override
             public void execute(
                 InferenceInputs inferenceInputs,
@@ -38,7 +42,7 @@ public class BaseRequestManagerTests extends ESTestCase {
             }
         };
 
-        var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val2, new RateLimitSettings(1)) {
+        var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val2, new RateLimitSettings(1), serviceName, taskType) {
             @Override
             public void execute(
                 InferenceInputs inferenceInputs,
@@ -56,7 +60,7 @@ public class BaseRequestManagerTests extends ESTestCase {
     public void testRateLimitGrouping_DifferentSettings_HaveDifferentGroup() {
         int val1 = 1;
 
-        var manager1 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1)) {
+        var manager1 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1), serviceName, taskType) {
             @Override
             public void execute(
                 InferenceInputs inferenceInputs,
@@ -68,7 +72,7 @@ public class BaseRequestManagerTests extends ESTestCase {
             }
         };
 
-        var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(2)) {
+        var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(2), serviceName, taskType) {
             @Override
             public void execute(
                 InferenceInputs inferenceInputs,
@@ -86,7 +90,14 @@ public class BaseRequestManagerTests extends ESTestCase {
     public void testRateLimitGrouping_DifferentSettingsTimeUnit_HaveDifferentGroup() {
         int val1 = 1;
 
-        var manager1 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1, TimeUnit.MILLISECONDS)) {
+        var manager1 = new BaseRequestManager(
+            mock(ThreadPool.class),
+            "id",
+            val1,
+            new RateLimitSettings(1, TimeUnit.MILLISECONDS),
+            serviceName,
+            taskType
+        ) {
             @Override
             public void execute(
                 InferenceInputs inferenceInputs,
@@ -98,7 +109,14 @@ public class BaseRequestManagerTests extends ESTestCase {
             }
         };
 
-        var manager2 = new BaseRequestManager(mock(ThreadPool.class), "id", val1, new RateLimitSettings(1, TimeUnit.DAYS)) {
+        var manager2 = new BaseRequestManager(
+            mock(ThreadPool.class),
+            "id",
+            val1,
+            new RateLimitSettings(1, TimeUnit.DAYS),
+            serviceName,
+            taskType
+        ) {
             @Override
             public void execute(
                 InferenceInputs inferenceInputs,

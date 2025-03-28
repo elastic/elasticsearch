@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class DeepSeekService extends SenderService {
-    private static final String NAME = "deepseek";
+    public static final String NAME = "deepseek";
     private static final String CHAT_COMPLETION_ERROR_PREFIX = "deepseek chat completions";
     private static final String COMPLETION_ERROR_PREFIX = "deepseek completions";
     private static final String SERVICE_NAME = "DeepSeek";

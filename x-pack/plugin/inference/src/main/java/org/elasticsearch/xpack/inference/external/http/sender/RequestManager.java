@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.ratelimit.RateLimitable;
 
@@ -31,5 +32,7 @@ public interface RequestManager extends RateLimitable {
 
     String inferenceEntityId();
 
-    // TODO: add service() and taskType()
+    String service();
+
+    TaskType taskType();
 }

@@ -14,7 +14,14 @@ import java.util.Objects;
 
 public abstract class AzureOpenAiRequestManager extends BaseRequestManager {
     protected AzureOpenAiRequestManager(ThreadPool threadPool, AzureOpenAiModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            RateLimitGrouping.of(model),
+            model.rateLimitServiceSettings().rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
     }
 
     record RateLimitGrouping(int resourceNameHash, int deploymentIdHash) {

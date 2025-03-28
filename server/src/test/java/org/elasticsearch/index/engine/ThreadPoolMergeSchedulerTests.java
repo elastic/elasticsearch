@@ -173,6 +173,68 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
     }
 
+    public void testIndexingThrottlingWhenSubmittingMerges() {
+        final int maxThreadCount = randomIntBetween(1, 5);
+        // settings validation requires maxMergeCount >= maxThreadCount
+        final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
+        List<MergeTask> submittedMergeTasks = new ArrayList<>();
+        AtomicBoolean isUsingMaxTargetIORate = new AtomicBoolean(false);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mockThreadPoolMergeExecutorService(
+            submittedMergeTasks,
+            isUsingMaxTargetIORate
+        );
+        Settings mergeSchedulerSettings = Settings.builder()
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount)
+            .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount)
+            .build();
+        TestThreadPoolMergeScheduler threadPoolMergeScheduler = new TestThreadPoolMergeScheduler(
+            new ShardId("index", "_na_", 1),
+            IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
+            threadPoolMergeExecutorService
+        );
+        // make sure there are more merges submitted than the max merge count limit (which triggers IO throttling)
+        int excessMerges = randomIntBetween(1, 10);
+        int mergesToSubmit = maxMergeCount + excessMerges;
+        boolean expectIndexThrottling = false;
+        int submittedMerges = 0;
+        // merges are submitted, while some are also scheduled (but none is run)
+        while (submittedMerges < mergesToSubmit - 1) {
+            isUsingMaxTargetIORate.set(randomBoolean());
+            if (submittedMergeTasks.isEmpty() == false && randomBoolean()) {
+                // maybe schedule one submitted merge
+                MergeTask mergeTask = randomFrom(submittedMergeTasks);
+                submittedMergeTasks.remove(mergeTask);
+                mergeTask.schedule();
+            } else {
+                // submit one merge
+                MergeSource mergeSource = mock(MergeSource.class);
+                OneMerge oneMerge = mock(OneMerge.class);
+                when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+                when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+                when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+                threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+                submittedMerges++;
+                if (isUsingMaxTargetIORate.get() && submittedMerges > maxMergeCount) {
+                    expectIndexThrottling = true;
+                } else if (submittedMerges <= maxMergeCount) {
+                    expectIndexThrottling = false;
+                }
+            }
+            // assert IO throttle state
+            assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(expectIndexThrottling));
+        }
+        // submit one last merge when IO throttling is at max value
+        isUsingMaxTargetIORate.set(true);
+        MergeSource mergeSource = mock(MergeSource.class);
+        OneMerge oneMerge = mock(OneMerge.class);
+        when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+        when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+        when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+        threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+        // assert index throttling because IO throttling is at max value
+        assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(true));
+    }
+
     public void testIndexingThrottlingWhileMergesAreRunning() {
         final int maxThreadCount = randomIntBetween(1, 5);
         // settings validation requires maxMergeCount >= maxThreadCount

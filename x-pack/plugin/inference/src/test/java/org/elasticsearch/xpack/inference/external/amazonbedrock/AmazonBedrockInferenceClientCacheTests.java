@@ -60,6 +60,36 @@ public class AmazonBedrockInferenceClientCacheTests extends ESTestCase {
         assertThat(cacheInstance.clientCount(), is(0));
     }
 
+    public void testCache_ItUpdatesExpirationForExistingClients() throws IOException {
+        var clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
+        AmazonBedrockInferenceClientCache cacheInstance;
+        try (var cache = new AmazonBedrockInferenceClientCache(AmazonBedrockMockInferenceClient::create, clock)) {
+            cacheInstance = cache;
+
+            var model = AmazonBedrockEmbeddingsModelTests.createModel(
+                "inferenceId",
+                "testregion",
+                "model",
+                AmazonBedrockProvider.AMAZONTITAN,
+                "access_key",
+                "secret_key"
+            );
+
+            var client = cache.getOrCreateClient(model, null);
+            var expiryTimestamp = client.getExpiryTimestamp();
+            assertThat(cache.clientCount(), is(1));
+
+            // set clock to clock + 1 minutes so cache hasn't expired
+            cache.setClock(Clock.fixed(clock.instant().plus(Duration.ofMinutes(1)), ZoneId.systemDefault()));
+
+            var regetClient = cache.getOrCreateClient(model, null);
+
+            assertThat(client, sameInstance(regetClient));
+            assertNotEquals(expiryTimestamp, regetClient.getExpiryTimestamp());
+        }
+        assertThat(cacheInstance.clientCount(), is(0));
+    }
+
     public void testCache_ItEvictsExpiredClients() throws IOException {
         var clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
         AmazonBedrockInferenceClientCache cacheInstance;
@@ -76,6 +106,10 @@ public class AmazonBedrockInferenceClientCacheTests extends ESTestCase {
             );
 
             var client = cache.getOrCreateClient(model, null);
+            assertThat(cache.clientCount(), is(1));
+
+            // set clock to clock + 2 minutes
+            cache.setClock(Clock.fixed(clock.instant().plus(Duration.ofMinutes(2)), ZoneId.systemDefault()));
 
             var secondModel = AmazonBedrockEmbeddingsModelTests.createModel(
                 "inferenceId_two",
@@ -86,22 +120,25 @@ public class AmazonBedrockInferenceClientCacheTests extends ESTestCase {
                 "other_secret_key"
             );
 
-            assertThat(cache.clientCount(), is(1));
-
             var secondClient = cache.getOrCreateClient(secondModel, null);
             assertThat(client, not(sameInstance(secondClient)));
 
             assertThat(cache.clientCount(), is(2));
 
-            // set clock to after expiry
+            // set clock to after expiry of first client but not after expiry of second client
             cache.setClock(Clock.fixed(clock.instant().plus(Duration.ofMinutes(CLIENT_CACHE_EXPIRY_MINUTES + 1)), ZoneId.systemDefault()));
 
-            // get another client, this will ensure flushExpiredClients is called
+            // retrieve the second client, this will ensure flushExpiredClients is called
             var regetSecondClient = cache.getOrCreateClient(secondModel, null);
             assertThat(secondClient, sameInstance(regetSecondClient));
 
+            // expired first client should have been flushed
+            assertThat(cache.clientCount(), is(1));
+
             var regetFirstClient = cache.getOrCreateClient(model, null);
             assertThat(client, not(sameInstance(regetFirstClient)));
+
+            assertThat(cache.clientCount(), is(2));
         }
         assertThat(cacheInstance.clientCount(), is(0));
     }

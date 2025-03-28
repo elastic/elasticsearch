@@ -8,8 +8,8 @@ are not subject to the support SLA of official GA features.
 :::
 
 :::{note}
-###### COMING 9.1.0
-Support for optional named parameters is only available from 9.1.0
+###### Serverless: GA, Stateful: COMING
+Support for optional named parameters is only available in serverless, or in a future {{es}} release
 :::
 
 **Syntax**

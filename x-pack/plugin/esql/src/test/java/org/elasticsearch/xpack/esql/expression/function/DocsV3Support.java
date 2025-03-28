@@ -71,6 +71,7 @@ import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionT
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.mapParam;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.param;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.paramWithoutAnnotation;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle.GA;
 
 /**
  * This class exists to support the new Docs V3 system.
@@ -528,12 +529,12 @@ public abstract class DocsV3Support {
                 // We have a preview flag, use the WARNING callout
                 previewText.append(makeCallout("warning", "\n" + PREVIEW_CALLOUT + "\n")).append("\n");
             }
-            if (appliesToText.isEmpty() == false) {
-                // We have extra descriptive text, nest inside a NOTE for emphasis
-                previewText.append(makeCallout("note", appliesToText));
-            } else if (appliesToTextWithAT.isEmpty() == false) {
+            if (appliesToTextWithAT.isEmpty() == false) {
                 // No additional text, just use the plan applies_to syntax
                 previewText.append(appliesToTextWithAT);
+            } else if (appliesToText.isEmpty() == false) {
+                // We have extra descriptive text, nest inside a NOTE for emphasis
+                previewText.append(makeCallout("note", appliesToText));
             }
             return previewText.toString();
         }
@@ -547,11 +548,12 @@ public abstract class DocsV3Support {
                         // If any of the appliesTo has descriptive text, we need to format things differently
                         return "";
                     }
-                    appliesToText.append("product: ")
-                        .append(appliesTo.lifeCycle().name())
-                        .append(" ")
-                        .append(appliesTo.version())
-                        .append("\n");
+                    appliesToText.append("product: ");
+                    appendLifeCycleAndVersion(appliesToText, appliesTo);
+                    appliesToText.append("\n");
+                    if (appliesTo.serverless() && appliesTo.lifeCycle().serverlessLifecycle() == GA) {
+                        appliesToText.append("serverless: ").append(GA).append("\n");
+                    }
                 }
                 appliesToText.append("```\n");
             }
@@ -564,10 +566,10 @@ public abstract class DocsV3Support {
                 appliesToText.append("\n");
                 for (FunctionAppliesTo appliesTo : functionAppliesTos) {
                     appliesToText.append("###### ");
-                    appliesToText.append(appliesTo.lifeCycle().name());
-                    if (appliesTo.version().isEmpty() == false) {
-                        appliesToText.append(" ").append(appliesTo.version());
+                    if (appliesTo.serverless() && appliesTo.lifeCycle().serverlessLifecycle() == GA) {
+                        appliesToText.append("Serverless: ").append(GA).append(", Stateful: ");
                     }
+                    appendLifeCycleAndVersion(appliesToText, appliesTo);
                     appliesToText.append("\n");
                     if (appliesTo.description().isEmpty() == false) {
                         appliesToText.append(appliesTo.description()).append("\n\n");
@@ -575,6 +577,13 @@ public abstract class DocsV3Support {
                 }
             }
             return appliesToText.toString();
+        }
+
+        private void appendLifeCycleAndVersion(StringBuilder appliesToText, FunctionAppliesTo appliesTo) {
+            appliesToText.append(appliesTo.lifeCycle().name());
+            if (appliesTo.version().isEmpty() == false) {
+                appliesToText.append(" ").append(appliesTo.version());
+            }
         }
 
         private void renderFullLayout(

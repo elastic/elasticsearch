@@ -540,7 +540,6 @@ setup:
             inference_field:
               type: semantic_text
               inference_id: sparse-inference-id
-              chunking_settings: null
 
   - do:
       indices.get_mapping:

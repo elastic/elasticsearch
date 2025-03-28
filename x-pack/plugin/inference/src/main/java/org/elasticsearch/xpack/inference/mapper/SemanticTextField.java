@@ -155,7 +155,9 @@ public record SemanticTextField(
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
         builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
-        builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
+        if (inference.chunkingSettings != null) {
+            builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
+        }
 
         if (useLegacyFormat) {
             builder.startArray(CHUNKS_FIELD);
@@ -247,7 +249,7 @@ public record SemanticTextField(
 
         INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
         INFERENCE_RESULT_PARSER.declareObjectOrNull(
-            constructorArg(),
+            optionalConstructorArg(),
             (p, c) -> MinimalServiceSettings.parse(p),
             null,
             new ParseField(MODEL_SETTINGS_FIELD)
@@ -332,7 +334,7 @@ public record SemanticTextField(
         return chunks;
     }
 
-    public static Chunk toSemanticTextFieldChunkLegacy(String input, ChunkedInference.Chunk chunk) {
+    public static Chunk toSemanticTextFieldChunkLegacy(String input, org.elasticsearch.inference.ChunkedInference.Chunk chunk) {
         var text = input.substring(chunk.textOffset().start(), chunk.textOffset().end());
         return new Chunk(text, -1, -1, chunk.bytesReference());
     }

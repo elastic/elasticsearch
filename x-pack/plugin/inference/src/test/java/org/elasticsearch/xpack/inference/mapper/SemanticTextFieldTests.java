@@ -322,12 +322,20 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkingSettings generateRandomChunkingSettings() {
-        if (randomBoolean()) {
+        return generateRandomChunkingSettings(true);
+    }
+
+    public static ChunkingSettings generateRandomChunkingSettings(boolean allowNull) {
+        if (allowNull && randomBoolean()) {
             return null; // Use model defaults
         }
         return randomBoolean()
             ? new WordBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(1, 10))
             : new SentenceBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(0, 1));
+    }
+
+    public static ChunkingSettings generateRandomChunkingSettingsOtherThan(ChunkingSettings chunkingSettings) {
+        return randomValueOtherThan(chunkingSettings, () -> generateRandomChunkingSettings(false));
     }
 
     /**

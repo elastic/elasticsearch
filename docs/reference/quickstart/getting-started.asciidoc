@@ -1,6 +1,7 @@
 [[getting-started]]
 == Index and search data using {es} APIs
-++++
+katie ella hardwicke
+
 <titleabbrev>Basics: Index and search using APIs</titleabbrev>
 ++++
 

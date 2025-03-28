@@ -2248,6 +2248,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 shardId,
                 randomDoubleBetween(0, 64, true),
                 randomDoubleBetween(0, 64, true),
+                randomDoubleBetween(0, 64, true),
                 randomLongBetween(1, 10)
             );
         }

@@ -185,6 +185,7 @@ import static org.elasticsearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHO
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -5189,7 +5190,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new IndexingOperationListener() {
                 @Override
                 public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
-                    fakeClock.advance();
+                    fakeClock.advance(1);
                     return IndexingOperationListener.super.preIndex(shardId, operation);
                 }
             }
@@ -5197,7 +5198,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // Now simulate that each operation takes 1 minute to complete.
         // This applies both for replaying translog ops and new indexing ops
-        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.timeValueMinutes(1));
+        fakeClock.setTickLength(TimeValue.timeValueMinutes(1));
 
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final CountDownLatch concurrentIndexingFinished = new CountDownLatch(1);
@@ -5272,12 +5273,14 @@ public class IndexShardTests extends IndexShardTestCase {
         }, true, true);
         recoveryFinishedLatch.await();
 
-        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
+        fakeClock.setTickLength(TimeValue.ZERO);
         final IndexingStats indexingStatsBeforeIndexingDocs = replicaShard.indexingStats();
         assertThat(indexingStatsBeforeIndexingDocs.getTotal().getWriteLoad(), is(equalTo(0.0)));
+        assertThat(indexingStatsBeforeIndexingDocs.getTotal().getRecentWriteLoad(), is(equalTo(0.0)));
+        assertThat(indexingStatsBeforeIndexingDocs.getTotal().getPeakWriteLoad(), is(equalTo(0.0)));
 
         // Now simulate that each operation takes 1 second to complete.
-        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.timeValueSeconds(1));
+        fakeClock.setTickLength(TimeValue.timeValueSeconds(1));
         final int numberOfDocs = randomIntBetween(5, 10);
         for (int i = 0; i < numberOfDocs; i++) {
             long seqNo = replicaShard.seqNoStats().getMaxSeqNo() + 1;
@@ -5291,28 +5294,118 @@ public class IndexShardTests extends IndexShardTestCase {
             );
         }
 
-        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
+        fakeClock.setTickLength(TimeValue.ZERO);
         final IndexingStats indexingStatsAfterIndexingDocs = replicaShard.indexingStats();
+        // We advanced the clock only during the index operation, so all elapsed time was spent indexing, and the write load is exactly 1.0:
         assertThat(indexingStatsAfterIndexingDocs.getTotal().getWriteLoad(), is(equalTo(1.0)));
+        // The EWMR should give approximately the same value, but with only a few increments there will be some difference:
+        double recentWriteLoad = indexingStatsAfterIndexingDocs.getTotal().getRecentWriteLoad();
+        assertThat(recentWriteLoad, is(closeTo(1.0, 0.002)));
+        // This will also be the peak value:
+        assertThat(indexingStatsAfterIndexingDocs.getTotal().getPeakWriteLoad(), equalTo(recentWriteLoad));
 
         closeShards(primary, replicaShard);
     }
 
+    public void testShardExposesWriteLoadStats_variableRates() throws IOException {
+        long recentLoadHalfLifeNanos = IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_DEFAULT.nanos();
+        long clockTickNanos = recentLoadHalfLifeNanos / 100; // Take exactly 1000 ticks to make one half life
+        FakeClock fakeClock = new FakeClock();
+        fakeClock.setTickLength(TimeValue.timeValueNanos(clockTickNanos));
+
+        ShardId shardId = new ShardId("index", "_na_", 0);
+        NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        IndexShard shard = newShard(
+            shardRoutingBuilder(shardId, randomAlphaOfLength(10), true, ShardRoutingState.INITIALIZING).withRecoverySource(
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE
+            ).build(),
+            new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId),
+            IndexMetadata.builder("index")
+                .settings(indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+                .primaryTerm(0, primaryTerm)
+                .build(),
+            null,
+            null,
+            new InternalEngineFactory(),
+            NOOP_GCP_SYNCER,
+            RetentionLeaseSyncer.EMPTY,
+            EMPTY_EVENT_LISTENER,
+            fakeClock,
+            // Use a listener to advance the fake clock once per indexing operation:
+            new IndexingOperationListener() {
+                @Override
+                public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+                    fakeClock.advance(1);
+                    return IndexingOperationListener.super.preIndex(shardId, operation);
+                }
+            }
+        );
+        recoverShardFromStore(shard);
+
+        // PHASE ONE: Do 450 index operations. Advance clock one tick during each operation and one tick between each operation.
+        // Elapsed time in phase: 900 ticks.
+        // Load during phase: 0.5.
+        for (int i = 0; i < 450; i++) {
+            indexDoc(shard, "_doc", "phase-1-" + i);
+            fakeClock.advance(1);
+        }
+        IndexingStats stats1 = shard.indexingStats();
+        // We have had a consistent load of 0.5 so far, so all load stats should give this, although the EWMR will only be approximate.
+        assertThat(stats1.getTotal().getWriteLoad(), equalTo(0.5));
+        double recentWriteLoad1 = stats1.getTotal().getRecentWriteLoad();
+        assertThat(recentWriteLoad1, closeTo(0.5, 0.002));
+        // The peak should be equal to this:
+        assertThat(stats1.getTotal().getPeakWriteLoad(), equalTo(recentWriteLoad1));
+
+        // PHASE TWO: Do 25 operations. Advance clock one tick during each operation and three ticks between each operation.
+        // Elapsed time in phase: 100 ticks.
+        // Load during phase: 0.25.
+        for (int i = 0; i < 25; i++) {
+            indexDoc(shard, "_doc", "phase-2-" + i);
+            fakeClock.advance(3);
+        }
+        IndexingStats stats2 = shard.indexingStats();
+        // We had a load of 0.5 for 900 ticks and 0.25 for 100 ticks, so the all-time load is 0.5 * 0.9 + 0.25 * 0.1 = 0.475:
+        assertThat(stats2.getTotal().getWriteLoad(), equalTo(0.475));
+        // That is 0.5 for 9 half-lives (a long time) and 0.25 for one half-life, so the EWMR is halfway between the two, 0.375
+        assertThat(stats2.getTotal().getRecentWriteLoad(), closeTo(0.375, 0.002));
+        // The new EWMR is lower than the previous one, so the peak should be equal to the previous peak:
+        assertThat(stats2.getTotal().getPeakWriteLoad(), equalTo(recentWriteLoad1));
+
+        // PHASE THREE: Do 1000 operations. Advance clock one tick during each operation only.
+        // Elapsed time in phase: 10-0 ticks.
+        // Load during phase: 1.0.
+        for (int i = 0; i < 1000; i++) {
+            indexDoc(shard, "_doc", "phase-3-" + i);
+        }
+        IndexingStats stats3 = shard.indexingStats();
+        // We had a load of 0.5 for 900 ticks, 0.25 for 100 ticks, and 1.0 for 1000 ticks...
+        // ...so the all-time load is 0.5 * 0.45 + 0.25 * 0.05 + 1.0 * 0.5 = 0.7375:
+        assertThat(stats3.getTotal().getWriteLoad(), equalTo(0.7375));
+        // That load of 1.0 lasted 10 half-lives (a long time), to the EWMR is approximately 1.0:
+        double recentWriteLoad3 = stats3.getTotal().getRecentWriteLoad();
+        assertThat(recentWriteLoad3, closeTo(1.0, 0.003));
+        // This EWMR is the highest we've seen so far, so should be the new peak:
+        assertThat(stats3.getTotal().getPeakWriteLoad(), equalTo(recentWriteLoad3));
+
+        closeShards(shard);
+    }
+
     static class FakeClock implements LongSupplier {
         private final AtomicLong currentRelativeTime = new AtomicLong();
-        private volatile TimeValue simulatedElapsedRelativeTime = TimeValue.ZERO;
+        private volatile TimeValue tickLength = TimeValue.ZERO;
 
         @Override
         public long getAsLong() {
             return currentRelativeTime.get();
         }
 
-        void setSimulatedElapsedRelativeTime(TimeValue simulatedElapsedRelativeTime) {
-            this.simulatedElapsedRelativeTime = simulatedElapsedRelativeTime;
+        void setTickLength(TimeValue tickLength) {
+            this.tickLength = tickLength;
         }
 
-        public void advance() {
-            currentRelativeTime.addAndGet(simulatedElapsedRelativeTime.nanos());
+        public void advance(int ticks) {
+            currentRelativeTime.addAndGet(ticks * tickLength.nanos());
         }
     }
 

@@ -61,12 +61,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:third-party:slack");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:async-search:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:autoscaling:qa:rest");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ccr:qa:downgrade-to-basic-license");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ccr:qa:multi-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ccr:qa:non-compliant-license");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ccr:qa:rest");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ccr:qa:restart");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ccr:qa:security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:deprecation:qa:early-deprecation-rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:deprecation:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:downsample:qa:with-security");

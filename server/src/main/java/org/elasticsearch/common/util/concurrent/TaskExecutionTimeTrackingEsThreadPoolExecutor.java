@@ -13,6 +13,7 @@ import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -44,10 +45,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
     private final ExponentialBucketHistogram queueLatencyHistogram = new ExponentialBucketHistogram();
-    private final LongGauge queueLatencyGauge;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
-        EsExecutors.QualifiedName name,
+        String name,
         int corePoolSize,
         int maximumPoolSize,
         long keepAliveTime,
@@ -57,26 +57,18 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ThreadFactory threadFactory,
         RejectedExecutionHandler handler,
         ThreadContext contextHolder,
-        TaskTrackingConfig trackingConfig,
-        MeterRegistry meterRegistry
+        TaskTrackingConfig trackingConfig
     ) {
-        super(
-            name.toCompositeString(),
-            corePoolSize,
-            maximumPoolSize,
-            keepAliveTime,
-            unit,
-            workQueue,
-            threadFactory,
-            handler,
-            contextHolder
-        );
+        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
-        this.queueLatencyGauge = meterRegistry.registerLongsGauge(
-            ThreadPool.THREAD_POOL_METRIC_PREFIX + name.threadPoolName() + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
-            "Time tasks spent in the queue for the " + name.threadPoolName() + " thread pool",
+    }
+
+    public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
+        final LongGauge queueLatencyGauge = meterRegistry.registerLongsGauge(
+            ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
+            "Time tasks spent in the queue for the " + threadPoolName + " thread pool",
             "milliseconds",
             () -> {
                 List<LongWithAttributes> metricValues = Arrays.stream(LATENCY_PERCENTILES_TO_REPORT)
@@ -91,6 +83,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 return metricValues;
             }
         );
+        return List.of(queueLatencyGauge);
     }
 
     @Override

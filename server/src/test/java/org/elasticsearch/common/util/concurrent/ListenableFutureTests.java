@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -85,8 +84,7 @@ public class ListenableFutureTests extends ESTestCase {
             1000,
             EsExecutors.daemonThreadFactory("listener"),
             threadContext,
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
-            MeterRegistry.NOOP
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         final CountDownLatch listenersLatch = new CountDownLatch(numberOfThreads - 1);
@@ -161,8 +159,7 @@ public class ListenableFutureTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("testRejection"),
             threadContext,
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
-            MeterRegistry.NOOP
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
 
         try {

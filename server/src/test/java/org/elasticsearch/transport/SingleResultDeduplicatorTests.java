@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -113,8 +112,7 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
                     0,
                     EsExecutors.daemonThreadFactory("test"),
                     threadContext,
-                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
-                    MeterRegistry.NOOP
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 );
                 resources[0] = () -> ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
                 final var barrier = new CyclicBarrier(threads);

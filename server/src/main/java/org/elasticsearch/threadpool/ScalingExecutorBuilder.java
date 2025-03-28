@@ -144,7 +144,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name());
         ExecutorService executor;
         executor = EsExecutors.newScaling(
-            new EsExecutors.QualifiedName(settings.nodeName, name()),
+            settings.nodeName + "/" + name(),
             core,
             max,
             keepAlive.millis(),
@@ -152,8 +152,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             rejectAfterShutdown,
             threadFactory,
             threadContext,
-            trackingConfig,
-            meterRegistry
+            trackingConfig
         );
         return new ThreadPool.ExecutorHolder(executor, info);
     }

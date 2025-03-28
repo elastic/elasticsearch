@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -42,7 +41,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         ThreadContext context = new ThreadContext(Settings.EMPTY);
 
         TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            new EsExecutors.QualifiedName("test-threadpool"),
+            "test-threadpool",
             1,
             1,
             1000,
@@ -52,8 +51,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA),
-            MeterRegistry.NOOP
+            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -95,7 +93,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            new EsExecutors.QualifiedName("test-threadpool"),
+            "test-threadpool",
             1,
             1,
             1000,
@@ -105,8 +103,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA),
-            MeterRegistry.NOOP
+            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -128,7 +125,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         var testStartTimeNanos = System.nanoTime();
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            new EsExecutors.QualifiedName("test-threadpool"),
+            "test-threadpool",
             1,
             1,
             1000,
@@ -138,8 +135,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA),
-            MeterRegistry.NOOP
+            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA)
         );
         var taskRunningLatch = new CountDownLatch(1);
         var exitTaskLatch = new CountDownLatch(1);
@@ -164,7 +160,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final var threadPoolName = randomIdentifier();
         var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            new EsExecutors.QualifiedName(threadPoolName),
+            threadPoolName,
             1,
             1,
             1000,
@@ -174,9 +170,9 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             new ThreadContext(Settings.EMPTY),
-            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA),
-            meterRegistry
+            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA)
         );
+        executor.setupMetrics(meterRegistry, threadPoolName);
 
         try {
             final var barrier = new CyclicBarrier(2);

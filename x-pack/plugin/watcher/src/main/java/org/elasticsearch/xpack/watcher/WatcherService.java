@@ -31,7 +31,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -124,8 +123,7 @@ public class WatcherService {
                 1000,
                 daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
                 client.threadPool().getThreadContext(),
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
-                MeterRegistry.NOOP
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
     }

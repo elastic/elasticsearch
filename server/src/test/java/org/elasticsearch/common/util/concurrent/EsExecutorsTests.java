@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
@@ -65,8 +64,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomFrom(DEFAULT, DO_NOT_TRACK),
-            MeterRegistry.NOOP
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -135,8 +133,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomFrom(DEFAULT, DO_NOT_TRACK),
-            MeterRegistry.NOOP
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -281,8 +278,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomFrom(DEFAULT, DO_NOT_TRACK),
-            MeterRegistry.NOOP
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             for (int i = 0; i < actions; i++) {
@@ -388,8 +384,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomFrom(DEFAULT, DO_NOT_TRACK),
-            MeterRegistry.NOOP
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             executor.execute(() -> {
@@ -426,8 +421,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomFrom(DEFAULT, DO_NOT_TRACK),
-            MeterRegistry.NOOP
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             Runnable r = () -> {
@@ -620,8 +614,7 @@ public class EsExecutorsTests extends ESTestCase {
                 between(1, 5),
                 EsExecutors.daemonThreadFactory(getName()),
                 threadContext,
-                randomFrom(DEFAULT, DO_NOT_TRACK),
-                MeterRegistry.NOOP
+                randomFrom(DEFAULT, DO_NOT_TRACK)
             )
         );
     }
@@ -634,8 +627,7 @@ public class EsExecutorsTests extends ESTestCase {
                 -1,
                 EsExecutors.daemonThreadFactory(getName()),
                 threadContext,
-                randomFrom(DEFAULT, DO_NOT_TRACK),
-                MeterRegistry.NOOP
+                randomFrom(DEFAULT, DO_NOT_TRACK)
             )
         );
     }
@@ -678,7 +670,7 @@ public class EsExecutorsTests extends ESTestCase {
 
         {
             ThreadPoolExecutor pool = EsExecutors.newScaling(
-                new EsExecutors.QualifiedName(getClass().getName(), getTestName()),
+                getClass().getName() + "/" + getTestName(),
                 min,
                 max,
                 between(1, 100),
@@ -686,8 +678,7 @@ public class EsExecutorsTests extends ESTestCase {
                 randomBoolean(),
                 EsExecutors.daemonThreadFactory("test"),
                 threadContext,
-                new EsExecutors.TaskTrackingConfig(randomBoolean(), randomDoubleBetween(0.01, 0.1, true)),
-                MeterRegistry.NOOP
+                new EsExecutors.TaskTrackingConfig(randomBoolean(), randomDoubleBetween(0.01, 0.1, true))
             );
             assertThat(pool, instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
         }

@@ -39,7 +39,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -411,8 +410,7 @@ public class GatewayMetaState implements Closeable {
                 1,
                 daemonThreadFactory(nodeName, THREAD_NAME),
                 threadPool.getThreadContext(),
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
-                MeterRegistry.NOOP
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
             this.persistedState = persistedState;
         }

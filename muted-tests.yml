@@ -233,9 +233,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testHistoryIsWrittenWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/123203
-- class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
-  method: testCompletionField
-  issue: https://github.com/elastic/elasticsearch/issues/123269
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437

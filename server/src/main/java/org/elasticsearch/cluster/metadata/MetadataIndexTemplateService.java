@@ -62,6 +62,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1087,9 +1088,8 @@ public class MetadataIndexTemplateService {
             .map(templateName -> projectMetadata.templatesV2().get(templateName))
             .filter(Objects::nonNull)
             .map(ComposableIndexTemplate::indexPatterns)
-            .map(Set::copyOf)
-            .reduce(Sets::union)
-            .orElse(Set.of());
+            .flatMap(List::stream)
+            .collect(Collectors.toSet());
 
         return projectMetadata.dataStreams()
             .values()
@@ -1099,9 +1099,10 @@ public class MetadataIndexTemplateService {
             .filter(ds -> {
                 // Retrieve the templates that match the data stream name ordered by priority
                 List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(
-                    projectMetadata,
+                    projectMetadata.templatesV2().entrySet(),
                     ds.getName(),
-                    ds.isHidden()
+                    ds.isHidden(),
+                    false
                 );
                 if (candidates.isEmpty()) {
                     throw new IllegalStateException("Data stream " + ds.getName() + " did not match any composable index templates.");
@@ -1110,13 +1111,10 @@ public class MetadataIndexTemplateService {
                 // Limit data streams that can ONLY use any of the specified templates, we do this by filtering
                 // the matching templates that are others than the ones requested and could be a valid template to use.
                 return candidates.stream()
-                    .filter(
+                    .noneMatch(
                         template -> templateNames.contains(template.v1()) == false
                             && isGlobalAndHasIndexHiddenSetting(projectMetadata, template.v2(), template.v1()) == false
-                    )
-                    .map(Tuple::v1)
-                    .toList()
-                    .isEmpty();
+                    );
             })
             .map(DataStream::getName)
             .collect(Collectors.toSet());
@@ -1357,7 +1355,41 @@ public class MetadataIndexTemplateService {
      */
     @Nullable
     public static String findV2Template(ProjectMetadata projectMetadata, String indexName, boolean isHidden) {
-        final List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(projectMetadata, indexName, isHidden);
+        return findV2Template(projectMetadata, projectMetadata.templatesV2().entrySet(), indexName, isHidden, false);
+    }
+
+    /**
+     * Return the name (id) of the highest matching index template out of the provided templates (that <i>need</i> to be sorted descending
+     * on priority beforehand), or the given index name. In the event that no templates are matched, {@code null} is returned.
+     */
+    @Nullable
+    public static String findV2TemplateFromSortedList(
+        ProjectMetadata projectMetadata,
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
+        String indexName,
+        boolean isHidden
+    ) {
+        return findV2Template(projectMetadata, templates, indexName, isHidden, true);
+    }
+
+    /**
+     * Return the name (id) of the highest matching index template, out of the provided templates, for the given index name. In
+     * the event that no templates are matched, {@code null} is returned.
+     */
+    @Nullable
+    private static String findV2Template(
+        ProjectMetadata projectMetadata,
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
+        String indexName,
+        boolean isHidden,
+        boolean exitOnFirstMatch
+    ) {
+        final List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(
+            templates,
+            indexName,
+            isHidden,
+            exitOnFirstMatch
+        );
         if (candidates.isEmpty()) {
             return null;
         }
@@ -1386,16 +1418,21 @@ public class MetadataIndexTemplateService {
      * Return an ordered list of the name (id) and composable index templates that would apply to an index. The first
      * one is the winner template that is applied to this index. In the event that no templates are matched,
      * an empty list is returned.
+     * <p>
+     * If <code>exitOnFirstMatch</code> is true, we return immediately after finding a match. That means that the <code>templates</code>
+     * parameter needs to be sorted based on priority (descending) for this method to return a sensible result -- otherwise this method
+     * would just return the first template that matches the name, in an unspecified order.
      */
-    static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(
-        ProjectMetadata projectMetadata,
+    private static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
         String indexName,
-        boolean isHidden
+        boolean isHidden,
+        boolean exitOnFirstMatch
     ) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final List<Tuple<String, ComposableIndexTemplate>> candidates = new ArrayList<>();
-        for (Map.Entry<String, ComposableIndexTemplate> entry : projectMetadata.templatesV2().entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> entry : templates) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
             /*
@@ -1403,16 +1440,13 @@ public class MetadataIndexTemplateService {
              * and we do want to return even match-all templates for those. Not doing so can result in a situation where a data stream is
              * built with a template that none of its indices match.
              */
-            if (isHidden == false || template.getDataStreamTemplate() != null) {
-                if (anyMatch(template.indexPatterns(), patternMatchPredicate)) {
-                    candidates.add(Tuple.tuple(name, template));
-                }
-            } else {
-                final boolean isNotMatchAllTemplate = noneMatch(template.indexPatterns(), Regex::isMatchAllPattern);
-                if (isNotMatchAllTemplate) {
-                    if (anyMatch(template.indexPatterns(), patternMatchPredicate)) {
-                        candidates.add(Tuple.tuple(name, template));
-                    }
+            if (isHidden && template.getDataStreamTemplate() == null && anyMatch(template.indexPatterns(), Regex::isMatchAllPattern)) {
+                continue;
+            }
+            if (anyMatch(template.indexPatterns(), patternMatchPredicate)) {
+                candidates.add(Tuple.tuple(name, template));
+                if (exitOnFirstMatch) {
+                    return candidates;
                 }
             }
         }

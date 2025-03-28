@@ -80,6 +80,48 @@ public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
             );
     }
 
+    public void testParseMultiPolygonZorMWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+
+        MultiPolygon expected = new MultiPolygon(
+            List.of(
+                new Polygon(
+                    new LinearRing(
+                        new double[] { 20.0, 30.0, 40.0, 20.0 },
+                        new double[] { 10.0, 15.0, 10.0, 10.0 },
+                        new double[] { 100.0, 200.0, 300.0, 100.0 }
+                    )
+                ),
+                new Polygon(
+                    new LinearRing(
+                        new double[] { 0.0, 10.0, 10.0, 0.0 },
+                        new double[] { 0.0, 0.0, 10.0, 0.0 },
+                        new double[] { 10.0, 20.0, 30.0, 10.0 }
+                    )
+                )
+            )
+        );
+        String polygonA = "(20.0 10.0 100.0, 30.0 15.0 200.0, 40.0 10.0 300.0, 20.0 10.0 100.0)";
+        String polygonB = "(0.0 0.0 10.0, 10.0 0.0 20.0, 10.0 10.0 30.0, 0.0 0.0 10.0)";
+        assertEquals(expected, WellKnownText.fromWKT(validator, true, "MULTIPOLYGON Z ((" + polygonA + "), (" + polygonB + "))"));
+        assertEquals(expected, WellKnownText.fromWKT(validator, true, "MULTIPOLYGON M ((" + polygonA + "), (" + polygonB + "))"));
+    }
+
+    public void testParseMultiPolygonZorMWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        List<String> multiPolygonsWkt = List.of(
+            "MULTIPOLYGON Z (((20.0 10.0, 30.0 15.0, 40.0 10.0, 20.0 10.0)), ((0.0 0.0, 10.0 0.0, 10.0 10.0, 0.0 0.0)))",
+            "MULTIPOLYGON M (((20.0 10.0, 30.0 15.0, 40.0 10.0, 20.0 10.0)), ((0.0 0.0, 10.0 0.0, 10.0 10.0, 0.0 0.0)))"
+        );
+        for (String multiPolygon : multiPolygonsWkt) {
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> WellKnownText.fromWKT(validator, true, multiPolygon)
+            );
+            assertEquals(ZorMMustIncludeThreeValuesMsg, ex.getMessage());
+        }
+    }
+
     @Override
     protected MultiPolygon mutateInstance(MultiPolygon instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929

@@ -906,6 +906,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     private static void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
         entry.numValues = meta.readLong();
+        entry.numDocsWithField = meta.readInt();
         if (entry.numValues > 0) {
             final int indexBlockShift = meta.readInt();
             // Special case, -1 means there are no blocks, so no need to load the metadata for it
@@ -960,7 +961,6 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     private static SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry) throws IOException {
         readNumeric(meta, entry);
-        entry.numDocsWithField = meta.readInt();
         if (entry.numDocsWithField != entry.numValues) {
             entry.addressesOffset = meta.readLong();
             final int blockShift = meta.readVInt();
@@ -1487,6 +1487,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         DirectMonotonicReader.Meta indexMeta;
         long valuesOffset;
         long valuesLength;
+        int numDocsWithField;
     }
 
     private static class BinaryEntry {
@@ -1505,7 +1506,6 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     static class SortedNumericEntry extends NumericEntry {
-        int numDocsWithField;
         DirectMonotonicReader.Meta addressesMeta;
         long addressesOffset;
         long addressesLength;

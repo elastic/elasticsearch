@@ -634,6 +634,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("Insufficient memory available to perform inference on bulk request"));
         assertThat(exception.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
         assertThat(exception.getCause(), instanceOf(CircuitBreakingException.class));
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
     }
 
     @SuppressWarnings("unchecked")

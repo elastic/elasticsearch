@@ -35,6 +35,7 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCase {
@@ -123,14 +124,9 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             inputDocuments.add(inputDocument);
         }
 
-        var mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("field")
-            .field("type", getFieldTypeName())
-            .field("ignore_malformed", true)
-            .endObject()
-            .endObject()
-            .endObject();
+        var mapping = jsonBuilder().startObject().startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.field("ignore_malformed", true).endObject().endObject().endObject();
         var indexService = createIndex(
             "test-index",
             Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
@@ -177,13 +173,9 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             .startObject("parent")
             .field("type", "nested")
             .startObject("properties")
-            .startObject("field")
-            .field("type", getFieldTypeName())
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
+            .startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject().endObject().endObject();
 
         var indexService = createIndex(
             "test-index",
@@ -241,6 +233,12 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         }
     }
 
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        String fieldTypeName = getFieldTypeName();
+        assertThat(fieldTypeName, notNullValue());
+        b.field("type", fieldTypeName);
+    }
+
     protected abstract String getFieldTypeName();
 
     protected abstract Object getRandomValue();
@@ -248,13 +246,9 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     protected abstract Object getMalformedValue();
 
     protected void verifySyntheticArray(Object[][] arrays) throws IOException {
-        var mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("field")
-            .field("type", getFieldTypeName())
-            .endObject()
-            .endObject()
-            .endObject();
+        var mapping = jsonBuilder().startObject().startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject();
         verifySyntheticArray(arrays, mapping, "_id");
     }
 
@@ -325,20 +319,17 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     }
 
     protected void verifySyntheticObjectArray(List<List<Object[]>> documents) throws IOException {
+        var mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("object")
+            .startObject("properties")
+            .startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject().endObject().endObject();
         var indexService = createIndex(
             "test-index",
             Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("object")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", getFieldTypeName())
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
+            mapping
         );
         for (int i = 0; i < documents.size(); i++) {
             var document = documents.get(i);
@@ -393,20 +384,18 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     }
 
     protected void verifySyntheticArrayInObject(List<Object[]> documents) throws IOException {
+        var mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("object")
+            .startObject("properties")
+            .startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject().endObject().endObject();
+
         var indexService = createIndex(
             "test-index",
             Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("object")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", getFieldTypeName())
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
+            mapping
         );
         for (int i = 0; i < documents.size(); i++) {
             var arrayValue = documents.get(i);

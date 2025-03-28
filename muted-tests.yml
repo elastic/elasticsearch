@@ -284,9 +284,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/124159
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testFilterCacheStats
-  issue: https://github.com/elastic/elasticsearch/issues/124447
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
   issue: https://github.com/elastic/elasticsearch/issues/124518
@@ -380,6 +377,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests
   method: testIORateIsAdjustedForRunningMergeTasks
   issue: https://github.com/elastic/elasticsearch/issues/125842
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test index configured rescore vector score consistency}
+  issue: https://github.com/elastic/elasticsearch/issues/125851
 
 # Examples:
 #

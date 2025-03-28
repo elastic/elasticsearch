@@ -1137,7 +1137,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             var inferenceRequest = buildInferenceRequest(
                 esModel.mlNodeDeploymentId(),
                 EmptyConfigUpdate.INSTANCE,
-                batch.batch().inputs(),
+                batch.batch().inputs().get(),
                 inputType,
                 timeout
             );

@@ -12,6 +12,7 @@ import org.elasticsearch.inference.InputType;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 public class EmbeddingsInput extends InferenceInputs {
 
@@ -23,22 +24,28 @@ public class EmbeddingsInput extends InferenceInputs {
         return (EmbeddingsInput) inferenceInputs;
     }
 
-    private final List<String> input;
-
+    private final Supplier<List<String>> listSupplier;
     private final InputType inputType;
 
     public EmbeddingsInput(List<String> input, @Nullable InputType inputType) {
         this(input, inputType, false);
     }
 
+    public EmbeddingsInput(Supplier<List<String>> inputSupplier, @Nullable InputType inputType) {
+        super(false);
+        this.listSupplier = Objects.requireNonNull(inputSupplier);
+        this.inputType = inputType;
+    }
+
     public EmbeddingsInput(List<String> input, @Nullable InputType inputType, boolean stream) {
         super(stream);
-        this.input = Objects.requireNonNull(input);
+        Objects.requireNonNull(input);
+        this.listSupplier = () -> input;
         this.inputType = inputType;
     }
 
     public List<String> getInputs() {
-        return this.input;
+        return this.listSupplier.get();
     }
 
     public InputType getInputType() {
@@ -46,6 +53,6 @@ public class EmbeddingsInput extends InferenceInputs {
     }
 
     public int inputSize() {
-        return input.size();
+        return listSupplier.get().size(); // TODO avoid this call
     }
 }

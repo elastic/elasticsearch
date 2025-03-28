@@ -71,7 +71,7 @@ public enum ErrorTraceHelper {
             mockLog.addExpectation(
                 new MockLog.PatternAndExceptionSeenEventExpectation(
                     format(
-                        "Tracking information ([%s][%s][%d]) and exception logged before stack trace cleared",
+                        "\"[%s][%s][%d]: failed to execute search request\" and an exception logged",
                         nodesDisjunction,
                         errorTriggeringIndex,
                         shard
@@ -99,7 +99,7 @@ public enum ErrorTraceHelper {
             for (int shard = 0; shard < numShards; shard++) {
                 mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
-                        "Tracking information ([nodeId][indexName][shard]) and exception logged before stack trace cleared",
+                        "\"[%s][%s][%d]: failed to execute search request\" and an exception logged",
                         SearchService.class.getCanonicalName(),
                         Level.DEBUG,
                         format("[%s][%s][%d]: failed to execute search request", getNodeId(nodeName), errorTriggeringIndex, shard)

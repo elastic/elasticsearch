@@ -156,21 +156,21 @@ public class SearchServiceTests extends IndexShardTestCase {
         listener.onFailure(e);
     }
 
-    public void testMaybeWrapListenerForStackTraceLogs() {
+    public void testMaybeWrapListenerForStackTraceDebugLog() {
         final String nodeId = "node";
         final String index = "index";
         ShardId shardId = new ShardId(index, index, 0);
 
         try (var mockLog = MockLog.capture(SearchService.class)) {
-            Configurator.setLevel("org.elasticsearch.search.SearchService", Level.DEBUG);
+            Configurator.setLevel(SearchService.class, Level.DEBUG);
             final String exceptionMessage = "test exception message";
             mockLog.addExpectation(
-                new MockLog.PatternAndExceptionSeenEventExpectation(
-                    format("Tracking information ([%s]%s) and exception logged before stack trace cleared", nodeId, shardId),
+                new MockLog.ExceptionSeenEventExpectation(
+                    format("\"[%s]%s: failed to execute search request\" and an exception logged", nodeId, shardId),
                     SearchService.class.getCanonicalName(),
                     Level.DEBUG,
-                    format("\\[%s\\]%s: failed to execute search request", nodeId, shardId),
-                    Exception.class,
+                    format("[%s]%s: failed to execute search request", nodeId, shardId),
+                    IllegalArgumentException.class,
                     exceptionMessage
                 )
             );
@@ -187,7 +187,45 @@ public class SearchServiceTests extends IndexShardTestCase {
                     mockLog.assertAllExpectationsMatched();
                 }
             };
-            Exception e = new Exception(exceptionMessage);
+            // This is a 400-level exception, so it should only be debug logged
+            IllegalArgumentException e = new IllegalArgumentException(exceptionMessage);
+            listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, threadPool);
+            listener.onFailure(e);
+        }
+    }
+
+    public void testMaybeWrapListenerForStackTraceWarnLog() {
+        final String nodeId = "node";
+        final String index = "index";
+        ShardId shardId = new ShardId(index, index, 0);
+
+        try (var mockLog = MockLog.capture(SearchService.class)) {
+            final String exceptionMessage = "test exception message";
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
+                    format("\"[%s]%s: failed to execute search request\" and an exception logged", nodeId, shardId),
+                    SearchService.class.getCanonicalName(),
+                    Level.WARN,
+                    format("[%s]%s: failed to execute search request", nodeId, shardId),
+                    IllegalStateException.class,
+                    exceptionMessage
+                )
+            );
+
+            // Tests the listener has logged if it is wrapped
+            ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(SearchPhaseResult searchPhaseResult) {
+                    // noop - we only care about failure scenarios
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    mockLog.assertAllExpectationsMatched();
+                }
+            };
+            // This is a 400-level exception, so it should only be debug logged
+            IllegalStateException e = new IllegalStateException(exceptionMessage);
             listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, threadPool);
             listener.onFailure(e);
         }

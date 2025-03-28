@@ -557,7 +557,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (header == false) {
             return listener.delegateResponse((l, e) -> {
-                logger.debug(() -> format("[%s]%s: failed to execute search request", nodeId, shardId), e);
+                org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
+                    "[%s]%s: failed to execute search request",
+                    nodeId,
+                    shardId
+                );
+                if (ExceptionsHelper.status(e).getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
+                    logger.debug(messageSupplier, e);
+                } else {
+                    logger.warn(messageSupplier, e);
+                }
                 ExceptionsHelper.unwrapCausesAndSuppressed(e, err -> {
                     err.setStackTrace(EMPTY_STACK_TRACE_ARRAY);
                     return false;

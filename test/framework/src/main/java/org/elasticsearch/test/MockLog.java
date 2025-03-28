@@ -344,8 +344,10 @@ public class MockLog implements Releasable {
                     && event.getThrown().getClass() == clazz
                     && event.getThrown().getMessage().equals(exceptionMessage);
 
-                if (patternMatches && exceptionMatches) {
-                    seenLatch.countDown();
+                if (exceptionMatches) {
+                    if (patternMatches) {
+                        seenLatch.countDown();
+                    }
                 }
             }
         }

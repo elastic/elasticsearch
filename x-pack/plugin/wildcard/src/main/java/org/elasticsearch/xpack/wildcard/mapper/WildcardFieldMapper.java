@@ -454,6 +454,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 case REGEXP_INTERSECTION:
                 case REGEXP_COMPLEMENT:
                 case REGEXP_CHAR_RANGE:
+                case REGEXP_CHAR_CLASS:
                 case REGEXP_ANYCHAR:
                 case REGEXP_INTERVAL:
                 case REGEXP_EMPTY:

@@ -85,8 +85,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         0.45f,
         0.0f,
         Property.Dynamic,
-        Property.NodeScope,
-        Property.DeprecatedWarning
+        Property.NodeScope
     );
     public static final Setting<Float> INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.shard.indexing",
@@ -114,8 +113,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         10.0f,
         0.0f,
         Property.Dynamic,
-        Property.NodeScope,
-        Property.DeprecatedWarning
+        Property.NodeScope
     );
     public static final Setting<Float> INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.write_load.indexing",

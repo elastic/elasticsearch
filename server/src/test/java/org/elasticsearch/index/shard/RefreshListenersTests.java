@@ -75,6 +75,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -166,7 +167,8 @@ public class RefreshListenersTests extends ESTestCase {
             System::nanoTime,
             null,
             true,
-            EngineTestCase.createMapperService()
+            EngineTestCase.createMapperService(),
+            new ReentrantReadWriteLock().readLock()
         );
         engine = new InternalEngine(config);
         EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);

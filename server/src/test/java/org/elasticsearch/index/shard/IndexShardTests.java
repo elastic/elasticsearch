@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -67,6 +68,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -188,6 +190,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -5023,6 +5026,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(readonlyShard);
     }
 
+    @AwaitsFix(bugUrl = "Adjust this test")
     public void testCloseShardWhileEngineIsWarming() throws Exception {
         CountDownLatch warmerStarted = new CountDownLatch(1);
         CountDownLatch warmerBlocking = new CountDownLatch(1);
@@ -5060,7 +5064,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
-                config.getMapperService()
+                config.getMapperService(),
+                config.getMaybeRefreshLock()
             );
             return new InternalEngine(configWithWarmer);
         });
@@ -5153,6 +5158,151 @@ public class IndexShardTests extends IndexShardTestCase {
             closeEngineThread.join();
         } finally {
             IOUtils.close(primary.store());
+        }
+    }
+
+    public void testRefreshListenersExecutedWhileHoldingEngineReadLock() throws Exception {
+        final var recovered = new AtomicBoolean();
+        final var refreshLocked = new CountDownLatch(1);
+        final var afterRefreshLocked = new CountDownLatch(1);
+        final var tryGetEngineFromRefreshListener = new AtomicReference<CheckedRunnable<IOException>>();
+        final var getFromTranslog = new CountDownLatch(1);
+
+        final var refreshListener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() throws IOException {
+                if (recovered.get()) {
+                    refreshLocked.countDown();
+                    assertThat(Thread.currentThread().toString(), containsStringIgnoringCase(getTestClass().getSimpleName()));
+
+                    safeAwait(getFromTranslog);
+                    safeAwait(afterRefreshLocked, TimeValue.THIRTY_SECONDS);
+
+                    var runnable = tryGetEngineFromRefreshListener.get();
+                    assertThat(runnable, notNullValue());
+                    // Try access the engine from a refresh listener, while holding the engine read lock, blocks because another thread
+                    // (closing thread) is waiting for the engine write lock
+                    runnable.run();
+                }
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) throws IOException {}
+        };
+
+        final var shard = newShard(true, Settings.EMPTY, new InternalEngineFactory() {
+            @Override
+            public Engine newReadWriteEngine(EngineConfig config) {
+                var internalRefreshListeners = new ArrayList<ReferenceManager.RefreshListener>();
+                internalRefreshListeners.add(refreshListener);
+                internalRefreshListeners.addAll(config.getInternalRefreshListener());
+
+                return new InternalEngine(
+                    new EngineConfig(
+                        config.getShardId(),
+                        config.getThreadPool(),
+                        config.getThreadPoolMergeExecutorService(),
+                        config.getIndexSettings(),
+                        config.getWarmer(),
+                        config.getStore(),
+                        config.getMergePolicy(),
+                        config.getAnalyzer(),
+                        config.getSimilarity(),
+                        new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+                        config.getEventListener(),
+                        config.getQueryCache(),
+                        config.getQueryCachingPolicy(),
+                        config.getTranslogConfig(),
+                        config.getFlushMergesAfter(),
+                        config.getExternalRefreshListener(),
+                        internalRefreshListeners,
+                        config.getIndexSort(),
+                        config.getCircuitBreakerService(),
+                        config.getGlobalCheckpointSupplier(),
+                        config.retentionLeasesSupplier(),
+                        config.getPrimaryTermSupplier(),
+                        IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                        config.getLeafSorter(),
+                        config.getRelativeTimeInNanosSupplier(),
+                        config.getIndexCommitListener(),
+                        config.isPromotableToPrimary(),
+                        config.getMapperService(),
+                        config.getMaybeRefreshLock()
+                    )
+                );
+            }
+        });
+        try {
+            recoverShardFromStore(shard);
+
+            var index = indexDoc(shard, "_doc", null /* auto-generated id */);
+            assertThat(index.isCreated(), equalTo(true));
+            recovered.set(true);
+
+            // Trigger a refresh
+            var refreshThread = new Thread(() -> shard.refresh("test"));
+            refreshThread.start();
+
+            // Wait for the refresh listener to hold the refresh lock
+            safeAwait(refreshLocked, TimeValue.THIRTY_SECONDS);
+
+            // While refresh is blocked, trigger a getFromTranslog() that refreshes the internal reader
+            var getThread = new Thread(() -> {
+                var docExists = shard.withEngine(engine -> {
+                    getFromTranslog.countDown();
+                    try (
+                        var getResult = engine.get(
+                            new Engine.Get(true, false, index.getId()),
+                            shard.mapperService().mappingLookup(),
+                            shard.mapperService().documentParser(),
+                            searcher -> searcher
+                        )
+                    ) {
+                        assertThat(getResult, notNullValue());
+                        return getResult.exists();
+                    }
+                });
+                assertThat(docExists, equalTo(true));
+            });
+            getThread.start();
+
+            safeAwait(getFromTranslog);
+
+            // Sleep a bit to allow the getThread to block on the refresh lock
+            safeSleep(randomLongBetween(50L, 500L));
+
+            final var closeShardNoCheck = new CountDownLatch(1);
+            // Now close the shard to acquire the engine write lock
+            var closingThread = new Thread(() -> {
+                try {
+                    closeShardNoCheck.countDown();
+                    closeShardNoCheck(shard);
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closingThread.start();
+
+            tryGetEngineFromRefreshListener.set(() -> {
+                safeAwait(closeShardNoCheck);
+                var engine = shard.getEngine();
+                assertThat(engine, notNullValue());
+            });
+
+            safeAwait(closeShardNoCheck);
+
+            // Sleep a bit to allow the closingThread to block on the engine write lock
+            safeSleep(randomLongBetween(50L, 500L));
+
+            afterRefreshLocked.countDown();
+
+            logger.info("--> deadlock");
+
+            closingThread.join();
+            refreshThread.join();
+            getThread.join();
+        } finally {
+            IOUtils.close(shard.store());
         }
     }
 

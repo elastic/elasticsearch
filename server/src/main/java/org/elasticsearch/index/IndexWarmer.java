@@ -47,7 +47,7 @@ public final class IndexWarmer {
     }
 
     void warm(ElasticsearchDirectoryReader reader, IndexShard shard, IndexSettings settings) {
-        if (shard.state() == IndexShardState.CLOSED) {
+        if (shard.state() == IndexShardState.CLOSED || shard.isClosing()) {
             return;
         }
         if (settings.isWarmerEnabled() == false) {
@@ -117,6 +117,9 @@ public final class IndexWarmer {
             for (final MappedFieldType fieldType : warmUpGlobalOrdinals.values()) {
                 executor.execute(() -> {
                     try {
+                        if (indexShard.isClosing()) {
+                            return;
+                        }
                         final long start = System.nanoTime();
                         IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(
                             fieldType,

@@ -272,7 +272,7 @@ public final class BitsetFilterCache
                 return TerminationHandle.NO_WAIT;
             }
 
-            if (loadRandomAccessFiltersEagerly == false) {
+            if (loadRandomAccessFiltersEagerly == false || indexShard.isClosing()) {
                 return TerminationHandle.NO_WAIT;
             }
 
@@ -291,7 +291,9 @@ public final class BitsetFilterCache
                     executor.execute(() -> {
                         try {
                             final long start = System.nanoTime();
-                            getAndLoadIfNotPresent(filterToWarm, ctx);
+                            if (indexShard.isClosing() == false) {
+                                getAndLoadIfNotPresent(filterToWarm, ctx);
+                            }
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService()
                                     .logger()

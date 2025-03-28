@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Arrays;
 import java.util.List;
@@ -143,11 +142,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
     }
 
     @Override
-    ThreadPool.ExecutorHolder build(
-        final FixedExecutorSettings settings,
-        final ThreadContext threadContext,
-        final MeterRegistry meterRegistry
-    ) {
+    ThreadPool.ExecutorHolder build(final FixedExecutorSettings settings, final ThreadContext threadContext) {
         int size = settings.size;
         int queueSize = settings.queueSize;
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name(), isSystemThread());

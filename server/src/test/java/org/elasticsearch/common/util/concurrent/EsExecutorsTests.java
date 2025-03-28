@@ -706,7 +706,8 @@ public class EsExecutorsTests extends ESTestCase {
                 randomTimeUnit(),
                 randomBoolean(),
                 EsExecutors.daemonThreadFactory("test"),
-                threadContext
+                threadContext,
+                DO_NOT_TRACK
             );
             assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
         }

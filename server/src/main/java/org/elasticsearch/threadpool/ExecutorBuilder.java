@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.List;
 
@@ -71,10 +70,9 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
      *
      * @param settings      the executor settings
      * @param threadContext the current thread context
-     * @param meterRegistry the meter registry
      * @return a new executor built from the specified executor settings
      */
-    abstract ThreadPool.ExecutorHolder build(U settings, ThreadContext threadContext, MeterRegistry meterRegistry);
+    abstract ThreadPool.ExecutorHolder build(U settings, ThreadContext threadContext);
 
     /**
      * Format the thread pool info object for this executor.

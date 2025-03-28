@@ -613,4 +613,5 @@ public class EsExecutors {
             return ewmaAlpha;
         }
     }
+
 }

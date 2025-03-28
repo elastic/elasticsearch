@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -50,7 +51,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.Matchers.equalTo;
 
 public class SemanticTextIndexVersionIT extends ESIntegTestCase {
-    private static final IndexVersion SEMANTIC_TEXT_INTRODUCED_VERSION = IndexVersion.fromId(8512000);
     private static final int MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST = 25;
     private static final String SPARSE_SEMANTIC_FIELD = "sparse_field";
     private static final String DENSE_SEMANTIC_FIELD = "dense_field";
@@ -71,7 +71,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
 
         Set<IndexVersion> availableVersions = IndexVersionUtils.allReleasedVersions()
             .stream()
-            .filter(indexVersion -> indexVersion.after(SEMANTIC_TEXT_INTRODUCED_VERSION))
+            .filter(indexVersion -> indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_FIELD_TYPE))
             .collect(Collectors.toSet());
 
         selectedVersions = randomSubsetOf(Math.min(availableVersions.size(), MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST), availableVersions);

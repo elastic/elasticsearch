@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.action.support.MappedActionFilter;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -73,10 +72,5 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
         return inferencePlugin.getMappedActionFilters();
-    }
-
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return super.getNamedWriteables();
     }
 }

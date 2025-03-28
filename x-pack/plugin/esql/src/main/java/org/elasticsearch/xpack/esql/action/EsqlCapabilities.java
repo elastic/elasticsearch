@@ -751,7 +751,7 @@ public class EsqlCapabilities {
         /**
          * Use double parameter markers to represent field or function names.
          */
-        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot()),
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS,
 
         /**
          * Non full text functions do not contribute to score

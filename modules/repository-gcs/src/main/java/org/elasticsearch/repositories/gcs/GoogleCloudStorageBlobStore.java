@@ -75,9 +75,9 @@ import static org.elasticsearch.core.Strings.format;
 class GoogleCloudStorageBlobStore implements BlobStore {
 
     /**
-     * see {@link com.google.cloud.storage.BaseStorageWriteChannel#chunkSize}
+     * see com.google.cloud.BaseWriteChannel#DEFAULT_CHUNK_SIZE
      */
-    static final int SDK_DEFAULT_CHUNK_SIZE = Math.toIntExact(ByteSizeValue.ofMb(16).getBytes());
+    static final int SDK_DEFAULT_CHUNK_SIZE = 60 * 256 * 1024;
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStore.class);
 
@@ -652,17 +652,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         @SuppressForbidden(reason = "channel is based on a socket")
         @Override
         public int write(final ByteBuffer src) throws IOException {
-            try {
-                return SocketAccess.doPrivilegedIOException(() -> channel.write(src));
-            } catch (IOException e) {
-                // BaseStorageWriteChannel#write wraps StorageException in an IOException, but BaseStorageWriteChannel#close
-                // does not, if we unwrap StorageExceptions here, it simplifies our retry-on-gone logic
-                final StorageException storageException = (StorageException) ExceptionsHelper.unwrap(e, StorageException.class);
-                if (storageException != null) {
-                    throw storageException;
-                }
-                throw e;
-            }
+            return SocketAccess.doPrivilegedIOException(() -> channel.write(src));
         }
 
         @Override

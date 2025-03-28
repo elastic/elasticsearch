@@ -57,7 +57,6 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.node.HealthIndicatorDisplayValues;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.ProjectIndexName;
 import org.elasticsearch.indices.SystemIndices;
@@ -1230,8 +1229,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Set<ProjectIndexName> affectedIndices = new HashSet<>(restoreFromSnapshotIndices);
             Set<String> affectedFeatureStates = new HashSet<>();
 
-            Map<String, Set<ProjectIndexName>> featureToSystemIndices =
-                getSystemIndicesForProjects(systemIndices, affectedProjects, metadata);
+            Map<String, Set<ProjectIndexName>> featureToSystemIndices = getSystemIndicesForProjects(
+                systemIndices,
+                affectedProjects,
+                metadata
+            );
 
             for (Map.Entry<String, Set<ProjectIndexName>> featureToIndices : featureToSystemIndices.entrySet()) {
                 for (ProjectIndexName featureIndex : featureToIndices.getValue()) {
@@ -1242,8 +1244,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
             }
 
-            Map<String, Set<ProjectIndexName>> featureToDsBackingIndices =
-                getSystemDsBackingIndicesForProjects(systemIndices, affectedProjects, metadata);
+            Map<String, Set<ProjectIndexName>> featureToDsBackingIndices = getSystemDsBackingIndicesForProjects(
+                systemIndices,
+                affectedProjects,
+                metadata
+            );
 
             // the shards_availability indicator works with indices so let's remove the feature states data streams backing indices from
             // the list of affected indices (the feature state will cover the restore of these indices too)
@@ -1261,12 +1266,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     new Diagnosis.Resource(
                         INDEX,
                         affectedIndices.stream()
-                            .sorted(
-                                indicesComparatorByPriorityAndProjectIndex(
-                                    metadata,
-                                    supportsMultipleProjects
-                                )
-                            )
+                            .sorted(indicesComparatorByPriorityAndProjectIndex(metadata, supportsMultipleProjects))
                             .map(index -> toDisplayValue(index, supportsMultipleProjects))
                             .limit(maxAffectedResourcesCount)
                             .toList()
@@ -1289,18 +1289,24 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Set<ProjectId> projects,
             Metadata metadata
         ) {
-            return systemIndices.getFeatures().stream()
-                .collect(Collectors.toMap(
-                    SystemIndices.Feature::getName,
-                    feature -> feature.getIndexDescriptors().stream()
-                        .flatMap(descriptor -> projects.stream()
-                            .flatMap(projectId ->
-                                descriptor.getMatchingIndices(metadata.getProject(projectId)).stream()
-                                    .map(index -> new ProjectIndexName(projectId, index))
+            return systemIndices.getFeatures()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        SystemIndices.Feature::getName,
+                        feature -> feature.getIndexDescriptors()
+                            .stream()
+                            .flatMap(
+                                descriptor -> projects.stream()
+                                    .flatMap(
+                                        projectId -> descriptor.getMatchingIndices(metadata.getProject(projectId))
+                                            .stream()
+                                            .map(index -> new ProjectIndexName(projectId, index))
+                                    )
                             )
-                        )
-                        .collect(Collectors.toSet())
-                ));
+                            .collect(Collectors.toSet())
+                    )
+                );
         }
 
         /**
@@ -1311,15 +1317,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Set<ProjectId> projects,
             Metadata metadata
         ) {
-            return systemIndices.getFeatures().stream()
+            return systemIndices.getFeatures()
+                .stream()
                 .collect(
                     toMap(
                         SystemIndices.Feature::getName,
-                        feature -> feature.getDataStreamDescriptors().stream()
+                        feature -> feature.getDataStreamDescriptors()
+                            .stream()
                             .flatMap(
                                 descriptor -> projects.stream()
                                     .flatMap(
-                                        projectId -> descriptor.getBackingIndexNames(metadata.getProject(projectId)).stream()
+                                        projectId -> descriptor.getBackingIndexNames(metadata.getProject(projectId))
+                                            .stream()
                                             .map(index -> new ProjectIndexName(projectId, index))
                                     )
                             )

@@ -495,3 +495,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {date.Implicit casting strings to dates for IN operator ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/121490
+- class: org.elasticsearch.packaging.test.DebPreservationTests
+  method: test40RestartOnUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/125821

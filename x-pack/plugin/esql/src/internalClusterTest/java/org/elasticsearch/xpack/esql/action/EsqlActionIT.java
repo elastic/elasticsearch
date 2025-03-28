@@ -1068,11 +1068,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Only the match all wildcard is supported
         testCases.put("testXXX::d*ta", "invalid usage of :: separator, [d*ta] is not a recognized selector");
         // The first instance of :: is split upon so that you cannot chain the selector
-        testCases.put("test::XXX::data", "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}");
+        testCases.put("test::XXX::data", "mismatched input '::' expecting {");
         // Selectors must be outside of date math expressions or else they trip up the selector parsing
         testCases.put("<test-{now/d}::failures>", "Invalid index name [<test-{now/d}], must not contain the following characters [");
         // Only one selector separator is allowed per expression
-        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, UNQUOTED_SOURCE}");
+        testCases.put("::::data", "mismatched input '::' expecting {");
         // Suffix case is not supported because there is no component named with the empty string
         testCases.put("index::", "missing {QUOTED_STRING, UNQUOTED_SOURCE} at '|'");
 

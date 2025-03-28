@@ -348,7 +348,7 @@ public class OpenAiService extends SenderService {
 
         for (var request : batchedRequests) {
             var action = openAiModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 

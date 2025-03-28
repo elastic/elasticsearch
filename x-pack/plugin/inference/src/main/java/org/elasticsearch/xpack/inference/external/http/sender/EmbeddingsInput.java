@@ -44,6 +44,10 @@ public class EmbeddingsInput extends InferenceInputs {
         this.inputType = inputType;
     }
 
+    public static EmbeddingsInput fromStrings(List<String> input, @Nullable InputType inputType) {
+        return new EmbeddingsInput(input, null, inputType);
+    }
+
     public List<ChunkInferenceInput> getInputs() {
         return this.input;
     }

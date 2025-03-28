@@ -54,7 +54,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         ).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
-        assertThat(batches.get(0).batch().inputs().get(0).input(), Matchers.is("   "));
+        assertThat(batches.get(0).batch().inputs().get(0), Matchers.is("   "));
     }
 
     public void testBlankInput_WordChunker() {
@@ -63,7 +63,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         );
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
-        assertThat(batches.get(0).batch().inputs().get(0).input(), Matchers.is(""));
+        assertThat(batches.get(0).batch().inputs().get(0), Matchers.is(""));
     }
 
     public void testBlankInput_SentenceChunker() {
@@ -71,7 +71,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             .batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
-        assertThat(batches.get(0).batch().inputs().get(0).input(), Matchers.is(""));
+        assertThat(batches.get(0).batch().inputs().get(0), Matchers.is(""));
     }
 
     public void testInputThatDoesNotChunk_WordChunker() {
@@ -80,7 +80,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         );
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
-        assertThat(batches.get(0).batch().inputs().get(0).input(), Matchers.is("ABBAABBA"));
+        assertThat(batches.get(0).batch().inputs().get(0), Matchers.is("ABBAABBA"));
     }
 
     public void testInputThatDoesNotChunk_SentenceChunker() {
@@ -91,14 +91,14 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         ).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
-        assertThat(batches.get(0).batch().inputs().get(0).input(), Matchers.is("ABBAABBA"));
+        assertThat(batches.get(0).batch().inputs().get(0), Matchers.is("ABBAABBA"));
     }
 
     public void testShortInputsAreSingleBatch() {
         ChunkInferenceInput input = new ChunkInferenceInput("one chunk");
         var batches = new EmbeddingRequestChunker<>(List.of(input), 100, 100, 10).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
-        assertThat(batches.get(0).batch().inputs(), contains(input));
+        assertThat(batches.get(0).batch().inputs(), contains(input.input()));
     }
 
     public void testMultipleShortInputsAreSingleBatch() {
@@ -110,7 +110,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         var batches = new EmbeddingRequestChunker<>(inputs, 100, 100, 10).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         EmbeddingRequestChunker.BatchRequest batch = batches.getFirst().batch();
-        assertEquals(batch.inputs(), inputs);
+        assertEquals(batch.inputs(), ChunkInferenceInput.inputs(inputs));
         for (int i = 0; i < inputs.size(); i++) {
             var request = batch.requests().get(i);
             assertThat(request.chunkText(), equalTo(inputs.get(i).input()));
@@ -135,15 +135,15 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(batches.get(2).batch().inputs(), hasSize(maxNumInputsPerBatch));
         assertThat(batches.get(3).batch().inputs(), hasSize(1));
 
-        assertEquals("input 0", batches.get(0).batch().inputs().get(0).input());
-        assertEquals("input 9", batches.get(0).batch().inputs().get(9).input());
+        assertEquals("input 0", batches.get(0).batch().inputs().get(0));
+        assertEquals("input 9", batches.get(0).batch().inputs().get(9));
         assertThat(
-            ChunkInferenceInput.inputs(batches.get(1).batch().inputs()),
+            batches.get(1).batch().inputs(),
             contains("input 10", "input 11", "input 12", "input 13", "input 14", "input 15", "input 16", "input 17", "input 18", "input 19")
         );
-        assertEquals("input 20", batches.get(2).batch().inputs().get(0).input());
-        assertEquals("input 29", batches.get(2).batch().inputs().get(9).input());
-        assertThat(ChunkInferenceInput.inputs(batches.get(3).batch().inputs()), contains("input 30"));
+        assertEquals("input 20", batches.get(2).batch().inputs().get(0));
+        assertEquals("input 29", batches.get(2).batch().inputs().get(9));
+        assertThat(batches.get(3).batch().inputs(), contains("input 30"));
 
         List<EmbeddingRequestChunker.Request> requests = batches.get(0).batch().requests();
         for (int i = 0; i < requests.size(); i++) {
@@ -171,15 +171,15 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(batches.get(2).batch().inputs(), hasSize(maxNumInputsPerBatch));
         assertThat(batches.get(3).batch().inputs(), hasSize(1));
 
-        assertEquals("input 0", batches.get(0).batch().inputs().get(0).input());
-        assertEquals("input 9", batches.get(0).batch().inputs().get(9).input());
+        assertEquals("input 0", batches.get(0).batch().inputs().get(0));
+        assertEquals("input 9", batches.get(0).batch().inputs().get(9));
         assertThat(
-            ChunkInferenceInput.inputs(batches.get(1).batch().inputs()),
+            batches.get(1).batch().inputs(),
             contains("input 10", "input 11", "input 12", "input 13", "input 14", "input 15", "input 16", "input 17", "input 18", "input 19")
         );
-        assertEquals("input 20", batches.get(2).batch().inputs().get(0).input());
-        assertEquals("input 29", batches.get(2).batch().inputs().get(9).input());
-        assertThat(ChunkInferenceInput.inputs(batches.get(3).batch().inputs()), contains("input 30"));
+        assertEquals("input 20", batches.get(2).batch().inputs().get(0));
+        assertEquals("input 29", batches.get(2).batch().inputs().get(9));
+        assertThat(batches.get(3).batch().inputs(), contains("input 30"));
 
         List<EmbeddingRequestChunker.Request> requests = batches.get(0).batch().requests();
         for (int i = 0; i < requests.size(); i++) {

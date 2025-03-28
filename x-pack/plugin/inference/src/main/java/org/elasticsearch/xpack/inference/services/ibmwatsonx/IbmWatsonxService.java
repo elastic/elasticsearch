@@ -319,7 +319,7 @@ public class IbmWatsonxService extends SenderService {
         ).batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 

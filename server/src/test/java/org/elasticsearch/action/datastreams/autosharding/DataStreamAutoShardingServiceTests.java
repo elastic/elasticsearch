@@ -100,7 +100,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             1,
             now,
             List.of(now - 3000, now - 2000, now - 1000),
-            getWriteLoad(1, 2.0, 9999.0),
+            getWriteLoad(1, 2.0, 9999.0, 9999.0),
             null
         );
         builder.put(dataStream);
@@ -141,7 +141,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 1,
                 now,
                 List.of(now - 10_000, now - 7000, now - 5000, now - 2000, now - 1000),
-                getWriteLoad(1, 2.0, 9999.0),
+                getWriteLoad(1, 2.0, 9999.0, 9999.0),
                 autoShardingEvent
             );
 
@@ -170,7 +170,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 1,
                 now,
                 List.of(now - 10_000, now - 7000, now - 5000, now - 2000, now - 1000),
-                getWriteLoad(1, 2.0, 9999.0),
+                getWriteLoad(1, 2.0, 9999.0, 9999.0),
                 autoShardingEvent
             );
 
@@ -202,7 +202,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 1,
                 now,
                 List.of(now - 10_000_000, now - 7_000_000, now - 2_000_000, now - 1_000_000, now - 1000),
-                getWriteLoad(1, 2.0, 9999.0),
+                getWriteLoad(1, 2.0, 9999.0, 9999.0),
                 autoShardingEvent
             );
 
@@ -237,7 +237,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 3,
                 now,
                 List.of(now - 10_000, now - 7000, now - 5000, now - 2000, now - 1000),
-                getWriteLoad(3, 0.25, 9999.0),
+                getWriteLoad(3, 0.25, 9999.0, 9999.0),
                 autoShardingEvent
             );
 
@@ -271,7 +271,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                     now - TimeValue.timeValueDays(2).getMillis(),
                     now - 1000
                 ),
-                getWriteLoad(3, 0.333, 9999.0),
+                getWriteLoad(3, 0.333, 9999.0, 9999.0),
                 autoShardingEvent
             );
 
@@ -306,7 +306,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                     now - TimeValue.timeValueDays(2).getMillis(),
                     now - 1000
                 ),
-                getWriteLoad(3, 0.333, 9999.0),
+                getWriteLoad(3, 0.333, 9999.0, 9999.0),
                 autoShardingEvent
             );
 
@@ -346,7 +346,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                     now - TimeValue.timeValueDays(1).getMillis(),
                     now - 1000
                 ),
-                getWriteLoad(3, 0.25, 9999.0),
+                getWriteLoad(3, 0.25, 9999.0, 9999.0),
                 autoShardingEvent
             );
 
@@ -386,7 +386,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                     now - TimeValue.timeValueDays(2).getMillis(),
                     now - 1000
                 ),
-                getWriteLoad(3, 1.333, 9999.0),
+                getWriteLoad(3, 1.333, 9999.0, 9999.0),
                 autoShardingEvent
             );
 
@@ -479,7 +479,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             IndexMetadata indexMetadata = createIndexMetadata(
                 DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size(), creationDate),
                 1,
-                getWriteLoad(1, 999.0, 9999.0),
+                getWriteLoad(1, 999.0, 9999.0, 9999.0),
                 creationDate
             );
 
@@ -487,7 +487,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 indexMetadata = createIndexMetadata(
                     DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size(), creationDate),
                     1,
-                    getWriteLoad(1, 1.0, 9999.0),
+                    getWriteLoad(1, 1.0, 9999.0, 9999.0),
                     creationDate
                 );
             }
@@ -502,14 +502,14 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 indexMetadata = createIndexMetadata(
                     DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size(), createdAt),
                     3,
-                    getWriteLoad(3, 5.0, 9999.0), // max write index within cooling period
+                    getWriteLoad(3, 5.0, 9999.0, 9999.0), // max write index within cooling period
                     createdAt
                 );
             } else {
                 indexMetadata = createIndexMetadata(
                     DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size(), createdAt),
                     3,
-                    getWriteLoad(3, 3.0, 9999.0), // each backing index has a write load of 3.0
+                    getWriteLoad(3, 3.0, 9999.0, 9999.0), // each backing index has a write load of 3.0
                     createdAt
                 );
             }
@@ -521,7 +521,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         final IndexMetadata writeIndexMetadata = createIndexMetadata(
             writeIndexName,
             3,
-            getWriteLoad(3, 1.0, 9999.0),
+            getWriteLoad(3, 1.0, 9999.0, 9999.0),
             System.currentTimeMillis()
         );
         backingIndices.add(writeIndexMetadata.getIndex());
@@ -563,9 +563,9 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             IndexWriteLoad.Builder builder = IndexWriteLoad.builder(3);
             for (int shardId = 0; shardId < 3; shardId++) {
                 switch (shardId) {
-                    case 0 -> builder.withShardWriteLoad(shardId, 0.5, 9999.0, 40);
-                    case 1 -> builder.withShardWriteLoad(shardId, 3.0, 9999.0, 10);
-                    case 2 -> builder.withShardWriteLoad(shardId, 0.3333, 9999.0, 150);
+                    case 0 -> builder.withShardWriteLoad(shardId, 0.5, 9999.0, 9999.0, 40);
+                    case 1 -> builder.withShardWriteLoad(shardId, 3.0, 9999.0, 9999.0, 10);
+                    case 2 -> builder.withShardWriteLoad(shardId, 0.3333, 9999.0, 9999.0, 150);
                 }
             }
             indexMetadata = createIndexMetadata(
@@ -582,7 +582,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         final IndexMetadata writeIndexMetadata = createIndexMetadata(
             writeIndexName,
             3,
-            getWriteLoad(3, 0.1, 9999.0),
+            getWriteLoad(3, 0.1, 9999.0, 9999.0),
             System.currentTimeMillis()
         );
         backingIndices.add(writeIndexMetadata.getIndex());
@@ -704,10 +704,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             .build();
     }
 
-    private IndexWriteLoad getWriteLoad(int numberOfShards, double shardWriteLoad, double shardRecentWriteLoad) {
+    private IndexWriteLoad getWriteLoad(int numberOfShards, double shardWriteLoad, double shardRecentWriteLoad, double shardPeakWriteLoad) {
         IndexWriteLoad.Builder builder = IndexWriteLoad.builder(numberOfShards);
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
-            builder.withShardWriteLoad(shardId, shardWriteLoad, shardRecentWriteLoad, 1);
+            builder.withShardWriteLoad(shardId, shardWriteLoad, shardRecentWriteLoad, shardPeakWriteLoad, 1);
         }
         return builder.build();
     }

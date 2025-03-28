@@ -373,10 +373,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         );
                         throw new InferenceException("Insufficient memory available to perform inference on bulk request", e);
                     }
-                }
 
-                estimatedInferenceRequestMemoryUsageInBytes = newEstimatedInferenceRequestMemoryUsageInBytes;
-                noInferenceRequestMemoryUsageInBytes = newNoInferenceRequestMemoryUsageInBytes;
+                    // Bytes are added to the circuit breaker only if it doesn't trip, so increase cumulative estimated bytes only once
+                    // we're sure there's space in the breaker for the additional bytes.
+                    estimatedInferenceRequestMemoryUsageInBytes = newEstimatedInferenceRequestMemoryUsageInBytes;
+                    noInferenceRequestMemoryUsageInBytes = newNoInferenceRequestMemoryUsageInBytes;
+                }
             }
 
             actualMemoryUsageInBytes = estimatedInferenceRequestMemoryUsageInBytes + noInferenceRequestMemoryUsageInBytes;
@@ -825,10 +827,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 } else {
                     long bytesOverEstimate = bytesUsed - estimatedInferenceRequestMemoryUsageInBytes;
                     estimatedInferenceRequestMemoryUsageInBytes = 0;
-                    actualMemoryUsageInBytes += bytesOverEstimate;
 
                     // TODO: When is the request's ID calculated if not provided? Is it safe to use it as a label?
                     circuitBreaker.addEstimateBytesAndMaybeBreak(bytesOverEstimate, indexRequest.id());
+
+                    // Bytes are added to the circuit breaker only if it doesn't trip, so increase actualMemoryUsageInBytes only once we're
+                    // sure there's space in the breaker for the additional bytes.
+                    actualMemoryUsageInBytes += bytesOverEstimate;
                 }
             } catch (CircuitBreakingException e) {
                 success = false;

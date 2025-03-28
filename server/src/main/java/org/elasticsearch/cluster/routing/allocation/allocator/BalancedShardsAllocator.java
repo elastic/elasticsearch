@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -1206,32 +1205,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<ProjectIndex, ModelIndex> indices;
         private final NodeType nodeType;
 
-        enum NodeType {
-            INDEXING,
-            SEARCH,
-            UNKNOWN
-        }
-
         ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, ClusterInfo clusterInfo, RoutingNode routingNode) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.metadata = metadata;
             this.clusterInfo = clusterInfo;
             this.routingNode = routingNode;
             this.indices = Maps.newMapWithExpectedSize(routingNode.size() + 10);// some extra to account for shard movements
-            this.nodeType = determineNodeType(routingNode);
-        }
-
-        private static NodeType determineNodeType(RoutingNode routingNode) {
-            final DiscoveryNode node = routingNode.node();
-            if (node == null) {
-                return NodeType.UNKNOWN;
-            } else if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
-                return NodeType.INDEXING;
-            } else if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
-                return NodeType.SEARCH;
-            } else {
-                return NodeType.UNKNOWN;
-            }
+            this.nodeType = NodeType.forNode(routingNode);
         }
 
         public ModelIndex getIndex(ProjectIndex index) {

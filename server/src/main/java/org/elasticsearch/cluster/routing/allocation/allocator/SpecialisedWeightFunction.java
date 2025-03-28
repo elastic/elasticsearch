@@ -9,13 +9,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.allocation.BalancedAllocatorSettings;
-
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.ModelNode.NodeType.INDEXING;
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.ModelNode.NodeType.SEARCH;
 
 public class SpecialisedWeightFunction implements WeightFunction {
 
@@ -63,7 +58,7 @@ public class SpecialisedWeightFunction implements WeightFunction {
         double diskUsageInBytes,
         double avgDiskUsageInBytesPerNode
     ) {
-        return weightFunctionForType(nodeTypeForNode(node)).calculateNodeWeight(
+        return weightFunctionForType(NodeType.forNode(node)).calculateNodeWeight(
             node,
             nodeNumShards,
             avgShardsPerNode,
@@ -79,20 +74,7 @@ public class SpecialisedWeightFunction implements WeightFunction {
         return weightFunctionForType(modelNode.nodeType()).minWeightDelta(modelNode, shardWriteLoad, shardSizeBytes);
     }
 
-    private BalancedShardsAllocator.ModelNode.NodeType nodeTypeForNode(RoutingNode node) {
-        final DiscoveryNode discoveryNode = node.node();
-        if (discoveryNode == null) {
-            return BalancedShardsAllocator.ModelNode.NodeType.UNKNOWN;
-        } else if (discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
-            return INDEXING;
-        } else if (discoveryNode.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
-            return SEARCH;
-        } else {
-            return BalancedShardsAllocator.ModelNode.NodeType.UNKNOWN;
-        }
-    }
-
-    private WeightFunction weightFunctionForType(BalancedShardsAllocator.ModelNode.NodeType nodeType) {
+    private WeightFunction weightFunctionForType(NodeType nodeType) {
         return switch (nodeType) {
             case SEARCH -> searchWeightFunction;
             case INDEXING -> indexingWeightFunction;

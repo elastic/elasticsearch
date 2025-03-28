@@ -1,5 +1,0 @@
-pr: 125512
-summary: Add multi-project support for health indicator `shards_availability`
-area: Health
-type: enhancement
-issues: []

@@ -242,9 +242,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
-  method: testDataStreamLifecycleDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/123769
 - class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
   method: testCreateAndRestorePartialSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/123773

@@ -14,7 +14,14 @@ import java.util.Objects;
 
 public abstract class GoogleAiStudioRequestManager extends BaseRequestManager {
     GoogleAiStudioRequestManager(ThreadPool threadPool, GoogleAiStudioModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            GoogleAiStudioRequestManager.RateLimitGrouping.of(model),
+            model.rateLimitServiceSettings().rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
     }
 
     record RateLimitGrouping(int modelIdHash) {

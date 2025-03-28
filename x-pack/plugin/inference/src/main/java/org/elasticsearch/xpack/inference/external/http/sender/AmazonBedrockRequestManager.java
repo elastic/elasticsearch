@@ -15,13 +15,21 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Objects;
 
-public abstract class AmazonBedrockRequestManager implements RequestManager {
+public abstract class AmazonBedrockRequestManager extends BaseRequestManager {
 
     protected final ThreadPool threadPool;
     protected final TimeValue timeout;
     private final AmazonBedrockModel baseModel;
 
     protected AmazonBedrockRequestManager(AmazonBedrockModel baseModel, ThreadPool threadPool, @Nullable TimeValue timeout) {
+        super(
+            threadPool,
+            baseModel.getInferenceEntityId(),
+            AmazonBedrockRequestManager.RateLimitGrouping.of(baseModel),
+            baseModel.rateLimitSettings(),
+            baseModel.getConfigurations().getService(),
+            baseModel.getConfigurations().getTaskType()
+        );
         this.baseModel = Objects.requireNonNull(baseModel);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.timeout = timeout;

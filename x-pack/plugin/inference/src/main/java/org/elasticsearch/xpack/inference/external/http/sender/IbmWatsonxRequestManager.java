@@ -14,7 +14,14 @@ import java.util.Objects;
 
 public abstract class IbmWatsonxRequestManager extends BaseRequestManager {
     IbmWatsonxRequestManager(ThreadPool threadPool, IbmWatsonxModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            IbmWatsonxRequestManager.RateLimitGrouping.of(model),
+            model.rateLimitServiceSettings().rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
     }
 
     record RateLimitGrouping(int modelIdHash) {

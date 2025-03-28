@@ -15,7 +15,14 @@ import java.util.Objects;
 public abstract class AzureAiStudioRequestManager extends BaseRequestManager {
 
     protected AzureAiStudioRequestManager(ThreadPool threadPool, AzureAiStudioModel model) {
-        super(threadPool, model.getInferenceEntityId(), AzureAiStudioRequestManager.RateLimitGrouping.of(model), model.rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            AzureAiStudioRequestManager.RateLimitGrouping.of(model),
+            model.rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
     }
 
     record RateLimitGrouping(int targetHashcode) {

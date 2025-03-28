@@ -39,7 +39,12 @@ public class GenericRequestManager<T extends InferenceInputs> extends BaseReques
         Function<T, Request> requestCreator,
         Class<T> inputType
     ) {
-        super(threadPool, rateLimitGroupingModel);
+        super(
+            threadPool,
+            rateLimitGroupingModel,
+            rateLimitGroupingModel.getConfigurations().getService(),
+            rateLimitGroupingModel.getConfigurations().getTaskType()
+        );
         this.responseHandler = Objects.requireNonNull(responseHandler);
         this.requestCreator = Objects.requireNonNull(requestCreator);
         this.inputType = Objects.requireNonNull(inputType);

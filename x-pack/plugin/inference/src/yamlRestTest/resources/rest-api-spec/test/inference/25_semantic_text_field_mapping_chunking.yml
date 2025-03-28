@@ -502,3 +502,19 @@ setup:
   - match: { "chunking-update.mappings.properties.inference_field.chunking_settings.max_chunk_size": 10 }
   - match: { "chunking-update.mappings.properties.inference_field.chunking_settings.overlap": 1 }
 
+  - do:
+      indices.put_mapping:
+        index: chunking-update
+        body:
+          properties:
+            inference_field:
+              type: semantic_text
+              inference_id: sparse-inference-id
+              chunking_settings: null
+
+  - do:
+      indices.get_mapping:
+        index: chunking-update
+
+  - not_exists: chunking-update.mappings.properties.inference_field.chunking_settings
+

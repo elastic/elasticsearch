@@ -30,7 +30,9 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         }
 
         boolean hasDocValues = hasDocValues(fieldMapping, true);
-        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE || params.syntheticSource();
+        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
+            || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
+            || params.syntheticSource();
         if (hasDocValues && useDocValues) {
             // Sorted
             var resultList = ((List<Object>) value).stream()

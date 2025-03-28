@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
@@ -93,25 +92,17 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
          * downsampling. We try to detect if the downsampling has started by checking the downsample status in the target index.
          */
         logger.info("-> Waiting for the data stream lifecycle to start the downsampling operation before starting the disruption.");
-        ensureDownsamplingStatus(
-            targetIndex,
-            Set.of(IndexMetadata.DownsampleTaskStatus.STARTED, IndexMetadata.DownsampleTaskStatus.SUCCESS),
-            TimeValue.timeValueSeconds(6)
-        );
+        ensureDownsamplingStatus(targetIndex, IndexMetadata.DownsampleTaskStatus.STARTED, TimeValue.timeValueSeconds(8));
 
         logger.info("-> Starting the disruption.");
         internalCluster().rollingRestart(new InternalTestCluster.RestartCallback());
 
-        ensureDownsamplingStatus(targetIndex, Set.of(IndexMetadata.DownsampleTaskStatus.SUCCESS), TimeValue.timeValueSeconds(120));
+        ensureDownsamplingStatus(targetIndex, IndexMetadata.DownsampleTaskStatus.SUCCESS, TimeValue.timeValueSeconds(120));
         ensureGreen(targetIndex);
         logger.info("-> Relocation has finished");
     }
 
-    private void ensureDownsamplingStatus(
-        String downsampledIndex,
-        Set<IndexMetadata.DownsampleTaskStatus> expectedStatuses,
-        TimeValue timeout
-    ) {
+    private void ensureDownsamplingStatus(String downsampledIndex, IndexMetadata.DownsampleTaskStatus expectedStatus, TimeValue timeout) {
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var listener = ClusterServiceUtils.addTemporaryStateListener(clusterService, clusterState -> {
             final var indexMetadata = clusterState.metadata().getProject().index(downsampledIndex);
@@ -119,7 +110,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
                 return false;
             }
             var downsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
-            if (expectedStatuses.contains(downsamplingStatus)) {
+            if (expectedStatus == downsamplingStatus) {
                 logger.info("-> Downsampling status for index [{}] is [{}]", downsampledIndex, downsamplingStatus);
                 return true;
             }

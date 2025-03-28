@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -421,7 +420,7 @@ public class DocsV3SupportTests extends ESTestCase {
         )
         public TestClass(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
             String expression. If `null`, the function returns `null`.
-            The input can be a single- or multi-valued column or an expression.""") Expression field, Configuration configuration) {
+            The input can be a single- or multi-valued column or an expression.""") Expression field) {
             super(source, List.of(field));
         }
 
@@ -436,22 +435,22 @@ public class DocsV3SupportTests extends ESTestCase {
 
         @Override
         public Expression replaceChildren(List<Expression> newChildren) {
-            return null;
+            return new TestClass(source(), newChildren.getFirst());
         }
 
         @Override
         protected NodeInfo<? extends Expression> info() {
-            return null;
+            return NodeInfo.create(this, TestClass::new, children().getFirst());
         }
 
         @Override
         public String getWriteableName() {
-            return "count-or-null";
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-
+            throw new UnsupportedOperationException();
         }
     }
 }

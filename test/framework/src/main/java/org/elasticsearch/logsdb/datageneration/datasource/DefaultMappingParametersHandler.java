@@ -9,6 +9,8 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.FieldType;
@@ -48,6 +50,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case COUNTED_KEYWORD -> plain(Map.of("index", ESTestCase.randomBoolean()));
             case BOOLEAN -> booleanMapping(map);
             case DATE -> dateMapping(map);
+            case GEO_POINT -> geoPointMapping(map);
         });
     }
 
@@ -162,6 +165,21 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                         DateTimeFormatter.ofPattern(format, Locale.ROOT).withZone(ZoneId.from(ZoneOffset.UTC)).format(instant)
                     );
                 }
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+            }
+
+            return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> geoPointMapping(Map<String, Object> injected) {
+        return () -> {
+            if (ESTestCase.randomDouble() <= 0.2) {
+                var point = GeometryTestUtils.randomPoint(false);
+                injected.put("null_value", WellKnownText.toWKT(point));
             }
 
             if (ESTestCase.randomBoolean()) {

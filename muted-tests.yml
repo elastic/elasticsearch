@@ -284,9 +284,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/124159
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testFilterCacheStats
-  issue: https://github.com/elastic/elasticsearch/issues/124447
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
   issue: https://github.com/elastic/elasticsearch/issues/124518

@@ -147,29 +147,25 @@ record MultipartUpload(String bucket, String name, String generation, String crc
      */
     static BytesReference readByDelimiter(InputStream is, byte[] delimiter) throws IOException {
         var out = new ByteArrayOutputStream(1024);
-        var delimiterCheckRing = new byte[delimiter.length]; // a ring-buffer that tracks last N bytes
-        var ringOffset = 0;
+        var delimiterMatchLen = 0;
         while (true) {
             var c = is.read();
             if (c == -1) {
                 throw new IllegalStateException("expected delimiter, but reached end of stream ");
             }
             var b = (byte) c;
-            delimiterCheckRing[ringOffset] = b;
             out.write(b);
-            ringOffset = (ringOffset + 1) % delimiter.length;
-            if (c == delimiter[delimiter.length - 1]) { // try to compare ring buffer with delimiter when last char matches
-                var isMatch = true;
-                for (int i = 0; i < delimiter.length; i++) {
-                    var ri = (i + ringOffset) % delimiter.length;
-                    if (delimiterCheckRing[ri] != delimiter[i]) {
-                        isMatch = false;
-                        break;
-                    }
-                }
-                if (isMatch) {
+            if (delimiter[delimiterMatchLen] == c) {
+                delimiterMatchLen++;
+                if (delimiterMatchLen >= delimiter.length) {
                     var bytes = out.toByteArray();
                     return new BytesArray(bytes, 0, bytes.length - delimiter.length);
+                }
+            } else {
+                if (delimiter[0] == c) {
+                    delimiterMatchLen = 1;
+                } else {
+                    delimiterMatchLen = 0;
                 }
             }
         }

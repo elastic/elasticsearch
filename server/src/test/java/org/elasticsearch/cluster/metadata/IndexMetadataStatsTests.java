@@ -127,6 +127,7 @@ public class IndexMetadataStatsTests extends ESTestCase {
                     0,
                     totalIndexingTimeSinceShardStartedInNanos,
                     totalActiveTimeInNanos,
+                    0.0,
                     0.0
                 )
             );

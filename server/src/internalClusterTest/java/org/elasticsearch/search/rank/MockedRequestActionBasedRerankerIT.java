@@ -197,11 +197,6 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             this.scores = scores;
         }
 
-        public TestRerankingActionResponse(StreamInput in) throws IOException {
-            super(in);
-            this.scores = in.readCollectionAsList(StreamInput::readFloat);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(scores, StreamOutput::writeFloat);

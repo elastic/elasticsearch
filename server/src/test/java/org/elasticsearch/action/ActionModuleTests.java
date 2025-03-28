@@ -134,7 +134,7 @@ public class ActionModuleTests extends ESTestCase {
             List.of(),
             RestExtension.allowAll(),
             new IncrementalBulkService(null, null),
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
         actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -201,7 +201,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll(),
                 new IncrementalBulkService(null, null),
-                TestProjectResolvers.singleProjectOnly()
+                TestProjectResolvers.alwaysThrow()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
@@ -261,7 +261,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll(),
                 new IncrementalBulkService(null, null),
-                TestProjectResolvers.singleProjectOnly()
+                TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -314,7 +314,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     RestExtension.allowAll(),
                     new IncrementalBulkService(null, null),
-                    TestProjectResolvers.singleProjectOnly()
+                    TestProjectResolvers.alwaysThrow()
                 )
             );
             assertThat(
@@ -358,7 +358,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     RestExtension.allowAll(),
                     new IncrementalBulkService(null, null),
-                    TestProjectResolvers.singleProjectOnly()
+                    TestProjectResolvers.alwaysThrow()
                 )
             );
             assertThat(

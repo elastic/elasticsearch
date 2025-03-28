@@ -25,3 +25,5 @@ FROM employees
 | COUNT(emp_no):long |
 | --- |
 | 84 |
+
+

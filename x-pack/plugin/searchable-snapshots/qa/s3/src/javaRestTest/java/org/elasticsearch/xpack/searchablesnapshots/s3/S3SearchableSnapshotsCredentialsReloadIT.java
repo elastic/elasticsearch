@@ -47,7 +47,12 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
     private static volatile String repositoryAccessKey;
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, mutableAccessKey(() -> repositoryAccessKey));
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(
+        true,
+        BUCKET,
+        BASE_PATH,
+        mutableAccessKey(() -> repositoryAccessKey, "*", "s3")
+    );
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
 

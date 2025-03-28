@@ -83,9 +83,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
 
     @Override
     protected String defaultMapping() {
-        XContentBuilder builder = null;
         try {
-            builder = JsonXContent.contentBuilder().startObject();
+            XContentBuilder builder = JsonXContent.contentBuilder().startObject();
             if (useIncludesExcludes) {
                 builder.startObject(SourceFieldMapper.NAME).array("excludes", "field").endObject();
             }
@@ -104,6 +103,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             builder.field("dimensions", model1.getServiceSettings().dimensions());
             builder.field("similarity", model1.getServiceSettings().similarity().name());
             builder.field("element_type", model1.getServiceSettings().elementType().name());
+            builder.field("service", model1.getConfigurations().getService());
             builder.endObject();
             builder.endObject();
 
@@ -112,6 +112,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             builder.field("inference_id", model2.getInferenceEntityId());
             builder.startObject("model_settings");
             builder.field("task_type", model2.getTaskType().name());
+            builder.field("service", model2.getConfigurations().getService());
             builder.endObject();
             builder.endObject();
 

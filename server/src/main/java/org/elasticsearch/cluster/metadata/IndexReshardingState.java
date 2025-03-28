@@ -29,6 +29,16 @@ import java.util.Objects;
  * concrete subclasses for the operations that are currently defined (which is only split for now).
  */
 public abstract sealed class IndexReshardingState implements Writeable, ToXContentFragment {
+    /**
+     * @return the number of shards the index has at the start of this operation
+     */
+    public abstract int shardCountBefore();
+
+    /**
+     * @return the number of shards that the index will have when resharding completes
+     */
+    public abstract int shardCountAfter();
+
     // This class exists only so that tests can check that IndexReshardingMetadata can support more than one kind of operation.
     // When we have another real operation such as Shrink this can be removed.
     public static final class Noop extends IndexReshardingState {
@@ -63,6 +73,16 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         @Override
         public int hashCode() {
             return 0;
+        }
+
+        @Override
+        public int shardCountBefore() {
+            return 1;
+        }
+
+        @Override
+        public int shardCountAfter() {
+            return 1;
         }
     }
 
@@ -210,13 +230,13 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return Objects.hash(Arrays.hashCode(sourceShards), Arrays.hashCode(targetShards));
         }
 
-        // visible for testing
-        int oldShardCount() {
+        @Override
+        public int shardCountBefore() {
             return oldShardCount;
         }
 
-        // visible for testing
-        int newShardCount() {
+        @Override
+        public int shardCountAfter() {
             return newShardCount;
         }
 
@@ -228,6 +248,10 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         // visible for testing
         TargetShardState[] targetShards() {
             return targetShards.clone();
+        }
+
+        public int sourceShard(int targetShard) {
+            return targetShard % shardCountBefore();
         }
 
         /**
@@ -323,6 +347,10 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             assert shardNum >= 0 && shardNum < sourceShards.length : "source shardNum is out of bounds";
 
             return sourceShards[shardNum];
+        }
+
+        public boolean isTargetShard(int shardId) {
+            return shardId >= shardCountBefore();
         }
 
         /**

@@ -2042,7 +2042,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             Map.of(dataIndexName, Set.of("@timestamp", "age"))
         );
 
-        // FLS sort of applies to failure store
+        // FLS applies to failure store
         assertSearchResponseContainsExpectedIndicesAndFields(
             performRequest(user, new Search("test1::failures").toSearchRequest()),
             Map.of(failureIndexName, Set.of("@timestamp"))

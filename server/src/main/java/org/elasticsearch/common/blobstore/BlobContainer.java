@@ -182,22 +182,20 @@ public interface BlobContainer {
      * If copy is unavailable then throws UnsupportedOperationException.
      * It may be unavailable either because the blob container has no copy implementation
      * or because the target blob container is not on the same store as the source.
+     * If the destination blob already exists, this operation will overwrite it.
      *
      * @param purpose             The purpose of the operation
      * @param sourceBlobName      The name of the blob to copy from
      * @param destinationBlobContainer The blob container to copy the blob into
      * @param destinationBlobName      The name of the blob to copy to
-     * @param failIfAlreadyExists Whether to throw a FileAlreadyExistsException if the target blob already exists
      * @throws NoSuchFileException If the source blob does not exist
-     * @throws FileAlreadyExistsException If failIfAlreadyExists is true and the target blob already exists
-     * @throws IOException        If the operation generates an IO error (e.g., due to local copy fallback)
+     * @throws IOException        If the operation generates an IO error
      */
     default void copyBlob(
         OperationPurpose purpose,
         String sourceBlobName,
         BlobContainer destinationBlobContainer,
-        String destinationBlobName,
-        boolean failIfAlreadyExists
+        String destinationBlobName
     ) throws IOException {
         throw new UnsupportedOperationException("this blob container does not support copy");
     }

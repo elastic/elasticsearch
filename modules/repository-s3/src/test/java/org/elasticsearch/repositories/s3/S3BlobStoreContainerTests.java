@@ -386,7 +386,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final ArgumentCaptor<CopyObjectRequest> captor = ArgumentCaptor.forClass(CopyObjectRequest.class);
         when(client.copyObject(captor.capture())).thenReturn(new CopyObjectResult());
 
-        sourceBlobContainer.copyBlob(randomPurpose(), sourceBlobName, targetBlobContainer, targetBlobName, false);
+        sourceBlobContainer.copyBlob(randomPurpose(), sourceBlobName, targetBlobContainer, targetBlobName);
 
         final CopyObjectRequest request = captor.getValue();
         assertEquals(sourceBucketName, request.getSourceBucketName());
@@ -395,12 +395,6 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         assertEquals(targetBlobPath.buildAsString() + targetBlobName, request.getDestinationKey());
         assertEquals(storageClass.toString(), request.getStorageClass());
         assertEquals(cannedAccessControlList, request.getCannedAccessControlList());
-
-        // failIfAlreadyExists is not currently supported on S3
-        assertThrows(
-            UnsupportedOperationException.class,
-            () -> sourceBlobContainer.copyBlob(randomPurpose(), sourceBlobName, targetBlobContainer, targetBlobName, true)
-        );
 
         closeMockClient(blobStore);
     }

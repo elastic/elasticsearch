@@ -240,7 +240,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
 
             final var targetBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
-            sourceBlobContainer.copyBlob(randomPurpose(), sourceBlobName, targetBlobContainer, targetBlobName, false);
+            sourceBlobContainer.copyBlob(randomPurpose(), sourceBlobName, targetBlobContainer, targetBlobName);
 
             return sourceBlobContainer.readBlob(randomPurpose(), sourceBlobName).readAllBytes();
         });

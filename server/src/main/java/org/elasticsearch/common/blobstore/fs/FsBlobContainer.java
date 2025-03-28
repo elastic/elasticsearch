@@ -354,8 +354,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         OperationPurpose purpose,
         String sourceBlobName,
         BlobContainer destinationBlobContainer,
-        String destinationBlobName,
-        boolean failIfAlreadyExists
+        String destinationBlobName
     ) throws IOException {
         if (destinationBlobContainer instanceof FsBlobContainer == false) {
             throw new IllegalArgumentException("targetBlobContainer must be a FsBlobContainer");
@@ -366,7 +365,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         final Path tempBlobPath = targetContainer.path.resolve(tempBlob);
         Files.copy(sourceBlobPath, tempBlobPath, StandardCopyOption.REPLACE_EXISTING);
         try {
-            targetContainer.moveBlobAtomic(purpose, tempBlob, destinationBlobName, failIfAlreadyExists);
+            targetContainer.moveBlobAtomic(purpose, tempBlob, destinationBlobName, false);
         } catch (IOException ex) {
             try {
                 targetContainer.deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));

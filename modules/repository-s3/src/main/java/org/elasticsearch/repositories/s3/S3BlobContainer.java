@@ -324,30 +324,24 @@ class S3BlobContainer extends AbstractBlobContainer {
      * Server-side copy can be done for any size object, but if the object is larger than 5 GB then
      * it must be done through a series of part copy operations rather than a single blob copy.
      * See <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html">CopyObject</a>.
+     * Note that this operation will overwrite the destination if it already exists.
      * @param purpose             The purpose of the operation
      * @param sourceBlobName      The name of the blob to copy from
      * @param destinationBlobContainer The blob container to copy the blob into
      * @param destinationBlobName      The name of the blob to copy to
-     * @param failIfAlreadyExists Whether to throw a FileAlreadyExistsException if the target blob already exists
-     *                            On S3, if true, throws UnsupportedOperationException because we don't know how
-     *                            to do this atomically.
-     * @throws IOException
+     * @throws IOException        If the operation fails on the server side
      */
     @Override
     public void copyBlob(
         OperationPurpose purpose,
         String sourceBlobName,
         BlobContainer destinationBlobContainer,
-        String destinationBlobName,
-        boolean failIfAlreadyExists
+        String destinationBlobName
     ) throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
         assert BlobContainer.assertPurposeConsistency(purpose, destinationBlobName);
         if (destinationBlobContainer instanceof S3BlobContainer == false) {
             throw new IllegalArgumentException("target blob container must be a S3BlobContainer");
-        }
-        if (failIfAlreadyExists) {
-            throw new UnsupportedOperationException("S3 blob container does not support failIfAlreadyExists");
         }
 
         final var s3TargetBlobContainer = (S3BlobContainer) destinationBlobContainer;
@@ -365,7 +359,10 @@ class S3BlobContainer extends AbstractBlobContainer {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
         } catch (final AmazonClientException e) {
-            throw new IOException("Unable to copy object [" + sourceBlobName + "]", e);
+            throw new IOException(
+                "Unable to copy object [" + sourceBlobName + "] to [" + destinationBlobContainer + "][" + destinationBlobName + "]",
+                e
+            );
         }
     }
 

@@ -186,26 +186,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=multipart*", request)) {
-                // Multipart upload
-                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(requestBody.streamInput());
-                if (content.isPresent()) {
-                    final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
-                    final MockGcsBlobStore.BlobVersion newBlobVersion = mockGcsBlobStore.updateBlob(
-                        content.get().v1(),
-                        ifGenerationMatch,
-                        content.get().v2()
-                    );
-                    writeBlobVersionAsJson(exchange, newBlobVersion);
-                } else {
-                    throw new AssertionError(
-                        "Could not read multi-part request to ["
-                            + request
-                            + "] with headers ["
-                            + new HashMap<>(exchange.getRequestHeaders())
-                            + "]"
-                    );
-                }
-
+                final var multipartUpload = MultipartUpload.parseBody(exchange, requestBody.streamInput());
+                final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
+                final MockGcsBlobStore.BlobVersion newBlobVersion = mockGcsBlobStore.updateBlob(
+                    multipartUpload.name(),
+                    ifGenerationMatch,
+                    multipartUpload.content()
+                );
+                writeBlobVersionAsJson(exchange, newBlobVersion);
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=resumable*", request)) {
                 // Resumable upload initialization https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
                 final Map<String, String> params = new HashMap<>();

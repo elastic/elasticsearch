@@ -380,6 +380,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests
   method: testIORateIsAdjustedForRunningMergeTasks
   issue: https://github.com/elastic/elasticsearch/issues/125842
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test index configured rescore vector score consistency}
+  issue: https://github.com/elastic/elasticsearch/issues/125851
 
 # Examples:
 #

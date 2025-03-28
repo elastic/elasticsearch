@@ -98,13 +98,13 @@ public class ShardStateIT extends ESIntegTestCase {
             safeAwait(barrier);
             batchExecutionContext.taskContexts().forEach(c -> c.success(() -> {}));
             return batchExecutionContext.initialState();
-        }).submitTask("initial-block", ignored -> {}, null);
+        }).submitTask("initial-block", e -> fail(e, "unexpected"), null);
 
         // Sync up with the blocking executor.
         safeAwait(barrier);
 
         // Obtain a reference to the IndexShard for shard 0.
-        final var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final var state = masterNodeClusterService.state();
         final var shard0RoutingTable = state.routingTable(Metadata.DEFAULT_PROJECT_ID).index("test").shard(0);
         assertNotNull(shard0RoutingTable);
         final var nodeId = shard0RoutingTable.primaryShard().currentNodeId();
@@ -132,9 +132,9 @@ public class ShardStateIT extends ESIntegTestCase {
             }));
         });
 
-        // Unblock the master service from the blocked executor and allow the failed shard task to get processed.
+        // Unblock the master service from the executor above.
         safeAwait(barrier);
-        assertBusy(() -> assertTrue(masterService.pendingTasks().isEmpty()));
+        // Wait for the failed shard task to get processed and then for the shard and cluster to recover.
         ensureGreen();
     }
 }

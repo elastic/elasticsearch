@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
@@ -24,7 +23,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public record ChunkedInferenceServiceResults(List<Result> results) implements InferenceServiceResults {
@@ -79,21 +77,6 @@ public record ChunkedInferenceServiceResults(List<Result> results) implements In
             );
         }
         return chunkedInferenceChunks;
-    }
-
-    @Override
-    public List<? extends InferenceResults> transformToCoordinationFormat() {
-        return List.of(); // TODO: Is this function needed?
-    }
-
-    @Override
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        return List.of(); // TODO: Is this function needed?
-    }
-
-    @Override
-    public Map<String, Object> asMap() {
-        return Map.of(); // TODO: Is this function needed?
     }
 
     @Override

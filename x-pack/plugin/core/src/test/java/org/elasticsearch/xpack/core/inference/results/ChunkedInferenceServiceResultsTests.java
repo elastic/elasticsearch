@@ -113,7 +113,7 @@ public class ChunkedInferenceServiceResultsTests extends AbstractWireSerializing
                 var chunk = result.chunks().get(j);
                 assertEquals(
                     originalTextList.get(i)
-                        .substring(chunksForChunkedInference.get(j).offset().start(), chunksForChunkedInference.get(j).offset().end() + 1),
+                        .substring(chunksForChunkedInference.get(j).offset().start(), chunksForChunkedInference.get(j).offset().end()),
                     chunk.chunkText()
                 );
                 assertEquals(chunksForChunkedInference.get(j).embedding(), chunk.embedding());
@@ -156,10 +156,7 @@ public class ChunkedInferenceServiceResultsTests extends AbstractWireSerializing
         for (int i = 0; i < numChunks; i++) {
             var embedding = embeddings.get(i % embeddings.size());
             chunks.add(
-                new EmbeddingResults.Chunk(
-                    embedding,
-                    new ChunkedInference.TextOffset(chunkStart, chunkStart + ((textLength - 1) / numChunks))
-                )
+                new EmbeddingResults.Chunk(embedding, new ChunkedInference.TextOffset(chunkStart, chunkStart + ((textLength) / numChunks)))
             );
             chunkStart += (textLength / numChunks);
         }

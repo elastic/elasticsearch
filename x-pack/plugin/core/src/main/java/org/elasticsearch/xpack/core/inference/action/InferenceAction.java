@@ -162,6 +162,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             TaskType taskType,
             String inferenceEntityId,
             String query,
+            Boolean returnDocuments,
+            Integer topN,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
@@ -174,6 +176,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.query = query;
+            this.returnDocuments = returnDocuments;
+            this.topN = topN;
             this.input = input;
             this.taskSettings = taskSettings;
             this.inputType = inputType;
@@ -206,7 +210,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
 
-            this.chunk = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.PERFORM_INFERENCE_WITH_CHUNKING)) {
+                this.chunk = in.readBoolean();
+            } else {
+                this.chunk = false;
+            }
 
             if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
                 || in.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
@@ -341,8 +349,9 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeTimeValue(inferenceTimeout);
             }
 
-            // TODO: Check if transport version is needed
-            out.writeBoolean(chunk);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.PERFORM_INFERENCE_WITH_CHUNKING)) {
+                out.writeBoolean(chunk);
+            }
 
             if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
                 || out.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
@@ -496,6 +505,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                     taskSettings,
                     inputType,
                     timeout,
+                    chunk,
                     stream,
                     context
                 );

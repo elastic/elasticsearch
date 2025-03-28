@@ -637,7 +637,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectDoubleColonErrorWithLineNumber(command, "*:*::failures", parseLineNumber + 3);
 
                 // Too many colons
-                expectInvalidIndexNameErrorWithLineNumber(command, "\"index:::data\"", lineNumber, "index:", "must not contain ':'");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"index:::data\"",
+                    lineNumber,
+                    "index:::data",
+                    "Selectors are not yet supported on remote cluster patterns"
+                );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "\"index::::data\"",

@@ -173,7 +173,8 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
                     valueHint = { "2.5" },
                     description = "Floating point number used to decrease or increase the relevance scores of the query."
                 ) },
-            description = "description"
+            description = "description",
+            optional = true
         ) Expression options
     ) {
         this(source, query, fields, options, null);

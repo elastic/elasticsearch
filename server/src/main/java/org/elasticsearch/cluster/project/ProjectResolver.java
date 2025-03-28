@@ -87,6 +87,11 @@ public interface ProjectResolver extends ProjectIdResolver {
      * Returns a client that executes every request in the context of the given project.
      */
     default Client projectClient(Client baseClient, ProjectId projectId) {
+        // We only take the shortcut when the given project ID matches the "current" project ID. If it doesn't, we'll let #executeOnProject
+        // take care of error handling.
+        if (supportsMultipleProjects() == false && projectId.equals(getProjectId())) {
+            return baseClient;
+        }
         return new FilterClient(baseClient) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

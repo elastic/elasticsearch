@@ -168,7 +168,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                 new MockLog.ExceptionSeenEventExpectation(
                     format("\"[%s]%s: failed to execute search request\" and an exception logged", nodeId, shardId),
                     SearchService.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.DEBUG, // We will throw a 400-level exception, so it should only be logged at the debug level
                     format("[%s]%s: failed to execute search request", nodeId, shardId),
                     IllegalArgumentException.class,
                     exceptionMessage
@@ -187,8 +187,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                     mockLog.assertAllExpectationsMatched();
                 }
             };
-            // This is a 400-level exception, so it should only be debug logged
-            IllegalArgumentException e = new IllegalArgumentException(exceptionMessage);
+            IllegalArgumentException e = new IllegalArgumentException(exceptionMessage); // 400-level exception
             listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, threadPool);
             listener.onFailure(e);
         }
@@ -205,7 +204,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                 new MockLog.ExceptionSeenEventExpectation(
                     format("\"[%s]%s: failed to execute search request\" and an exception logged", nodeId, shardId),
                     SearchService.class.getCanonicalName(),
-                    Level.WARN,
+                    Level.WARN, // We will throw a 500-level exception, so it should be logged at the warn level
                     format("[%s]%s: failed to execute search request", nodeId, shardId),
                     IllegalStateException.class,
                     exceptionMessage
@@ -224,8 +223,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                     mockLog.assertAllExpectationsMatched();
                 }
             };
-            // This is a 400-level exception, so it should only be debug logged
-            IllegalStateException e = new IllegalStateException(exceptionMessage);
+            IllegalStateException e = new IllegalStateException(exceptionMessage); // 500-level exception
             listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, threadPool);
             listener.onFailure(e);
         }

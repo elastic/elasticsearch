@@ -533,7 +533,7 @@ interface FieldSpecificMatcher {
             if (value instanceof Map<?, ?> m) {
                 if (m.get("type") != null) {
                     var coordinates = (List<Double>) m.get("coordinates");
-                    // Order is GeoJSON is lon,lat
+                    // Order in GeoJSON is lon,lat
                     return normalizePoint(new GeoPoint(coordinates.get(1), coordinates.get(0)));
                 } else {
                     return normalizePoint(new GeoPoint((Double) m.get("lat"), (Double) m.get("lon")));

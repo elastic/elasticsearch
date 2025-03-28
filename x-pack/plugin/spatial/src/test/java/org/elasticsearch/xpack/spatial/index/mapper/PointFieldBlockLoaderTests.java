@@ -20,7 +20,12 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.datageneration.PointDataSourceHandler;
 
 import java.nio.ByteOrder;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
     public PointFieldBlockLoaderTests(Params params) {

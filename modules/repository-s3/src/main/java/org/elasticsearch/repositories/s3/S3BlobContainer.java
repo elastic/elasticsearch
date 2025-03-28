@@ -326,8 +326,8 @@ class S3BlobContainer extends AbstractBlobContainer {
      * See <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html">CopyObject</a>.
      * @param purpose             The purpose of the operation
      * @param sourceBlobName      The name of the blob to copy from
-     * @param targetBlobContainer The blob container to copy the blob into
-     * @param targetBlobName      The name of the blob to copy to
+     * @param destinationBlobContainer The blob container to copy the blob into
+     * @param destinationBlobName      The name of the blob to copy to
      * @param failIfAlreadyExists Whether to throw a FileAlreadyExistsException if the target blob already exists
      *                            On S3, if true, throws UnsupportedOperationException because we don't know how
      *                            to do this atomically.
@@ -337,27 +337,27 @@ class S3BlobContainer extends AbstractBlobContainer {
     public void copyBlob(
         OperationPurpose purpose,
         String sourceBlobName,
-        BlobContainer targetBlobContainer,
-        String targetBlobName,
+        BlobContainer destinationBlobContainer,
+        String destinationBlobName,
         boolean failIfAlreadyExists
     ) throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
-        assert BlobContainer.assertPurposeConsistency(purpose, targetBlobName);
-        if (targetBlobContainer instanceof S3BlobContainer == false) {
+        assert BlobContainer.assertPurposeConsistency(purpose, destinationBlobName);
+        if (destinationBlobContainer instanceof S3BlobContainer == false) {
             throw new IllegalArgumentException("target blob container must be a S3BlobContainer");
         }
         if (failIfAlreadyExists) {
             throw new UnsupportedOperationException("S3 blob container does not support failIfAlreadyExists");
         }
 
-        final var s3TargetBlobContainer = (S3BlobContainer) targetBlobContainer;
+        final var s3TargetBlobContainer = (S3BlobContainer) destinationBlobContainer;
 
         // metadata is inherited from source, but not canned ACL or storage class
         final CopyObjectRequest copyRequest = new CopyObjectRequest(
             blobStore.bucket(),
             buildKey(sourceBlobName),
             s3TargetBlobContainer.blobStore.bucket(),
-            s3TargetBlobContainer.buildKey(targetBlobName)
+            s3TargetBlobContainer.buildKey(destinationBlobName)
         ).withCannedAccessControlList(blobStore.getCannedACL()).withStorageClass(blobStore.getStorageClass());
 
         S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);

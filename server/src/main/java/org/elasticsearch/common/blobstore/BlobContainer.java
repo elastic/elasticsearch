@@ -185,8 +185,8 @@ public interface BlobContainer {
      *
      * @param purpose             The purpose of the operation
      * @param sourceBlobName      The name of the blob to copy from
-     * @param targetBlobContainer The blob container to copy the blob into
-     * @param targetBlobName      The name of the blob to copy to
+     * @param destinationBlobContainer The blob container to copy the blob into
+     * @param destinationBlobName      The name of the blob to copy to
      * @param failIfAlreadyExists Whether to throw a FileAlreadyExistsException if the target blob already exists
      * @throws NoSuchFileException If the source blob does not exist
      * @throws FileAlreadyExistsException If failIfAlreadyExists is true and the target blob already exists
@@ -195,8 +195,8 @@ public interface BlobContainer {
     default void copyBlob(
         OperationPurpose purpose,
         String sourceBlobName,
-        BlobContainer targetBlobContainer,
-        String targetBlobName,
+        BlobContainer destinationBlobContainer,
+        String destinationBlobName,
         boolean failIfAlreadyExists
     ) throws IOException {
         throw new UnsupportedOperationException("this blob container does not support copy");

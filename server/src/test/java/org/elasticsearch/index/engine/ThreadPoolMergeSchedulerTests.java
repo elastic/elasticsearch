@@ -180,17 +180,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
         List<MergeTask> submittedMergeTasks = new ArrayList<>();
         List<MergeTask> scheduledToRunMergeTasks = new ArrayList<>();
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
-        doAnswer(invocation -> {
-            MergeTask mergeTask = (MergeTask) invocation.getArguments()[0];
-            submittedMergeTasks.add(mergeTask);
-            return null;
-        }).when(threadPoolMergeExecutorService).submitMergeTask(any(MergeTask.class));
-        doAnswer(invocation -> {
-            MergeTask mergeTask = (MergeTask) invocation.getArguments()[0];
-            submittedMergeTasks.add(mergeTask);
-            return null;
-        }).when(threadPoolMergeExecutorService).reEnqueueBackloggedMergeTask(any(MergeTask.class));
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mockThreadPoolMergeExecutorService(submittedMergeTasks);
         AtomicBoolean isUsingMaxTargetIORate = new AtomicBoolean(false);
         doAnswer(invocation -> isUsingMaxTargetIORate.get()).when(threadPoolMergeExecutorService).usingMaxTargetIORateBytesPerSec();
         Settings mergeSchedulerSettings = Settings.builder()
@@ -627,5 +617,20 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         boolean isIndexingThrottlingEnabled() {
             return isIndexingThrottlingEnabled.get();
         }
+    }
+
+    static ThreadPoolMergeExecutorService mockThreadPoolMergeExecutorService(List<MergeTask> submittedMergeTasks) {
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
+        doAnswer(invocation -> {
+            MergeTask mergeTask = (MergeTask) invocation.getArguments()[0];
+            submittedMergeTasks.add(mergeTask);
+            return null;
+        }).when(threadPoolMergeExecutorService).submitMergeTask(any(MergeTask.class));
+        doAnswer(invocation -> {
+            MergeTask mergeTask = (MergeTask) invocation.getArguments()[0];
+            submittedMergeTasks.add(mergeTask);
+            return null;
+        }).when(threadPoolMergeExecutorService).reEnqueueBackloggedMergeTask(any(MergeTask.class));
+        return threadPoolMergeExecutorService;
     }
 }

@@ -37,6 +37,8 @@ import java.util.Random;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
 
+    protected record ChunkedInput(String input, int startOffset, int endOffset) {}
+
     protected static final Random random = new Random(
         System.getProperty("tests.seed") == null
             ? System.currentTimeMillis()
@@ -112,23 +114,24 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     @Override
     public void close() throws IOException {}
 
-    protected List<String> chunkInputs(ChunkInferenceInput input) {
+    protected List<ChunkedInput> chunkInputs(ChunkInferenceInput input) {
         ChunkingSettings chunkingSettings = input.chunkingSettings();
+        String inputText = input.input();
         if (chunkingSettings == null) {
-            return List.of(input.input());
+            return List.of(new ChunkedInput(inputText, 0, inputText.length()));
         }
 
-        List<String> chunkedInputs = new ArrayList<>();
+        List<ChunkedInput> chunkedInputs = new ArrayList<>();
         if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
             WordBoundaryChunker chunker = new WordBoundaryChunker();
             WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
             List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
-                input.input(),
+                inputText,
                 wordBoundaryChunkingSettings.maxChunkSize(),
                 wordBoundaryChunkingSettings.overlap()
             );
             for (WordBoundaryChunker.ChunkOffset offset : offsets) {
-                chunkedInputs.add(input.input().substring(offset.start(), offset.end()));
+                chunkedInputs.add(new ChunkedInput(inputText.substring(offset.start(), offset.end()), offset.start(), offset.end()));
             }
 
         } else {

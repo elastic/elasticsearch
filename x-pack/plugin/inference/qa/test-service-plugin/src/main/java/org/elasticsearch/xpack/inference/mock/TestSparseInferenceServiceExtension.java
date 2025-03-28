@@ -43,6 +43,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TestSparseInferenceServiceExtension implements InferenceServiceExtension {
 
@@ -171,19 +172,15 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             List<ChunkedInference> results = new ArrayList<>();
             for (ChunkInferenceInput chunkInferenceInput : inputs) {
                 String input = chunkInferenceInput.input();
-                List<String> chunkedInput = chunkInputs(chunkInferenceInput);
-                List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>();
-                for (String c : chunkedInput) {
+                List<ChunkedInput> chunkedInput = chunkInputs(chunkInferenceInput);
+                List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>(chunkedInput.stream().map(c -> {
                     var tokens = new ArrayList<WeightedToken>();
                     for (int i = 0; i < 5; i++) {
                         tokens.add(new WeightedToken("feature_" + i, generateEmbedding(input, i)));
                     }
-                    // Note: We have to start with an offset of 0 to account for overlaps
-                    int offset = input.indexOf(c);
-                    int endOffset = offset + c.length();
                     var embeddings = new SparseEmbeddingResults.Embedding(tokens, false);
-                    chunks.add(new SparseEmbeddingResults.Chunk(embeddings, new ChunkedInference.TextOffset(offset, endOffset)));
-                }
+                    return new SparseEmbeddingResults.Chunk(embeddings, new ChunkedInference.TextOffset(c.startOffset(), c.endOffset()));
+                }).toList());
                 ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
                 results.add(chunkedInferenceEmbedding);
             }

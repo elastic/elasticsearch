@@ -45,6 +45,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TestDenseInferenceServiceExtension implements InferenceServiceExtension {
     @Override
@@ -178,21 +179,18 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
 
         private List<ChunkedInference> makeChunkedResults(List<ChunkInferenceInput> inputs, ServiceSettings serviceSettings) {
             var results = new ArrayList<ChunkedInference>();
-            for (int i = 0; i < inputs.size(); i++) {
-                ChunkInferenceInput input = inputs.get(i);
-                List<String> chunkedInput = chunkInputs(input);
-                List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>();
-                for (String c : chunkedInput) {
-                    // Note: We have to start with an offset of 0 to account for overlaps
-                    int offset = input.input().indexOf(c);
-                    int endOffset = offset + c.length();
-                    chunks.add(
-                        new TextEmbeddingFloatResults.Chunk(
-                            makeResults(List.of(c), serviceSettings).embeddings().get(0),
-                            new ChunkedInference.TextOffset(offset, endOffset)
+            for (ChunkInferenceInput input : inputs) {
+                List<ChunkedInput> chunkedInput = chunkInputs(input);
+                List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>(
+                    chunkedInput.stream()
+                        .map(
+                            c -> new TextEmbeddingFloatResults.Chunk(
+                                makeResults(List.of(c.input()), serviceSettings).embeddings().get(0),
+                                new ChunkedInference.TextOffset(c.startOffset(), c.endOffset())
+                            )
                         )
-                    );
-                }
+                        .toList()
+                );
                 ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
                 results.add(chunkedInferenceEmbedding);
             }

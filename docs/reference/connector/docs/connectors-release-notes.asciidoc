@@ -9,6 +9,18 @@
 Prior to version *8.16.0*, the connector release notes were published as part of the {enterprise-search-ref}/changelog.html[Enterprise Search documentation].
 ====
 
+[[es-connectors-release-notes-8-18-0]]
+=== 8.18.0
+
+[discrete]
+[[es-connectors-release-notes-8-18-0-enhancements]]
+==== Enhancements
+
+* Updated the OSS Dockerfile in the https://github.com/elastic/connectors[Connectors] repository to use a different base image for improved security.
++
+IMPORTANT: Users building custom docker images based on this Dockerfile may have to review their configuration for compatibility with the new base image.
+See https://github.com/elastic/connectors/pull/3063[*PR 3063*].
+
 [discrete]
 [[es-connectors-release-notes-8-17-1]]
 === 8.17.1

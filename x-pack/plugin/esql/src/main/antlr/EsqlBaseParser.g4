@@ -210,7 +210,7 @@ identifier
 identifierPattern
     : ID_PATTERN
     | parameter
-    | {this.isDevVersion()}? doubleParameter
+    | doubleParameter
     ;
 
 constant
@@ -239,7 +239,7 @@ doubleParameter
 identifierOrParameter
     : identifier
     | parameter
-    | {this.isDevVersion()}? doubleParameter
+    | doubleParameter
     ;
 
 limitCommand

@@ -328,9 +328,6 @@ tests:
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testEveryActionIsEitherOperatorOnlyOrNonOperator
   issue: https://github.com/elastic/elasticsearch/issues/119911
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldSourceOnlyRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/120080
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {date_nanos.Bucket Date nanos by 10 minutes}
   issue: https://github.com/elastic/elasticsearch/issues/120162
@@ -429,9 +426,6 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/120148
 - class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
   issue: https://github.com/elastic/elasticsearch/issues/120575
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT

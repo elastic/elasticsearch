@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,6 +22,7 @@ import java.util.function.Function;
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
     private final Logger log = LogManager.getLogger(getClass());
+    private final PlannerProfile profile;
 
     public static class Limiter {
         public static final Limiter DEFAULT = new Limiter(100);
@@ -209,6 +211,10 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         }
 
         return new ExecutionInfo(plan, currentPlan, transformations);
+    }
+
+    protected RuleExecutor(PlannerProfile profile) {
+        this.profile = profile;
     }
 
     protected Function<TreeType, TreeType> transform(Rule<?, TreeType> rule) {

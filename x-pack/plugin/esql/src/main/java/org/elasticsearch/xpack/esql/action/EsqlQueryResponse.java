@@ -27,8 +27,10 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -346,18 +348,48 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public static class Profile implements Writeable, ChunkedToXContentObject {
         private final List<DriverProfile> drivers;
+        private final List<PlannerProfile> plannerProfile;
 
-        public Profile(List<DriverProfile> drivers) {
+        public static final Profile EMPTY = new Profile(List.of(), List.of());
+
+        public Profile() {
+            this.drivers = new ArrayList<>();
+            this.plannerProfile = new ArrayList<>();
+        }
+
+        public Profile(List<DriverProfile> drivers, List<PlannerProfile> plannerProfile) {
             this.drivers = drivers;
+            this.plannerProfile = plannerProfile;
         }
 
         public Profile(StreamInput in) throws IOException {
             this.drivers = in.readCollectionAsImmutableList(DriverProfile::readFrom);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                this.plannerProfile = in.readCollectionAsImmutableList(PlannerProfile::readFrom);
+            } else {
+                this.plannerProfile = List.of();
+            }
+        }
+
+        public void merge(Profile other) {
+            this.drivers.addAll(other.drivers);
+            this.plannerProfile.addAll(other.plannerProfile);
+        }
+
+        public List<DriverProfile> getDriverProfiles() {
+            return drivers;
+        }
+
+        public List<PlannerProfile> getPlannerProfiles() {
+            return plannerProfile;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                out.writeCollection(plannerProfile);
+            }
         }
 
         @Override
@@ -369,12 +401,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 return false;
             }
             Profile profile = (Profile) o;
-            return Objects.equals(drivers, profile.drivers);
+            return Objects.equals(drivers, profile.drivers) && Objects.equals(plannerProfile, profile.plannerProfile);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(drivers);
+            return Objects.hash(drivers, plannerProfile);
         }
 
         @Override

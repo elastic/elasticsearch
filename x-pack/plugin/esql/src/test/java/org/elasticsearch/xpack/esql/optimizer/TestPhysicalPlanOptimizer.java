@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 public class TestPhysicalPlanOptimizer extends PhysicalPlanOptimizer {
@@ -15,7 +16,7 @@ public class TestPhysicalPlanOptimizer extends PhysicalPlanOptimizer {
     private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(false);
 
     public TestPhysicalPlanOptimizer(PhysicalOptimizerContext context) {
-        super(context);
+        super(context, new PlannerProfile(false, ""));
     }
 
     @Override

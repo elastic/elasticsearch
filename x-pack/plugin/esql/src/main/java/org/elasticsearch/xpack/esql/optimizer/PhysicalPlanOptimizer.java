@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
@@ -29,8 +30,8 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
-    public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
-        super(context);
+    public PhysicalPlanOptimizer(PhysicalOptimizerContext context, PlannerProfile profile) {
+        super(context, profile);
     }
 
     public PhysicalPlan optimize(PhysicalPlan plan) {

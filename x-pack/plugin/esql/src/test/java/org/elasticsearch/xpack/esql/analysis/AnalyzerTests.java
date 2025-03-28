@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
@@ -1628,7 +1629,7 @@ public class AnalyzerTests extends ESTestCase {
         enrichResolution.addError("foo", Enrich.Mode.ANY, "foo-error-101");
 
         AnalyzerContext context = new AnalyzerContext(configuration("from test"), new EsqlFunctionRegistry(), testIndex, enrichResolution);
-        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER, new PlannerProfile(false, ""));
         {
             LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH _coordinator:languages ON x", analyzer);
             List<Enrich> resolved = new ArrayList<>();
@@ -1778,7 +1779,7 @@ public class AnalyzerTests extends ESTestCase {
             )
         );
         AnalyzerContext context = new AnalyzerContext(configuration(query), new EsqlFunctionRegistry(), testIndex, enrichResolution);
-        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER, new PlannerProfile(false, ""));
         LogicalPlan plan = analyze(query, analyzer);
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains("language_name", "language_code"));
@@ -2175,7 +2176,8 @@ public class AnalyzerTests extends ESTestCase {
                 Map.of("foobar", missingLookupIndex),
                 defaultEnrichResolution()
             ),
-            TEST_VERIFIER
+            TEST_VERIFIER,
+            new PlannerProfile(false, "")
         );
 
         String query = "FROM test | LOOKUP JOIN foobar ON last_name";

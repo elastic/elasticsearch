@@ -16,7 +16,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -39,6 +38,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -251,11 +251,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
             final AtomicInteger pagesProduced = new AtomicInteger();
             List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
-            ActionListener<List<DriverProfile>> batchListener = new ActionListener<>() {
-                final ActionListener<List<DriverProfile>> ref = computeListener.acquireCompute();
+            ActionListener<EsqlQueryResponse.Profile> batchListener = new ActionListener<>() {
+                final ActionListener<EsqlQueryResponse.Profile> ref = computeListener.acquireCompute();
 
                 @Override
-                public void onResponse(List<DriverProfile> result) {
+                public void onResponse(EsqlQueryResponse.Profile result) {
                     try {
                         onBatchCompleted(endBatchIndex);
                     } finally {
@@ -269,7 +269,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         for (ShardId shardId : shardIds) {
                             addShardLevelFailure(shardId, e);
                         }
-                        onResponse(List.of());
+                        onResponse(EsqlQueryResponse.Profile.EMPTY);
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
@@ -283,7 +283,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
                 if (searchContexts.isEmpty()) {
-                    batchListener.onResponse(List.of());
+                    batchListener.onResponse(EsqlQueryResponse.Profile.EMPTY);
                     return;
                 }
                 var computeContext = new ComputeContext(

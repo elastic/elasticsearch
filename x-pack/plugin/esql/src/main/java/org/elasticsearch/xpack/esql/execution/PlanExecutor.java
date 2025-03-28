@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
@@ -43,9 +42,16 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
+    private final String nodeName;
     private final EsqlQueryLog queryLog;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState, EsqlQueryLog queryLog) {
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        EsqlQueryLog queryLog,
+        String nodeName
+    ) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
@@ -54,6 +60,7 @@ public class PlanExecutor {
         this.verifier = new Verifier(metrics, licenseState);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
+        this.nodeName = nodeName;
     }
 
     public void esql(
@@ -71,12 +78,13 @@ public class PlanExecutor {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
         final var session = new EsqlSession(
             sessionId,
+            nodeName,
             cfg,
             indexResolver,
             enrichPolicyResolver,
             preAnalyzer,
             functionRegistry,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg, foldContext)),
+            new LogicalOptimizerContext(cfg, foldContext),
             mapper,
             verifier,
             planTelemetry,

@@ -40,6 +40,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -170,7 +171,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
-                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider())
+                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider()),
+                Node.NODE_NAME_SETTING.get(settings)
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

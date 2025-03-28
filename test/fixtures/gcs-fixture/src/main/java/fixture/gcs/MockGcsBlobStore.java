@@ -117,16 +117,10 @@ public class MockGcsBlobStore {
             if (contentRange.hasRange() == false) {
                 // Content-Range: */... is a status check https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
                 if (existing.completed) {
-                    updateResponse.set(
-                        new UpdateResponse(
-                            RestStatus.OK.getStatus(),
-                            calculateRangeHeader(blobs.get(existing.path)),
-                            existing.contents.length()
-                        )
-                    );
+                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), calculateRangeHeader(blobs.get(existing.path))));
                 } else {
                     final HttpHeaderParser.Range range = calculateRangeHeader(existing);
-                    updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, range, existing.contents.length()));
+                    updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, range));
                 }
                 return existing;
             } else {
@@ -152,11 +146,11 @@ public class MockGcsBlobStore {
                 // We just received the last chunk, update the blob and remove the resumable upload from the map
                 if (contentRange.hasSize() && updatedContent.length() == contentRange.size()) {
                     updateBlob(existing.path(), existing.ifGenerationMatch, updatedContent);
-                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), null, updatedContent.length()));
+                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), null));
                     return existing.update(BytesArray.EMPTY, true);
                 }
                 final ResumableUpload updated = existing.update(updatedContent, false);
-                updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, calculateRangeHeader(updated), updated.contents.length()));
+                updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, calculateRangeHeader(updated)));
                 return updated;
             }
         });
@@ -172,7 +166,7 @@ public class MockGcsBlobStore {
         return blob.contents.length() > 0 ? new HttpHeaderParser.Range(0, blob.contents.length() - 1) : null;
     }
 
-    record UpdateResponse(int statusCode, HttpHeaderParser.Range rangeHeader, long storedContentLength) {}
+    record UpdateResponse(int statusCode, HttpHeaderParser.Range rangeHeader) {}
 
     void deleteBlob(String path) {
         blobs.remove(path);

@@ -35,6 +35,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.ClassRule;
@@ -87,6 +88,10 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @TestLogging(
+        reason = "understanding why ipinfo asn database sometimes is not loaded",
+        value = "org.elasticsearch.ingest.geoip.DatabaseNodeService:TRACE"
+    )
     public void testEnterpriseDownloaderTask() throws Exception {
         /*
          * This test starts the enterprise geoip downloader task, and creates a database configuration. Then it creates an ingest
@@ -121,17 +126,17 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
             assertNotNull(returnedSource);
             Object targetFieldValue = returnedSource.get(targetField);
             assertNotNull(targetFieldValue);
-            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("Bredband2 AB"));
+            assertThat(((Map<String, Object>) targetFieldValue).get("city_name"), equalTo("Linköping"));
         });
         assertBusy(() -> {
             logger.info("Ingesting another test document");
-            String documentId = ingestDocument(indexName, iplocationPipelineName, sourceField, "12.10.66.1");
+            String documentId = ingestDocument(indexName, iplocationPipelineName, sourceField, "103.134.48.0");
             GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
             Map<String, Object> returnedSource = getResponse.getSource();
             assertNotNull(returnedSource);
             Object targetFieldValue = returnedSource.get(targetField);
             assertNotNull(targetFieldValue);
-            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("OAKLAWN JOCKEY CLUB, INC."));
+            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("PT Nevigate Telekomunikasi Indonesia"));
         });
     }
 

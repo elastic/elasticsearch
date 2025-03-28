@@ -907,7 +907,7 @@ public class EsqlCapabilities {
         /**
          * Use double parameter markers to represent field or function names.
          */
-        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot()),
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS,
 
         /**
          * Non full text functions do not contribute to score
@@ -920,6 +920,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * The {@code _query} API now reports the original types.
+         */
+        REPORT_ORIGINAL_TYPES,
+
+        /**
          * The metrics command
          */
         METRICS_COMMAND(Build.current().isSnapshot()),
@@ -927,7 +932,12 @@ public class EsqlCapabilities {
         /**
          * Index component selector syntax (my-data-stream-name::failures)
          */
-        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled());
+        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+
+        /**
+         * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
+         */
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT;
 
         private final boolean enabled;
 

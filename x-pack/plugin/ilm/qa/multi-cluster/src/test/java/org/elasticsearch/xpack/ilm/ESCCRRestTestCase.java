@@ -408,4 +408,3 @@ public abstract class ESCCRRestTestCase extends ESRestTestCase {
     }
 
 }
-

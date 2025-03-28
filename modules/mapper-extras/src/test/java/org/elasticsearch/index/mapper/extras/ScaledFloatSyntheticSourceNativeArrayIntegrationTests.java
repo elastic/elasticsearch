@@ -21,6 +21,8 @@ import java.util.Collection;
 import static java.util.Collections.singletonList;
 
 public class ScaledFloatSyntheticSourceNativeArrayIntegrationTests extends NativeArrayIntegrationTestCase {
+    private static final double TEST_SCALING_FACTOR = 10.0;
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return singletonList(MapperExtrasPlugin.class);
@@ -28,17 +30,18 @@ public class ScaledFloatSyntheticSourceNativeArrayIntegrationTests extends Nativ
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "scaled_float").field("scaling_factor", 10.0);
+        b.field("type", "scaled_float").field("scaling_factor", TEST_SCALING_FACTOR);
     }
 
     @Override
     protected String getFieldTypeName() {
+        fail("Should not be called because minimalMapping is overridden");
         return null;
     }
 
     @Override
     protected Object getRandomValue() {
-        return randomLong() / 10.0;
+        return randomLong() / TEST_SCALING_FACTOR;
     }
 
     @Override

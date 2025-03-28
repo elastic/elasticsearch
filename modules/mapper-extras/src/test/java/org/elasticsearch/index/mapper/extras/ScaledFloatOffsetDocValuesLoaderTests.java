@@ -19,6 +19,7 @@ import java.util.Collection;
 import static java.util.Collections.singletonList;
 
 public class ScaledFloatOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTestCase {
+    private static final double TEST_SCALING_FACTOR = 10.0;
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -27,7 +28,7 @@ public class ScaledFloatOffsetDocValuesLoaderTests extends OffsetDocValuesLoader
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "scaled_float").field("scaling_factor", 10.0);
+        b.field("type", "scaled_float").field("scaling_factor", TEST_SCALING_FACTOR);
     }
 
     public void testOffsetArray() throws Exception {
@@ -37,11 +38,12 @@ public class ScaledFloatOffsetDocValuesLoaderTests extends OffsetDocValuesLoader
 
     @Override
     protected String getFieldTypeName() {
+        fail("Should not be called because minimalMapping is overridden");
         return null;
     }
 
     @Override
     protected Double randomValue() {
-        return randomLong() / 10.0;
+        return randomLong() / TEST_SCALING_FACTOR;
     }
 }

@@ -7,12 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+package org.elasticsearch.gradle.internal.distribution;
 
-dependencies {
-  internalClusterTestImplementation project(":test:framework")
-  internalClusterTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  internalClusterTestImplementation project(':modules:rest-root')
-  clusterModules project(":modules:rest-root")
+import org.elasticsearch.gradle.ElasticsearchDistributionType;
+
+public class DockerFipsElasticsearchDistributionType implements ElasticsearchDistributionType {
+
+    DockerFipsElasticsearchDistributionType() {}
+
+    @Override
+    public String getName() {
+        return "dockerFips";
+    }
+
+    @Override
+    public boolean isDocker() {
+        return true;
+    }
 }

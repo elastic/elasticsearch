@@ -480,121 +480,167 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Enterprise extends AbstractBase<EnterpriseResponse, EnterpriseResponse> {
+    record CacheableEnterpriseResponse(
+        Integer countryConfidence,
+        Boolean isInEuropeanUnion,
+        String countryIsoCode,
+        String countryName,
+        String continentCode,
+        String continentName,
+        String regionIsoCode,
+        String regionName,
+        Integer cityConfidence,
+        String cityName,
+        String timezone,
+        Double latitude,
+        Double longitude,
+        Integer accuracyRadius,
+        String postalCode,
+        Integer postalConfidence,
+        Long asn,
+        String organizationName,
+        boolean isHostingProvider,
+        boolean isTorExitNode,
+        boolean isAnonymousVpn,
+        boolean isAnonymous,
+        boolean isPublicProxy,
+        boolean isResidentialProxy,
+        String domain,
+        String isp,
+        String ispOrganization,
+        String mobileCountryCode,
+        String mobileNetworkCode,
+        String userType,
+        String connectionType,
+        Boolean registeredCountryIsInEuropeanUnion,
+        String registeredCountryIsoCode,
+        String registeredCountryName
+    ) {}
+
+    static class Enterprise extends AbstractBase<EnterpriseResponse, Result<CacheableEnterpriseResponse>> {
         Enterprise(final Set<Database.Property> properties) {
             super(properties, EnterpriseResponse.class, EnterpriseResponse::new);
         }
 
         @Override
-        protected EnterpriseResponse cacheableRecord(EnterpriseResponse response) {
-            return response;
+        protected Result<CacheableEnterpriseResponse> cacheableRecord(EnterpriseResponse response) {
+            final com.maxmind.geoip2.record.Country country = response.getCountry();
+            final Continent continent = response.getContinent();
+            final Subdivision subdivision = response.getMostSpecificSubdivision();
+            final com.maxmind.geoip2.record.City city = response.getCity();
+            final Location location = response.getLocation();
+            final Postal postal = response.getPostal();
+            final com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
+            final Traits traits = response.getTraits();
+
+            return new Result<>(
+                new CacheableEnterpriseResponse(
+                    country.getConfidence(),
+                    isInEuropeanUnion(country),
+                    country.getIsoCode(),
+                    country.getName(),
+                    continent.getCode(),
+                    continent.getName(),
+                    regionIsoCode(country, subdivision),
+                    subdivision.getName(),
+                    city.getConfidence(),
+                    city.getName(),
+                    location.getTimeZone(),
+                    location.getLatitude(),
+                    location.getLongitude(),
+                    location.getAccuracyRadius(),
+                    postal.getCode(),
+                    postal.getConfidence(),
+                    traits.getAutonomousSystemNumber(),
+                    traits.getAutonomousSystemOrganization(),
+                    traits.isHostingProvider(),
+                    traits.isTorExitNode(),
+                    traits.isAnonymousVpn(),
+                    traits.isAnonymous(),
+                    traits.isPublicProxy(),
+                    traits.isResidentialProxy(),
+                    traits.getDomain(),
+                    traits.getIsp(),
+                    traits.getOrganization(),
+                    traits.getMobileCountryCode(),
+                    traits.getMobileNetworkCode(),
+                    traits.getUserType(),
+                    traits.getConnectionType() == null ? null : traits.getConnectionType().toString(),
+                    isInEuropeanUnion(registeredCountry),
+                    registeredCountry.getIsoCode(),
+                    registeredCountry.getName()
+                ),
+                traits.getIpAddress(),
+                traits.getNetwork().toString()
+            );
         }
 
         @Override
-        protected Map<String, Object> transform(final EnterpriseResponse response) {
-            com.maxmind.geoip2.record.Country country = response.getCountry();
-            com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
-            com.maxmind.geoip2.record.City city = response.getCity();
-            Location location = response.getLocation();
-            Continent continent = response.getContinent();
-            Subdivision subdivision = response.getMostSpecificSubdivision();
-            Postal postal = response.getPostal();
-
-            Long asn = response.getTraits().getAutonomousSystemNumber();
-            String organizationName = response.getTraits().getAutonomousSystemOrganization();
-            Network network = response.getTraits().getNetwork();
-
-            String isp = response.getTraits().getIsp();
-            String ispOrganization = response.getTraits().getOrganization();
-            String mobileCountryCode = response.getTraits().getMobileCountryCode();
-            String mobileNetworkCode = response.getTraits().getMobileNetworkCode();
-
-            boolean isHostingProvider = response.getTraits().isHostingProvider();
-            boolean isTorExitNode = response.getTraits().isTorExitNode();
-            boolean isAnonymousVpn = response.getTraits().isAnonymousVpn();
-            boolean isAnonymous = response.getTraits().isAnonymous();
-            boolean isPublicProxy = response.getTraits().isPublicProxy();
-            boolean isResidentialProxy = response.getTraits().isResidentialProxy();
-
-            String userType = response.getTraits().getUserType();
-
-            String domain = response.getTraits().getDomain();
-
-            ConnectionTypeResponse.ConnectionType connectionType = response.getTraits().getConnectionType();
+        protected Map<String, Object> transform(final Result<CacheableEnterpriseResponse> result) {
+            CacheableEnterpriseResponse response = result.result();
 
             Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", response.getTraits().getIpAddress());
+                    case IP -> data.put("ip", result.ip());
                     case COUNTRY_CONFIDENCE -> {
-                        Integer countryConfidence = country.getConfidence();
-                        if (countryConfidence != null) {
-                            data.put("country_confidence", countryConfidence);
+                        if (response.countryConfidence != null) {
+                            data.put("country_confidence", response.countryConfidence);
                         }
                     }
                     case COUNTRY_IN_EUROPEAN_UNION -> {
-                        Boolean isInEuropeanUnion = isInEuropeanUnion(country);
-                        if (isInEuropeanUnion != null) {
-                            data.put("country_in_european_union", isInEuropeanUnion);
+                        if (response.isInEuropeanUnion != null) {
+                            data.put("country_in_european_union", response.isInEuropeanUnion);
                         }
                     }
                     case COUNTRY_ISO_CODE -> {
-                        String countryIsoCode = country.getIsoCode();
-                        if (countryIsoCode != null) {
-                            data.put("country_iso_code", countryIsoCode);
+                        if (response.countryIsoCode != null) {
+                            data.put("country_iso_code", response.countryIsoCode);
                         }
                     }
                     case COUNTRY_NAME -> {
-                        String countryName = country.getName();
-                        if (countryName != null) {
-                            data.put("country_name", countryName);
+                        if (response.countryName != null) {
+                            data.put("country_name", response.countryName);
                         }
                     }
                     case CONTINENT_CODE -> {
-                        String continentCode = continent.getCode();
-                        if (continentCode != null) {
-                            data.put("continent_code", continentCode);
+                        if (response.continentCode != null) {
+                            data.put("continent_code", response.continentCode);
                         }
                     }
                     case CONTINENT_NAME -> {
-                        String continentName = continent.getName();
-                        if (continentName != null) {
-                            data.put("continent_name", continentName);
+                        if (response.continentName != null) {
+                            data.put("continent_name", response.continentName);
                         }
                     }
                     case REGION_ISO_CODE -> {
-                        String regionIsoCode = regionIsoCode(country, subdivision);
-                        if (regionIsoCode != null) {
-                            data.put("region_iso_code", regionIsoCode);
+                        if (response.regionIsoCode != null) {
+                            data.put("region_iso_code", response.regionIsoCode);
                         }
                     }
                     case REGION_NAME -> {
-                        String subdivisionName = subdivision.getName();
-                        if (subdivisionName != null) {
-                            data.put("region_name", subdivisionName);
+                        if (response.regionName != null) {
+                            data.put("region_name", response.regionName);
                         }
                     }
                     case CITY_CONFIDENCE -> {
-                        Integer cityConfidence = city.getConfidence();
-                        if (cityConfidence != null) {
-                            data.put("city_confidence", cityConfidence);
+                        if (response.cityConfidence != null) {
+                            data.put("city_confidence", response.cityConfidence);
                         }
                     }
                     case CITY_NAME -> {
-                        String cityName = city.getName();
-                        if (cityName != null) {
-                            data.put("city_name", cityName);
+                        if (response.cityName != null) {
+                            data.put("city_name", response.cityName);
                         }
                     }
                     case TIMEZONE -> {
-                        String locationTimeZone = location.getTimeZone();
-                        if (locationTimeZone != null) {
-                            data.put("timezone", locationTimeZone);
+                        if (response.timezone != null) {
+                            data.put("timezone", response.timezone);
                         }
                     }
                     case LOCATION -> {
-                        Double latitude = location.getLatitude();
-                        Double longitude = location.getLongitude();
+                        Double latitude = response.latitude;
+                        Double longitude = response.longitude;
                         if (latitude != null && longitude != null) {
                             Map<String, Object> locationObject = new HashMap<>();
                             locationObject.put("lat", latitude);
@@ -603,103 +649,101 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case ACCURACY_RADIUS -> {
-                        Integer accuracyRadius = location.getAccuracyRadius();
-                        if (accuracyRadius != null) {
-                            data.put("accuracy_radius", accuracyRadius);
+                        if (response.accuracyRadius != null) {
+                            data.put("accuracy_radius", response.accuracyRadius);
                         }
                     }
                     case POSTAL_CODE -> {
-                        if (postal.getCode() != null) {
-                            data.put("postal_code", postal.getCode());
+                        if (response.postalCode != null) {
+                            data.put("postal_code", response.postalCode);
                         }
                     }
                     case POSTAL_CONFIDENCE -> {
-                        if (postal.getConfidence() != null) {
-                            data.put("postal_confidence", postal.getConfidence());
+                        if (response.postalConfidence != null) {
+                            data.put("postal_confidence", response.postalConfidence);
                         }
                     }
                     case ASN -> {
-                        if (asn != null) {
-                            data.put("asn", asn);
+                        if (response.asn != null) {
+                            data.put("asn", response.asn);
                         }
                     }
                     case ORGANIZATION_NAME -> {
-                        if (organizationName != null) {
-                            data.put("organization_name", organizationName);
+                        if (response.organizationName != null) {
+                            data.put("organization_name", response.organizationName);
                         }
                     }
                     case NETWORK -> {
-                        if (network != null) {
-                            data.put("network", network.toString());
+                        if (result.network() != null) {
+                            data.put("network", result.network());
                         }
                     }
                     case HOSTING_PROVIDER -> {
-                        data.put("hosting_provider", isHostingProvider);
+                        data.put("hosting_provider", response.isHostingProvider);
                     }
                     case TOR_EXIT_NODE -> {
-                        data.put("tor_exit_node", isTorExitNode);
+                        data.put("tor_exit_node", response.isTorExitNode);
                     }
                     case ANONYMOUS_VPN -> {
-                        data.put("anonymous_vpn", isAnonymousVpn);
+                        data.put("anonymous_vpn", response.isAnonymousVpn);
                     }
                     case ANONYMOUS -> {
-                        data.put("anonymous", isAnonymous);
+                        data.put("anonymous", response.isAnonymous);
                     }
                     case PUBLIC_PROXY -> {
-                        data.put("public_proxy", isPublicProxy);
+                        data.put("public_proxy", response.isPublicProxy);
                     }
                     case RESIDENTIAL_PROXY -> {
-                        data.put("residential_proxy", isResidentialProxy);
+                        data.put("residential_proxy", response.isResidentialProxy);
                     }
                     case DOMAIN -> {
-                        if (domain != null) {
-                            data.put("domain", domain);
+                        if (response.domain != null) {
+                            data.put("domain", response.domain);
                         }
                     }
                     case ISP -> {
-                        if (isp != null) {
-                            data.put("isp", isp);
+                        if (response.isp != null) {
+                            data.put("isp", response.isp);
                         }
                     }
                     case ISP_ORGANIZATION_NAME -> {
-                        if (ispOrganization != null) {
-                            data.put("isp_organization_name", ispOrganization);
+                        if (response.ispOrganization != null) {
+                            data.put("isp_organization_name", response.ispOrganization);
                         }
                     }
                     case MOBILE_COUNTRY_CODE -> {
-                        if (mobileCountryCode != null) {
-                            data.put("mobile_country_code", mobileCountryCode);
+                        if (response.mobileCountryCode != null) {
+                            data.put("mobile_country_code", response.mobileCountryCode);
                         }
                     }
                     case MOBILE_NETWORK_CODE -> {
-                        if (mobileNetworkCode != null) {
-                            data.put("mobile_network_code", mobileNetworkCode);
+                        if (response.mobileNetworkCode != null) {
+                            data.put("mobile_network_code", response.mobileNetworkCode);
                         }
                     }
                     case USER_TYPE -> {
-                        if (userType != null) {
-                            data.put("user_type", userType);
+                        if (response.userType != null) {
+                            data.put("user_type", response.userType);
                         }
                     }
                     case CONNECTION_TYPE -> {
-                        if (connectionType != null) {
-                            data.put("connection_type", connectionType.toString());
+                        if (response.connectionType != null) {
+                            data.put("connection_type", response.connectionType);
                         }
                     }
                     case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
-                        Boolean isInEuropeanUnion = isInEuropeanUnion(registeredCountry);
-                        if (isInEuropeanUnion != null) {
-                            data.put("registered_country_in_european_union", isInEuropeanUnion);
+                        if (response.registeredCountryIsInEuropeanUnion != null) {
+                            data.put("registered_country_in_european_union", response.registeredCountryIsInEuropeanUnion);
                         }
                     }
                     case REGISTERED_COUNTRY_ISO_CODE -> {
-                        if (registeredCountry.getIsoCode() != null) {
-                            data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        if (response.registeredCountryIsoCode != null) {
+                            data.put("registered_country_iso_code", response.registeredCountryIsoCode);
                         }
                     }
                     case REGISTERED_COUNTRY_NAME -> {
-                        if (registeredCountry.getName() != null) {
-                            data.put("registered_country_name", registeredCountry.getName());
+                        if (response.registeredCountryName != null) {
+                            data.put("registered_country_name", response.registeredCountryName);
                         }
                     }
                 }

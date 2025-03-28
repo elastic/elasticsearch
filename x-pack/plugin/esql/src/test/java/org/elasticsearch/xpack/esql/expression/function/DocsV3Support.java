@@ -72,6 +72,21 @@ import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegis
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.param;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.paramWithoutAnnotation;
 
+/**
+ * This class exists to support the new Docs V3 system.
+ * Between Elasticsearch 8.x and 9.0 the reference documents were completely re-written, with several key changes:
+ * <ol>
+ *     <li>Port from ASCIIDOC to MD (markdown)</li>
+ *     <li>Restructures all Elastic docs with clearer separate between reference docs and other docs</li>
+ *     <li>All versions published from the main branch,
+ *     requiring version specific information to be included in the docs as appropriate</li>
+ *     <li>Including sub-docs inside bigger docs works differently, requiring a new directory structure</li>
+ *     <li>Images and Kibana docs cannot be in the same location as snippets</li>
+ * </ol>
+ *
+ * For these reasons the docs generating code that used to live inside <code>AbstractFunctionTestCase</code> has been pulled out
+ * and partially re-written to satisfy the above requirements.
+ */
 public abstract class DocsV3Support {
 
     static final String DOCS_WARNING =
@@ -190,6 +205,7 @@ public abstract class DocsV3Support {
         operatorEntry("match_operator", ":", MatchOperator.class, OperatorCategory.SEARCH)
     );
 
+    /** Each grouping represents a subsection in the docs. Currently, this is manually maintained, but could be partially automated */
     public enum OperatorCategory {
         BINARY,
         UNARY,
@@ -200,6 +216,7 @@ public abstract class DocsV3Support {
         SEARCH
     }
 
+    /** Since operators do not exist in the function registry, we need an equivalent registry here in the docs generating code */
     public record OperatorConfig(String name, String symbol, Class<?> clazz, OperatorCategory category, boolean variadic) {}
 
     private static Map.Entry<String, OperatorConfig> operatorEntry(
@@ -213,7 +230,7 @@ public abstract class DocsV3Support {
     }
 
     private static Map.Entry<String, OperatorConfig> operatorEntry(String name, String symbol, Class<?> clazz, OperatorCategory category) {
-        return entry(name, new OperatorConfig(name, symbol, clazz, category, false));
+        return operatorEntry(name, symbol, clazz, category, false);
     }
 
     protected final String category;
@@ -235,7 +252,7 @@ public abstract class DocsV3Support {
     private String replaceAsciidocLinks(String text) {
         Pattern pattern = Pattern.compile("<<([^>]*)>>");
         Matcher matcher = pattern.matcher(text);
-        StringBuffer result = new StringBuffer();
+        StringBuilder result = new StringBuilder();
         while (matcher.find()) {
             String match = matcher.group(1);
             matcher.appendReplacement(result, getLink(match));
@@ -245,10 +262,10 @@ public abstract class DocsV3Support {
     }
 
     private String replaceMacros(String text) {
-        Pattern pattern = Pattern.compile("\\{([^}]+)}(/[^\\[]+)\\[([^]]+)\\]");
+        Pattern pattern = Pattern.compile("\\{([^}]+)}(/[^\\[]+)\\[([^]]+)]");
 
         Matcher matcher = pattern.matcher(text);
-        StringBuffer result = new StringBuffer();
+        StringBuilder result = new StringBuilder();
         while (matcher.find()) {
             String macro = matcher.group(1);
             String path = matcher.group(2);
@@ -385,9 +402,9 @@ public abstract class DocsV3Support {
         protected void renderSignature() throws IOException {
             String rendered = buildFunctionSignatureSvg();
             if (rendered == null) {
-                logger.info("Skipping rendering signature because the function isn't registered");
+                logger.info("Skipping rendering signature because the function '{}' isn't registered", name);
             } else {
-                logger.info("Writing function signature");
+                logger.info("Writing function signature: {}", name);
                 writeToTempImageDir(rendered);
             }
         }
@@ -395,6 +412,15 @@ public abstract class DocsV3Support {
         @Override
         protected void renderDocs() throws IOException {
             FunctionDefinition definition = definition(name);
+            if (definition == null) {
+                logger.info("Skipping rendering docs because the function '{}' isn't registered", name);
+            } else {
+                logger.info("Rendering function docs: {}", name);
+                renderDocs(definition);
+            }
+        }
+
+        private void renderDocs(FunctionDefinition definition) throws IOException {
             EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
             if (name.equals("case")) {
                 /*
@@ -559,6 +585,7 @@ public abstract class DocsV3Support {
         }
     }
 
+    /** Operator specific docs generating, since it is currently quite different from the function docs generating */
     public static class OperatorsDocsSupport extends DocsV3Support {
         private final OperatorConfig op;
 
@@ -750,21 +777,7 @@ public abstract class DocsV3Support {
             if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
-            StringBuilder b = new StringBuilder("| ");
-            for (int i = 0; i < sig.getKey().size(); i++) {
-                DataType argType = sig.getKey().get(i);
-                EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
-                if (argSignature.mapArg()) {
-                    b.append("named parameters");
-                } else {
-                    b.append(argType.esNameIfPossible());
-                }
-                b.append(" | ");
-            }
-            b.append("| ".repeat(argNames.size() - sig.getKey().size()));
-            b.append(sig.getValue().esNameIfPossible());
-            b.append(" |");
-            table.add(b.toString());
+            table.add(getTypeRow(args, sig, argNames));
         }
         Collections.sort(table);
         if (table.isEmpty()) {
@@ -775,9 +788,31 @@ public abstract class DocsV3Support {
         String rendered = DOCS_WARNING + """
             **Supported types**
 
-            """ + header + "\n" + separator + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n\n";
+            """ + header + "\n" + separator + "\n" + String.join("\n", table) + "\n\n";
         logger.info("Writing function types for [{}]:\n{}", name, rendered);
         writeToTempSnippetsDir("types", rendered);
+    }
+
+    private static String getTypeRow(
+        List<EsqlFunctionRegistry.ArgSignature> args,
+        Map.Entry<List<DataType>, DataType> sig,
+        List<String> argNames
+    ) {
+        StringBuilder b = new StringBuilder("| ");
+        for (int i = 0; i < sig.getKey().size(); i++) {
+            DataType argType = sig.getKey().get(i);
+            EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
+            if (argSignature.mapArg()) {
+                b.append("named parameters");
+            } else {
+                b.append(argType.esNameIfPossible());
+            }
+            b.append(" | ");
+        }
+        b.append("| ".repeat(argNames.size() - sig.getKey().size()));
+        b.append(sig.getValue().esNameIfPossible());
+        b.append(" |");
+        return b.toString();
     }
 
     void renderDescription(String description, String detailedDescription, String note) throws IOException {
@@ -813,14 +848,14 @@ public abstract class DocsV3Support {
             builder.append("**Examples**\n\n");
         }
         for (Example example : info.examples()) {
-            if (example.description().length() > 0) {
+            if (example.description().isEmpty() == false) {
                 builder.append(replaceLinks(example.description().trim()));
                 builder.append("\n\n");
             }
             String exampleQuery = loadExampleQuery(example);
             String exampleResult = loadExampleResult(example);
             builder.append(exampleQuery).append("\n").append(exampleResult).append("\n");
-            if (example.explanation().length() > 0) {
+            if (example.explanation().isEmpty() == false) {
                 builder.append("\n");
                 builder.append(replaceLinks(example.explanation().trim()));
                 builder.append("\n\n");
@@ -954,12 +989,12 @@ public abstract class DocsV3Support {
     }
 
     private String removeAsciidocLinks(String asciidoc) {
-        return asciidoc.replaceAll("[^ ]+\\[([^\\]]+)\\]", "$1");
+        return asciidoc.replaceAll("[^ ]+\\[([^]]+)]", "$1");
     }
 
     private List<Map.Entry<List<DataType>, DataType>> sortedSignatures() {
         List<Map.Entry<List<DataType>, DataType>> sortedSignatures = new ArrayList<>(signatures.get().entrySet());
-        Collections.sort(sortedSignatures, (lhs, rhs) -> {
+        sortedSignatures.sort((lhs, rhs) -> {
             int maxlen = Math.max(lhs.getKey().size(), rhs.getKey().size());
             for (int i = 0; i < maxlen; i++) {
                 if (lhs.getKey().size() <= i) {
@@ -990,7 +1025,7 @@ public abstract class DocsV3Support {
         return true;
     }
 
-    private HashMap<String, Map<String, String>> examples = new HashMap<>();
+    private final HashMap<String, Map<String, String>> examples = new HashMap<>();
 
     protected String loadExampleQuery(Example example) throws IOException {
         return "```esql\n" + loadExample(example.file(), example.tag()) + "\n```\n";
@@ -1040,7 +1075,7 @@ public abstract class DocsV3Support {
                         currentLines = null;
                         currentTag = null;
                     }
-                } else if (currentTag != null) {
+                } else if (currentTag != null && currentLines != null) {
                     currentLines.add(line); // Collect lines within the block
                 }
             }
@@ -1050,7 +1085,7 @@ public abstract class DocsV3Support {
 
     protected String reformatExample(String tag, List<String> lines) {
         if (tag.endsWith("-result")) {
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
             for (String line : lines) {
                 sb.append(renderTableLine(line, sb.isEmpty()));
             }
@@ -1070,7 +1105,7 @@ public abstract class DocsV3Support {
     }
 
     private String renderTableLine(String[] columns) {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append("| ");
         for (int i = 0; i < columns.length; i++) {
             if (i > 0) {
@@ -1083,7 +1118,7 @@ public abstract class DocsV3Support {
     }
 
     private String renderTableSpacerLine(int columns) {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append("| ");
         for (int i = 0; i < columns; i++) {
             if (i > 0) {

@@ -915,6 +915,19 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         );
         assertThat(bulkFailedError.getMessage(), containsString("selectors [::] are not allowed in the index name expression"));
 
+        expectThrowsSelectorsNotAllowed(() -> createApiKey("user", Strings.format("""
+            {
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [
+                        {
+                            "names": ["%s"],
+                            "privileges": ["%s"]
+                        }
+                    ]
+                }
+            }""", randomFrom("*::failures", "test1::failures", "test1::data", "*::data"), randomFrom("read", "read_failure_store"))));
+
     }
 
     public void testFailureStoreAccess() throws Exception {

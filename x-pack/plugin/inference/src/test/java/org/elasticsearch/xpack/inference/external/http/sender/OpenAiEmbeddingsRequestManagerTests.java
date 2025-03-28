@@ -12,7 +12,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiEmbeddingsRequest;
 
-import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator.EMBEDDINGS_HANDLER;
+import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.EMBEDDINGS_HANDLER;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
 
 public class OpenAiEmbeddingsRequestManagerTests {

@@ -14,7 +14,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.amazonbedrock.AmazonBedrockActionVisitor;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.action.AmazonBedrockActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;

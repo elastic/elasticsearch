@@ -124,11 +124,11 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
 
     private static Iterator<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)
         throws IOException {
-        if (DONE_MESSAGE.equalsIgnoreCase(event.value())) {
+        if (DONE_MESSAGE.equalsIgnoreCase(event.data())) {
             return Collections.emptyIterator();
         }
 
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.value())) {
+        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.data())) {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();

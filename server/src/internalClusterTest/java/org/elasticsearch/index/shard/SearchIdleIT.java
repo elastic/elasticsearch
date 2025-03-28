@@ -235,11 +235,11 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
     }
 
     public void testSearchIdleBoolQueryMatchOneIndex() throws InterruptedException {
-        checkSearchIdleBoolQueryMatchOneIndex(IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
+        checkSearchIdleBoolQueryMatchOneIndex(IndexSettings.DOC_VALUES_SKIPPER);
     }
 
     public void testSearchIdleBoolQueryMatchOneIndexWithDocValuesSkipper() throws InterruptedException {
-        assumeTrue("doc values skipper feature should be enabled", IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
+        assumeTrue("doc values skipper feature should be enabled", IndexSettings.DOC_VALUES_SKIPPER);
         checkSearchIdleBoolQueryMatchOneIndex(false);
     }
 

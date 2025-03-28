@@ -414,10 +414,7 @@ public class SqlParserTests extends ESTestCase {
 
     public void testIndexNameClusterSeletorCombined() {
         ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT * FROM cluster:foo::failures"));
-        assertThat(
-            e.getMessage(),
-            containsString("mismatched input '::' expecting {")
-        );
+        assertThat(e.getMessage(), containsString("mismatched input '::' expecting {"));
     }
 
     private LogicalPlan parseStatement(String sql) {

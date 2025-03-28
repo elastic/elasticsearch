@@ -753,7 +753,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private static LogicalPlan rel() {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, "catalog", "index", "data"), "", false);
+        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, "catalog", "index", null), "", false);
     }
 
     private static KeyedFilter keyedFilter(LogicalPlan child) {

@@ -11,6 +11,7 @@ package org.elasticsearch.action.datastreams.autosharding;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexingStats;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalDouble;
@@ -207,13 +209,7 @@ public class DataStreamAutoShardingService {
      * <p>The NO_CHANGE_REQUIRED type will potentially report the remaining cooldown always report a cool down period of TimeValue.ZERO (as
      * there'll be no new auto sharding event)
      */
-    public AutoShardingResult calculate(
-        ProjectState state,
-        DataStream dataStream,
-        @Nullable Double writeIndexLoad,
-        @Nullable Double writeIndexRecentLoad,
-        @Nullable Double writeIndexPeakLoad
-    ) {
+    public AutoShardingResult calculate(ProjectState state, DataStream dataStream, IndexStats writeIndexStats) {
         if (isAutoShardingEnabled == false) {
             logger.debug("Data stream auto-sharding service is not enabled.");
             return NOT_APPLICABLE_RESULT;
@@ -228,17 +224,20 @@ public class DataStreamAutoShardingService {
             return NOT_APPLICABLE_RESULT;
         }
 
-        Double writeIndexLoadForIncrease = pickMetric(increaseShardsMetric, writeIndexLoad, writeIndexRecentLoad, writeIndexPeakLoad);
-        Double writeIndexLoadForDecrease = pickMetric(decreaseShardsMetric, writeIndexLoad, writeIndexRecentLoad, writeIndexPeakLoad);
-
-        if (writeIndexLoadForIncrease == null || writeIndexLoadForDecrease == null) {
+        if (writeIndexStats == null) {
             logger.debug(
                 "Data stream auto-sharding service cannot compute the optimal number of shards for data stream [{}] as the write index "
-                    + "loads are not available",
+                    + "stats are not available",
                 dataStream.getName()
             );
             return NOT_APPLICABLE_RESULT;
         }
+
+        double writeIndexLoad = sumLoadMetrics(writeIndexStats, IndexingStats.Stats::getWriteLoad);
+        double writeIndexRecentLoad = sumLoadMetrics(writeIndexStats, IndexingStats.Stats::getRecentWriteLoad);
+        double writeIndexPeakLoad = sumLoadMetrics(writeIndexStats, IndexingStats.Stats::getPeakWriteLoad);
+        double writeIndexLoadForIncrease = pickMetric(increaseShardsMetric, writeIndexLoad, writeIndexRecentLoad, writeIndexPeakLoad);
+        double writeIndexLoadForDecrease = pickMetric(decreaseShardsMetric, writeIndexLoad, writeIndexRecentLoad, writeIndexPeakLoad);
 
         logger.trace(
             "Data stream auto-sharding service calculating recommendation with all-time load {}, recent load {}, peak load {}, "
@@ -251,6 +250,16 @@ public class DataStreamAutoShardingService {
         );
 
         return innerCalculate(state.metadata(), dataStream, writeIndexLoadForIncrease, writeIndexLoadForDecrease, nowSupplier);
+    }
+
+    private static double sumLoadMetrics(IndexStats stats, Function<IndexingStats.Stats, Double> loadMetric) {
+        return Arrays.stream(stats.getShards())
+            .filter(shardStats -> shardStats.getStats().indexing != null)
+            // only take primaries into account as in stateful the replicas also index data
+            .filter(shardStats -> shardStats.getShardRouting().primary())
+            .map(shardStats -> shardStats.getStats().indexing.getTotal())
+            .map(loadMetric)
+            .reduce(0.0, Double::sum);
     }
 
     private AutoShardingResult innerCalculate(

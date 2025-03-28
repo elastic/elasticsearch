@@ -53,7 +53,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -69,7 +68,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -280,19 +278,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(resolvedRolloverTarget.resource());
                 if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
                     DataStream dataStream = (DataStream) indexAbstraction;
-                    final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
-                        .map(stats -> stats.getIndex(dataStream.getWriteIndex().getName()));
-                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(
-                        projectState,
-                        dataStream,
-                        indexStats.map(stats -> sumLoadMetrics(stats, IndexingStats.Stats::getWriteLoad)).orElse(null),
-                        indexStats.map(stats -> sumLoadMetrics(stats, IndexingStats.Stats::getRecentWriteLoad)).orElse(null),
-                        indexStats.map(stats -> sumLoadMetrics(stats, IndexingStats.Stats::getPeakWriteLoad)).orElse(null)
-                    );
+                    IndexStats indexStats = statsResponse != null ? statsResponse.getIndex(dataStream.getWriteIndex().getName()) : null;
+                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(projectState, dataStream, indexStats);
                     logger.debug("auto sharding result for data stream [{}] is [{}]", dataStream.getName(), rolloverAutoSharding);
 
                     // if auto sharding recommends increasing the number of shards we want to trigger a rollover even if there are no
-                    // other "regular" conditions matching (we want to aggressively increse the number of shards) so we're adding the
+                    // other "regular" conditions matching (we want to aggressively increase the number of shards) so we're adding the
                     // automatic {@link OptimalShardCountCondition} to the rollover request conditions so it gets evaluated and triggers
                     // the rollover operation (having this condition met will also provide a useful paper trail as it'll get stored in
                     // the {@link org.elasticsearch.action.admin.indices.rollover.RolloverInfo#metConditions} )
@@ -350,16 +341,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 }
             })
         );
-    }
-
-    private static Double sumLoadMetrics(IndexStats stats, Function<IndexingStats.Stats, Double> loadMetric) {
-        return Arrays.stream(stats.getShards())
-            .filter(shardStats -> shardStats.getStats().indexing != null)
-            // only take primaries into account as in stateful the replicas also index data
-            .filter(shardStats -> shardStats.getShardRouting().primary())
-            .map(shardStats -> shardStats.getStats().indexing.getTotal())
-            .map(loadMetric)
-            .reduce(0.0, Double::sum);
     }
 
     private void markForLazyRollover(

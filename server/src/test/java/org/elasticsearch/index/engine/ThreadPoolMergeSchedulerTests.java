@@ -197,13 +197,10 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount)
             .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount)
             .build();
-        AtomicBoolean isIndexingThrottlingEnabled = new AtomicBoolean(false);
-        ThreadPoolMergeScheduler threadPoolMergeScheduler = new TestThreadPoolMergeScheduler(
+        TestThreadPoolMergeScheduler threadPoolMergeScheduler = new TestThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
-            threadPoolMergeExecutorService,
-            (numRunningMerges, numQueuedMerges) -> isIndexingThrottlingEnabled.set(true),
-            (numRunningMerges, numQueuedMerges) -> isIndexingThrottlingEnabled.set(false)
+            threadPoolMergeExecutorService
         );
         int mergesToRun = randomIntBetween(0, 5);
         // make sure there are more merges submitted and not run
@@ -252,7 +249,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 }
             }
             // assert IO throttle state
-            assertThat(isIndexingThrottlingEnabled.get(), is(expectIndexThrottling));
+            assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(expectIndexThrottling));
         }
         // execute all remaining merges (submitted or scheduled)
         while (submittedMergeTasks.isEmpty() == false || scheduledToRunMergeTasks.isEmpty() == false) {
@@ -279,10 +276,10 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 }
             }
             // assert IO throttle state
-            assertThat(isIndexingThrottlingEnabled.get(), is(expectIndexThrottling));
+            assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(expectIndexThrottling));
         }
         // all merges done
-        assertThat(isIndexingThrottlingEnabled.get(), is(false));
+        assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(false));
     }
 
     public void testMergeSourceWithFollowUpMergesRunSequentially() throws Exception {
@@ -607,29 +604,28 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     }
 
     static class TestThreadPoolMergeScheduler extends ThreadPoolMergeScheduler {
-        private BiConsumer<Integer, Integer> enableIndexingThrottlingHook;
-        private BiConsumer<Integer, Integer> disableIndexingThrottlingHook;
+        AtomicBoolean isIndexingThrottlingEnabled = new AtomicBoolean(false);
 
         TestThreadPoolMergeScheduler(
             ShardId shardId,
             IndexSettings indexSettings,
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
-            BiConsumer<Integer, Integer> enableIndexingThrottlingHook,
-            BiConsumer<Integer, Integer> disableIndexingThrottlingHook
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService
         ) {
             super(shardId, indexSettings, threadPoolMergeExecutorService);
-            this.enableIndexingThrottlingHook = enableIndexingThrottlingHook;
-            this.disableIndexingThrottlingHook = disableIndexingThrottlingHook;
         }
 
         @Override
         protected void enableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
-            enableIndexingThrottlingHook.accept(numRunningMerges, numQueuedMerges);
+            isIndexingThrottlingEnabled.set(true);
         }
 
         @Override
         protected void disableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
-            disableIndexingThrottlingHook.accept(numRunningMerges, numQueuedMerges);
+            isIndexingThrottlingEnabled.set(false);
+        }
+
+        boolean isIndexingThrottlingEnabled() {
+            return isIndexingThrottlingEnabled.get();
         }
     }
 }

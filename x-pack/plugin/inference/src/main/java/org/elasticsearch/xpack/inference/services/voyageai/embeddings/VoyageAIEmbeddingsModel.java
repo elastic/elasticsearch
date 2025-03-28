@@ -14,13 +14,13 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.voyageai.VoyageAIActionVisitor;
 import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
+import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionVisitor;
 
 import java.net.URI;
 import java.net.URISyntaxException;

@@ -1368,7 +1368,16 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, Property... properties) {
         final boolean isFiltered = isFiltered(properties);
-        return new Setting<>(key, Float.toString(defaultValue), (s) -> {
+        return new Setting<>(key, Float.toString(defaultValue), floatParser(key, minValue, properties), properties);
+    }
+
+    public static Setting<Float> floatSetting(String key, Setting<Float> fallbackSetting, float minValue, Property... properties) {
+        return new Setting<>(key, fallbackSetting, floatParser(key, minValue, properties), properties);
+    }
+
+    private static Function<String, Float> floatParser(String key, float minValue, Property... properties) {
+        final boolean isFiltered = isFiltered(properties);
+        return (s) -> {
             float value = Float.parseFloat(s);
             if (value < minValue) {
                 String err = "Failed to parse value"
@@ -1380,7 +1389,7 @@ public class Setting<T> implements ToXContentObject {
                 throw new IllegalArgumentException(err);
             }
             return value;
-        }, properties);
+        };
     }
 
     private static boolean isFiltered(Property[] properties) {

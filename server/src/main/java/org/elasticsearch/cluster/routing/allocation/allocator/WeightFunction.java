@@ -15,95 +15,36 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.ProjectIndex;
 import org.elasticsearch.index.shard.ShardId;
 
-/**
- * This class is the primary weight function used to create balanced over nodes and shards in the cluster.
- * Currently this function has 3 properties:
- * <ul>
- * <li><code>index balance</code> - balance property over shards per index</li>
- * <li><code>shard balance</code> - balance property over shards per cluster</li>
- * </ul>
- * <p>
- * Each of these properties are expressed as factor such that the properties factor defines the relative
- * importance of the property for the weight function. For example if the weight function should calculate
- * the weights only based on a global (shard) balance the index balance can be set to {@code 0.0} and will
- * in turn have no effect on the distribution.
- * </p>
- * The weight per index is calculated based on the following formula:
- * <ul>
- * <li>
- * <code>weight<sub>index</sub>(node, index) = indexBalance * (node.numShards(index) - avgShardsPerNode(index))</code>
- * </li>
- * <li>
- * <code>weight<sub>node</sub>(node, index) = shardBalance * (node.numShards() - avgShardsPerNode)</code>
- * </li>
- * </ul>
- * <code>weight(node, index) = weight<sub>index</sub>(node, index) + weight<sub>node</sub>(node, index)</code>
- */
-public class WeightFunction {
-
-    private final float theta0;
-    private final float theta1;
-    private final float theta2;
-    private final float theta3;
-
-    public WeightFunction(float shardBalance, float indexBalance, float writeLoadBalance, float diskUsageBalance) {
-        float sum = shardBalance + indexBalance + writeLoadBalance + diskUsageBalance;
-        if (sum <= 0.0f) {
-            throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
-        }
-        theta0 = shardBalance / sum;
-        theta1 = indexBalance / sum;
-        theta2 = writeLoadBalance / sum;
-        theta3 = diskUsageBalance / sum;
-    }
+public interface WeightFunction {
 
     float calculateNodeWeightWithIndex(
         BalancedShardsAllocator.Balancer balancer,
         BalancedShardsAllocator.ModelNode node,
-        ProjectIndex index
-    ) {
-        final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-        final float nodeWeight = calculateNodeWeight(
-            node.numShards(),
-            balancer.avgShardsPerNode(),
-            node.writeLoad(),
-            balancer.avgWriteLoadPerNode(),
-            node.diskUsageInBytes(),
-            balancer.avgDiskUsageInBytesPerNode()
-        );
-        return nodeWeight + theta1 * weightIndex;
-    }
+        BalancedShardsAllocator.ProjectIndex index
+    );
 
-    public float calculateNodeWeight(
+    float calculateNodeWeight(
         int nodeNumShards,
         float avgShardsPerNode,
         double nodeWriteLoad,
         double avgWriteLoadPerNode,
         double diskUsageInBytes,
         double avgDiskUsageInBytesPerNode
-    ) {
-        final float weightShard = nodeNumShards - avgShardsPerNode;
-        final float ingestLoad = (float) (nodeWriteLoad - avgWriteLoadPerNode);
-        final float diskUsage = (float) (diskUsageInBytes - avgDiskUsageInBytesPerNode);
-        return theta0 * weightShard + theta2 * ingestLoad + theta3 * diskUsage;
-    }
+    );
 
-    float minWeightDelta(float shardWriteLoad, float shardSizeBytes) {
-        return theta0 * 1 + theta1 * 1 + theta2 * shardWriteLoad + theta3 * shardSizeBytes;
-    }
+    float minWeightDelta(float shardWriteLoad, float shardSizeBytes);
 
-    public static float avgShardPerNode(Metadata metadata, RoutingNodes routingNodes) {
+    static float avgShardPerNode(Metadata metadata, RoutingNodes routingNodes) {
         return ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
     }
 
-    public static double avgWriteLoadPerNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, RoutingNodes routingNodes) {
+    static double avgWriteLoadPerNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, RoutingNodes routingNodes) {
         return getTotalWriteLoad(writeLoadForecaster, metadata) / routingNodes.size();
     }
 
-    public static double avgDiskUsageInBytesPerNode(ClusterInfo clusterInfo, Metadata metadata, RoutingNodes routingNodes) {
+    static double avgDiskUsageInBytesPerNode(ClusterInfo clusterInfo, Metadata metadata, RoutingNodes routingNodes) {
         return ((double) getTotalDiskUsageInBytes(clusterInfo, metadata) / routingNodes.size());
     }
 

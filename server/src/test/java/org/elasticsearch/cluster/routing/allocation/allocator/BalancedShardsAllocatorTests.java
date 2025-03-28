@@ -34,11 +34,11 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.BalancedAllocatorSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -225,7 +225,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var allocationService = new MockAllocationService(
             yesAllocationDeciders(),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(ClusterSettings.createBuiltInClusterSettings(), TEST_WRITE_LOAD_FORECASTER),
+            new BalancedShardsAllocator(BalancedAllocatorSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );

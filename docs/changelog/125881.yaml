@@ -1,0 +1,5 @@
+pr: 125881
+summary: Fix system data stream restore warning
+area: "Infra/Core, Data streams"
+type: bug
+issues: []

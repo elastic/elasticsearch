@@ -32,6 +32,7 @@ import java.util.StringJoiner;
 
 import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -389,6 +390,34 @@ public class SqlParserTests extends ESTestCase {
         UnresolvedRelation relation = (UnresolvedRelation) plan.child();
         assertEquals("foo,bar", relation.table().index());
         assertEquals("elastic", relation.table().cluster());
+    }
+
+    public void testIndexNameDataSelector() {
+        Project plan = project(parseStatement("SELECT * FROM foo::data"));
+
+        assertThat(plan.child(), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation relation = (UnresolvedRelation) plan.child();
+        assertEquals("foo", relation.table().index());
+        assertNull(relation.table().cluster());
+        assertEquals("data", relation.table().selector());
+    }
+
+    public void testIndexNameFailuresSelector() {
+        Project plan = project(parseStatement("SELECT * FROM foo::failures"));
+
+        assertThat(plan.child(), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation relation = (UnresolvedRelation) plan.child();
+        assertEquals("foo", relation.table().index());
+        assertNull(relation.table().cluster());
+        assertEquals("failures", relation.table().selector());
+    }
+
+    public void testIndexNameClusterSeletorCombined() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT * FROM cluster:foo::failures"));
+        assertThat(
+            e.getMessage(),
+            containsString("mismatched input '::' expecting {")
+        );
     }
 
     private LogicalPlan parseStatement(String sql) {

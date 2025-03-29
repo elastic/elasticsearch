@@ -9,9 +9,9 @@ FROM employees
 | KEEP emp_no, languages
 | INLINESTATS max_lang = MAX(languages) 
 | WHERE max_lang == languages
+// end::max-languages[]
 | SORT emp_no ASC
 | LIMIT 5
-// end::max-languages[]
 ;
 
 // tag::max-languages-result[]
@@ -78,9 +78,9 @@ FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY SUBSTRING(last_name, 0, 1)
 | WHERE max_avg_worked_seconds == avg_worked_seconds
+// end::longest-tenured-by-first[]
 | SORT last_name ASC
 | LIMIT 5
-// end::longest-tenured-by-first[]
 ;
 
 // tag::longest-tenured-by-first-result[]

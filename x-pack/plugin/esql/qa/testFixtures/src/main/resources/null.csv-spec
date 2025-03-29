@@ -28,10 +28,10 @@ isNullForDocs
 // tag::is-null[]
 FROM employees
 | WHERE birth_date IS NULL
+// end::is-null[]
 | KEEP first_name, last_name
 | SORT first_name
 | LIMIT 3
-// end::is-null[]
 ;
 
 // tag::is-null-result[]

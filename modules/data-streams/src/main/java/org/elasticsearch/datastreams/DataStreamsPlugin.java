@@ -211,7 +211,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 errorStoreInitialisationService.get(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
-                services.dataStreamGlobalRetentionSettings()
+                services.dataStreamGlobalRetentionSettings(),
+                services.projectResolver()
             )
         );
         dataLifecycleInitialisationService.get().init();

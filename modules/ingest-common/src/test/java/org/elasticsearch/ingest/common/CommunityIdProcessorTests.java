@@ -79,7 +79,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
     public void testBeatsInvalidSourcePort() throws Exception {
         @SuppressWarnings("unchecked")
         var source = (Map<String, Object>) event.get("source");
-        source.put("port", 0);
+        source.put("port", -1);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
         assertThat(e.getMessage(), containsString("invalid source port"));
     }
@@ -298,9 +298,9 @@ public class CommunityIdProcessorTests extends ESTestCase {
         event = buildEvent();
         @SuppressWarnings("unchecked")
         var source = (Map<String, Object>) event.get("source");
-        source.put("port", 0);
+        source.put("port", -1);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
-        assertThat(e.getMessage(), containsString("invalid source port [0]"));
+        assertThat(e.getMessage(), containsString("invalid source port [-1]"));
 
         event = buildEvent();
         @SuppressWarnings("unchecked")
@@ -312,9 +312,9 @@ public class CommunityIdProcessorTests extends ESTestCase {
         event = buildEvent();
         @SuppressWarnings("unchecked")
         var source3 = (Map<String, Object>) event.get("destination");
-        source3.put("port", 0);
+        source3.put("port", -1);
         e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
-        assertThat(e.getMessage(), containsString("invalid destination port [0]"));
+        assertThat(e.getMessage(), containsString("invalid destination port [-1]"));
 
         event = buildEvent();
         @SuppressWarnings("unchecked")

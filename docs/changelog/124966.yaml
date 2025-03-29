@@ -1,0 +1,5 @@
+pr: 124966
+summary: Use logs dir as working directory
+area: Infra/CLI
+type: enhancement
+issues: []

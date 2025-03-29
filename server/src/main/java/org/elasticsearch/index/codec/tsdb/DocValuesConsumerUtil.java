@@ -14,7 +14,6 @@ import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.DocIDMerger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.MergeState;
@@ -40,19 +39,9 @@ import java.util.List;
  */
 class DocValuesConsumerUtil {
 
-    static final MergeStats UNSUPPORTED = new MergeStats(false, -1, -1);
+    static final MergeStats UNSUPPORTED = new MergeStats(false, -1, -1, false);
 
-    abstract static class TsdbDocValuesProducer extends EmptyDocValuesProducer {
-
-        final MergeStats mergeStats;
-
-        TsdbDocValuesProducer(MergeStats mergeStats) {
-            this.mergeStats = mergeStats;
-        }
-
-    }
-
-    record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField) {}
+    record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField, boolean sumNumDocsWithFieldAccurate) {}
 
     static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo fieldInfo)
         throws IOException {
@@ -69,6 +58,8 @@ class DocValuesConsumerUtil {
 
         long sumNumValues = 0;
         int sumNumDocsWithField = 0;
+        // TODO: move numDocsWithField field from SortedNumericEntry to NumericEntry and always store it.
+        boolean sumNumDocsWithFieldAccurate = true;
 
         // TODO bring back codec version check? (per field doc values producer sits between ES87TSDBDocValuesConsumer)
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
@@ -81,6 +72,7 @@ class DocValuesConsumerUtil {
                         sumNumValues += entry.numValues;
                         int numDocsWithField = getNumDocsWithField(entry, mergeState.maxDocs[i]);
                         sumNumDocsWithField += numDocsWithField;
+                        sumNumDocsWithFieldAccurate = false;
                     } else if (numeric != null) {
                         return UNSUPPORTED;
                     }
@@ -99,6 +91,7 @@ class DocValuesConsumerUtil {
                             // In this case the numDocsWithField doesn't get recorded in meta:
                             int numDocsWithField = getNumDocsWithField(entry, mergeState.maxDocs[i]);
                             sumNumDocsWithField += numDocsWithField;
+                            sumNumDocsWithFieldAccurate = false;
                         } else if (sortedNumeric != null) {
                             return UNSUPPORTED;
                         }
@@ -112,6 +105,7 @@ class DocValuesConsumerUtil {
                         // In this case the numDocsWithField doesn't get recorded in meta:v
                         int numDocsWithField = getNumDocsWithField(entry.ordsEntry, mergeState.maxDocs[i]);
                         sumNumDocsWithField += numDocsWithField;
+                        sumNumDocsWithFieldAccurate = false;
                     } else if (sorted != null) {
                         return UNSUPPORTED;
                     }
@@ -130,6 +124,7 @@ class DocValuesConsumerUtil {
                             // In this case the numDocsWithField doesn't get recorded in meta:
                             int numDocsWithField = getNumDocsWithField(entry.ordsEntry, mergeState.maxDocs[i]);
                             sumNumDocsWithField += numDocsWithField;
+                            sumNumDocsWithFieldAccurate = false;
                         } else if (sortedSet != null) {
                             return UNSUPPORTED;
                         }
@@ -139,7 +134,7 @@ class DocValuesConsumerUtil {
             }
         }
 
-        return new MergeStats(true, sumNumValues, sumNumDocsWithField);
+        return new MergeStats(true, sumNumValues, sumNumDocsWithField, sumNumDocsWithFieldAccurate);
     }
 
     private static int getNumDocsWithField(ES87TSDBDocValuesProducer.NumericEntry entry, int maxDoc) {

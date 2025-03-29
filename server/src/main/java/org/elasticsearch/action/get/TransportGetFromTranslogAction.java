@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -77,11 +76,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 );
             long segmentGeneration = -1;
             if (result == null) {
-                Engine engine = indexShard.getEngineOrNull();
-                if (engine == null) {
-                    throw new AlreadyClosedException("engine closed");
-                }
-                segmentGeneration = engine.getLastUnsafeSegmentGenerationForGets();
+                segmentGeneration = indexShard.withEngine(Engine::getLastUnsafeSegmentGenerationForGets);
             }
             return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });

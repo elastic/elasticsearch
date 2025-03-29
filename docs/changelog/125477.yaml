@@ -1,0 +1,6 @@
+pr: 125477
+summary: Prevent get datafeeds stats API returning an error when local tasks are slow to stop
+area: Machine Learning
+type: bug
+issues:
+  - 104160

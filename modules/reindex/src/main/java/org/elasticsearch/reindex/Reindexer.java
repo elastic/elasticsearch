@@ -59,6 +59,7 @@ import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -83,6 +84,7 @@ public class Reindexer {
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
     private final ClusterService clusterService;
+    private final TransportService transportService;
     private final ProjectResolver projectResolver;
     private final Client client;
     private final ThreadPool threadPool;
@@ -92,6 +94,7 @@ public class Reindexer {
 
     Reindexer(
         ClusterService clusterService,
+        TransportService transportService,
         ProjectResolver projectResolver,
         Client client,
         ThreadPool threadPool,
@@ -100,6 +103,7 @@ public class Reindexer {
         @Nullable ReindexMetrics reindexMetrics
     ) {
         this.clusterService = clusterService;
+        this.transportService = transportService;
         this.projectResolver = projectResolver;
         this.client = client;
         this.threadPool = threadPool;
@@ -143,7 +147,9 @@ public class Reindexer {
                     })
                 );
                 searchAction.start();
-            }
+            },
+            transportService,
+            clusterService
         );
     }
 

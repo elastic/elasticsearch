@@ -46,7 +46,7 @@ public class ContextApiSpecGenerator {
             PrintStream jsonStream = new PrintStream(
                 Files.newOutputStream(json, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false,
-                StandardCharsets.UTF_8.name()
+                StandardCharsets.UTF_8
             )
         ) {
 
@@ -63,7 +63,7 @@ public class ContextApiSpecGenerator {
                 PrintStream jsonStream = new PrintStream(
                     Files.newOutputStream(json, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                     false,
-                    StandardCharsets.UTF_8.name()
+                    StandardCharsets.UTF_8
                 )
             ) {
 

@@ -167,7 +167,7 @@ public class XContentBuilderTests extends ESTestCase {
         gen.writeStartObject();
         gen.writeStringField("name", "something");
         gen.flush();
-        bos.write(", source : { test : \"value\" }".getBytes("UTF8"));
+        bos.write(", source : { test : \"value\" }".getBytes(StandardCharsets.UTF_8));
         gen.writeStringField("name2", "something2");
         gen.writeEndObject();
         gen.close();

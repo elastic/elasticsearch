@@ -10,7 +10,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -85,154 +85,182 @@ final class CefParser {
         entry("\\\r", "\r")
     );
 
-    private static final Map<String, String> FIELD_MAPPINGS = Map.<String, String>ofEntries(
-        entry("app", "network.protocol"),
-        entry("in", "source.bytes"),
-        entry("out", "destination.bytes"),
-        entry("dst", "destination.ip"),
-        entry("dlat", "destination.geo.location.lat"),
-        entry("dlong", "destination.geo.location.lon"),
-        entry("dhost", "destination.domain"),
-        entry("dmac", "destination.mac"),
-        entry("dntdom", "destination.registered_domain"),
-        entry("dpt", "destination.port"),
-        entry("dpid", "destination.process.pid"),
-        entry("dproc", "destination.process.name"),
-        entry("duid", "destination.user.id"),
-        entry("duser", "destination.user.name"),
-        entry("dpriv", "destination.user.group.name"),
-        entry("act", "event.action"),
-        entry("dvc", "observer.ip"),
-        entry("deviceDirection", "network.direction"),
-        entry("deviceDnsDomain", "observer.registered_domain"),
-        entry("deviceExternalId", "observer.name"),
-        entry("deviceFacility", "log.syslog.facility.code"),
-        entry("dvchost", "observer.hostname"),
-        entry("deviceInboundInterface", "observer.ingress.interface.name"),
-        entry("dvcmac", "observer.mac"),
-        entry("deviceOutboundInterface", "observer.egress.interface.name"),
-        entry("dvcpid", "process.pid"),
-        entry("deviceProcessName", "process.name"),
-        entry("rt", "@timestamp"),
-        entry("dtz", "event.timezone"),
-        entry("deviceTranslatedAddress", "host.nat.ip"),
-        entry("device.version", "observer.version"),
-        entry("deviceVersion", "observer.version"),
-        entry("device.product", "observer.product"),
-        entry("deviceProduct", "observer.product"),
-        entry("device.event_class_id", "event.code"),
-        entry("device.vendor", "observer.vendor"),
-        entry("deviceVendor", "observer.vendor"),
-        entry("end", "event.end"),
-        entry("eventId", "event.id"),
-        entry("outcome", "event.outcome"),
-        entry("fileCreateTime", "file.created"),
-        entry("fileHash", "file.hash"),
-        entry("fileId", "file.inode"),
-        entry("fileModificationTime", "file.mtime"),
-        entry("fname", "file.name"),
-        entry("filePath", "file.path"),
-        entry("filePermission", "file.group"),
-        entry("fsize", "file.size"),
-        entry("fileType", "file.extension"),
-        entry("mrt", "event.ingested"),
-        entry("msg", "message"),
-        entry("reason", "event.reason"),
-        entry("requestClientApplication", "user_agent.original"),
-        entry("requestContext", "http.request.referrer"),
-        entry("requestMethod", "http.request.method"),
-        entry("request", "url.original"),
-        entry("src", "source.ip"),
-        entry("sourceDnsDomain", "source.registered_domain"),
-        entry("slat", "source.geo.location.lat"),
-        entry("slong", "source.geo.location.lon"),
-        entry("shost", "source.domain"),
-        entry("smac", "source.mac"),
-        entry("sntdom", "source.registered_domain"),
-        entry("spt", "source.port"),
-        entry("spid", "source.process.pid"),
-        entry("sproc", "source.process.name"),
-        entry("sourceServiceName", "source.service.name"),
-        entry("suser", "source.user.name"),
-        entry("start", "event.start"),
-        entry("proto", "network.transport")
-    );
-
-    private static final Set<String> FIELD_MAPPINGS_AND_VALUES = Set.copyOf(
-        Sets.union(FIELD_MAPPINGS.keySet(), Set.copyOf(FIELD_MAPPINGS.values()))
-    );
-
-    private static final Map<String, DataType> FIELDS_WITH_TYPES = Map.<String, DataType>ofEntries(
-        entry("@timestamp", DataType.TimestampType),
-        entry("destination.bytes", DataType.LongType),
-        entry("destination.domain", DataType.StringType),
-        entry("destination.geo.location.lat", DataType.DoubleType),
-        entry("destination.geo.location.lon", DataType.DoubleType),
-        entry("destination.ip", DataType.IPType),
-        entry("destination.mac", DataType.MACAddressType),
-        entry("destination.port", DataType.LongType),
-        entry("destination.process.name", DataType.StringType),
-        entry("destination.process.pid", DataType.LongType),
-        entry("destination.registered_domain", DataType.StringType),
-        entry("destination.user.group.name", DataType.StringType),
-        entry("destination.user.id", DataType.StringType),
-        entry("destination.user.name", DataType.StringType),
-        entry("device.event_class_id", DataType.StringType),
-        entry("device.product", DataType.StringType),
-        entry("device.vendor", DataType.StringType),
-        entry("device.version", DataType.StringType),
-        entry("event.action", DataType.StringType),
-        entry("event.code", DataType.StringType),
-        entry("event.end", DataType.TimestampType),
-        entry("event.id", DataType.StringType),
-        entry("event.ingested", DataType.TimestampType),
-        entry("event.outcome", DataType.StringType),
-        entry("event.reason", DataType.StringType),
-        entry("event.start", DataType.TimestampType),
-        entry("event.timezone", DataType.StringType),
-        entry("file.created", DataType.TimestampType),
-        entry("file.extension", DataType.StringType),
-        entry("file.group", DataType.StringType),
-        entry("file.hash", DataType.StringType),
-        entry("file.inode", DataType.StringType),
-        entry("file.mtime", DataType.TimestampType),
-        entry("file.name", DataType.StringType),
-        entry("file.path", DataType.StringType),
-        entry("file.size", DataType.LongType),
-        entry("host.nat.ip", DataType.IPType),
-        entry("http.request.method", DataType.StringType),
-        entry("http.request.referrer", DataType.StringType),
-        entry("log.syslog.facility.code", DataType.LongType),
-        entry("message", DataType.StringType),
-        entry("network.direction", DataType.StringType),
-        entry("network.protocol", DataType.StringType),
-        entry("network.transport", DataType.StringType),
-        entry("observer.egress.interface.name", DataType.StringType),
-        entry("observer.hostname", DataType.StringType),
-        entry("observer.ingress.interface.name", DataType.StringType),
-        entry("observer.ip", DataType.IPType),
-        entry("observer.mac", DataType.MACAddressType),
-        entry("observer.name", DataType.StringType),
-        entry("observer.registered_domain", DataType.StringType),
-        entry("observer.version", DataType.StringType),
-        entry("observer.vendor", DataType.StringType),
-        entry("observer.product", DataType.StringType),
-        entry("process.name", DataType.StringType),
-        entry("process.pid", DataType.LongType),
-        entry("source.bytes", DataType.LongType),
-        entry("source.domain", DataType.StringType),
-        entry("source.geo.location.lat", DataType.DoubleType),
-        entry("source.geo.location.lon", DataType.DoubleType),
-        entry("source.ip", DataType.IPType),
-        entry("source.mac", DataType.MACAddressType),
-        entry("source.port", DataType.LongType),
-        entry("source.process.name", DataType.StringType),
-        entry("source.process.pid", DataType.LongType),
-        entry("source.registered_domain", DataType.StringType),
-        entry("source.service.name", DataType.StringType),
-        entry("source.user.name", DataType.StringType),
-        entry("url.original", DataType.StringType),
-        entry("user_agent.original", DataType.StringType)
+    private static final Map<String, ExtensionMapping> EXTENSION_MAPPINGS = Map.<String, ExtensionMapping>ofEntries(
+        entry("agt", new ExtensionMapping("agentAddress", DataType.IPType, "agent.ip")),
+        entry("agentDnsDomain", new ExtensionMapping("agentDnsDomain", DataType.StringType, "agent.name")),
+        entry("ahost", new ExtensionMapping("agentHostName", DataType.StringType, "agent.name")),
+        entry("aid", new ExtensionMapping("agentId", DataType.StringType, "agent.id")),
+        entry("amac", new ExtensionMapping("agentMacAddress", DataType.MACAddressType, "agent.mac")),
+        entry("agentNtDomain", new ExtensionMapping("agentNtDomain", DataType.StringType, null)),
+        entry("art", new ExtensionMapping("agentReceiptTime", DataType.TimestampType, "event.created")),
+        entry("atz", new ExtensionMapping("agentTimeZone", DataType.StringType, null)),
+        entry("agentTranslatedAddress", new ExtensionMapping("agentTranslatedAddress", DataType.IPType, null)),
+        entry("agentTranslatedZoneExternalID", new ExtensionMapping("agentTranslatedZoneExternalID", DataType.StringType, null)),
+        entry("agentTranslatedZoneURI", new ExtensionMapping("agentTranslatedZoneURI", DataType.StringType, null)),
+        entry("at", new ExtensionMapping("agentType", DataType.StringType, "agent.type")),
+        entry("av", new ExtensionMapping("agentVersion", DataType.StringType, "agent.version")),
+        entry("agentZoneExternalID", new ExtensionMapping("agentZoneExternalID", DataType.StringType, null)),
+        entry("agentZoneURI", new ExtensionMapping("agentZoneURI", DataType.StringType, null)),
+        entry("app", new ExtensionMapping("applicationProtocol", DataType.StringType, "network.protocol")),
+        entry("cnt", new ExtensionMapping("baseEventCount", DataType.IntegerType, null)),
+        entry("in", new ExtensionMapping("bytesIn", DataType.LongType, "source.bytes")),
+        entry("out", new ExtensionMapping("bytesOut", DataType.LongType, "destination.bytes")),
+        entry("customerExternalID", new ExtensionMapping("customerExternalID", DataType.StringType, "organization.id")),
+        entry("customerURI", new ExtensionMapping("customerURI", DataType.StringType, "organization.name")),
+        entry("dst", new ExtensionMapping("destinationAddress", DataType.IPType, "destination.ip")),
+        entry("destinationDnsDomain", new ExtensionMapping("destinationDnsDomain", DataType.StringType, "destination.registered_domain")),
+        entry("dlat", new ExtensionMapping("destinationGeoLatitude", DataType.DoubleType, "destination.geo.location.lat")),
+        entry("dlong", new ExtensionMapping("destinationGeoLongitude", DataType.DoubleType, "destination.geo.location.lon")),
+        entry("dhost", new ExtensionMapping("destinationHostName", DataType.StringType, "destination.domain")),
+        entry("dmac", new ExtensionMapping("destinationMacAddress", DataType.MACAddressType, "destination.mac")),
+        entry("dntdom", new ExtensionMapping("destinationNtDomain", DataType.StringType, "destination.registered_domain")),
+        entry("dpt", new ExtensionMapping("destinationPort", DataType.IntegerType, "destination.port")),
+        entry("dpid", new ExtensionMapping("destinationProcessId", DataType.LongType, "destination.process.pid")),
+        entry("dproc", new ExtensionMapping("destinationProcessName", DataType.StringType, "destination.process.name")),
+        entry("destinationServiceName", new ExtensionMapping("destinationServiceName", DataType.StringType, "destination.service.name")),
+        entry("destinationTranslatedAddress", new ExtensionMapping("destinationTranslatedAddress", DataType.IPType, "destination.nat.ip")),
+        entry("destinationTranslatedPort", new ExtensionMapping("destinationTranslatedPort", DataType.IntegerType, "destination.nat.port")),
+        entry(
+            "destinationTranslatedZoneExternalID",
+            new ExtensionMapping("destinationTranslatedZoneExternalID", DataType.StringType, null)
+        ),
+        entry("destinationTranslatedZoneURI", new ExtensionMapping("destinationTranslatedZoneURI", DataType.StringType, null)),
+        entry("duid", new ExtensionMapping("destinationUserId", DataType.StringType, "destination.user.id")),
+        entry("duser", new ExtensionMapping("destinationUserName", DataType.StringType, "destination.user.name")),
+        entry("dpriv", new ExtensionMapping("destinationUserPrivileges", DataType.StringType, "destination.user.group.name")),
+        entry("destinationZoneExternalID", new ExtensionMapping("destinationZoneExternalID", DataType.StringType, null)),
+        entry("destinationZoneURI", new ExtensionMapping("destinationZoneURI", DataType.StringType, null)),
+        entry("act", new ExtensionMapping("deviceAction", DataType.StringType, "event.action")),
+        entry("dvc", new ExtensionMapping("deviceAddress", DataType.IPType, "observer.ip")),
+        entry("cfp1Label", new ExtensionMapping("deviceCustomFloatingPoint1Label", DataType.StringType, null)),
+        entry("cfp3Label", new ExtensionMapping("deviceCustomFloatingPoint3Label", DataType.StringType, null)),
+        entry("cfp4Label", new ExtensionMapping("deviceCustomFloatingPoint4Label", DataType.StringType, null)),
+        entry("deviceCustomDate1", new ExtensionMapping("deviceCustomDate1", DataType.TimestampType, null)),
+        entry("deviceCustomDate1Label", new ExtensionMapping("deviceCustomDate1Label", DataType.StringType, null)),
+        entry("deviceCustomDate2", new ExtensionMapping("deviceCustomDate2", DataType.TimestampType, null)),
+        entry("deviceCustomDate2Label", new ExtensionMapping("deviceCustomDate2Label", DataType.StringType, null)),
+        entry("cfp1", new ExtensionMapping("deviceCustomFloatingPoint1", DataType.FloatType, null)),
+        entry("cfp2", new ExtensionMapping("deviceCustomFloatingPoint2", DataType.FloatType, null)),
+        entry("cfp2Label", new ExtensionMapping("deviceCustomFloatingPoint2Label", DataType.StringType, null)),
+        entry("cfp3", new ExtensionMapping("deviceCustomFloatingPoint3", DataType.FloatType, null)),
+        entry("cfp4", new ExtensionMapping("deviceCustomFloatingPoint4", DataType.FloatType, null)),
+        entry("c6a1", new ExtensionMapping("deviceCustomIPv6Address1", DataType.IPType, null)),
+        entry("c6a1Label", new ExtensionMapping("deviceCustomIPv6Address1Label", DataType.StringType, null)),
+        entry("c6a2", new ExtensionMapping("deviceCustomIPv6Address2", DataType.IPType, null)),
+        entry("c6a2Label", new ExtensionMapping("deviceCustomIPv6Address2Label", DataType.StringType, null)),
+        entry("c6a3", new ExtensionMapping("deviceCustomIPv6Address3", DataType.IPType, null)),
+        entry("c6a3Label", new ExtensionMapping("deviceCustomIPv6Address3Label", DataType.StringType, null)),
+        entry("c6a4", new ExtensionMapping("deviceCustomIPv6Address4", DataType.IPType, null)),
+        entry("C6a4Label", new ExtensionMapping("deviceCustomIPv6Address4Label", DataType.StringType, null)),
+        entry("cn1", new ExtensionMapping("deviceCustomNumber1", DataType.LongType, null)),
+        entry("cn1Label", new ExtensionMapping("deviceCustomNumber1Label", DataType.StringType, null)),
+        entry("cn2", new ExtensionMapping("deviceCustomNumber2", DataType.LongType, null)),
+        entry("cn2Label", new ExtensionMapping("deviceCustomNumber2Label", DataType.StringType, null)),
+        entry("cn3", new ExtensionMapping("deviceCustomNumber3", DataType.LongType, null)),
+        entry("cn3Label", new ExtensionMapping("deviceCustomNumber3Label", DataType.StringType, null)),
+        entry("cs1", new ExtensionMapping("deviceCustomString1", DataType.StringType, null)),
+        entry("cs1Label", new ExtensionMapping("deviceCustomString1Label", DataType.StringType, null)),
+        entry("cs2", new ExtensionMapping("deviceCustomString2", DataType.StringType, null)),
+        entry("cs2Label", new ExtensionMapping("deviceCustomString2Label", DataType.StringType, null)),
+        entry("cs3", new ExtensionMapping("deviceCustomString3", DataType.StringType, null)),
+        entry("cs3Label", new ExtensionMapping("deviceCustomString3Label", DataType.StringType, null)),
+        entry("cs4", new ExtensionMapping("deviceCustomString4", DataType.StringType, null)),
+        entry("cs4Label", new ExtensionMapping("deviceCustomString4Label", DataType.StringType, null)),
+        entry("cs5", new ExtensionMapping("deviceCustomString5", DataType.StringType, null)),
+        entry("cs5Label", new ExtensionMapping("deviceCustomString5Label", DataType.StringType, null)),
+        entry("cs6", new ExtensionMapping("deviceCustomString6", DataType.StringType, null)),
+        entry("cs6Label", new ExtensionMapping("deviceCustomString6Label", DataType.StringType, null)),
+        entry("deviceDirection", new ExtensionMapping("deviceDirection", DataType.StringType, "network.direction")),
+        entry("deviceDnsDomain", new ExtensionMapping("deviceDnsDomain", DataType.StringType, "observer.registered_domain")),
+        entry("cat", new ExtensionMapping("deviceEventCategory", DataType.StringType, null)),
+        entry("deviceExternalId", new ExtensionMapping("deviceExternalId", DataType.StringType, "observer.name")),
+        entry("deviceFacility", new ExtensionMapping("deviceFacility", DataType.LongType, "log.syslog.facility.code")),
+        entry("dvchost", new ExtensionMapping("deviceHostName", DataType.StringType, "observer.hostname")),
+        entry(
+            "deviceInboundInterface",
+            new ExtensionMapping("deviceInboundInterface", DataType.StringType, "observer.ingress.interface.name")
+        ),
+        entry("dvcmac", new ExtensionMapping("deviceMacAddress", DataType.MACAddressType, "observer.mac")),
+        entry("deviceNtDomain", new ExtensionMapping("deviceNtDomain", DataType.StringType, null)),
+        entry(
+            "deviceOutboundInterface",
+            new ExtensionMapping("deviceOutboundInterface", DataType.StringType, "observer.egress.interface.name")
+        ),
+        entry("devicePayloadId", new ExtensionMapping("devicePayloadId", DataType.StringType, "event.id")),
+        entry("dvcpid", new ExtensionMapping("deviceProcessId", DataType.LongType, "process.pid")),
+        entry("deviceProcessName", new ExtensionMapping("deviceProcessName", DataType.StringType, "process.name")),
+        entry("rt", new ExtensionMapping("deviceReceiptTime", DataType.TimestampType, "@timestamp")),
+        entry("dtz", new ExtensionMapping("deviceTimeZone", DataType.StringType, "event.timezone")),
+        entry("deviceTranslatedAddress", new ExtensionMapping("deviceTranslatedAddress", DataType.IPType, "host.nat.ip")),
+        entry("deviceTranslatedZoneExternalID", new ExtensionMapping("deviceTranslatedZoneExternalID", DataType.StringType, null)),
+        entry("deviceTranslatedZoneURI", new ExtensionMapping("deviceTranslatedZoneURI", DataType.StringType, null)),
+        entry("deviceZoneExternalID", new ExtensionMapping("deviceZoneExternalID", DataType.StringType, null)),
+        entry("deviceZoneURI", new ExtensionMapping("deviceZoneURI", DataType.StringType, null)),
+        entry("end", new ExtensionMapping("endTime", DataType.TimestampType, "event.end")),
+        entry("eventId", new ExtensionMapping("eventId", DataType.StringType, "event.id")),
+        entry("outcome", new ExtensionMapping("eventOutcome", DataType.StringType, "event.outcome")),
+        entry("externalId", new ExtensionMapping("externalId", DataType.StringType, null)),
+        entry("fileCreateTime", new ExtensionMapping("fileCreateTime", DataType.TimestampType, "file.created")),
+        entry("fileHash", new ExtensionMapping("fileHash", DataType.StringType, "file.hash")),
+        entry("fileId", new ExtensionMapping("fileId", DataType.StringType, "file.inode")),
+        entry("fileModificationTime", new ExtensionMapping("fileModificationTime", DataType.TimestampType, "file.mtime")),
+        entry("flexNumber1", new ExtensionMapping("deviceFlexNumber1", DataType.LongType, null)),
+        entry("flexNumber1Label", new ExtensionMapping("deviceFlexNumber1Label", DataType.StringType, null)),
+        entry("flexNumber2", new ExtensionMapping("deviceFlexNumber2", DataType.LongType, null)),
+        entry("flexNumber2Label", new ExtensionMapping("deviceFlexNumber2Label", DataType.StringType, null)),
+        entry("fname", new ExtensionMapping("filename", DataType.StringType, "file.name")),
+        entry("filePath", new ExtensionMapping("filePath", DataType.StringType, "file.path")),
+        entry("filePermission", new ExtensionMapping("filePermission", DataType.StringType, "file.group")),
+        entry("fsize", new ExtensionMapping("fileSize", DataType.LongType, "file.size")),
+        entry("fileType", new ExtensionMapping("fileType", DataType.StringType, "file.type")),
+        entry("flexDate1", new ExtensionMapping("flexDate1", DataType.TimestampType, null)),
+        entry("flexDate1Label", new ExtensionMapping("flexDate1Label", DataType.StringType, null)),
+        entry("flexString1", new ExtensionMapping("flexString1", DataType.StringType, null)),
+        entry("flexString2", new ExtensionMapping("flexString2", DataType.StringType, null)),
+        entry("flexString1Label", new ExtensionMapping("flexString1Label", DataType.StringType, null)),
+        entry("flexString2Label", new ExtensionMapping("flexString2Label", DataType.StringType, null)),
+        entry("msg", new ExtensionMapping("message", DataType.StringType, "message")),
+        entry("oldFileCreateTime", new ExtensionMapping("oldFileCreateTime", DataType.TimestampType, null)),
+        entry("oldFileHash", new ExtensionMapping("oldFileHash", DataType.StringType, null)),
+        entry("oldFileId", new ExtensionMapping("oldFileId", DataType.StringType, null)),
+        entry("oldFileModificationTime", new ExtensionMapping("oldFileModificationTime", DataType.TimestampType, null)),
+        entry("oldFileName", new ExtensionMapping("oldFileName", DataType.StringType, null)),
+        entry("oldFilePath", new ExtensionMapping("oldFilePath", DataType.StringType, null)),
+        entry("oldFilePermission", new ExtensionMapping("oldFilePermission", DataType.StringType, null)),
+        entry("oldFileSize", new ExtensionMapping("oldFileSize", DataType.IntegerType, null)),
+        entry("oldFileType", new ExtensionMapping("oldFileType", DataType.StringType, null)),
+        entry("rawEvent", new ExtensionMapping("rawEvent", DataType.StringType, "event.original")),
+        entry("reason", new ExtensionMapping("Reason", DataType.StringType, "event.reason")),
+        entry("requestClientApplication", new ExtensionMapping("requestClientApplication", DataType.StringType, "user_agent.original")),
+        entry("requestContext", new ExtensionMapping("requestContext", DataType.StringType, "http.request.referrer")),
+        entry("requestCookies", new ExtensionMapping("requestCookies", DataType.StringType, null)),
+        entry("requestMethod", new ExtensionMapping("requestMethod", DataType.StringType, "http.request.method")),
+        entry("request", new ExtensionMapping("requestUrl", DataType.StringType, "url.original")),
+        entry("src", new ExtensionMapping("sourceAddress", DataType.IPType, "source.ip")),
+        entry("sourceDnsDomain", new ExtensionMapping("sourceDnsDomain", DataType.StringType, "source.domain")),
+        entry("slat", new ExtensionMapping("sourceGeoLatitude", DataType.DoubleType, "source.geo.location.lat")),
+        entry("slong", new ExtensionMapping("sourceGeoLongitude", DataType.DoubleType, "source.geo.location.lon")),
+        entry("shost", new ExtensionMapping("sourceHostName", DataType.StringType, "source.domain")),
+        entry("smac", new ExtensionMapping("sourceMacAddress", DataType.MACAddressType, "source.mac")),
+        entry("sntdom", new ExtensionMapping("sourceNtDomain", DataType.StringType, "source.registered_domain")),
+        entry("spt", new ExtensionMapping("sourcePort", DataType.IntegerType, "source.port")),
+        entry("spid", new ExtensionMapping("sourceProcessId", DataType.LongType, "source.process.pid")),
+        entry("sproc", new ExtensionMapping("sourceProcessName", DataType.StringType, "source.process.name")),
+        entry("sourceServiceName", new ExtensionMapping("sourceServiceName", DataType.StringType, "source.service.name")),
+        entry("sourceTranslatedAddress", new ExtensionMapping("sourceTranslatedAddress", DataType.IPType, "source.nat.ip")),
+        entry("sourceTranslatedPort", new ExtensionMapping("sourceTranslatedPort", DataType.IntegerType, "source.nat.port")),
+        entry("sourceTranslatedZoneExternalID", new ExtensionMapping("sourceTranslatedZoneExternalID", DataType.StringType, null)),
+        entry("sourceTranslatedZoneURI", new ExtensionMapping("sourceTranslatedZoneURI", DataType.StringType, null)),
+        entry("suid", new ExtensionMapping("sourceUserId", DataType.StringType, "source.user.id")),
+        entry("suser", new ExtensionMapping("sourceUserName", DataType.StringType, "source.user.name")),
+        entry("spriv", new ExtensionMapping("sourceUserPrivileges", DataType.StringType, "source.user.group.name")),
+        entry("sourceZoneExternalID", new ExtensionMapping("sourceZoneExternalID", DataType.StringType, null)),
+        entry("sourceZoneURI", new ExtensionMapping("sourceZoneURI", DataType.StringType, null)),
+        entry("start", new ExtensionMapping("startTime", DataType.TimestampType, "event.start")),
+        entry("proto", new ExtensionMapping("transportProtocol", DataType.StringType, "network.transport")),
+        entry("type", new ExtensionMapping("type", DataType.IntegerType, "event.kind")),
+        entry("catdt", new ExtensionMapping("categoryDeviceType", DataType.StringType, null)),
+        entry("mrt", new ExtensionMapping("managerReceiptTime", DataType.TimestampType, "event.ingested"))
     );
 
     private static final Set<String> ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = Set.of("incomplete CEF header");
@@ -340,33 +368,26 @@ final class CefParser {
     private void processExtensions(String cefString, int extensionStart, CEFEvent event) {
         String extensionString = cefString.substring(extensionStart);
         Map<String, String> extensions = parseExtensions(extensionString);
-
         // Cleanup empty values in extensions
         if (removeEmptyValue) {
             removeEmptyValue(extensions);
         }
-
         // Translate extensions to possible ECS fields
-        Map<String, Object> translatedFields = new HashMap<>();
         for (Map.Entry<String, String> entry : extensions.entrySet()) {
-            if (FIELD_MAPPINGS.containsKey(entry.getKey())) {
-                String mappedKey = FIELD_MAPPINGS.get(entry.getKey());
-                DataType fieldType = FIELDS_WITH_TYPES.get(mappedKey);
-                translatedFields.put(mappedKey, convertValueToType(entry.getValue(), fieldType));
+            ExtensionMapping mapping = EXTENSION_MAPPINGS.get(entry.getKey());
+            if (mapping != null) {
+                String ecsKey = mapping.getEcsKey();
+                if (ecsKey != null) {
+                    // Add the ECS translation to the root of document
+                    event.addRootMapping(ecsKey, convertValueToType(entry.getValue(), mapping.getDataType()));
+                } else {
+                    // Add the extension to the CEF mappings if it doesn't have an ECS translation
+                    event.addExtension(mapping.getKey(), convertValueToType(entry.getValue(), mapping.getDataType()));
+                }
+            } else {
+                // Add the extension if the key is not in the mapping
+                event.addExtension(entry.getKey(), entry.getValue());
             }
-        }
-
-        // Add ECS translations to the root of the document
-        if (translatedFields.isEmpty() == false) {
-            translatedFields.forEach(event::addRootMapping);
-        }
-
-        // Remove the translated entries from extensions
-        extensions.keySet().removeAll(FIELD_MAPPINGS_AND_VALUES);
-
-        // Add remaining extensions to the event
-        for (Map.Entry<String, String> entry : extensions.entrySet()) {
-            event.addCefMapping("extensions." + entry.getKey(), entry.getValue());
         }
     }
 
@@ -392,12 +413,12 @@ final class CefParser {
     }
 
     private Object convertValueToType(String value, DataType type) {
-        if (type == DataType.StringType) {
-            return value;
-        } else if (type == DataType.LongType) {
+        if (type == DataType.LongType) {
             return Long.parseLong(value);
         } else if (type == DataType.DoubleType) {
             return Double.parseDouble(value);
+        } else if (type == DataType.FloatType) {
+            return Float.parseFloat(value);
         } else if (type == DataType.IntegerType) {
             return Integer.parseInt(value);
         } else if (type == DataType.TimestampType) {
@@ -406,8 +427,10 @@ final class CefParser {
             return toMACAddress(value);
         } else if (type == DataType.IPType) {
             return toIP(value);
+        } else if (type == DataType.BooleanType) {
+            return Boolean.valueOf(value);
         } else {
-            throw new IllegalArgumentException("Unsupported type: " + type);
+            return value; // Default string if string type or extension is not defined
         }
     }
 
@@ -453,15 +476,12 @@ final class CefParser {
     String toMACAddress(String v) throws IllegalArgumentException {
         // Insert separators if necessary
         String macWithSeparators = insertMACSeparators(v);
-
         // Validate MAC address format
-        // Compiled pattern for efficient matching
         Pattern macAddressPattern = Pattern.compile(MAC_ADDRESS_REGEX);
         Matcher matcher = macAddressPattern.matcher(macWithSeparators);
         if (matcher.matches() == false) {
             throw new IllegalArgumentException("Invalid MAC address format");
         }
-        // Convert to lowercase and return
         return macWithSeparators;
     }
 
@@ -516,22 +536,53 @@ final class CefParser {
 
     public static class CEFEvent {
         private final Map<String, Object> rootMappings = new HashMap<>();
-        private final Map<String, String> cefMappings = new HashMap<>();
+        private final Map<String, Object> cefMappings = new HashMap<>();
+        private final Map<String, Object> extensions = new HashMap<>();
 
         public void addRootMapping(String key, Object value) {
             this.rootMappings.put(key, value);
         }
 
-        public void addCefMapping(String key, String value) {
+        public void addCefMapping(String key, Object value) {
             this.cefMappings.put(key, value);
+        }
+
+        public void addExtension(String key, Object value) {
+            this.extensions.put(key, value);
         }
 
         public Map<String, Object> getRootMappings() {
             return Collections.unmodifiableMap(rootMappings);
         }
 
-        public Map<String, String> getCefMappings() {
+        public Map<String, Object> getCefMappings() {
+            cefMappings.put("extensions", extensions);
             return Collections.unmodifiableMap(cefMappings);
+        }
+    }
+
+    public static class ExtensionMapping {
+        private final String key;
+        private final DataType dataType;
+        @Nullable
+        private final String ecsKey;
+
+        ExtensionMapping(String key, DataType dataType, String ecsKey) {
+            this.key = key;
+            this.dataType = dataType;
+            this.ecsKey = ecsKey;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public DataType getDataType() {
+            return dataType;
+        }
+
+        public String getEcsKey() {
+            return ecsKey;
         }
     }
 }

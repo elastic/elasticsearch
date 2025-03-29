@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
 
 import java.util.Collections;
@@ -106,8 +107,18 @@ public class SystemDataStreamDescriptor {
      * @param metadata Metadata in which to look for indices
      * @return List of names of backing indices
      */
+    @Deprecated
     public List<String> getBackingIndexNames(Metadata metadata) {
-        DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
+        return getBackingIndexNames(metadata.getProject());
+    }
+
+    /**
+     * Retrieve backing indices for this system data stream
+     * @param projectMetadata Project metadata in which to look for indices
+     * @return List of names of backing indices
+     */
+    public List<String> getBackingIndexNames(ProjectMetadata projectMetadata) {
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
         if (dataStream == null) {
             return Collections.emptyList();
         }

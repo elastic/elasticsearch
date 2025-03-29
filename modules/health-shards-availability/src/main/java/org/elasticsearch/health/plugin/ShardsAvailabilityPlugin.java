@@ -27,7 +27,12 @@ public class ShardsAvailabilityPlugin extends Plugin implements HealthPlugin {
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.shardHealthService.set(
-            new ShardsAvailabilityHealthIndicatorService(services.clusterService(), services.allocationService(), services.systemIndices())
+            new ShardsAvailabilityHealthIndicatorService(
+                services.clusterService(),
+                services.allocationService(),
+                services.systemIndices(),
+                services.projectResolver()
+            )
         );
         return Set.of(this.shardHealthService.get());
     }

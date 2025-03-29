@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -133,8 +134,9 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
         var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         var allocationService = internalCluster().getCurrentMasterNodeInstance(AllocationService.class);
         var systemIndices = internalCluster().getCurrentMasterNodeInstance(SystemIndices.class);
+        var projectResolver = internalCluster().getCurrentMasterNodeInstance(ProjectResolver.class);
 
-        var service = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices);
+        var service = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
         var states = new ArrayList<RoutingNodesAndHealth>();
         var listener = new ClusterStateListener() {
             @Override

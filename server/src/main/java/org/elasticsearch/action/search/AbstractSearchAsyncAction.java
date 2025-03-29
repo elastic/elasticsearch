@@ -66,7 +66,7 @@ import static org.elasticsearch.core.Strings.format;
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    protected final NamedWriteableRegistry namedWriteableRegistry;
     protected final SearchTransportService searchTransportService;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
@@ -91,7 +91,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     protected final List<SearchShardIterator> shardsIts;
     protected final SearchShardIterator[] shardIterators;
-    private final AtomicInteger outstandingShards;
+    protected final AtomicInteger outstandingShards;
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
@@ -426,11 +426,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             performPhaseOnShard(shardIndex, shardIt, nextShard);
         } else {
             // count down outstanding shards, we're done with this shard as there's no more copies to try
-            final int outstanding = outstandingShards.decrementAndGet();
-            assert outstanding >= 0 : "outstanding: " + outstanding;
-            if (outstanding == 0) {
-                onPhaseDone();
-            }
+            onShardDone();
+        }
+    }
+
+    protected void onShardDone() {
+        final int outstanding = outstandingShards.decrementAndGet();
+        assert outstanding >= 0 : "outstanding: " + outstanding;
+        if (outstanding == 0) {
+            onPhaseDone();
         }
     }
 
@@ -512,20 +516,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
         }
-        // we need to increment successful ops first before we compare the exit condition otherwise if we
-        // are fast we could concurrently update totalOps but then preempt one of the threads which can
-        // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
-        // increment all the "future" shards to update the total ops since we some may work and some may not...
-        // and when that happens, we break on total ops, so we must maintain them
-        successfulShardExecution();
-    }
-
-    private void successfulShardExecution() {
-        final int outstanding = outstandingShards.decrementAndGet();
-        assert outstanding >= 0 : "outstanding: " + outstanding;
-        if (outstanding == 0) {
-            onPhaseDone();
-        }
+        onShardDone();
     }
 
     /**

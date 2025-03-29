@@ -227,7 +227,7 @@ public final class OutboundHandler {
         Releasable onAfter
     ) throws IOException {
         assert action != null;
-        final var compressionScheme = writeable instanceof BytesTransportRequest ? null : possibleCompressionScheme;
+        final var compressionScheme = writeable instanceof BytesTransportMessage ? null : possibleCompressionScheme;
         final BytesReference message;
         boolean serializeSuccess = false;
         final RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
@@ -334,11 +334,11 @@ public final class OutboundHandler {
         final ReleasableBytesReference zeroCopyBuffer;
         try {
             stream.setTransportVersion(version);
-            if (writeable instanceof BytesTransportRequest bRequest) {
+            if (writeable instanceof BytesTransportMessage bRequest) {
                 assert stream == byteStreamOutput;
                 assert compressionScheme == null;
                 bRequest.writeThin(stream);
-                zeroCopyBuffer = bRequest.bytes;
+                zeroCopyBuffer = bRequest.bytes();
             } else if (writeable instanceof RemoteTransportException remoteTransportException) {
                 stream.writeException(remoteTransportException);
                 zeroCopyBuffer = ReleasableBytesReference.empty();

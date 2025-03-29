@@ -17,21 +17,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * A specialized, bytes only request, that can potentially be optimized on the network
- * layer, specifically for the same large buffer send to several nodes.
+ * A specialized, bytes only response, that can potentially be optimized on the network layer.
  */
-public class BytesTransportRequest extends TransportRequest implements BytesTransportMessage {
+public class BytesTransportResponse extends TransportResponse implements BytesTransportMessage {
 
     final ReleasableBytesReference bytes;
     private final TransportVersion version;
 
-    public BytesTransportRequest(StreamInput in) throws IOException {
-        super(in);
-        bytes = in.readReleasableBytesReference();
+    public BytesTransportResponse(StreamInput in) throws IOException {
+        bytes = in.readAllToReleasableBytesReference();
         version = in.getTransportVersion();
     }
 
-    public BytesTransportRequest(ReleasableBytesReference bytes, TransportVersion version) {
+    public BytesTransportResponse(ReleasableBytesReference bytes, TransportVersion version) {
         this.bytes = bytes;
         this.version = version;
     }
@@ -47,14 +45,10 @@ public class BytesTransportRequest extends TransportRequest implements BytesTran
     }
 
     @Override
-    public void writeThin(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(bytes.length());
-    }
+    public void writeThin(StreamOutput out) throws IOException {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBytesReference(bytes);
     }
 

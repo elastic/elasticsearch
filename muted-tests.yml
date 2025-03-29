@@ -504,3 +504,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
   method: testDataStreamLifecycleDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/123769
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/125668

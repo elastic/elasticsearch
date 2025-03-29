@@ -63,7 +63,6 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomP
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BASE_PATH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
@@ -213,8 +212,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        protected GoogleCloudStorageService createStorageService(Settings settings) {
-            return new GoogleCloudStorageService(settings) {
+        protected GoogleCloudStorageService createStorageService() {
+            return new GoogleCloudStorageService() {
                 @Override
                 StorageOptions createStorageOptions(
                     final GoogleCloudStorageClientSettings gcsClientSettings,
@@ -260,7 +259,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     this.storageService,
                     clusterService,
                     bigArrays,
-                    recoverySettings
+                    recoverySettings,
+                    repositoriesMetrics
                 ) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
@@ -271,7 +271,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             storageService,
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
-                            BackoffPolicy.noBackoff()
+                            BackoffPolicy.noBackoff(),
+                            repositoriesMetrics
                         ) {
                             @Override
                             long getLargeBlobThresholdInBytes() {
@@ -348,16 +349,16 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         @Override
         public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET */storage/v1/b/*/o/*", request)) {
-                trackRequest(Operation.GET_OBJECT.key());
+                trackRequest(StorageOperation.GET.key());
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
-                trackRequest(Operation.LIST_OBJECTS.key());
+                trackRequest(StorageOperation.LIST.key());
             } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*uploadType=resumable*", request) && isLastPart(requestHeaders)) {
                 // Resumable uploads are billed as a single operation, that's the reason we're tracking
                 // the request only when it's the last part.
                 // See https://cloud.google.com/storage/docs/resumable-uploads#introduction
-                trackRequest(Operation.INSERT_OBJECT.key());
+                trackRequest(StorageOperation.INSERT.key());
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
-                trackRequest(Operation.INSERT_OBJECT.key());
+                trackRequest(StorageOperation.INSERT.key());
             }
         }
 

@@ -1,0 +1,5 @@
+pr: 125452
+summary: Add GCS telemtry with `ThreadLocal`
+area: Snapshot/Restore
+type: enhancement
+issues: []

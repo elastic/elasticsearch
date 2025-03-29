@@ -48,7 +48,7 @@ The default and maximum limits can be changed using these dynamic cluster settin
 
 However, doing so involves trade-offs. A larger result-set involves a higher memory pressure and increased processing times; the internode traffic within and across clusters can also increase.
 
-These limitations are similar to those enforced by the [search API for pagination](/reference/elasticsearch/rest-apis/paginate-search-results.md#paginate-search-results).
+These limitations are similar to those enforced by the [search API for pagination](/reference/elasticsearch/rest-apis/paginate-search-results.md).
 
 | Functionality                    | Search                  | {{esql}}                                  |
 |----------------------------------|-------------------------|-------------------------------------------|

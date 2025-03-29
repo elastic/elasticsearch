@@ -165,8 +165,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         appliesTo = {
             @FunctionAppliesTo(
                 lifeCycle = FunctionAppliesToLifecycle.COMING,
-                version = "9.1.0",
-                description = "Support for optional named parameters is only available from 9.1.0"
+                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
             ) }
     )
     public Match(

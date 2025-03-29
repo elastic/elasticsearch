@@ -316,6 +316,41 @@ public class MockLog implements Releasable {
         }
     }
 
+    public static class PatternAndExceptionSeenEventExpectation extends SeenEventExpectation {
+
+        private final Pattern pattern;
+        private final Class<? extends Exception> clazz;
+        private final String exceptionMessage;
+
+        public PatternAndExceptionSeenEventExpectation(
+            String name,
+            String logger,
+            Level level,
+            String pattern,
+            Class<? extends Exception> clazz,
+            String exceptionMessage
+        ) {
+            super(name, logger, level, pattern);
+            this.pattern = Pattern.compile(pattern);
+            this.clazz = clazz;
+            this.exceptionMessage = exceptionMessage;
+        }
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
+                boolean patternMatches = pattern.matcher(event.getMessage().getFormattedMessage()).matches();
+                boolean exceptionMatches = event.getThrown() != null
+                    && event.getThrown().getClass() == clazz
+                    && event.getThrown().getMessage().equals(exceptionMessage);
+
+                if (patternMatches && exceptionMatches) {
+                    seenLatch.countDown();
+                }
+            }
+        }
+    }
+
     /**
      * A wrapper around {@link LoggingExpectation} to detect if the assertMatched method has been called
      */

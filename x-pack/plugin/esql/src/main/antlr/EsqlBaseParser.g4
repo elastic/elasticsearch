@@ -61,6 +61,7 @@ processingCommand
     | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
+    | {this.isDevVersion()}? rerankCommand
     | {this.isDevVersion()}? rrfCommand
     ;
 
@@ -288,3 +289,7 @@ forkSubQueryProcessingCommand
 rrfCommand
    : DEV_RRF
    ;
+
+rerankCommand
+    : DEV_RERANK queryText=constant ON fields WITH inferenceId=identifierOrParameter
+    ;

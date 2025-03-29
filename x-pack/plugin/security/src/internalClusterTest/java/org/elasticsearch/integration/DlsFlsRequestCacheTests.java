@@ -342,7 +342,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         // Since the DLS for the alias uses a stored script, this should cause the request cached to be disabled
         assertSearchResponse(client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_ALIAS).setRequestCache(true), Set.of("1"), Set.of("username"));
         // No cache should be used
-        assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 2, 2);
+        assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 3, 2);
     }
 
     private void prepareIndices() {

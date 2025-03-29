@@ -267,6 +267,17 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundMonthOfYear(1), is(0L));
         long dec1969 = LocalDate.of(1969, 12, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundMonthOfYear(-1), is(dec1969));
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundIntervalMonthOfYear(0, -1));
+        assertThat(exc.getMessage(), is("month interval must be strictly positive, got [-1]"));
+        long epochMilli = LocalDate.of(1969, 10, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(1, 5), is(epochMilli));
+        epochMilli = LocalDate.of(1969, 6, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(-1, 13), is(epochMilli));
+        epochMilli = LocalDate.of(2024, 8, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(1737378896000L, 7), is(epochMilli));
+        epochMilli = LocalDate.of(-2026, 4, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(-126068400000000L, 11), is(epochMilli));
     }
 
     public void testRoundYear() {
@@ -276,9 +287,41 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundYear(-1), is(startOf1969));
         long endOf1970 = ZonedDateTime.of(1970, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC).toInstant().toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1970), is(0L));
-        // test with some leapyear
+        // test with some leap year
         long endOf1996 = ZonedDateTime.of(1996, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC).toInstant().toEpochMilli();
         long startOf1996 = Year.of(1996).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1996), is(startOf1996));
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundYearInterval(0, -1));
+        assertThat(exc.getMessage(), is("year interval must be strictly positive, got [-1]"));
+        assertThat(DateUtils.roundYearInterval(0, 2), is(startOf1969));
+        long startOf1968 = Year.of(1968).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(0, 7), is(startOf1968));
+        long startOf1966 = Year.of(1966).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(1, 5), is(startOf1966));
+        long startOf1961 = Year.of(1961).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(-1, 10), is(startOf1961));
+        long startOf1992 = Year.of(1992).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(endOf1996, 11), is(startOf1992));
+        long epochMilli = Year.of(-2034).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(-126068400000000L, 11), is(epochMilli));
+    }
+
+    public void testRoundWeek() {
+        long epochMilli = Year.of(1969).atMonth(12).atDay(29).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundWeekOfWeekYear(0), is(epochMilli));
+        assertThat(DateUtils.roundWeekOfWeekYear(1), is(epochMilli));
+        assertThat(DateUtils.roundWeekOfWeekYear(-1), is(epochMilli));
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundWeekIntervalOfWeekYear(0, -1));
+        assertThat(exc.getMessage(), is("week interval must be strictly positive, got [-1]"));
+        assertThat(DateUtils.roundWeekIntervalOfWeekYear(0, 3), is(epochMilli));
+        assertThat(DateUtils.roundWeekIntervalOfWeekYear(1, 3), is(epochMilli));
+        assertThat(DateUtils.roundWeekIntervalOfWeekYear(-1, 2), is(epochMilli));
+
+        epochMilli = Year.of(2025).atMonth(1).atDay(20).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundWeekOfWeekYear(1737378896000L), is(epochMilli));
+        epochMilli = Year.of(2025).atMonth(1).atDay(13).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundWeekIntervalOfWeekYear(1737378896000L, 4), is(epochMilli));
     }
 }

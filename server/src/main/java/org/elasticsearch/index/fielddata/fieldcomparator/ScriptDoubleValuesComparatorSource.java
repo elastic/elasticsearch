@@ -11,21 +11,19 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.DoubleComparator;
-import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -34,72 +32,62 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 
 /**
- * Comparator source for double values.
+ * Script comparator source for double values.
  */
-public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
+public class ScriptDoubleValuesComparatorSource extends DoubleValuesComparatorSource {
 
-    private final IndexNumericFieldData indexFieldData;
+    private final CheckedFunction<LeafReaderContext, NumberSortScript, IOException> scriptSupplier;
 
-    public DoubleValuesComparatorSource(
+    public ScriptDoubleValuesComparatorSource(
+        CheckedFunction<LeafReaderContext, NumberSortScript, IOException> scriptSupplier,
         IndexNumericFieldData indexFieldData,
         @Nullable Object missingValue,
         MultiValueMode sortMode,
         Nested nested
     ) {
-        super(missingValue, sortMode, nested);
-        this.indexFieldData = indexFieldData;
+        super(indexFieldData, missingValue, sortMode, nested);
+        this.scriptSupplier = scriptSupplier;
     }
 
-    @Override
-    public SortField.Type reducedType() {
-        return SortField.Type.DOUBLE;
+    private SortedNumericDoubleValues getValues(NumberSortScript leafScript) throws IOException {
+        final NumericDoubleValues values = new NumericDoubleValues() {
+            @Override
+            public boolean advanceExact(int doc) {
+                leafScript.setDocument(doc);
+                return true;
+            }
+
+            @Override
+            public double doubleValue() {
+                return leafScript.execute();
+            }
+        };
+        return FieldData.singleton(values);
     }
 
-    protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-        return indexFieldData.load(context).getDoubleValues();
-    }
-
-    private NumericDoubleValues getNumericDocValues(LeafReaderContext context, double missingValue) throws IOException {
-        return getNumericDocValues(context, missingValue, getValues(context));
-    }
-
-    protected NumericDoubleValues getNumericDocValues(LeafReaderContext context, double missingValue, SortedNumericDoubleValues values)
+    private NumericDoubleValues getNumericDocValues(LeafReaderContext context, double missingValue, NumberSortScript leafScript)
         throws IOException {
-        if (nested == null) {
-            return FieldData.replaceMissing(sortMode.select(values), missingValue);
-        } else {
-            final BitSet rootDocs = nested.rootDocs(context);
-            final DocIdSetIterator innerDocs = nested.innerDocs(context);
-            final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
-            return sortMode.select(values, missingValue, rootDocs, innerDocs, maxChildren);
-        }
+        return getNumericDocValues(context, missingValue, getValues(leafScript));
     }
-
-    protected void setScorer(LeafReaderContext context, Scorable scorer) {}
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning enableSkipping, boolean reversed) {
-        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
-
-        final double dMissingValue = (Double) missingObject(missingValue, reversed);
-        return newComparator(numHits, enableSkipping, reversed, dMissingValue);
-    }
-
     protected FieldComparator<?> newComparator(int numHits, Pruning enableSkipping, boolean reversed, double dMissingValue) {
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
         return new DoubleComparator(numHits, null, null, reversed, Pruning.NONE) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                NumberSortScript leafScript = scriptSupplier.apply(context);
                 return new DoubleLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return DoubleValuesComparatorSource.this.getNumericDocValues(context, dMissingValue).getRawDoubleValues();
+                        return ScriptDoubleValuesComparatorSource.this.getNumericDocValues(context, dMissingValue, leafScript)
+                            .getRawDoubleValues();
                     }
 
                     @Override
                     public void setScorer(Scorable scorer) {
-                        DoubleValuesComparatorSource.this.setScorer(context, scorer);
+                        leafScript.setScorer(scorer);
                     }
                 };
             }
@@ -119,8 +107,9 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+                NumberSortScript leafScript = scriptSupplier.apply(ctx);
                 return new Leaf(ctx) {
-                    private final NumericDoubleValues docValues = getNumericDocValues(ctx, dMissingValue);
+                    private final NumericDoubleValues docValues = getNumericDocValues(ctx, dMissingValue, leafScript);
                     private double docValue;
 
                     @Override

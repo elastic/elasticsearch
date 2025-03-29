@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -25,6 +26,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -108,6 +111,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final XPackLicenseState licenseState;
     private volatile long batchSizeInBytes;
 
+    private final SetOnce<CircuitBreaker> inferenceBytesCircuitBreaker = new SetOnce<>();
+
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
         InferenceServiceRegistry inferenceServiceRegistry,
@@ -124,6 +129,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
     private void setBatchSize(ByteSizeValue newBatchSize) {
         batchSizeInBytes = newBatchSize.getBytes();
+    }
+
+    public void setInferenceBytesCircuitBreaker(CircuitBreaker circuitBreaker) {
+        this.inferenceBytesCircuitBreaker.set(circuitBreaker);
     }
 
     @Override
@@ -228,6 +237,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
 
+        private long noInferenceRequestMemoryUsageInBytes = 0;  // Memory used by requests that update source but don't perform inference
+        private long estimatedInferenceRequestMemoryUsageInBytes = 0;  // Estimated memory used by requests that perform inference
+        private long actualMemoryUsageInBytes = 0;
+
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
@@ -238,12 +251,151 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
-            this.onCompletion = onCompletion;
+            this.onCompletion = () -> {
+                // TODO: Can we assume that onCompletion _always_ runs, regardless of what errors occur?
+                // Won't run if estimateMemoryUsage throws, which is the only scenario where it's ok to not run it.
+                CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
+                if (circuitBreaker != null && actualMemoryUsageInBytes > 0) {
+                    circuitBreaker.addWithoutBreaking(-actualMemoryUsageInBytes);
+                }
+
+                onCompletion.run();
+            };
         }
 
         @Override
         public void run() {
+            estimateMemoryUsage();
             executeNext(0);
+        }
+
+        private void estimateMemoryUsage() {
+            CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
+            if (circuitBreaker == null) {
+                return;
+            }
+
+            for (BulkItemRequest item : bulkShardRequest.items()) {
+                boolean isUpdateRequest = false;
+                final IndexRequest indexRequest;
+                if (item.request() instanceof IndexRequest ir) {
+                    indexRequest = ir;
+                } else if (item.request() instanceof UpdateRequest updateRequest) {
+                    isUpdateRequest = true;
+                    if (updateRequest.script() != null) {
+                        // Skip script updates, we will error out on those later
+                        continue;
+                    }
+
+                    indexRequest = updateRequest.doc();
+                } else {
+                    // Ignore delete requests
+                    continue;
+                }
+
+                // TODO: Don't know how to avoid getting the doc map here, we need it to determine if the doc has any inference fields in it
+                // and if so, what they are
+                long estimatedEmbeddingBytes = 0;
+                boolean noInferenceSourceUpdate = false;
+                final Map<String, Object> docMap = indexRequest.sourceAsMap();
+                for (InferenceFieldMetadata inferenceFieldMetadata : fieldInferenceMap.values()) {
+                    String inferenceId = inferenceFieldMetadata.getInferenceId();
+                    MinimalServiceSettings minimalServiceSettings = null;
+
+                    if (isInferenceRequired(inferenceFieldMetadata, docMap) == false) {
+                        continue;
+                    }
+
+                    for (String sourceField : inferenceFieldMetadata.getSourceFields()) {
+                        var valueObj = XContentMapValues.extractValue(sourceField, docMap, EXPLICIT_NULL);
+                        if (useLegacyFormat == false && isUpdateRequest && valueObj == EXPLICIT_NULL) {
+                            // This is an update request that will clear inference results, which means that a copy of the request source
+                            // will be generated
+                            noInferenceSourceUpdate = true;
+                            continue;
+                        } else if (valueObj == null || valueObj == EXPLICIT_NULL) {
+                            continue;
+                        }
+
+                        final List<String> values;
+                        try {
+                            values = SemanticTextUtils.nodeStringValues(sourceField, valueObj);
+                        } catch (Exception exc) {
+                            // Skip this source field for now, the invalid value will be surfaced during field inference request generation
+                            continue;
+                        }
+
+                        for (String v : values) {
+                            if (v.isBlank()) {
+                                // We update source to insert an empty chunk list on blank input
+                                noInferenceSourceUpdate = true;
+                            } else {
+                                if (minimalServiceSettings == null) {
+                                    minimalServiceSettings = getMinimalServiceSettings(inferenceId, inferenceFieldMetadata.getName());
+                                }
+
+                                // TODO: Estimate chunk count based on string length
+                                estimatedEmbeddingBytes += switch (minimalServiceSettings.taskType()) {
+                                    case SPARSE_EMBEDDING -> 128; // TODO: Estimate sparse embedding size
+                                    case TEXT_EMBEDDING -> minimalServiceSettings.elementType()
+                                        .getNumBytes(minimalServiceSettings.dimensions());
+                                    default -> throw new IllegalStateException(
+                                        "Inference ID ["
+                                            + inferenceId
+                                            + "] uses unsupported task type ["
+                                            + minimalServiceSettings.taskType()
+                                            + "]"
+                                    );
+                                };
+                            }
+                        }
+                    }
+                }
+
+                // TODO: Verify that ramBytesUsed is what to use here
+                long estimatedMemoryUsage = 0;
+                long newEstimatedInferenceRequestMemoryUsageInBytes = estimatedInferenceRequestMemoryUsageInBytes;
+                long newNoInferenceRequestMemoryUsageInBytes = noInferenceRequestMemoryUsageInBytes;
+                if (estimatedEmbeddingBytes > 0) {
+                    estimatedMemoryUsage = estimatedEmbeddingBytes + indexRequest.source().ramBytesUsed();
+                    newEstimatedInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
+                } else if (noInferenceSourceUpdate) {
+                    estimatedMemoryUsage = indexRequest.source().ramBytesUsed();
+                    newNoInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
+                }
+
+                if (estimatedMemoryUsage > 0) {
+                    try {
+                        circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedMemoryUsage, indexRequest.id());
+                    } catch (CircuitBreakingException e) {
+                        circuitBreaker.addWithoutBreaking(
+                            -(estimatedInferenceRequestMemoryUsageInBytes + noInferenceRequestMemoryUsageInBytes)
+                        );
+                        throw new InferenceException("Insufficient memory available to perform inference on bulk request", e);
+                    }
+
+                    // Bytes are added to the circuit breaker only if it doesn't trip, so increase cumulative estimated bytes only once
+                    // we're sure there's space in the breaker for the additional bytes.
+                    estimatedInferenceRequestMemoryUsageInBytes = newEstimatedInferenceRequestMemoryUsageInBytes;
+                    noInferenceRequestMemoryUsageInBytes = newNoInferenceRequestMemoryUsageInBytes;
+                }
+            }
+
+            actualMemoryUsageInBytes = estimatedInferenceRequestMemoryUsageInBytes + noInferenceRequestMemoryUsageInBytes;
+        }
+
+        private MinimalServiceSettings getMinimalServiceSettings(String inferenceId, String field) {
+            MinimalServiceSettings minimalServiceSettings;
+            try {
+                minimalServiceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
+                if (minimalServiceSettings == null) {
+                    throw new ResourceNotFoundException("Inference id [{}] not found for field [{}]", inferenceId, field);
+                }
+            } catch (ResourceNotFoundException e) {
+                throw new ResourceNotFoundException("Inference id [{}] not found for field [{}]", e, inferenceId, field);
+            }
+
+            return minimalServiceSettings;
         }
 
         private void executeNext(int itemOffset) {
@@ -374,17 +526,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     )
                                 );
                             } else {
-                                acc.addOrUpdateResponse(
-                                    new FieldInferenceResponse(
-                                        request.field(),
-                                        request.sourceField(),
-                                        useLegacyFormat ? request.input() : null,
-                                        request.inputOrder(),
-                                        request.offsetAdjustment(),
-                                        inferenceProvider.model,
-                                        result
-                                    )
-                                );
+                                if (updateActualMemoryUsage(request, result, acc)) {
+                                    acc.addOrUpdateResponse(
+                                        new FieldInferenceResponse(
+                                            request.field(),
+                                            request.sourceField(),
+                                            useLegacyFormat ? request.input() : null,
+                                            request.inputOrder(),
+                                            request.offsetAdjustment(),
+                                            inferenceProvider.model,
+                                            result
+                                        )
+                                    );
+                                }
                             }
                         }
                     }
@@ -451,22 +605,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 String field = entry.getName();
                 String inferenceId = entry.getInferenceId();
 
-                if (useLegacyFormat) {
-                    var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
-                        // Inference has already been computed, or there is no inference required.
-                        continue;
-                    }
-                } else {
-                    var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
-                        InferenceMetadataFieldsMapper.NAME + "." + field,
-                        docMap,
-                        EXPLICIT_NULL
-                    );
-                    if (inferenceMetadataFieldsValue != null) {
-                        // Inference has already been computed
-                        continue;
-                    }
+                if (isInferenceRequired(entry, docMap) == false) {
+                    continue;
                 }
 
                 int order = 0;
@@ -501,10 +641,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
                         continue;
                     }
+
                     var slot = ensureResponseAccumulatorSlot(itemIndex);
                     final List<String> values;
                     try {
-                        values = SemanticTextUtils.nodeStringValues(field, valueObj);
+                        // TODO: Test this bug and factor out fix into separate PR
+                        values = SemanticTextUtils.nodeStringValues(sourceField, valueObj);
                     } catch (Exception exc) {
                         addInferenceResponseFailure(itemIndex, exc);
                         break;
@@ -535,6 +677,32 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             }
             return inputLength;
+        }
+
+        private boolean isInferenceRequired(InferenceFieldMetadata inferenceFieldMetadata, Map<String, Object> docMap) {
+            String field = inferenceFieldMetadata.getName();
+
+            boolean inferenceRequired = true;
+            if (useLegacyFormat) {
+                var originalFieldValue = XContentMapValues.extractValue(field, docMap);
+                if (originalFieldValue instanceof Map
+                    || (originalFieldValue == null && inferenceFieldMetadata.getSourceFields().length == 1)) {
+                    // Inference has already been computed, or there is no inference required.
+                    inferenceRequired = false;
+                }
+            } else {
+                var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
+                    InferenceMetadataFieldsMapper.NAME + "." + field,
+                    docMap,
+                    EXPLICIT_NULL
+                );
+                if (inferenceMetadataFieldsValue != null) {
+                    // Inference has already been computed
+                    inferenceRequired = false;
+                }
+            }
+
+            return inferenceRequired;
         }
 
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {
@@ -624,6 +792,60 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     indexRequest.source(builder);
                 }
             }
+        }
+
+        private boolean updateActualMemoryUsage(
+            FieldInferenceRequest request,
+            ChunkedInference chunkedInference,
+            FieldInferenceResponseAccumulator accumulator
+        ) {
+            boolean success = true;
+
+            CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
+            if (circuitBreaker == null) {
+                return success;
+            }
+
+            try {
+                final BulkItemRequest item = bulkShardRequest.items()[request.bulkItemIndex()];
+                final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
+
+                long chunkBytes = 0;
+                Iterator<ChunkedInference.Chunk> chunkIterator = chunkedInference.chunksAsByteReference(
+                    indexRequest.getContentType().xContent()
+                );
+                while (chunkIterator.hasNext()) {
+                    ChunkedInference.Chunk chunk = chunkIterator.next();
+                    chunkBytes += chunk.bytesReference().ramBytesUsed();
+                }
+
+                // This doesn't count the bytes used for the inference metadata field structure (in the new format) or the field structure
+                // around the embeddings (in the legacy format), but it's a close approximation.
+                long bytesUsed = chunkBytes + indexRequest.source().ramBytesUsed();
+                if (bytesUsed <= estimatedInferenceRequestMemoryUsageInBytes) {
+                    estimatedInferenceRequestMemoryUsageInBytes -= bytesUsed;
+                } else {
+                    long bytesOverEstimate = bytesUsed - estimatedInferenceRequestMemoryUsageInBytes;
+                    estimatedInferenceRequestMemoryUsageInBytes = 0;
+
+                    // TODO: When is the request's ID calculated if not provided? Is it safe to use it as a label?
+                    circuitBreaker.addEstimateBytesAndMaybeBreak(bytesOverEstimate, indexRequest.id());
+
+                    // Bytes are added to the circuit breaker only if it doesn't trip, so increase actualMemoryUsageInBytes only once we're
+                    // sure there's space in the breaker for the additional bytes.
+                    actualMemoryUsageInBytes += bytesOverEstimate;
+                }
+            } catch (CircuitBreakingException e) {
+                success = false;
+                accumulator.addFailure(new InferenceException("Circuit breaker exception for inference on field [{}]", e, request.field));
+            } catch (Exception e) {
+                success = false;
+                accumulator.addFailure(
+                    new InferenceException("Exception when calculating memory usage for inference on field [{}]", e, request.field)
+                );
+            }
+
+            return success;
         }
     }
 

@@ -252,6 +252,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     }
 
     private void deallocate() {
+        var hits = this.hits;
         for (int i = 0; i < hits.length; i++) {
             assert hits[i] != null;
             hits[i].decRef();

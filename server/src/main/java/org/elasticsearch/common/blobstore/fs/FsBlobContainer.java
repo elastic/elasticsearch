@@ -349,6 +349,33 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
     }
 
+    @Override
+    public void copyBlob(
+        OperationPurpose purpose,
+        String sourceBlobName,
+        BlobContainer destinationBlobContainer,
+        String destinationBlobName
+    ) throws IOException {
+        if (destinationBlobContainer instanceof FsBlobContainer == false) {
+            throw new IllegalArgumentException("targetBlobContainer must be a FsBlobContainer");
+        }
+        final FsBlobContainer targetContainer = (FsBlobContainer) destinationBlobContainer;
+        final Path sourceBlobPath = path.resolve(sourceBlobName);
+        final String tempBlob = tempBlobName(destinationBlobName);
+        final Path tempBlobPath = targetContainer.path.resolve(tempBlob);
+        Files.copy(sourceBlobPath, tempBlobPath, StandardCopyOption.REPLACE_EXISTING);
+        try {
+            targetContainer.moveBlobAtomic(purpose, tempBlob, destinationBlobName, false);
+        } catch (IOException ex) {
+            try {
+                targetContainer.deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));
+            } catch (IOException e) {
+                ex.addSuppressed(e);
+            }
+            throw ex;
+        }
+    }
+
     private static void writeToPath(BytesReference bytes, Path tempBlobPath) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             bytes.writeTo(outputStream);

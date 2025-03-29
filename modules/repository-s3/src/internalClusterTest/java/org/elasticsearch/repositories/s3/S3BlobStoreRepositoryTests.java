@@ -72,6 +72,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -689,7 +690,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         private final Map<S3BlobStore.StatsKey, AtomicLong> metricsCount = ConcurrentCollections.newConcurrentMap();
 
         S3StatsCollectorHttpHandler(final HttpHandler delegate) {
-            super(delegate);
+            super(delegate, Arrays.stream(S3BlobStore.Operation.values()).map(S3BlobStore.Operation::getKey).toArray(String[]::new));
         }
 
         @Override
@@ -732,33 +733,44 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 trackRequest("GetObject");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.GET_OBJECT, purpose), k -> new AtomicLong())
                     .incrementAndGet();
-            } else if (isMultiPartUpload(request)) {
-                trackRequest("PutMultipartObject");
-                metricsCount.computeIfAbsent(
-                    new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_MULTIPART_OBJECT, purpose),
-                    k -> new AtomicLong()
-                ).incrementAndGet();
-            } else if (Regex.simpleMatch("PUT /*/*", request)) {
-                trackRequest("PutObject");
-                metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_OBJECT, purpose), k -> new AtomicLong())
-                    .incrementAndGet();
-            } else if (Regex.simpleMatch("POST /*/?delete", request)) {
-                trackRequest("DeleteObjects");
-                metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.DELETE_OBJECTS, purpose), k -> new AtomicLong())
-                    .incrementAndGet();
-            } else if (Regex.simpleMatch("DELETE /*/*?uploadId=*", request)) {
-                trackRequest("AbortMultipartObject");
-                metricsCount.computeIfAbsent(
-                    new S3BlobStore.StatsKey(S3BlobStore.Operation.ABORT_MULTIPART_OBJECT, purpose),
-                    k -> new AtomicLong()
-                ).incrementAndGet();
-            } else if (Regex.simpleMatch("HEAD /*/*", request)) {
-                trackRequest("HeadObject");
-                metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.HEAD_OBJECT, purpose), k -> new AtomicLong())
-                    .incrementAndGet();
-            } else {
-                logger.info("--> rawRequest not tracked [{}] with parsed purpose [{}]", request, purpose.getKey());
-            }
+            } else if (Regex.simpleMatch("PUT /*/*", request)
+                && requestComponents.customQueryParameters().containsKey(S3BlobStore.CUSTOM_QUERY_PARAMETER_COPY_SOURCE)) {
+                    trackRequest("CopyObject");
+                    metricsCount.computeIfAbsent(
+                        new S3BlobStore.StatsKey(S3BlobStore.Operation.COPY_OBJECT, purpose),
+                        k -> new AtomicLong()
+                    ).incrementAndGet();
+                } else if (isMultiPartUpload(request)) {
+                    trackRequest("PutMultipartObject");
+                    metricsCount.computeIfAbsent(
+                        new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_MULTIPART_OBJECT, purpose),
+                        k -> new AtomicLong()
+                    ).incrementAndGet();
+                } else if (Regex.simpleMatch("PUT /*/*", request)) {
+                    trackRequest("PutObject");
+                    metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_OBJECT, purpose), k -> new AtomicLong())
+                        .incrementAndGet();
+                } else if (Regex.simpleMatch("POST /*/?delete", request)) {
+                    trackRequest("DeleteObjects");
+                    metricsCount.computeIfAbsent(
+                        new S3BlobStore.StatsKey(S3BlobStore.Operation.DELETE_OBJECTS, purpose),
+                        k -> new AtomicLong()
+                    ).incrementAndGet();
+                } else if (Regex.simpleMatch("DELETE /*/*?uploadId=*", request)) {
+                    trackRequest("AbortMultipartObject");
+                    metricsCount.computeIfAbsent(
+                        new S3BlobStore.StatsKey(S3BlobStore.Operation.ABORT_MULTIPART_OBJECT, purpose),
+                        k -> new AtomicLong()
+                    ).incrementAndGet();
+                } else if (Regex.simpleMatch("HEAD /*/*", request)) {
+                    trackRequest("HeadObject");
+                    metricsCount.computeIfAbsent(
+                        new S3BlobStore.StatsKey(S3BlobStore.Operation.HEAD_OBJECT, purpose),
+                        k -> new AtomicLong()
+                    ).incrementAndGet();
+                } else {
+                    logger.info("--> rawRequest not tracked [{}] with parsed purpose [{}]", request, purpose.getKey());
+                }
         }
 
         Map<S3BlobStore.StatsKey, AtomicLong> getMetricsCount() {

@@ -377,6 +377,26 @@ public class FsBlobContainerTests extends ESTestCase {
         }
     }
 
+    public void testCopy() throws IOException {
+        final var path = PathUtils.get(createTempDir().toString());
+        final var store = new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false);
+        final var sourcePath = BlobPath.EMPTY.add("source");
+        final var sourceContainer = store.blobContainer(sourcePath);
+        final var targetPath = BlobPath.EMPTY.add("target");
+        final var targetContainer = store.blobContainer(targetPath);
+
+        final var sourceBlobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final var targetBlobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final var contents = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
+        sourceContainer.writeBlob(randomPurpose(), sourceBlobName, contents, true);
+        sourceContainer.copyBlob(randomPurpose(), sourceBlobName, targetContainer, targetBlobName);
+
+        var sourceContents = Streams.readFully(sourceContainer.readBlob(randomPurpose(), sourceBlobName));
+        var targetContents = Streams.readFully(targetContainer.readBlob(randomPurpose(), targetBlobName));
+        assertEquals(sourceContents, targetContents);
+        assertEquals(contents, targetContents);
+    }
+
     static class MockFileSystemProvider extends FilterFileSystemProvider {
 
         final Consumer<Long> onRead;

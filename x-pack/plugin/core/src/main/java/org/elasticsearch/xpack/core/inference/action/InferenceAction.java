@@ -63,6 +63,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public static final ParseField RETURN_DOCUMENTS = new ParseField("return_documents");
         public static final ParseField TOP_N = new ParseField("top_n");
         public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField CHUNK = new ParseField("chunk");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
@@ -73,6 +74,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareBoolean(Request.Builder::setReturnDocuments, RETURN_DOCUMENTS);
             PARSER.declareInt(Request.Builder::setTopN, TOP_N);
             PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
+            PARSER.declareBoolean(Request.Builder::setChunk, CHUNK);
         }
 
         private static final EnumSet<InputType> validEnumsBeforeUnspecifiedAdded = EnumSet.of(InputType.INGEST, InputType.SEARCH);
@@ -98,6 +100,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final List<String> input;
         private final Map<String, Object> taskSettings;
         private final InputType inputType;
+        private final boolean chunk;
         private final TimeValue inferenceTimeout;
         private final boolean stream;
 
@@ -151,6 +154,35 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.taskSettings = taskSettings;
             this.inputType = inputType;
             this.inferenceTimeout = inferenceTimeout;
+            this.chunk = false;
+            this.stream = stream;
+        }
+
+        public Request(
+            TaskType taskType,
+            String inferenceEntityId,
+            String query,
+            Boolean returnDocuments,
+            Integer topN,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            TimeValue inferenceTimeout,
+            boolean chunk,
+            boolean stream,
+            InferenceContext context
+        ) {
+            super(context);
+            this.taskType = taskType;
+            this.inferenceEntityId = inferenceEntityId;
+            this.query = query;
+            this.returnDocuments = returnDocuments;
+            this.topN = topN;
+            this.input = input;
+            this.taskSettings = taskSettings;
+            this.inputType = inputType;
+            this.inferenceTimeout = inferenceTimeout;
+            this.chunk = chunk;
             this.stream = stream;
         }
 
@@ -176,6 +208,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 this.query = null;
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
+            }
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.PERFORM_INFERENCE_WITH_CHUNKING)) {
+                this.chunk = in.readBoolean();
+            } else {
+                this.chunk = false;
             }
 
             if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
@@ -225,6 +263,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public TimeValue getInferenceTimeout() {
             return inferenceTimeout;
+        }
+
+        public boolean isChunk() {
+            return chunk;
         }
 
         public boolean isStreaming() {
@@ -277,6 +319,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return e;
             }
 
+            if (chunk && ((taskType.equals(TaskType.SPARSE_EMBEDDING) || taskType.equals(TaskType.TEXT_EMBEDDING)) == false)) {
+                var e = new ActionRequestValidationException();
+                e.addValidationError(format("Field [chunk] cannot be true for task type [%s]", taskType));
+                return e;
+            }
+
             return null;
         }
 
@@ -299,6 +347,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalString(query);
                 out.writeTimeValue(inferenceTimeout);
+            }
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.PERFORM_INFERENCE_WITH_CHUNKING)) {
+                out.writeBoolean(chunk);
             }
 
             if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
@@ -367,6 +419,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private Boolean returnDocuments;
             private Integer topN;
             private TimeValue timeout = DEFAULT_TIMEOUT;
+            private boolean chunk = false;
             private boolean stream = false;
             private InferenceContext context;
 
@@ -426,6 +479,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
             }
 
+            public Builder setChunk(boolean chunk) {
+                this.chunk = chunk;
+                return this;
+            }
+
             public Builder setStream(boolean stream) {
                 this.stream = stream;
                 return this;
@@ -447,6 +505,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                     taskSettings,
                     inputType,
                     timeout,
+                    chunk,
                     stream,
                     context
                 );
@@ -474,6 +533,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 + this.getInferenceTimeout()
                 + ", context="
                 + this.getContext()
+                + ", chunk="
+                + this.isChunk()
                 + ")";
         }
     }

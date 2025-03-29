@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 
 import java.io.IOException;
@@ -25,7 +27,7 @@ public interface EmbeddingResults<E extends EmbeddingResults.Embedding<E>> exten
     /**
      * A resulting embedding for one of the input texts to the inference service.
      */
-    interface Embedding<E extends Embedding<E>> {
+    interface Embedding<E extends Embedding<E>> extends ToXContentObject, Writeable {
         /**
          * Merges the existing embedding and provided embedding into a new embedding.
          */

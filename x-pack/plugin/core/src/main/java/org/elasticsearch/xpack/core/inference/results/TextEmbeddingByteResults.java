@@ -13,11 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
@@ -119,8 +117,6 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements Te
     // embeddings should happen inbetween serializations.
     public record Embedding(byte[] values, int[] sumMergedValues, int numberOfMergedEmbeddings)
         implements
-            Writeable,
-            ToXContentObject,
             EmbeddingResults.Embedding<Embedding> {
 
         public static final String EMBEDDING = "embedding";

@@ -438,6 +438,18 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return inferInternal(endpoint, input, query, queryParameters);
     }
 
+    protected Map<String, Object> infer(
+        String modelId,
+        TaskType taskType,
+        List<String> input,
+        Map<String, Object> bodyParameters,
+        String query,
+        Map<String, String> queryParameters
+    ) throws IOException {
+        var endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, modelId);
+        return inferInternal(endpoint, input, bodyParameters, query, queryParameters);
+    }
+
     protected Request createInferenceRequest(
         String endpoint,
         List<String> input,
@@ -446,6 +458,21 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     ) {
         var request = new Request("POST", endpoint);
         request.setJsonEntity(jsonBody(input, query));
+        if (queryParameters.isEmpty() == false) {
+            request.addParameters(queryParameters);
+        }
+        return request;
+    }
+
+    protected Request createInferenceRequest(
+        String endpoint,
+        List<String> input,
+        Map<String, Object> bodyParameters,
+        @Nullable String query,
+        Map<String, String> queryParameters
+    ) {
+        var request = new Request("POST", endpoint);
+        request.setJsonEntity(jsonBody(input, bodyParameters, query));
         if (queryParameters.isEmpty() == false) {
             request.addParameters(queryParameters);
         }
@@ -464,8 +491,44 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    private Map<String, Object> inferInternal(
+        String endpoint,
+        List<String> input,
+        Map<String, Object> bodyParameters,
+        @Nullable String query,
+        Map<String, String> queryParameters
+    ) throws IOException {
+        var request = createInferenceRequest(endpoint, input, bodyParameters, query, queryParameters);
+        var response = client().performRequest(request);
+        assertStatusOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
     private String jsonBody(List<String> input, @Nullable String query) {
         final StringBuilder bodyBuilder = new StringBuilder("{");
+
+        if (query != null) {
+            bodyBuilder.append("\"query\":\"").append(query).append("\",");
+        }
+
+        bodyBuilder.append("\"input\": [");
+        for (var in : input) {
+            bodyBuilder.append('"').append(in).append('"').append(',');
+        }
+        // remove last comma
+        bodyBuilder.deleteCharAt(bodyBuilder.length() - 1);
+        bodyBuilder.append("]}");
+        return bodyBuilder.toString();
+    }
+
+    private String jsonBody(List<String> input, Map<String, Object> bodyParameters, @Nullable String query) {
+        final StringBuilder bodyBuilder = new StringBuilder("{");
+
+        if (bodyParameters != null) {
+            for (var entry : bodyParameters.entrySet()) {
+                bodyBuilder.append('"').append(entry.getKey()).append("\":").append(entry.getValue()).append(',');
+            }
+        }
 
         if (query != null) {
             bodyBuilder.append("\"query\":\"").append(query).append("\",");

@@ -21,6 +21,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceServiceResults;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -74,17 +75,31 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.infer(
-            model,
-            request.getQuery(),
-            request.getReturnDocuments(),
-            request.getTopN(),
-            request.getInput(),
-            request.isStreaming(),
-            request.getTaskSettings(),
-            request.getInputType(),
-            request.getInferenceTimeout(),
-            listener
-        );
+        if (request.isChunk()) {
+            service.chunkedInfer(
+                model,
+                request.getQuery(),
+                request.getInput(),
+                request.getTaskSettings(),
+                request.getInputType(),
+                request.getInferenceTimeout(),
+                ActionListener.wrap(results -> {
+                    listener.onResponse(ChunkedInferenceServiceResults.of(request.getInput(), results));
+                }, listener::onFailure)
+            );
+        } else {
+            service.infer(
+                model,
+                request.getQuery(),
+                request.getReturnDocuments(),
+                request.getTopN(),
+                request.getInput(),
+                request.isStreaming(),
+                request.getTaskSettings(),
+                request.getInputType(),
+                request.getInferenceTimeout(),
+                listener
+            );
+        }
     }
 }

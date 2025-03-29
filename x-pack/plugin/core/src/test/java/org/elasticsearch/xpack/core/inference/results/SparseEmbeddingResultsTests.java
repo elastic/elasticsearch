@@ -51,7 +51,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
         return new SparseEmbeddingResults(embeddings);
     }
 
-    private static SparseEmbeddingResults.Embedding createRandomEmbedding(int numTokens) {
+    public static SparseEmbeddingResults.Embedding createRandomEmbedding(int numTokens) {
         List<WeightedToken> tokenList = new ArrayList<>(numTokens);
         for (int i = 0; i < numTokens; i++) {
             tokenList.add(new WeightedToken(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));

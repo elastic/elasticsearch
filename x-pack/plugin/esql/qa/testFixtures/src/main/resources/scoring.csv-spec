@@ -325,7 +325,7 @@ book_no:keyword | title:text                                                    
 
 semanticTextMatch
 required_capability: metadata_score
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 required_capability: match_function
 
 from semantic_text metadata _id, _score
@@ -343,7 +343,7 @@ _id:keyword
 semanticTextMatchWithAllTheTextFunctions
 
 required_capability: metadata_score
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 required_capability: match_function
 required_capability: kql_function
 required_capability: qstr_function

@@ -23,7 +23,7 @@ import static org.hamcrest.core.StringContains.containsString;
 
 public abstract class SemanticMatchTestCase extends ESRestTestCase {
     public void testWithMultipleInferenceIds() throws IOException {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.isEnabled());
 
         String query = """
             from test-semantic1,test-semantic2
@@ -37,7 +37,7 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
     }
 
     public void testWithInferenceNotConfigured() {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.isEnabled());
 
         String query = """
             from test-semantic3

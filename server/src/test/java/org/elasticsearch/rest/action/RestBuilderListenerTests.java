@@ -23,16 +23,19 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RestBuilderListenerTests extends ESTestCase {
 
+    // bypass the check that XContent responses are never empty - we're ignoring the builder and sending a text/plain response anyway
+    private static final BytesArray NONEMPTY_BODY = new BytesArray(new byte[] { '\n' });
+
     public void testXContentBuilderClosedInBuildResponse() throws Exception {
         AtomicReference<XContentBuilder> builderAtomicReference = new AtomicReference<>();
-        RestBuilderListener<TransportResponse.Empty> builderListener = new RestBuilderListener<Empty>(
+        RestBuilderListener<TransportResponse.Empty> builderListener = new RestBuilderListener<>(
             new FakeRestChannel(new FakeRestRequest(), randomBoolean(), 1)
         ) {
             @Override
-            public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(Empty empty, XContentBuilder builder) {
                 builderAtomicReference.set(builder);
                 builder.close();
-                return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, NONEMPTY_BODY);
             }
         };
 
@@ -43,13 +46,13 @@ public class RestBuilderListenerTests extends ESTestCase {
 
     public void testXContentBuilderNotClosedInBuildResponseAssertionsDisabled() throws Exception {
         AtomicReference<XContentBuilder> builderAtomicReference = new AtomicReference<>();
-        RestBuilderListener<TransportResponse.Empty> builderListener = new RestBuilderListener<Empty>(
+        RestBuilderListener<TransportResponse.Empty> builderListener = new RestBuilderListener<>(
             new FakeRestChannel(new FakeRestRequest(), randomBoolean(), 1)
         ) {
             @Override
-            public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(Empty empty, XContentBuilder builder) {
                 builderAtomicReference.set(builder);
-                return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, NONEMPTY_BODY);
             }
 
             @Override
@@ -64,15 +67,15 @@ public class RestBuilderListenerTests extends ESTestCase {
         assertTrue(builderAtomicReference.get().generator().isClosed());
     }
 
-    public void testXContentBuilderNotClosedInBuildResponseAssertionsEnabled() throws Exception {
+    public void testXContentBuilderNotClosedInBuildResponseAssertionsEnabled() {
         assumeTrue("tests are not being run with assertions", RestBuilderListener.class.desiredAssertionStatus());
 
-        RestBuilderListener<TransportResponse.Empty> builderListener = new RestBuilderListener<Empty>(
+        RestBuilderListener<TransportResponse.Empty> builderListener = new RestBuilderListener<>(
             new FakeRestChannel(new FakeRestRequest(), randomBoolean(), 1)
         ) {
             @Override
-            public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {
-                return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+            public RestResponse buildResponse(Empty empty, XContentBuilder builder) {
+                return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, NONEMPTY_BODY);
             }
         };
 

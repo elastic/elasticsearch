@@ -354,10 +354,6 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         private final Map<String, Long> operationCount = new HashMap<>();
 
-        public HttpStatsCollectorHandler(HttpHandler delegate) {
-            this.delegate = delegate;
-        }
-
         public HttpStatsCollectorHandler(HttpHandler delegate, String[] operations) {
             this.delegate = delegate;
             for (String operation : operations) {

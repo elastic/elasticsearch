@@ -14,7 +14,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
@@ -73,11 +73,11 @@ public class TransportStats implements Writeable, ChunkedToXContent {
             && in.getTransportVersion().isPatchFrom(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90) == false) {
             in.readBoolean();
         }
-        inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
+        inboundHandlingTimeBucketFrequencies = new long[ExponentialBucketHistogram.BUCKET_COUNT];
         for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
             inboundHandlingTimeBucketFrequencies[i] = in.readVLong();
         }
-        outboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
+        outboundHandlingTimeBucketFrequencies = new long[ExponentialBucketHistogram.BUCKET_COUNT];
         for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
             outboundHandlingTimeBucketFrequencies[i] = in.readVLong();
         }
@@ -97,8 +97,8 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
         out.writeVLong(txSize);
-        assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
-        assert outboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
+        assert inboundHandlingTimeBucketFrequencies.length == ExponentialBucketHistogram.BUCKET_COUNT;
+        assert outboundHandlingTimeBucketFrequencies.length == ExponentialBucketHistogram.BUCKET_COUNT;
         if (out.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)
             && out.getTransportVersion().isPatchFrom(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90) == false) {
             out.writeBoolean(true);
@@ -168,7 +168,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
 
     private boolean assertHistogramsConsistent() {
         assert inboundHandlingTimeBucketFrequencies.length == outboundHandlingTimeBucketFrequencies.length;
-        assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
+        assert inboundHandlingTimeBucketFrequencies.length == ExponentialBucketHistogram.BUCKET_COUNT;
         return true;
     }
 
@@ -200,7 +200,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
     }
 
     static void histogramToXContent(XContentBuilder builder, long[] bucketFrequencies, String fieldName) throws IOException {
-        final int[] bucketBounds = HandlingTimeTracker.getBucketUpperBounds();
+        final int[] bucketBounds = ExponentialBucketHistogram.getBucketUpperBounds();
 
         int firstBucket = 0;
         long remainingCount = 0L;

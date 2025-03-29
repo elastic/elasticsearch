@@ -10,7 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -26,7 +26,7 @@ public class TestTransportChannels {
     ) {
         BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
         return new TcpTransportChannel(
-            new OutboundHandler(nodeName, version, new StatsTracker(), threadPool, recycler, new HandlingTimeTracker(), false),
+            new OutboundHandler(nodeName, version, new StatsTracker(), threadPool, recycler, new ExponentialBucketHistogram(), false),
             channel,
             action,
             requestId,

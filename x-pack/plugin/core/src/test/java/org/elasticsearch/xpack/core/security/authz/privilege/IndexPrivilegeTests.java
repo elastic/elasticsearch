@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -68,6 +69,16 @@ public class IndexPrivilegeTests extends ESTestCase {
             equalTo(List.of("monitor", "cross_cluster_replication", "manage", "all"))
         );
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
+
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            Predicate<IndexPrivilege> failuresOnly = p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES;
+            assertThat(findPrivilegesThatGrant(TransportSearchAction.TYPE.name(), failuresOnly), equalTo(List.of("read_failure_store")));
+            assertThat(findPrivilegesThatGrant(TransportIndexAction.NAME, failuresOnly), equalTo(List.of()));
+            assertThat(findPrivilegesThatGrant(TransportUpdateAction.NAME, failuresOnly), equalTo(List.of()));
+            assertThat(findPrivilegesThatGrant(TransportDeleteAction.NAME, failuresOnly), equalTo(List.of()));
+            assertThat(findPrivilegesThatGrant(IndicesStatsAction.NAME, failuresOnly), equalTo(List.of("manage_failure_store")));
+            assertThat(findPrivilegesThatGrant(RefreshAction.NAME, failuresOnly), equalTo(List.of("manage_failure_store")));
+        }
     }
 
     public void testGet() {

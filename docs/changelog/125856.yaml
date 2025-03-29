@@ -1,0 +1,5 @@
+pr: 125856
+summary: Hold engine read lock during reader refresh
+area: Engine
+type: bug
+issues: []

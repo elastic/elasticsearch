@@ -40,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.locks.Lock;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -147,6 +148,11 @@ public final class EngineConfig {
     private final boolean promotableToPrimary;
 
     /**
+     * Lock to acquire before executing refreshing a reader instance.
+     */
+    private final Lock maybeRefreshLock;
+
+    /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
     public EngineConfig(
@@ -177,7 +183,8 @@ public final class EngineConfig {
         LongSupplier relativeTimeInNanosSupplier,
         Engine.IndexCommitListener indexCommitListener,
         boolean promotableToPrimary,
-        MapperService mapperService
+        MapperService mapperService,
+        Lock maybeRefreshLock
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -224,6 +231,7 @@ public final class EngineConfig {
         this.promotableToPrimary = promotableToPrimary;
         // always use compound on flush - reduces # of file-handles on refresh
         this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
+        this.maybeRefreshLock = maybeRefreshLock;
     }
 
     /**
@@ -467,5 +475,9 @@ public final class EngineConfig {
 
     public MapperService getMapperService() {
         return mapperService;
+    }
+
+    public Lock getMaybeRefreshLock() {
+        return maybeRefreshLock;
     }
 }

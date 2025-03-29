@@ -130,6 +130,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -304,7 +305,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            config.getMapperService()
+            config.getMapperService(),
+            config.getMaybeRefreshLock()
         );
     }
 
@@ -337,7 +339,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            config.getMapperService()
+            config.getMapperService(),
+            config.getMaybeRefreshLock()
         );
     }
 
@@ -370,7 +373,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            config.getMapperService()
+            config.getMapperService(),
+            config.getMaybeRefreshLock()
         );
     }
 
@@ -875,7 +879,8 @@ public abstract class EngineTestCase extends ESTestCase {
             this::relativeTimeInNanos,
             indexCommitListener,
             true,
-            mapperService
+            mapperService,
+            new ReentrantReadWriteLock().readLock()
         );
     }
 
@@ -916,7 +921,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            config.getMapperService()
+            config.getMapperService(),
+            config.getMaybeRefreshLock()
         );
     }
 

@@ -315,6 +315,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
     private volatile long globalCheckPointIfUnpromotable;
 
+    /**
+     * Indicates that the {@link #close(String, boolean, Executor, ActionListener)} has been called
+     */
+    private final AtomicBoolean isClosing = new AtomicBoolean();
+
     @SuppressWarnings("this-escape")
     public IndexShard(
         final ShardRouting shardRouting,
@@ -1819,8 +1824,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     }
 
+    public boolean isClosing() {
+        return isClosing.get();
+    }
+
     public void close(String reason, boolean flushEngine, Executor closeExecutor, ActionListener<Void> closeListener) throws IOException {
         synchronized (closeMutex) {
+            isClosing.set(true);
             Engine engineOrNull = null;
             try {
                 // engine reference and shard state are changed under the engine write lock
@@ -1852,8 +1862,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         @Override
                         public void run() throws Exception {
                             try {
+                                assert engineLock.isWriteLockedByCurrentThread() == false : "do not close engine while holding write lock";
                                 if (engine != null && flushEngine) {
-                                    assert engineLock.isWriteLockedByCurrentThread() == false : "do not flush under engine write lock";
                                     engine.flushAndClose();
                                 }
                             } finally {
@@ -3735,7 +3745,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             relativeTimeInNanosSupplier,
             indexCommitListener,
             routingEntry().isPromotableToPrimary(),
-            mapperService()
+            mapperService(),
+            engineLock.readLock()
         );
     }
 
@@ -4470,41 +4481,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert waitForEngineOrClosedShardListeners.isDone();
         try {
-            engineLock.readLock().lock();
-            var release = true;
+            Engine previousEngine = null;
+            engineLock.writeLock().lock();
             try {
                 verifyNotClosed();
-                // Preparing the engine for reset flushes and blocks for refresh: it should not be executed under the write lock because
-                // another thread might already be refreshing, and the refresh listeners in that thread will need to access to the engine
-                // using the read lock. If we were using the write lock here, it would deadlock.
                 currentEngine.prepareForEngineReset();
-                engineLock.readLock().unlock();
-                release = false;
-
-                // Promote to write lock in order to swap engines
-                engineLock.writeLock().lock();
-                Engine previousEngine = null;
-                try {
-
-                    // How do we ensure that no indexing operations have been processed since prepareForEngineReset() here? We're not
-                    // blocking all operations when resetting the engine nor we are blocking flushes or force-merges.
-
-                    assert state != IndexShardState.CLOSED : "state has changed without holding engine write lock!";
-                    var newEngine = createEngine(newEngineConfig(replicationTracker));
-                    previousEngine = getAndSetCurrentEngine(newEngine);
-                    postResetNewEngineConsumer.accept(newEngine);
-                    onNewEngine(newEngine);
-                } finally {
-                    engineLock.readLock().lock();
-                    try {
-                        engineLock.writeLock().unlock();
-                        IOUtils.close(previousEngine);
-                    } finally {
-                        engineLock.readLock().unlock();
-                    }
-                }
+                var newEngine = createEngine(newEngineConfig(replicationTracker));
+                previousEngine = getAndSetCurrentEngine(newEngine);
+                postResetNewEngineConsumer.accept(newEngine);
+                onNewEngine(newEngine);
             } finally {
-                if (release) {
+                // Downgrade to read lock for closing the engine
+                engineLock.readLock().lock();
+                try {
+                    engineLock.writeLock().unlock();
+                    // Some engine implementations use a references counting mechanism to avoid closing the engine until all operations
+                    // requiring the engine to be open to run are completed (and in order to ensure this open state, the operations
+                    // acquire a reference before running). In case an operation requires to access the engine read lock during
+                    // execution, it is important that we don't hold the engine write lock here otherwise it might deadlock.
+                    IOUtils.close(previousEngine);
+                } finally {
                     engineLock.readLock().unlock();
                 }
             }
@@ -4514,6 +4510,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             failShard("unable to reset engine", e);
         }
     }
+
+    // Some engine implementations use a references counting mechanism to avoid closing the engine until all operations
+    // requiring the engine to be open to run are completed (and in order to ensure this open state, the operations
+    // acquire a reference before running). In case an operation requires to access the engine read lock during
+    // execution, it is important that we don't hold the engine write lock here otherwise it might deadlock.
 
     /**
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.

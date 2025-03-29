@@ -2051,12 +2051,22 @@ public class InternalEngine extends Engine {
                     // the second refresh will only do the extra work we have to do for warming caches etc.
                     ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
                     long generationBeforeRefresh = lastCommittedSegmentInfos.getGeneration();
-                    // it is intentional that we never refresh both internal / external together
-                    if (block) {
-                        referenceManager.maybeRefreshBlocking();
-                        refreshed = true;
-                    } else {
-                        refreshed = referenceManager.maybeRefresh();
+
+                    // acquire the engine read lock before trying to acquire the reader reference manager's refresh lock, so that the
+                    // refresh is guaranteed to complete if it tries accessing the engine for refreshing while there is a thread waiting
+                    // for the engine write lock.
+                    final var maybeRefreshLock = engineConfig.getMaybeRefreshLock();
+                    maybeRefreshLock.lock();
+                    try {
+                        // it is intentional that we never refresh both internal / external together
+                        if (block) {
+                            referenceManager.maybeRefreshBlocking();
+                            refreshed = true;
+                        } else {
+                            refreshed = referenceManager.maybeRefresh();
+                        }
+                    } finally {
+                        maybeRefreshLock.unlock();
                     }
                     if (refreshed) {
                         final ElasticsearchDirectoryReader current = referenceManager.acquire();

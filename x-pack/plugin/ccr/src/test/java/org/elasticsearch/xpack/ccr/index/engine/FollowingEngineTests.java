@@ -70,6 +70,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
@@ -273,7 +274,8 @@ public class FollowingEngineTests extends ESTestCase {
             System::nanoTime,
             null,
             true,
-            mapperService
+            mapperService,
+            new ReentrantReadWriteLock().readLock()
         );
     }
 

@@ -385,7 +385,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             result.consumeAll();
             next.run();
         } else if (result.isNull()) {
-            result.consumeAll();
             SearchShardTarget target = result.getSearchShardTarget();
             SearchShard searchShard = new SearchShard(target.getClusterAlias(), target.getShardId());
             synchronized (this) {

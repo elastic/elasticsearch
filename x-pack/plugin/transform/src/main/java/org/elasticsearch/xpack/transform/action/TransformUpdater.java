@@ -252,7 +252,7 @@ public class TransformUpdater {
             long lastCheckpoint = currentState.v1().getTransformState().getCheckpoint();
 
             // if: the state is stored on the latest index, it does not need an update
-            if (currentState.v2().getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)) {
+            if (transformConfigManager.isLatestTransformIndex(currentState.v2().getIndex())) {
                 listener.onResponse(lastCheckpoint);
                 return;
             }
@@ -283,8 +283,7 @@ public class TransformUpdater {
         ActionListener<Boolean> listener
     ) {
         transformConfigManager.getTransformCheckpointForUpdate(transformId, lastCheckpoint, ActionListener.wrap(checkpointAndVersion -> {
-            if (checkpointAndVersion == null
-                || checkpointAndVersion.v2().getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)) {
+            if (checkpointAndVersion == null || transformConfigManager.isLatestTransformIndex(checkpointAndVersion.v2().getIndex())) {
                 listener.onResponse(true);
                 return;
             }

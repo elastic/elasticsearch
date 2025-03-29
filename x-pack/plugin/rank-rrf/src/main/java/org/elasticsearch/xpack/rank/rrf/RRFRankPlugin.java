@@ -17,6 +17,7 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.rank.hybrid.HybridRetrieverBuilder;
 import org.elasticsearch.xpack.rank.linear.LinearRankDoc;
 import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 
@@ -57,7 +58,8 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
     public List<RetrieverSpec<?>> getRetrievers() {
         return List.of(
             new RetrieverSpec<>(new ParseField(NAME), RRFRetrieverBuilder::fromXContent),
-            new RetrieverSpec<>(new ParseField(LinearRetrieverBuilder.NAME), LinearRetrieverBuilder::fromXContent)
+            new RetrieverSpec<>(new ParseField(LinearRetrieverBuilder.NAME), LinearRetrieverBuilder::fromXContent),
+            new RetrieverSpec<>(new ParseField(HybridRetrieverBuilder.NAME), HybridRetrieverBuilder::fromXContent)
         );
     }
 }

@@ -45,6 +45,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -277,6 +278,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> BATCHED_QUERY_PHASE = Setting.boolSetting(
+        "search.batched_query_phase",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    private static final boolean BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase").isEnabled();
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
     private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
@@ -296,6 +306,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final BigArrays bigArrays;
 
     private final FetchPhase fetchPhase;
+    private final CircuitBreaker circuitBreaker;
     private final RankFeatureShardPhase rankFeatureShardPhase;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
@@ -305,6 +316,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile long maxKeepAlive;
 
     private volatile TimeValue defaultSearchTimeout;
+
+    private volatile boolean batchQueryPhase;
 
     private final int minimumDocsPerSlice;
 
@@ -351,6 +364,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.bigArrays = bigArrays;
         this.rankFeatureShardPhase = rankFeatureShardPhase;
         this.fetchPhase = fetchPhase;
+        circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
             settings,
@@ -398,8 +412,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
+        if (BATCHED_QUERY_PHASE_FEATURE_FLAG) {
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
+            batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
+        } else {
+            batchQueryPhase = false;
+        }
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(BATCHED_QUERY_PHASE, bulkExecuteQueryPhase -> this.batchQueryPhase = bulkExecuteQueryPhase);
+    }
+
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
@@ -460,6 +487,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setEnableRewriteAggsToFilterByFilter(boolean enableRewriteAggsToFilterByFilter) {
         this.enableRewriteAggsToFilterByFilter = enableRewriteAggsToFilterByFilter;
+    }
+
+    public boolean batchQueryPhase() {
+        return batchQueryPhase;
     }
 
     @Override

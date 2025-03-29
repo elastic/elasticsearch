@@ -2,7 +2,8 @@
 
 ## `TO_AGGREGATE_METRIC_DOUBLE` [esql-to_aggregate_metric_double]
 ```{applies_to}
-product: COMING 9.1
+product: COMING
+serverless: GA
 ```
 
 **Syntax**

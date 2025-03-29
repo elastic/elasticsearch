@@ -458,7 +458,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
     }
 
-    private void mockNodeClient(){
+    private void mockNodeClient() {
         when(nodeClient.getLocalNodeId()).thenReturn(localNodeId);
     }
 }

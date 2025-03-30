@@ -27,7 +27,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         assertTrue(processor.isOTelDocument(document));
     }
 
-    public void testIsOTelDocument_validOTelDocumentWithScopAndAttributes() {
+    public void testIsOTelDocument_validOTelDocumentWithScopeAndAttributes() {
         Map<String, Object> document = new HashMap<>();
         document.put("attributes", new HashMap<>());
         document.put("resource", new HashMap<>());

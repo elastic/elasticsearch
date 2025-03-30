@@ -252,11 +252,11 @@ public class EcsNamespaceProcessor extends AbstractProcessor {
     }
 
     private boolean shouldMoveToResourceAttributes(String key) {
-        return key.startsWith(AGENT_PREFIX +".")
+        return key.startsWith(AGENT_PREFIX + ".")
             || key.equals(AGENT_PREFIX)
             || key.startsWith(CLOUD_PREFIX + ".")
             || key.equals(CLOUD_PREFIX)
-            || key.startsWith(HOST_PREFIX +".")
+            || key.startsWith(HOST_PREFIX + ".")
             || key.equals(HOST_PREFIX);
     }
 

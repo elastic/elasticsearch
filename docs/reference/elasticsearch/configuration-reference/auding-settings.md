@@ -12,7 +12,7 @@ applies_to:
 
 
 $$$auditing-settings-description$$$
-You can use [audit logging](docs-content://deploy-manage/monitor/logging-configuration/enabling-audit-logs.md) to record security-related events, such as authentication failures, refused connections, and data-access events. In addition, changes via the APIs to the security configuration, such as creating, updating and removing [native](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/native.md) and [built-in](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/built-in-users.md) users, [roles](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-put-role), [role mappings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-put-role-mapping) and [API keys](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) are also recorded.
+You can use [audit logging](docs-content://deploy-manage/security/logging-configuration/enabling-audit-logs.md) to record security-related events, such as authentication failures, refused connections, and data-access events. In addition, changes via the APIs to the security configuration, such as creating, updating and removing [native](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/native.md) and [built-in](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/built-in-users.md) users, [roles](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-put-role), [role mappings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-put-role-mapping) and [API keys](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) are also recorded.
 
 ::::{tip}
 Audit logs are only available on certain subscription levels. For more information, see [{{stack}} subscriptions](https://www.elastic.co/subscriptions).
@@ -48,7 +48,7 @@ $$$xpack-sa-lf-events-exclude$$$
 $$$xpack-sa-lf-events-emit-request$$$
 
 `xpack.security.audit.logfile.events.emit_request_body` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Specifies whether to include the full request body from REST requests as an attribute of certain kinds of audit events. This setting can be used to [audit search queries](docs-content://deploy-manage/monitor/logging-configuration/auditing-search-queries.md).
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Specifies whether to include the full request body from REST requests as an attribute of certain kinds of audit events. This setting can be used to [audit search queries](docs-content://deploy-manage/security/logging-configuration/auditing-search-queries.md).
 
     The default value is `false`, so request bodies are not printed.
 
@@ -83,7 +83,7 @@ $$$xpack-sa-lf-emit-node-id$$$
 
 ## Audit Logfile Event Ignore Policies [audit-event-ignore-policies]
 
-The following settings affect the [ignore policies](docs-content://deploy-manage/monitor/logging-configuration/logfile-audit-events-ignore-policies.md) that enable fine-grained control over which audit events are printed to the log file. All of the settings with the same policy name combine to form a single policy. If an event matches all the conditions of any policy, it is ignored and not printed. Most audit events are subject to the ignore policies. The sole exception are events of the `security_config_change` type, which cannot be filtered out, unless [excluded](#xpack-sa-lf-events-exclude) altogether.
+The following settings affect the [ignore policies](docs-content://deploy-manage/security/logging-configuration/logfile-audit-events-ignore-policies.md) that enable fine-grained control over which audit events are printed to the log file. All of the settings with the same policy name combine to form a single policy. If an event matches all the conditions of any policy, it is ignored and not printed. Most audit events are subject to the ignore policies. The sole exception are events of the `security_config_change` type, which cannot be filtered out, unless [excluded](#xpack-sa-lf-events-exclude) altogether.
 
 $$$xpack-sa-lf-events-ignore-users$$$
 

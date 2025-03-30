@@ -806,10 +806,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testDoubleParamsForIdentifiers() throws IOException {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         bulkLoadTestData(10);
         // positive
         // named double parameters
@@ -951,10 +948,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testDoubleParamsWithLookupJoin() throws IOException {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         bulkLoadTestDataLookupMode(10);
         var query = requestObjectBuilder().query(
             format(

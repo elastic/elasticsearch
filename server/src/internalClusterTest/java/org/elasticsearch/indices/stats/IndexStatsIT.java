@@ -78,6 +78,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -465,7 +466,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
     }
 
-    public void testThrottleStats() throws Exception {
+    public void testThrottleStats() {
         assertAcked(
             prepareCreate("test").setSettings(
                 settingsBuilder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
@@ -478,31 +479,38 @@ public class IndexStatsIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        long termUpto = 0;
-        IndicesStatsResponse stats;
         // make sure we see throttling kicking in:
-        boolean done = false;
+        AtomicBoolean done = new AtomicBoolean();
+        AtomicLong termUpTo = new AtomicLong();
         long start = System.currentTimeMillis();
-        while (done == false) {
-            for (int i = 0; i < 100; i++) {
-                // Provoke slowish merging by making many unique terms:
-                StringBuilder sb = new StringBuilder();
-                for (int j = 0; j < 100; j++) {
-                    sb.append(' ');
-                    sb.append(termUpto++);
-                }
-                prepareIndex("test").setId("" + termUpto).setSource("field" + (i % 10), sb.toString()).get();
-                if (i % 2 == 0) {
+        for (int threadIdx = 0; threadIdx < 5; threadIdx++) {
+            int finalThreadIdx = threadIdx;
+            new Thread(() -> {
+                IndicesStatsResponse stats;
+                while (done.get() == false) {
+                    for (int i = 0; i < 100; i++) {
+                        // Provoke slowish merging by making many unique terms:
+                        StringBuilder sb = new StringBuilder();
+                        for (int j = 0; j < 100; j++) {
+                            sb.append(' ');
+                            sb.append(termUpTo.incrementAndGet());
+                        }
+                        prepareIndex("test").setId("" + termUpTo.get()).setSource("field" + (i % 10), sb.toString()).get();
+                        if (i % 2 == 0) {
+                            refresh();
+                        }
+                    }
                     refresh();
+                    if (finalThreadIdx == 0) {
+                        stats = indicesAdmin().prepareStats().get();
+                        done.set(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0);
+                    }
+                    if (System.currentTimeMillis() - start > 300 * 1000) { // Wait 5 minutes for throttling to kick in
+                        done.set(true);
+                        fail("index throttling didn't kick in after 5 minutes of intense merging");
+                    }
                 }
-            }
-            refresh();
-            stats = indicesAdmin().prepareStats().get();
-            // nodesStats = clusterAdmin().prepareNodesStats().setIndices(true).get();
-            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0;
-            if (System.currentTimeMillis() - start > 300 * 1000) { // Wait 5 minutes for throttling to kick in
-                fail("index throttling didn't kick in after 5 minutes of intense merging");
-            }
+            }).start();
         }
 
         // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"

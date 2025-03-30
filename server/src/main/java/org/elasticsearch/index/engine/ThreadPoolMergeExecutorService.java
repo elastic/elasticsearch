@@ -272,6 +272,10 @@ public class ThreadPoolMergeExecutorService {
         }
     }
 
+    public boolean usingMaxTargetIORateBytesPerSec() {
+        return MAX_IO_RATE.getBytes() == targetIORateBytesPerSec.get();
+    }
+
     // exposed for tests
     Set<MergeTask> getRunningMergeTasks() {
         return runningMergeTasks;

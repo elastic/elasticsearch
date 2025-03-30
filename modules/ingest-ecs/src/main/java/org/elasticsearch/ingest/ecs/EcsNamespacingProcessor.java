@@ -52,9 +52,9 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
         KEEP_KEYS = Set.copyOf(keepKeys);
     }
 
-    private static final String AGENT_PREFIX = "agent.";
-    private static final String CLOUD_PREFIX = "cloud.";
-    private static final String HOST_PREFIX = "host.";
+    private static final String AGENT_PREFIX = "agent";
+    private static final String CLOUD_PREFIX = "cloud";
+    private static final String HOST_PREFIX = "host";
 
     private static final String ATTRIBUTES_KEY = "attributes";
     private static final String RESOURCE_KEY = "resource";
@@ -126,7 +126,6 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
         return document;
     }
 
-    @SuppressWarnings("unchecked")
     boolean isOTelDocument(Map<String, Object> source) {
         Object resource = source.get(RESOURCE_KEY);
         if (resource instanceof Map<?, ?> resourceMap) {

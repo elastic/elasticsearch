@@ -23,9 +23,9 @@ import java.util.Arrays;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
-record MultipartUpload(String bucket, String name, String generation, String crc32, String md5, BytesReference content) {
+public record MultipartUpload(String bucket, String name, String generation, String crc32, String md5, BytesReference content) {
 
-    static final byte[] CRLFCRLF = new byte[] { '\r', '\n', '\r', '\n' };
+    static final byte[] BODY_PART_HEADERS_DELIMITER = new byte[] { '\r', '\n', '\r', '\n' };
     static final Pattern METADATA_PATTERN = Pattern.compile("\"(bucket|name|generation|crc32c|md5Hash)\":\"([^\"]*)\"");
     static final Pattern BOUNDARY_HEADER_PATTERN = Pattern.compile("multipart/\\w+; boundary=\\\"?(.*)\\\"?");
 
@@ -35,7 +35,7 @@ record MultipartUpload(String bucket, String name, String generation, String crc
      * and boundary is defined in the HTTP header Content-Type,
      * like this {@code multipart/related; boundary=__END_OF_PART__4914cd49-4065-44f6-9846-ce805fe1e77f__}.
      * Last part, close-delimiter, is dashed from both sides {@code --boundary--}.
-     * Part headers are separated from the body by double CRLF.
+     * Part headers are separated from the content by double CRLF.
      *
      * More details here <a href=https://www.rfc-editor.org/rfc/rfc2046.html#page-19>rfc2046</a>.
      *
@@ -53,25 +53,17 @@ record MultipartUpload(String bucket, String name, String generation, String crc
      *     }
      * </pre>
      */
-    static MultipartUpload parseBody(HttpExchange exchange, InputStream gzipInput) throws IOException {
+    public static MultipartUpload parseBody(HttpExchange exchange, InputStream gzipInput) throws IOException {
         var boundary = getBoundaryHeader(exchange);
         try (var input = new GZIPInputStream(gzipInput)) {
             var dashBoundary = ("--" + boundary).getBytes();
             var bodyPartDelimiter = ("\r\n--" + boundary).getBytes();
 
-            // https://www.rfc-editor.org/rfc/rfc2046.html#page-22
-            // multipart-body := [preamble CRLF]
-            // dash-boundary transport-padding CRLF
-            // body-part *encapsulation
-            // close-delimiter transport-padding
-            // [CRLF epilogue]
-            //
-            // there is no transport-padding and epilogue in our case
             skipDashBoundary(input, dashBoundary);
 
             // read first body-part - blob metadata json
-            readByDelimiter(input, CRLFCRLF); // ignore body-part headers
-            var metadataBytes = readByDelimiter(input, bodyPartDelimiter);
+            skipUntilDelimiter(input, BODY_PART_HEADERS_DELIMITER);
+            var metadataBytes = readUntilDelimiter(input, bodyPartDelimiter);
             var match = METADATA_PATTERN.matcher(metadataBytes.utf8ToString());
             String bucket = "", name = "", gen = "", crc = "", md5 = "";
             while (match.find()) {
@@ -87,8 +79,8 @@ record MultipartUpload(String bucket, String name, String generation, String crc
 
             // read content from remaining parts, can be 0..n
             while (readCloseDelimiterOrCRLF(input) == false) {
-                readByDelimiter(input, CRLFCRLF); // ignore headers
-                var content = readByDelimiter(input, bodyPartDelimiter);
+                skipUntilDelimiter(input, BODY_PART_HEADERS_DELIMITER);
+                var content = readUntilDelimiter(input, bodyPartDelimiter);
                 blobParts.add(content);
             }
 
@@ -100,7 +92,7 @@ record MultipartUpload(String bucket, String name, String generation, String crc
     static String getBoundaryHeader(HttpExchange exchange) {
         var m = BOUNDARY_HEADER_PATTERN.matcher(exchange.getRequestHeaders().getFirst("Content-Type"));
         if (m.matches() == false) {
-            throw new IllegalArgumentException("boundary header is not present");
+            throw new AssertionError("boundary header is not present");
         }
         return m.group(1);
     }
@@ -111,9 +103,7 @@ record MultipartUpload(String bucket, String name, String generation, String crc
     static void skipDashBoundary(InputStream is, byte[] dashBoundary) throws IOException {
         var b = is.readNBytes(dashBoundary.length);
         if (Arrays.equals(b, dashBoundary) == false) {
-            throw new IllegalStateException(
-                "cannot read dash-boundary, expect=" + Arrays.toString(dashBoundary) + " got=" + Arrays.toString(b)
-            );
+            throw new AssertionError("cannot read dash-boundary, expect=" + Arrays.toString(dashBoundary) + " got=" + Arrays.toString(b));
         }
         skipCRLF(is);
     }
@@ -122,7 +112,7 @@ record MultipartUpload(String bucket, String name, String generation, String crc
         var cr = is.read();
         var lf = is.read();
         if (cr != '\r' && lf != '\n') {
-            throw new IllegalStateException("cannot read CRLF got " + cr + " " + lf);
+            throw new AssertionError("cannot read CRLF got " + cr + " " + lf);
         }
     }
 
@@ -138,7 +128,7 @@ record MultipartUpload(String bucket, String name, String generation, String crc
         } else if (d1 == '\r' && d2 == '\n') {
             return false;
         } else {
-            throw new IllegalStateException("expect '--' or CRLF, got " + d1 + " " + d2);
+            throw new AssertionError("expect '--' or CRLF, got " + d1 + " " + d2);
         }
     }
 
@@ -146,23 +136,51 @@ record MultipartUpload(String bucket, String name, String generation, String crc
      * Read bytes from stream into buffer until reach given delimiter. The delimiter is consumed too.
      */
     static BytesReference readUntilDelimiter(InputStream is, byte[] delimiter) throws IOException {
+        assert delimiter.length > 0;
         var out = new ByteArrayOutputStream(1024);
         var delimiterMatchLen = 0;
         while (true) {
             var c = is.read();
             if (c == -1) {
-                throw new IllegalStateException("expected delimiter, but reached end of stream ");
+                throw new AssertionError("expected delimiter, but reached end of stream ");
             }
             var b = (byte) c;
             out.write(b);
-            if (delimiter[delimiterMatchLen] == c) {
+            if (delimiter[delimiterMatchLen] == b) {
                 delimiterMatchLen++;
                 if (delimiterMatchLen >= delimiter.length) {
                     var bytes = out.toByteArray();
                     return new BytesArray(bytes, 0, bytes.length - delimiter.length);
                 }
             } else {
-                if (delimiter[0] == c) {
+                if (delimiter[0] == b) {
+                    delimiterMatchLen = 1;
+                } else {
+                    delimiterMatchLen = 0;
+                }
+            }
+        }
+    }
+
+    /**
+     * Discard bytes from stream until reach given delimiter. The delimiter is consumed too.
+     */
+    static void skipUntilDelimiter(InputStream is, byte[] delimiter) throws IOException {
+        assert delimiter.length > 0;
+        var delimiterMatchLen = 0;
+        while (true) {
+            var c = is.read();
+            if (c == -1) {
+                throw new AssertionError("expected delimiter, but reached end of stream ");
+            }
+            var b = (byte) c;
+            if (delimiter[delimiterMatchLen] == b) {
+                delimiterMatchLen++;
+                if (delimiterMatchLen >= delimiter.length) {
+                    return;
+                }
+            } else {
+                if (delimiter[0] == b) {
                     delimiterMatchLen = 1;
                 } else {
                     delimiterMatchLen = 0;

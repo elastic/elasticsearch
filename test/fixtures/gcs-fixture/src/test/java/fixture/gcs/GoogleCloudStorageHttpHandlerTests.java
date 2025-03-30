@@ -588,11 +588,15 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         BytesReference bytes,
         Long ifGenerationMatch
     ) {
+        var headers = new Headers();
+        // multipart upload is required to provide boundary header
+        headers.put("Content-Type", List.of("multipart/related; boundary=" + MULTIPART_BOUNDARY));
         return handleRequest(
             handler,
             "POST",
             "/upload/storage/v1/b/" + bucket + "/" + generateQueryString("uploadType", "multipart", "ifGenerationMatch", ifGenerationMatch),
-            createGzipCompressedMultipartUploadBody(bucket, blobName, bytes)
+            createGzipCompressedMultipartUploadBody(bucket, blobName, bytes),
+            headers
         );
     }
 
@@ -757,6 +761,8 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
     private static Headers rangeHeader(long start, long end) {
         return Headers.of("Range", Strings.format("bytes=%d-%d", start, end));
     }
+
+    private static final String MULTIPART_BOUNDARY = "__END_OF_PART__a607a67c-6df7-4b87-b8a1-81f639a75a97__";
 
     private static BytesReference createGzipCompressedMultipartUploadBody(String bucketName, String path, BytesReference content) {
         final String metadataString = Strings.format("{\"bucket\":\"%s\", \"name\":\"%s\"}", bucketName, path);

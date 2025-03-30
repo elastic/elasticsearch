@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.gcs;
 
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
+import fixture.gcs.MultipartUpload;
 
 import com.google.api.client.http.HttpExecuteInterceptor;
 import com.google.api.client.http.HttpRequestInitializer;
@@ -42,7 +43,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
@@ -60,8 +60,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -69,7 +67,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
 import static fixture.gcs.TestUtils.createServiceAccount;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
@@ -79,7 +76,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -261,17 +257,17 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final CountDown countDown = new CountDown(maxRetries);
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
-        final byte[] bytes = randomBlobContent();
+        final byte[] blobContent = randomBlobContent();
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
             if (countDown.countDown()) {
-                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(exchange.getRequestBody());
-                assertThat(content, isPresent());
-                assertThat(content.get().v1(), equalTo(blobContainer.path().buildAsString() + "write_blob_max_retries"));
-                if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {
+                MultipartUpload multipartUpload = MultipartUpload.parseBody(exchange, exchange.getRequestBody());
+                assertTrue(multipartUpload.content().length() > 0);
+                assertEquals(multipartUpload.name(), blobContainer.path().buildAsString() + "write_blob_max_retries");
+                if (multipartUpload.content().equals(new BytesArray(blobContent))) {
                     byte[] response = Strings.format("""
                         {"bucket":"bucket","name":"%s"}
-                        """, content.get().v1()).getBytes(UTF_8);
+                        """, multipartUpload.name()).getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
@@ -284,7 +280,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 if (randomBoolean()) {
                     org.elasticsearch.core.Streams.readFully(
                         exchange.getRequestBody(),
-                        new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]
+                        new byte[randomIntBetween(1, Math.max(1, blobContent.length - 1))]
                     );
                 } else {
                     Streams.readFully(exchange.getRequestBody());
@@ -293,8 +289,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }
         }));
 
-        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-            blobContainer.writeBlob(randomPurpose(), "write_blob_max_retries", stream, bytes.length, false);
+        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", blobContent), blobContent.length)) {
+            blobContainer.writeBlob(randomPurpose(), "write_blob_max_retries", stream, blobContent.length, false);
         }
         assertThat(countDown.isCountedDown(), is(true));
     }

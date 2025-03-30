@@ -15,10 +15,10 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.util.Map;
 
-public class EcsNamespacingPlugin extends Plugin implements IngestPlugin {
+public class EcsNamespacePlugin extends Plugin implements IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(EcsNamespacingProcessor.TYPE, new EcsNamespacingProcessor.Factory());
+        return Map.of(EcsNamespaceProcessor.TYPE, new EcsNamespaceProcessor.Factory());
     }
 }

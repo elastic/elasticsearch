@@ -21,10 +21,28 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class EcsNamespacingProcessor extends AbstractProcessor {
+/**
+ * This processor is responsible for transforming non-OpenTelemetry-compliant documents into a namespaced flavor of ECS
+ * that makes them compatible with OpenTelemetry.
+ * It DOES NOT translate the entire ECS schema into OpenTelemetry semantic conventions.
+ *
+ * <p>More specifically, this processor performs the following operations:
+ * <ul>
+ *   <li>Renames specific ECS fields to their corresponding OpenTelemetry-compatible counterparts.</li>
+ *   <li>Moves fields to the "attributes" and "resource.attributes" namespaces.</li>
+ *   <li>Flattens the "attributes" and "resource.attributes" maps.</li>
+ * </ul>
+ *
+ * <p>If a document is identified as OpenTelemetry-compatible, no transformation is performed.
+ * @see org.elasticsearch.ingest.AbstractProcessor
+ */
+public class EcsNamespaceProcessor extends AbstractProcessor {
 
-    public static final String TYPE = "ecs_namespacing";
+    public static final String TYPE = "ecs_namespace";
 
+    /**
+     * Mapping of ECS field names to their corresponding OpenTelemetry-compatible counterparts.
+     */
     private static final Map<String, String> RENAME_KEYS = Map.of(
         "span.id",
         "span_id",
@@ -36,11 +54,18 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
         "trace_id"
     );
 
+    /**
+     * A close-set of keys that should be kept at the top level of the processed document after applying the namespacing.
+     * In essence, these are the fields that should not be moved to the "attributes" or "resource.attributes" namespaces.
+     * Besides the @timestamp field, this set obviously contains the attributes and the resource fields, as well as the
+     * OpenTelemetry-compatible fields that are renamed by the processor.
+     */
     private static final Set<String> KEEP_KEYS;
     static {
         Set<String> keepKeys = new HashSet<>(Set.of("@timestamp", "attributes", "resource"));
         Set<String> renamedTopLevelFields = new HashSet<>();
         for (String value : RENAME_KEYS.values()) {
+            // if the renamed field is nested, we only need to know the top level field
             int dotIndex = value.indexOf('.');
             if (dotIndex != -1) {
                 renamedTopLevelFields.add(value.substring(0, dotIndex));
@@ -63,7 +88,7 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
     private static final String TEXT_KEY = "text";
     private static final String STRUCTURED_KEY = "structured";
 
-    EcsNamespacingProcessor(String tag, String description) {
+    EcsNamespaceProcessor(String tag, String description) {
         super(tag, description);
     }
 
@@ -85,7 +110,9 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
 
         Map<String, Object> newAttributes = new HashMap<>();
         // The keep keys indicate the fields that should be kept at the top level later on when applying the namespacing.
-        // However, at this point we need to move their original values to the new attributes namespace, except for the @timestamp field.
+        // However, at this point we need to move their original values (if they exist) to the one of the new attributes namespaces, except
+        // for the @timestamp field. The assumption is that at this point the document is not OTel compliant, so even if a valid top
+        // level field is found, we assume that it does not bear the OTel semantics.
         for (String keepKey : KEEP_KEYS) {
             if (keepKey.equals("@timestamp")) {
                 continue;
@@ -126,7 +153,24 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
         return document;
     }
 
-    boolean isOTelDocument(Map<String, Object> source) {
+    /**
+     * Checks if the given document is OpenTelemetry-compliant.
+     *
+     * <p>A document is considered OpenTelemetry-compliant if it meets the following criteria:
+     * <ul>
+     *   <li>The "resource" field is present and is a map
+     *   <li>The resource field either doesn't contain an "attributes" field, or the "attributes" field is a map.</li>
+     *   <li>The "scope" field is either absent or a map.</li>
+     *   <li>The "attributes" field is either absent or a map.</li>
+     *   <li>The "body" field is either absent or a map.</li>
+     *   <li>If exists, the "body" either doesn't contain a "text" field, or the "text" field is a string.</li>
+     *   <li>If exists, the "body" either doesn't contain a "structured" field, or the "structured" field is not a string.</li>
+     * </ul>
+     *
+     * @param source the document to check
+     * @return {@code true} if the document is OpenTelemetry-compliant, {@code false} otherwise
+     */
+    static boolean isOTelDocument(Map<String, Object> source) {
         Object resource = source.get(RESOURCE_KEY);
         if (resource instanceof Map<?, ?> resourceMap) {
             Object resourceAttributes = resourceMap.get(ATTRIBUTES_KEY);
@@ -163,7 +207,21 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
         return true;
     }
 
-    private void renameSpecialKeys(IngestDocument document) {
+    /**
+     * Renames specific ECS keys in the given document to their OpenTelemetry-compatible counterparts, based on the {@code RENAME_KEYS} map.
+     *
+     * <p>This method performs the following operations:
+     * <ul>
+     *   <li>For each key in the {@code RENAME_KEYS} map, it checks if a corresponding field exists in the document. If first looks for the
+     *   field assuming dot notation for nested fields. If the field is not found, it looks for a top level field with a dotted name.</li>
+     *   <li>If the field exists, it removes if from the document and adds a new field with the corresponding name from the {@code
+     *   RENAME_KEYS} map and the same value.</li>
+     *   <li>If the key is nested (contains dots), it recursively removes empty parent fields after renaming.</li>
+     * </ul>
+     *
+     * @param document the document to process
+     */
+    static void renameSpecialKeys(IngestDocument document) {
         RENAME_KEYS.forEach((nonOtelName, otelName) -> {
             // first look assuming dot notation for nested fields
             Object value = document.getFieldValue(nonOtelName, Object.class, true);
@@ -211,7 +269,7 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
             Map<String, Object> config,
             ProjectId projectId
         ) throws Exception {
-            return new EcsNamespacingProcessor(tag, description);
+            return new EcsNamespaceProcessor(tag, description);
         }
     }
 }

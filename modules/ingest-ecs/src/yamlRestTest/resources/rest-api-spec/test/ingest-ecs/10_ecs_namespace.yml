@@ -2,16 +2,16 @@
 setup:
   - do:
       ingest.put_pipeline:
-        id: "ecs_namespacing_pipeline"
+        id: "ecs_namespace_pipeline"
         body:
           processors:
-            - ecs_namespacing: {}
+            - ecs_namespace: {}
 
 ---
 teardown:
   - do:
       ingest.delete_pipeline:
-        id: "ecs_namespacing_pipeline"
+        id: "ecs_namespace_pipeline"
         ignore: 404
 
 ---
@@ -20,7 +20,7 @@ teardown:
       index:
         index: ecs_namespacing_test
         id: "nested_and_flat_attributes"
-        pipeline: "ecs_namespacing_pipeline"
+        pipeline: "ecs_namespace_pipeline"
         body: {
           "agent.name": "agentNameValue",
           "agent": {
@@ -111,7 +111,7 @@ teardown:
       index:
         index: ecs_namespacing_test
         id: "rename_special_keys"
-        pipeline: "ecs_namespacing_pipeline"
+        pipeline: "ecs_namespace_pipeline"
         body: {
           "span": {
             "id": "nestedSpanIdValue"
@@ -146,7 +146,7 @@ teardown:
       index:
         index: ecs_namespacing_test
         id: "valid_otel_document"
-        pipeline: "ecs_namespacing_pipeline"
+        pipeline: "ecs_namespace_pipeline"
         body: {
           "resource": {
             "attributes": {
@@ -189,7 +189,7 @@ teardown:
       index:
         index: ecs_namespacing_test
         id: "invalid_body_field"
-        pipeline: "ecs_namespacing_pipeline"
+        pipeline: "ecs_namespace_pipeline"
         body: {
           "resource": {},
           "scope": {

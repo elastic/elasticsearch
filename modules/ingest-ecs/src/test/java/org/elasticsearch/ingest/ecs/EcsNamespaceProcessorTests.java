@@ -17,14 +17,14 @@ import java.util.List;
 import java.util.Map;
 
 @SuppressWarnings("unchecked")
-public class EcsNamespacingProcessorTests extends ESTestCase {
+public class EcsNamespaceProcessorTests extends ESTestCase {
 
-    private final EcsNamespacingProcessor processor = new EcsNamespacingProcessor("test", "test processor");
+    private final EcsNamespaceProcessor processor = new EcsNamespaceProcessor("test", "test processor");
 
     public void testIsOTelDocument_validMinimalOTelDocument() {
         Map<String, Object> document = new HashMap<>();
         document.put("resource", new HashMap<>());
-        assertTrue(processor.isOTelDocument(document));
+        assertTrue(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testIsOTelDocument_validOTelDocumentWithScopeAndAttributes() {
@@ -32,20 +32,20 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         document.put("attributes", new HashMap<>());
         document.put("resource", new HashMap<>());
         document.put("scope", new HashMap<>());
-        assertTrue(processor.isOTelDocument(document));
+        assertTrue(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testIsOTelDocument_missingResource() {
         Map<String, Object> document = new HashMap<>();
         document.put("scope", new HashMap<>());
-        assertFalse(processor.isOTelDocument(document));
+        assertFalse(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testIsOTelDocument_resourceNotMap() {
         Map<String, Object> document = new HashMap<>();
         document.put("resource", "not a map");
         document.put("scope", new HashMap<>());
-        assertFalse(processor.isOTelDocument(document));
+        assertFalse(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testIsOTelDocument_invalidResourceAttributes() {
@@ -54,14 +54,14 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
         document.put("resource", resource);
         document.put("scope", new HashMap<>());
-        assertFalse(processor.isOTelDocument(document));
+        assertFalse(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testIsOTelDocument_scopeNotMap() {
         Map<String, Object> document = new HashMap<>();
         document.put("resource", new HashMap<>());
         document.put("scope", "not a map");
-        assertFalse(processor.isOTelDocument(document));
+        assertFalse(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testIsOTelDocument_invalidAttributes() {
@@ -69,7 +69,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         document.put("resource", new HashMap<>());
         document.put("scope", new HashMap<>());
         document.put("attributes", "not a map");
-        assertFalse(processor.isOTelDocument(document));
+        assertFalse(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testIsOTelDocument_invalidBody() {
@@ -77,7 +77,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         document.put("resource", new HashMap<>());
         document.put("scope", new HashMap<>());
         document.put("body", "not a map");
-        assertFalse(processor.isOTelDocument(document));
+        assertFalse(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testIsOTelDocument_invalidBodyText() {
@@ -87,7 +87,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         document.put("resource", new HashMap<>());
         document.put("scope", new HashMap<>());
         document.put("body", body);
-        assertFalse(processor.isOTelDocument(document));
+        assertFalse(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testIsOTelDocument_invalidBodyStructured() {
@@ -97,7 +97,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         document.put("resource", new HashMap<>());
         document.put("scope", new HashMap<>());
         document.put("body", body);
-        assertFalse(processor.isOTelDocument(document));
+        assertFalse(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testIsOTelDocument_validBody() {
@@ -108,7 +108,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         document.put("resource", new HashMap<>());
         document.put("scope", new HashMap<>());
         document.put("body", body);
-        assertTrue(processor.isOTelDocument(document));
+        assertTrue(EcsNamespaceProcessor.isOTelDocument(document));
     }
 
     public void testExecute_validOTelDocument() {
@@ -210,7 +210,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         document.put("trace", trace);
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
 
-        processor.execute(ingestDocument);
+        EcsNamespaceProcessor.renameSpecialKeys(ingestDocument);
 
         Map<String, Object> source = ingestDocument.getSource();
         assertEquals("spanIdValue", source.get("span_id"));
@@ -219,8 +219,6 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         assertFalse(source.containsKey("log"));
         assertEquals("traceIdValue", source.get("trace_id"));
         assertFalse(source.containsKey("trace"));
-        assertTrue(source.containsKey("attributes"));
-        assertTrue(((Map<String, Object>) source.get("attributes")).isEmpty());
     }
 
     public void testRenameSpecialKeys_topLevelDottedField() {
@@ -231,7 +229,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         document.put("message", "this is a message");
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
 
-        processor.execute(ingestDocument);
+        EcsNamespaceProcessor.renameSpecialKeys(ingestDocument);
 
         Map<String, Object> source = ingestDocument.getSource();
         assertEquals("spanIdValue", source.get("span_id"));
@@ -240,8 +238,6 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         Object body = source.get("body");
         assertTrue(body instanceof Map);
         assertEquals("this is a message", ((Map<String, Object>) body).get("text"));
-        assertTrue(source.containsKey("attributes"));
-        assertTrue(((Map<String, Object>) source.get("attributes")).isEmpty());
         assertFalse(document.containsKey("span.id"));
         assertFalse(document.containsKey("log.level"));
         assertFalse(document.containsKey("trace.id"));
@@ -256,7 +252,7 @@ public class EcsNamespacingProcessorTests extends ESTestCase {
         document.put("span.id", "topLevelSpanIdValue");
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
 
-        processor.execute(ingestDocument);
+        EcsNamespaceProcessor.renameSpecialKeys(ingestDocument);
 
         Map<String, Object> source = ingestDocument.getSource();
         // nested form should take precedence

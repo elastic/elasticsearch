@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description = 'Ingest processor that applies ECS namespacing'
-  classname ='org.elasticsearch.ingest.ecs.EcsNamespacingPlugin'
+  classname ='org.elasticsearch.ingest.ecs.EcsNamespacePlugin'
 }
 
 restResources {

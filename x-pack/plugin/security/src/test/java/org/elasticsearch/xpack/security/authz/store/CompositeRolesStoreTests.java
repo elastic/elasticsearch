@@ -2025,12 +2025,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testBuildRoleDoesNotSplitIfAllPrivilegesHaveTheSameSelector() {
         String indexPattern = randomAlphanumericOfLength(10);
-        IndexComponentSelectorPredicate predicate = randomFrom(
-            IndexComponentSelectorPredicate.ALL,
-            IndexComponentSelectorPredicate.DATA,
-            IndexComponentSelectorPredicate.FAILURES,
-            IndexComponentSelectorPredicate.DATA_AND_FAILURES
-        );
+        IndexComponentSelectorPredicate predicate = (DataStream.isFailureStoreFeatureFlagEnabled())
+            ? randomFrom(
+                IndexComponentSelectorPredicate.ALL,
+                IndexComponentSelectorPredicate.DATA,
+                IndexComponentSelectorPredicate.FAILURES,
+                IndexComponentSelectorPredicate.DATA_AND_FAILURES
+            )
+            : randomFrom(
+                IndexComponentSelectorPredicate.ALL,
+                IndexComponentSelectorPredicate.DATA,
+                IndexComponentSelectorPredicate.DATA_AND_FAILURES
+            );
 
         List<String> privilegesWithSelector = IndexPrivilege.names()
             .stream()

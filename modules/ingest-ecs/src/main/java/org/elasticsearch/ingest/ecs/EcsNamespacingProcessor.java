@@ -195,12 +195,12 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
     }
 
     private boolean shouldMoveToResourceAttributes(String key) {
-        return key.startsWith(AGENT_PREFIX)
-            || key.equals("agent")
-            || key.startsWith(CLOUD_PREFIX)
-            || key.equals("cloud")
-            || key.startsWith(HOST_PREFIX)
-            || key.equals("host");
+        return key.startsWith(AGENT_PREFIX +".")
+            || key.equals(AGENT_PREFIX)
+            || key.startsWith(CLOUD_PREFIX + ".")
+            || key.equals(CLOUD_PREFIX)
+            || key.startsWith(HOST_PREFIX +".")
+            || key.equals(HOST_PREFIX);
     }
 
     public static final class Factory implements Processor.Factory {

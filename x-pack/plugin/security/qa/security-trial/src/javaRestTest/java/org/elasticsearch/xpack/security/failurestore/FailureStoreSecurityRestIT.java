@@ -211,6 +211,53 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "applications": [],
               "run_as": []
             }""");
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["read", "manage"],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": ["idx", "*"],
+                  "privileges": ["manage_data_stream_lifecycle"],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["write"],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": ["idx", "*"],
+                  "privileges": ["manage"],
+                  "allow_restricted_indices": true
+                }
+              ]
+            }
+            """, "role");
+        expectUserPrivilegesResponse("""
+            {
+              "cluster": ["all"],
+              "global": [],
+              "indices": [
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["manage", "manage_data_stream_lifecycle", "read"],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["manage", "write"],
+                  "allow_restricted_indices": true
+                }
+              ],
+              "applications": [],
+              "run_as": []
+            }""");
     }
 
     public void testHasPrivileges() throws IOException {

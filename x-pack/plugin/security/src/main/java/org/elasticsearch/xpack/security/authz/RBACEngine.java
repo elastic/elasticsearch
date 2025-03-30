@@ -794,7 +794,7 @@ public class RBACEngine implements AuthorizationEngine {
             }
         }
 
-        final LinkedHashSet<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
+        final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
         for (IndicesPermission.Group group : userRole.indices().groups()) {
             indices.add(toIndices(group));
         }
@@ -843,10 +843,14 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
-    private static LinkedHashSet<GetUserPrivilegesResponse.Indices> combineIndices(
-        LinkedHashSet<GetUserPrivilegesResponse.Indices> indices
-    ) {
-        final LinkedHashMap<Tuple<Boolean, Set<String>>, GetUserPrivilegesResponse.Indices> combinedIndices = new LinkedHashMap<>();
+    /**
+     * Due to selector-processing during role building
+     * (see {@link org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege#resolveBySelectorAccess(Set)}),
+     * it is possible that multiple index groups with the same indices exist with different privilege sets. To provide a cleaner response,
+     * this method combines them into one group.
+     */
+    private static Set<GetUserPrivilegesResponse.Indices> combineIndices(Set<GetUserPrivilegesResponse.Indices> indices) {
+        final Map<Tuple<Boolean, Set<String>>, GetUserPrivilegesResponse.Indices> combinedIndices = new LinkedHashMap<>();
         for (GetUserPrivilegesResponse.Indices index : indices) {
             final GetUserPrivilegesResponse.Indices existing = combinedIndices.get(
                 new Tuple<>(index.allowRestrictedIndices(), index.getIndices())
@@ -854,16 +858,23 @@ public class RBACEngine implements AuthorizationEngine {
             if (existing == null) {
                 combinedIndices.put(new Tuple<>(index.allowRestrictedIndices(), index.getIndices()), index);
             } else {
-                Set<String> combined = new LinkedHashSet<>(existing.getPrivileges());
-                combined.addAll(index.getPrivileges());
-                assert existing.allowRestrictedIndices() == index.allowRestrictedIndices();
-                assert Objects.equals(existing.getFieldSecurity(), index.getFieldSecurity());
-                assert Objects.equals(existing.getQueries(), index.getQueries());
+                Set<String> combinedPrivileges = new HashSet<>(existing.getPrivileges());
+                combinedPrivileges.addAll(index.getPrivileges());
+                boolean flsDlsMatch = Objects.equals(existing.getFieldSecurity(), index.getFieldSecurity())
+                    && Objects.equals(existing.getQueries(), index.getQueries());
+                assert existing.getIndices().equals(index.getIndices())
+                    && existing.allowRestrictedIndices() == index.allowRestrictedIndices()
+                    // due to collation & selector resolution code, fls and dls definitions are always the same if the indices match
+                    && flsDlsMatch;
+                if (false == flsDlsMatch) {
+                    // if the above invariant is violated, due to a bug, bail and return original indices (these will still be correct)
+                    return indices;
+                }
                 combinedIndices.put(
                     new Tuple<>(index.allowRestrictedIndices(), index.getIndices()),
                     new GetUserPrivilegesResponse.Indices(
                         index.getIndices(),
-                        combined,
+                        combinedPrivileges,
                         index.getFieldSecurity(),
                         index.getQueries(),
                         index.allowRestrictedIndices()

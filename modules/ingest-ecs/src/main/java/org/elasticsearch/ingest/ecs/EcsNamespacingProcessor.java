@@ -129,13 +129,13 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
     @SuppressWarnings("unchecked")
     boolean isOTelDocument(Map<String, Object> source) {
         Object resource = source.get(RESOURCE_KEY);
-        if (resource instanceof Map == false) {
-            return false;
-        } else {
-            Object resourceAttributes = ((Map<String, Object>) resource).get(ATTRIBUTES_KEY);
+        if (resource instanceof Map<?, ?> resourceMap) {
+            Object resourceAttributes = resourceMap.get(ATTRIBUTES_KEY);
             if (resourceAttributes != null && (resourceAttributes instanceof Map) == false) {
                 return false;
             }
+        } else {
+            return false;
         }
 
         Object scope = source.get(SCOPE_KEY);
@@ -150,15 +150,16 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
 
         Object body = source.get(BODY_KEY);
         if (body != null) {
-            if (body instanceof Map == false) {
+            if (body instanceof Map<?, ?> bodyMap) {
+                Object bodyText = bodyMap.get(TEXT_KEY);
+                if (bodyText != null && (bodyText instanceof String) == false) {
+                    return false;
+                }
+                Object bodyStructured = bodyMap.get(STRUCTURED_KEY);
+                return (bodyStructured instanceof String) == false;
+            } else {
                 return false;
             }
-            Object bodyText = ((Map<String, Object>) body).get(TEXT_KEY);
-            if (bodyText != null && (bodyText instanceof String) == false) {
-                return false;
-            }
-            Object bodyStructured = ((Map<String, Object>) body).get(STRUCTURED_KEY);
-            return (bodyStructured instanceof String) == false;
         }
         return true;
     }
@@ -194,12 +195,12 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
     }
 
     private boolean shouldMoveToResourceAttributes(String key) {
-        return key.startsWith(AGENT_PREFIX)
-            || key.equals("agent")
-            || key.startsWith(CLOUD_PREFIX)
-            || key.equals("cloud")
-            || key.startsWith(HOST_PREFIX)
-            || key.equals("host");
+        return key.startsWith(AGENT_PREFIX +".")
+            || key.equals(AGENT_PREFIX)
+            || key.startsWith(CLOUD_PREFIX + ".")
+            || key.equals(CLOUD_PREFIX)
+            || key.startsWith(HOST_PREFIX +".")
+            || key.equals(HOST_PREFIX);
     }
 
     public static final class Factory implements Processor.Factory {

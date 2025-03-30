@@ -150,15 +150,16 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
 
         Object body = source.get(BODY_KEY);
         if (body != null) {
-            if (body instanceof Map == false) {
+            if (body instanceof Map<?, ?> bodyMap) {
+                Object bodyText = bodyMap.get(TEXT_KEY);
+                if (bodyText != null && (bodyText instanceof String) == false) {
+                    return false;
+                }
+                Object bodyStructured = bodyMap.get(STRUCTURED_KEY);
+                return (bodyStructured instanceof String) == false;
+            } else {
                 return false;
             }
-            Object bodyText = ((Map<String, Object>) body).get(TEXT_KEY);
-            if (bodyText != null && (bodyText instanceof String) == false) {
-                return false;
-            }
-            Object bodyStructured = ((Map<String, Object>) body).get(STRUCTURED_KEY);
-            return (bodyStructured instanceof String) == false;
         }
         return true;
     }

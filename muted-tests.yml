@@ -392,6 +392,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
   method: testUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/125554
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
+  method: testDataStreamLifecycleDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/123769
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_bbq_hnsw/Test index configured rescore vector score consistency}
+  issue: https://github.com/elastic/elasticsearch/issues/125902
 
 # Examples:
 #

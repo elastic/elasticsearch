@@ -64,33 +64,33 @@ import static org.elasticsearch.core.Strings.format;
  * distributed frequencies
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
-    private static final float DEFAULT_INDEX_BOOST = 1.0f;
+    protected static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final SearchTransportService searchTransportService;
+    protected final SearchTransportService searchTransportService;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
-    private final SearchRequest request;
+    protected final SearchRequest request;
 
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
-    private final SearchTask task;
+    protected final SearchTask task;
     protected final SearchPhaseResults<Result> results;
     private final long clusterStateVersion;
     private final TransportVersion minTransportVersion;
-    private final Map<String, AliasFilter> aliasFilter;
-    private final Map<String, Float> concreteIndexBoosts;
+    protected final Map<String, AliasFilter> aliasFilter;
+    protected final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps;
-    private final SearchTimeProvider timeProvider;
+    protected final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
     protected final List<SearchShardIterator> shardsIts;
-    private final SearchShardIterator[] shardIterators;
+    protected final SearchShardIterator[] shardIterators;
     private final AtomicInteger outstandingShards;
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
@@ -230,10 +230,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             onPhaseDone();
             return;
         }
+        if (shardsIts.isEmpty()) {
+            return;
+        }
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
         for (int i = 0; i < shardIterators.length; i++) {
             shardIndexMap.put(shardIterators[i], i);
         }
+        doRun(shardIndexMap);
+    }
+
+    protected void doRun(Map<SearchShardIterator, Integer> shardIndexMap) {
         doCheckNoMissingShards(getName(), request, shardsIts);
         for (int i = 0; i < shardsIts.size(); i++) {
             final SearchShardIterator shardRoutings = shardsIts.get(i);
@@ -249,7 +256,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
+    protected final void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
         if (throttleConcurrentRequests) {
             var pendingExecutions = pendingExecutionsPerNode.computeIfAbsent(
                 shard.getNodeId(),
@@ -289,7 +296,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         executePhaseOnShard(shardIt, connection, shardListener);
     }
 
-    private void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
+    protected final void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
         SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
         onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
     }
@@ -396,7 +403,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return failures;
     }
 
-    private void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
+    protected final void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);

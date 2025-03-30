@@ -91,6 +91,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private static final String WRITE_ACCESS = "write_access";
     private static final String MANAGE_ACCESS = "manage_access";
     private static final String MANAGE_FAILURE_STORE_ACCESS = "manage_failure_store_access";
+    private static final String MANAGE_DATA_STREAM_LIFECYCLE = "manage_data_stream_lifecycle";
     private static final SecureString PASSWORD = new SecureString("admin-password");
 
     @Before
@@ -1836,11 +1837,31 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """);
 
+        createUser(MANAGE_DATA_STREAM_LIFECYCLE, PASSWORD, MANAGE_DATA_STREAM_LIFECYCLE);
+        upsertRole(Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["manage_data_stream_lifecycle"]}]
+            }"""), MANAGE_DATA_STREAM_LIFECYCLE);
+        createAndStoreApiKey(MANAGE_DATA_STREAM_LIFECYCLE, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*"], "privileges": ["manage_data_stream_lifecycle"]}]
+              }
+            }
+            """);
+
         // explain lifecycle API with and without failures selector is granted by manage
         assertOK(performRequest(MANAGE_ACCESS, new Request("GET", "test1/_lifecycle/explain")));
         assertOK(performRequest(MANAGE_ACCESS, new Request("GET", "test1::failures/_lifecycle/explain")));
         assertOK(performRequest(MANAGE_ACCESS, new Request("GET", failureIndexName + "/_lifecycle/explain")));
         assertOK(performRequest(MANAGE_ACCESS, new Request("GET", dataIndexName + "/_lifecycle/explain")));
+
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", "test1/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", "test1::failures/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", failureIndexName + "/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", dataIndexName + "/_lifecycle/explain")));
 
         // explain lifecycle API is granted by manage_failure_store only for failures selector
         expectThrows(() -> performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", "test1/_lifecycle/explain")), 403);
@@ -1851,6 +1872,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         // user with manage access to data stream can delete failure index because manage grants access to both data and failures
         expectThrows(() -> deleteIndex(MANAGE_ACCESS, failureIndexName), 400);
         expectThrows(() -> deleteIndex(MANAGE_ACCESS, dataIndexName), 400);
+
         // manage_failure_store user COULD delete failure index (not valid because it's a write index, but allowed security-wise)
         expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, failureIndexName), 400);
         expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);

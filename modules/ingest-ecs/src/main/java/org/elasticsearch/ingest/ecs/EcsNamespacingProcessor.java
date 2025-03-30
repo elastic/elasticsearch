@@ -129,13 +129,13 @@ public class EcsNamespacingProcessor extends AbstractProcessor {
     @SuppressWarnings("unchecked")
     boolean isOTelDocument(Map<String, Object> source) {
         Object resource = source.get(RESOURCE_KEY);
-        if (resource instanceof Map == false) {
-            return false;
-        } else {
-            Object resourceAttributes = ((Map<String, Object>) resource).get(ATTRIBUTES_KEY);
+        if (resource instanceof Map<?, ?> resourceMap) {
+            Object resourceAttributes = resourceMap.get(ATTRIBUTES_KEY);
             if (resourceAttributes != null && (resourceAttributes instanceof Map) == false) {
                 return false;
             }
+        } else {
+            return false;
         }
 
         Object scope = source.get(SCOPE_KEY);

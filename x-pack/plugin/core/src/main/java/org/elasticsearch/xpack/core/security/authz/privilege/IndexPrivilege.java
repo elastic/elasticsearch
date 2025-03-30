@@ -195,7 +195,11 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege WRITE = new IndexPrivilege("write", WRITE_AUTOMATON);
     public static final IndexPrivilege CREATE_DOC = new IndexPrivilege("create_doc", CREATE_DOC_AUTOMATON);
     public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor", MONITOR_AUTOMATON);
-    public static final IndexPrivilege MANAGE = new IndexPrivilege("manage", MANAGE_AUTOMATON);
+    public static final IndexPrivilege MANAGE = new IndexPrivilege(
+        "manage",
+        MANAGE_AUTOMATON,
+        IndexComponentSelectorPredicate.DATA_AND_FAILURES
+    );
     public static final IndexPrivilege DELETE_INDEX = new IndexPrivilege("delete_index", DELETE_INDEX_AUTOMATON);
     public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index", CREATE_INDEX_AUTOMATON);
     public static final IndexPrivilege VIEW_METADATA = new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
@@ -204,7 +208,8 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
     public static final IndexPrivilege MANAGE_DATA_STREAM_LIFECYCLE = new IndexPrivilege(
         "manage_data_stream_lifecycle",
-        MANAGE_DATA_STREAM_LIFECYCLE_AUTOMATON
+        MANAGE_DATA_STREAM_LIFECYCLE_AUTOMATON,
+        IndexComponentSelectorPredicate.DATA_AND_FAILURES
     );
     public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON);
     public static final IndexPrivilege AUTO_CONFIGURE = new IndexPrivilege("auto_configure", AUTO_CONFIGURE_AUTOMATON);
@@ -364,6 +369,7 @@ public final class IndexPrivilege extends Privilege {
         final Set<IndexPrivilege> allSelectorAccessPrivileges = new HashSet<>();
         final Set<IndexPrivilege> dataSelectorAccessPrivileges = new HashSet<>();
         final Set<IndexPrivilege> failuresSelectorAccessPrivileges = new HashSet<>();
+        final Set<IndexPrivilege> dataAndFailuresSelectorAccessPrivileges = new HashSet<>();
 
         boolean containsAllAccessPrivilege = name.stream().anyMatch(n -> getNamedOrNull(n) == ALL);
         for (String part : name) {
@@ -383,6 +389,8 @@ public final class IndexPrivilege extends Privilege {
                         dataSelectorAccessPrivileges.add(indexPrivilege);
                     } else if (indexPrivilege.selectorPredicate == IndexComponentSelectorPredicate.FAILURES) {
                         failuresSelectorAccessPrivileges.add(indexPrivilege);
+                    } else if (indexPrivilege.selectorPredicate == IndexComponentSelectorPredicate.DATA_AND_FAILURES) {
+                        dataAndFailuresSelectorAccessPrivileges.add(indexPrivilege);
                     } else {
                         String errorMessage = "unexpected selector [" + indexPrivilege.selectorPredicate + "]";
                         assert false : errorMessage;
@@ -406,6 +414,7 @@ public final class IndexPrivilege extends Privilege {
             allSelectorAccessPrivileges,
             dataSelectorAccessPrivileges,
             failuresSelectorAccessPrivileges,
+            dataAndFailuresSelectorAccessPrivileges,
             actions
         );
         assertNamesMatch(name, combined);
@@ -416,11 +425,13 @@ public final class IndexPrivilege extends Privilege {
         Set<IndexPrivilege> allSelectorAccessPrivileges,
         Set<IndexPrivilege> dataSelectorAccessPrivileges,
         Set<IndexPrivilege> failuresSelectorAccessPrivileges,
+        Set<IndexPrivilege> dataAndFailuresSelectorAccessPrivileges,
         Set<String> actions
     ) {
         assert false == allSelectorAccessPrivileges.isEmpty()
             || false == dataSelectorAccessPrivileges.isEmpty()
             || false == failuresSelectorAccessPrivileges.isEmpty()
+            || false == dataAndFailuresSelectorAccessPrivileges.isEmpty()
             || false == actions.isEmpty() : "at least one of the privilege sets or actions must be non-empty";
 
         if (false == allSelectorAccessPrivileges.isEmpty()) {
@@ -433,6 +444,9 @@ public final class IndexPrivilege extends Privilege {
         final Set<IndexPrivilege> combined = new LinkedHashSet<>();
         if (false == dataSelectorAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
             combined.add(union(dataSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.DATA));
+        }
+        if (false == dataAndFailuresSelectorAccessPrivileges.isEmpty()) {
+            combined.add(union(dataAndFailuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.DATA_AND_FAILURES));
         }
         if (false == failuresSelectorAccessPrivileges.isEmpty()) {
             combined.add(union(failuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.FAILURES));

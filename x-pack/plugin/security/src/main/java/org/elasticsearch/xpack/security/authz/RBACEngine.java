@@ -43,6 +43,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -101,6 +102,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -792,7 +794,7 @@ public class RBACEngine implements AuthorizationEngine {
             }
         }
 
-        final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
+        final LinkedHashSet<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
         for (IndicesPermission.Group group : userRole.indices().groups()) {
             indices.add(toIndices(group));
         }
@@ -833,12 +835,43 @@ public class RBACEngine implements AuthorizationEngine {
         return new GetUserPrivilegesResponse(
             cluster,
             conditionalCluster,
-            indices,
+            combineIndices(indices),
             application,
             runAs,
             remoteIndices,
             userRole.remoteCluster()
         );
+    }
+
+    private static LinkedHashSet<GetUserPrivilegesResponse.Indices> combineIndices(
+        LinkedHashSet<GetUserPrivilegesResponse.Indices> indices
+    ) {
+        final LinkedHashMap<Tuple<Boolean, Set<String>>, GetUserPrivilegesResponse.Indices> combinedIndices = new LinkedHashMap<>();
+        for (GetUserPrivilegesResponse.Indices index : indices) {
+            final GetUserPrivilegesResponse.Indices existing = combinedIndices.get(
+                new Tuple<>(index.allowRestrictedIndices(), index.getIndices())
+            );
+            if (existing == null) {
+                combinedIndices.put(new Tuple<>(index.allowRestrictedIndices(), index.getIndices()), index);
+            } else {
+                Set<String> combined = new LinkedHashSet<>(existing.getPrivileges());
+                combined.addAll(index.getPrivileges());
+                assert existing.allowRestrictedIndices() == index.allowRestrictedIndices();
+                assert Objects.equals(existing.getFieldSecurity(), index.getFieldSecurity());
+                assert Objects.equals(existing.getQueries(), index.getQueries());
+                combinedIndices.put(
+                    new Tuple<>(index.allowRestrictedIndices(), index.getIndices()),
+                    new GetUserPrivilegesResponse.Indices(
+                        index.getIndices(),
+                        combined,
+                        index.getFieldSecurity(),
+                        index.getQueries(),
+                        index.allowRestrictedIndices()
+                    )
+                );
+            }
+        }
+        return new LinkedHashSet<>(combinedIndices.values());
     }
 
     private static GetUserPrivilegesResponse.Indices toIndices(final IndicesPermission.Group group) {

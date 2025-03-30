@@ -124,14 +124,10 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "global": [],
               "indices": [{
                   "names": ["*"],
-                  "privileges": ["read"],
+                  "privileges": ["read", "read_failure_store"],
                   "allow_restricted_indices": false
-                },
-                {
-                  "names": ["*"],
-                  "privileges": ["read_failure_store"],
-                  "allow_restricted_indices": false
-                }],
+                }
+              ],
               "applications": [],
               "run_as": []
             }""");
@@ -208,14 +204,10 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "indices": [
                 {
                   "names": ["*"],
-                  "privileges": ["read", "write"],
+                  "privileges": ["manage_failure_store", "read", "read_failure_store", "write"],
                   "allow_restricted_indices": false
-                },
-                {
-                  "names": ["*"],
-                  "privileges": ["manage_failure_store", "read_failure_store"],
-                  "allow_restricted_indices": false
-                }],
+                }
+              ],
               "applications": [],
               "run_as": []
             }""");
@@ -1761,7 +1753,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
     }
 
-    public void testWriteOperations() throws IOException {
+    public void testWriteAndManageOperations() throws IOException {
         setupDataStream();
         Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
         String dataIndexName = backingIndices.v1();
@@ -1797,15 +1789,28 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """);
 
-        // user with manage access to data stream does NOT get direct access to failure index
-        expectThrows(() -> deleteIndex(MANAGE_ACCESS, failureIndexName), 403);
+        // explain lifecycle API with and without failures selector is granted by manage
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", "test1/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", "test1::failures/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", failureIndexName + "/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", dataIndexName + "/_lifecycle/explain")));
+
+        // explain lifecycle API is granted by manage_failure_store only for failures selector
+        expectThrows(() -> performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", "test1/_lifecycle/explain")), 403);
+        assertOK(performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", "test1::failures/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", failureIndexName + "/_lifecycle/explain")));
+        expectThrows(() -> performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", dataIndexName + "/_lifecycle/explain")), 403);
+
+        // user with manage access to data stream can delete failure index because manage grants access to both data and failures
+        expectThrows(() -> deleteIndex(MANAGE_ACCESS, failureIndexName), 400);
         expectThrows(() -> deleteIndex(MANAGE_ACCESS, dataIndexName), 400);
-        // manage_failure_store user COULD delete failure index (not valid because it's a write index, but allow security-wise)
-        expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
+        // manage_failure_store user COULD delete failure index (not valid because it's a write index, but allowed security-wise)
         expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, failureIndexName), 400);
+        expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
 
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1"), 403);
+        // selectors aren't supported for deletes so we get a 403
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"), 403);
 
         // manage user can delete data stream

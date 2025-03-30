@@ -71,7 +71,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         examples = {
             @Example(file = "convert", tag = "toAggregateMetricDouble"),
             @Example(description = "The expression also accepts multi-values", file = "convert", tag = "toAggregateMetricDoubleMv") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING, version = "9.1") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING) }
     )
     public ToAggregateMetricDouble(
         Source source,

@@ -904,12 +904,14 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private static void readNumeric(IndexInput meta, NumericEntry entry, int version) throws IOException {
-        entry.docsWithFieldOffset = meta.readLong();
-        entry.docsWithFieldLength = meta.readLong();
-        entry.jumpTableEntryCount = meta.readShort();
-        entry.denseRankPower = meta.readByte();
+        if (version < ES87TSDBDocValuesFormat.VERSION_TWO) {
+            entry.docsWithFieldOffset = meta.readLong();
+            entry.docsWithFieldLength = meta.readLong();
+            entry.jumpTableEntryCount = meta.readShort();
+            entry.denseRankPower = meta.readByte();
+        }
         entry.numValues = meta.readLong();
-        if (version >= ES87TSDBDocValuesFormat.VERSION_META_MOVE_META_ENTRY) {
+        if (version >= ES87TSDBDocValuesFormat.VERSION_TWO) {
             entry.numDocsWithField = meta.readInt();
         }
         if (entry.numValues > 0) {
@@ -927,6 +929,12 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
             entry.indexLength = meta.readLong();
             entry.valuesOffset = meta.readLong();
             entry.valuesLength = meta.readLong();
+        }
+        if (version >= ES87TSDBDocValuesFormat.VERSION_TWO) {
+            entry.docsWithFieldOffset = meta.readLong();
+            entry.docsWithFieldLength = meta.readLong();
+            entry.jumpTableEntryCount = meta.readShort();
+            entry.denseRankPower = meta.readByte();
         }
     }
 
@@ -962,7 +970,7 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     private static SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry, int version) throws IOException {
         readNumeric(meta, entry, version);
-        if (version < ES87TSDBDocValuesFormat.VERSION_META_MOVE_META_ENTRY) {
+        if (version < ES87TSDBDocValuesFormat.VERSION_TWO) {
             entry.numDocsWithField = meta.readInt();
         }
         if (entry.numDocsWithField != entry.numValues) {

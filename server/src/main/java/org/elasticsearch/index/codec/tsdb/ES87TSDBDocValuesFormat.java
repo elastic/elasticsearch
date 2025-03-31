@@ -33,10 +33,14 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final byte SORTED_SET = 3;
     static final byte SORTED_NUMERIC = 4;
 
-    static final int VERSION_META_MOVE_META_ENTRY = 1;
-    // Move numDocsWithField from SortedNumericEntry to NumericEntry
+    // Version constants:
     static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_META_MOVE_META_ENTRY;
+    // Second versions has two changes:
+    // 1) Moved numDocsWithField metadata statistic from SortedNumericEntry to NumericEntry and
+    // 2) Moved docsWithFieldOffset, docsWithFieldLength, jumpTableEntryCount, denseRankPower metadata properties in the format to be after
+    // values metadata.
+    static final int VERSION_TWO = 1;
+    static final int VERSION_CURRENT = VERSION_TWO;
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;

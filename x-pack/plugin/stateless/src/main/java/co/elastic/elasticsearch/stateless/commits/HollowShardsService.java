@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -48,8 +49,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.core.Strings.format;
-
 /**
  * Functionality around the hollowing of inactive shards to reduce their memory footprint.
  *
@@ -63,7 +62,7 @@ import static org.elasticsearch.core.Strings.format;
  * The hollow process is implemented in {@link TransportStatelessPrimaryRelocationAction} and is summarized as follows:
  * <ul>
  * <li> The source indexing shard acquires all primary permits when marked as relocated, and installs an ingestion blocker with
- *      {@link HollowShardsService#addHollowShard(IndexShard)}.</li>
+ *      {@link HollowShardsService#addHollowShard(IndexShard,String)}.</li>
  * <li> The source indexing shard resets the engine, which flushes a hollow commit, and switches to the {@link HollowIndexEngine}</li>
  * <li> The target indexing shard recovers with a {@link HollowIndexEngine}.</li>
  * <li> The target indexing shard installs an ingestion blocker.</li>
@@ -154,7 +153,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         this.ingestionDataStreamNonWriteTtl = HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.get(settings);
         this.ingestionTtl = HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.get(settings);
         if (featureEnabled) {
-            logger.info("Hollow index shards enabled with TTL {} and DS non-write TTL", ingestionTtl, ingestionDataStreamNonWriteTtl);
+            logger.info("Hollow index shards enabled with TTL {} and DS non-write TTL {}", ingestionTtl, ingestionDataStreamNonWriteTtl);
         } else {
             logger.debug(() -> "Hollow index shards disabled");
         }
@@ -210,10 +209,10 @@ public class HollowShardsService extends AbstractLifecycleComponent {
      *
      * @param indexShard the hollow index shard for which ingestion will be blocked
      */
-    public void addHollowShard(IndexShard indexShard) {
+    public void addHollowShard(IndexShard indexShard, String reason) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final var shardId = indexShard.shardId();
-        logger.debug(() -> "installing ingestion blocker for shard " + shardId);
+        logger.info(() -> "installing ingestion blocker for shard " + shardId + " due to " + reason);
         // We only install the blocker when all primary permits are held during primary relocation or when a hollow shard
         // is recovering (before any ingestion is processed)
         assert indexShard.state() == IndexShardState.POST_RECOVERY || indexShard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
@@ -232,8 +231,9 @@ public class HollowShardsService extends AbstractLifecycleComponent {
      * Removes a hollow shard and uninstalls any ingestion blocker for it, releasing any blocked ingestion to proceed.
      *
      * @param indexShard the index shard for which ingestion will be released
+     * @param reason     the reason the hollow shard is being removed
      */
-    public void removeHollowShard(IndexShard indexShard) {
+    public void removeHollowShard(IndexShard indexShard, String reason) {
         final var shardId = indexShard.shardId();
         var existingBlocker = hollowShards.remove(shardId);
         if (existingBlocker != null) {
@@ -249,7 +249,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     + " and max seq no "
                     + indexShard.getEngineOrNull().getMaxSeqNo()
                     + ")";
-            logger.info("{} removed hollow shard", shardId);
+            logger.info("{} removed hollow shard due to {}", shardId, reason);
             existingBlocker.listener.onResponse(null);
             metrics.decrementHollowShardCount();
         }
@@ -260,15 +260,38 @@ public class HollowShardsService extends AbstractLifecycleComponent {
      * If the shard is hollow, the operation will be blocked until the shard is
      * unhollowed and the ingestion blocker is uninstalled.
      *
-     * @param shardId the shard for which the mutable operation is being processed
-     * @param listener the listener to be notified when the mutable operation can proceed
+     * @param indexShard     the shard for which the mutable operation is being processed
+     * @param permitAcquired whether the operation has acquired an operation permit on the shard
+     * @param listener       the listener to be notified when the mutable operation can proceed
      */
-    public void onMutableOperation(ShardId shardId, ActionListener<Void> listener) {
+    public void onMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
+        // Unhollowing requires a primary permit. We use the permitAcquired flag to determine if the primary permit has been acquired.
+        // If it's not, we take our own primary permit here before unhollowing.
+        // Ingestion already holds a primary permit, so there is no need to take another one, and it would be dangerous to take yet
+        // another one as it could create a deadlock: ingestion comes to a hollow shard, takes a primary permit, comes into this code,
+        // at the same time relocation starts which takes all primary permits and delays future ones, and then we try to take another
+        // primary permit here which will never be granted. Relocation would wait for the ingestion, and ingestion would wait here
+        // without initiating the unhollowing which could let ingestion go through.
+        // Finally, for ingestion, it is important that ensureMutable is called after it has got a primary permit. That is because a
+        // competing relocation (that has got all primary permits) will ensure that ingestion waits before getting to this function.
+        // If the relocation fails, the shard would be hollowed, and this function will ensure ingestion waits at the ingestion
+        // blocker until unhollowing (which needs to be initiated by this function) completes.
+        var shardId = indexShard.shardId();
         var ingestionBlocker = hollowShards.get(shardId);
         if (ingestionBlocker != null) {
-            logger.debug(() -> "adding ingestion operation for shard " + shardId + " to the ingestion blocker");
-            ingestionBlocker.listener.addListener(listener);
-            unhollow(shardId);
+            if (permitAcquired) {
+                logger.debug(() -> "adding ingestion operation for shard " + shardId + " to the ingestion blocker");
+                assert indexShard.getActiveOperationsCount() > 0 : indexShard.getActiveOperationsCount();
+                ingestionBlocker.listener.addListener(listener);
+                unhollow(shardId);
+            } else {
+                logger.debug(() -> "acquiring primary permit for shard " + shardId + " for unhollowing");
+                indexShard.acquirePrimaryOperationPermit(ActionListener.wrap(primaryPermit -> {
+                    logger.debug(() -> "acquired primary permit for shard " + shardId + " and adding to the ingestion blocker");
+                    ingestionBlocker.listener.addListener(ActionListener.releaseBefore(primaryPermit, listener));
+                    unhollow(shardId);
+                }, e -> listener.onFailure(e)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            }
         } else {
             listener.onResponse(null);
         }
@@ -297,56 +320,66 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                 @Override
                 protected void doRun() {
                     long startTime = relativeTimeSupplierInMillis.getAsLong();
-                    var indexShard = indicesService.getShardOrNull(shardId);
-                    assert indexShard != null : shardId;
-                    assert indexShard.getEngineOrNull() instanceof HollowIndexEngine
+                    final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+                    final var indexShard = indexService.getShard(shardId.id());
+                    assert indexShard.getEngineOrNull() == null || indexShard.getEngineOrNull() instanceof HollowIndexEngine
                         : "Shouldn't unhollow if the shard has already been unhollowed";
-                    // We acquire a permit to ensure that unhollowing does not race with a relocation.
-                    indexShard.acquirePrimaryOperationPermit(ActionListener.wrap(primaryPermit -> {
-                        try {
-                            // Similar to the stateless recovery process without activating primary context
-                            // (since we the shard is already in the primary mode and has checkpoint information)
-                            logger.info("{} unhollowing shard (reason: ingestion)", shardId);
-                            // Pre-warm the cache for the new index engine
-                            indexShardCacheWarmer.preWarmIndexShardCache(indexShard, false);
-                            indexShard.resetEngine();
-                            var engine = indexShard.getEngineOrNull();
-                            assert engine instanceof IndexEngine : "After unhollowing we should switch to IndexEngine";
-                            var newEngine = (IndexEngine) engine;
-                            assert newEngine.isLastCommitHollow() : "After unhollowing the last commit should be hollow";
+                    // We would like unhollowing to be done under a primary permit, so that it does not race with a relocation.
+                    // This is out of precaution due to the following raised concerns:
+                    // * To have a consistent behaviour with all the operations that trigger unhollowing.
+                    // * Unhollowing resets the engine, and then flushes outside of the engine write lock, and we want to be sure it
+                    // does not compete with any hollowing initiated by a concurrent relocation (which should not be theoretically
+                    // possible as relocation should not re-hollow an already hollow shard, but we want to be sure).
+                    // TODO: read the above, and consider whether unhollowing can happen without a primary permit. (ES-11416)
+                    assert indexShard.getActiveOperationsCount() > 0
+                        : "unhollowing requires a permit but they are " + indexShard.getActiveOperationsCount();
 
-                            newEngine.skipTranslogRecovery();
-                            newEngine.refresh("post_unhollow");
+                    // Similar to the stateless recovery process without activating primary context
+                    // (since we the shard is already in the primary mode and has checkpoint information)
+                    logger.info("{} unhollowing shard (reason: ingestion)", shardId);
+                    // TODO: warming disabled until the deadlock issue with the warming threads is fully investigated (ES-11293 / ES-11323).
+                    // Pre-warm the cache for the new index engine
+                    // indexShardCacheWarmer.preWarmIndexShardCache(indexShard, false);
+                    indexShard.resetEngine();
 
-                            logger.debug("Flushing shard [{}] to produce a blob with a local translog node id", shardId);
-                            newEngine.flush(true, true, ActionListener.releaseAfter(ActionListener.wrap(flushResult -> {
-                                assert flushResult.flushPerformed() : "Flush wasn't performed";
-                                removeHollowShard(indexShard);
-                                metrics.unhollowSuccessCounter().increment();
-                                metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
-                                assert newEngine.isLastCommitHollow() == false : "After a flush the last commit should not be hollow";
-                            }, e -> failUnhollowing(shardId, e)), primaryPermit));
-                        } catch (Exception e) {
-                            primaryPermit.close();
-                            throw e;
-                        }
-                    }, e -> failUnhollowing(shardId, e)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                    final var engine = Objects.requireNonNull(indexShard.getEngineOrNull());
+                    assert engine instanceof IndexEngine : "After unhollowing we should switch to IndexEngine";
+                    final var newEngine = (IndexEngine) engine;
+                    assert newEngine.isLastCommitHollow() : "After unhollowing the last commit should be hollow";
+                    newEngine.skipTranslogRecovery(); // allows new flushes
+
+                    logger.debug("Flushing shard [{}] to produce a blob with a local translog node id", shardId);
+                    newEngine.flush(true, true, ActionListener.wrap(flushResult -> {
+                        assert flushResult.flushPerformed() : "Flush wasn't performed";
+                        removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
+                        metrics.unhollowSuccessCounter().increment();
+                        metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
+                        assert newEngine.isLastCommitHollow() == false : "After a flush the last commit should not be hollow";
+                    }, e -> failedUnhollowing(shardId, e)));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    failUnhollowing(shardId, e);
+                    failedUnhollowing(shardId, e);
                 }
 
-                private void failUnhollowing(ShardId shardId, Exception e) {
-                    logger.error(() -> format("%s unhollowing shard failed", shardId), e);
+                private void failedUnhollowing(ShardId shardId, Exception e) {
+                    logger.debug("unhollowing failed on shard " + shardId, e);
                     var indexShard = indicesService.getShardOrNull(shardId);
-                    if (indexShard != null) {
-                        // This should close the shard which uninstalls the ingestion blocker
-                        indexShard.failShard("Unable to unhollow shard", e);
+                    if (indexShard == null || indexShard.state() == IndexShardState.CLOSED) {
+                        assert isHollowShard(shardId) == false : shardId + " has been closed but has ingestion blocker still installed";
+                    } else {
+                        assert indexShard.isRelocatedPrimary() == false : "relocation should not be possible during unhollowing";
+                        // As a last resort, fail the shard to ultimately uninstall the ingestion blocker.
+                        try {
+                            indexShard.failShard("unable to unhollow shard", e);
+                        } catch (AlreadyClosedException ace) {
+                            // ignore, shard is already closed
+                        }
                     }
                 }
             });
         }
     }
+
 }

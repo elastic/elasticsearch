@@ -11,9 +11,10 @@ package org.elasticsearch.repositories.s3;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.auth.signer.Aws4Signer;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.signer.NoOpSigner;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -59,7 +60,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(defaultSettings.maxRetries, is(10));
     }
 
-    public void testNondefaultClientCreatedBySettingItsSettings() {
+    public void testNonDefaultClientCreatedBySettingItsSettings() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
             Settings.builder().put("s3.client.another_client.max_retries", 10).build()
         );
@@ -180,25 +181,40 @@ public class S3ClientSettingsTests extends ESTestCase {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
             Settings.builder().put("s3.client.other.region", region).build()
         );
+
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
+
         try (var s3Service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class))) {
-            S3Client other = s3Service.buildClient(settings.get("other"));
-            assertThat(other.getSignerRegionOverride(), is(region));
+            // TODO NOMERGE: S3Client#getBucketLocation is supposed to be a work around to access the region: the response object includes
+            // the region. However, we can't build a S3Client in this file, so we need to migrate it elsewhere.
+            // "Unable to load credentials from any of the providers in the chain AwsCredentialsProviderChain"
+            // "AWS_CONTAINER_CREDENTIALS_FULL_URI" is not set. Or setup some other fake credential workaround.
+
+            // var otherSettings = settings.get("other");
+            // S3Client otherS3Client = s3Service.buildClient(otherSettings, S3Service.buildHttpClient(otherSettings));
+            // String request = otherS3Client.getBucketLocation(GetBucketLocationRequest.builder().build()).locationConstraintAsString();
+            // logger.info(Strings.format("region [{}], request string [{}]", region, request));
+            // assertTrue(Strings.format("Expected to find region [{}] in request string [{}]", region, request), request.contains(region));
         }
     }
 
     public void testSignerOverrideCanBeSet() {
-        final String signerOverride = randomAlphaOfLength(5);
+        final var signerType = new NoOpSigner().credentialType();
+        final var signerOverride = S3ClientSettings.AwsSignerOverrideType.SDKV2_NOOP_SIGNER_TYPE;
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
             Settings.builder().put("s3.client.other.signer_override", signerOverride).build()
         );
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").signerOverride, is(signerOverride));
-        ClientOverrideConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"), false);
-        assertThat(defaultConfiguration.getSignerOverride(), nullValue());
-        ClientOverrideConfiguration configuration = S3Service.buildConfiguration(settings.get("other"), false);
-        assertThat(configuration.getSignerOverride(), is(signerOverride));
+
+        ClientOverrideConfiguration defaultNoSignerConfiguration = S3Service.buildConfiguration(settings.get("default"), false);
+        assertThat(
+            defaultNoSignerConfiguration.advancedOption(SdkAdvancedClientOption.SIGNER).get().credentialType(),
+            is(Aws4Signer.create().credentialType())
+        );
+        ClientOverrideConfiguration otherSignerConfiguration = S3Service.buildConfiguration(settings.get("other"), false);
+        assertThat(otherSignerConfiguration.advancedOption(SdkAdvancedClientOption.SIGNER).get().credentialType(), is(signerType));
     }
 
     public void testMaxConnectionsCanBeSet() {
@@ -209,20 +225,24 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(settings.get("default").maxConnections, is(S3ClientSettings.Defaults.MAX_CONNECTIONS));
         assertThat(settings.get("other").maxConnections, is(maxConnections));
 
-        ApacheHttpClient.Builder defaultClientBuilder = S3Service.buildHttpClient(settings.get("default"));
-        assertThat(defaultClientBuilder.getMaxConnections(), is(S3ClientSettings.Defaults.MAX_CONNECTIONS));
-
-        ApacheHttpClient.Builder otherConfiguration = S3Service.buildHttpClient(settings.get("other"));
-        assertThat(otherConfiguration.getMaxConnections(), is(maxConnections));
-
         // the default appears in the docs so let's make sure it doesn't change:
         assertEquals(50, S3ClientSettings.Defaults.MAX_CONNECTIONS);
+
+        // TODO NOMERGE: max connection setting is no longer available. Need alternative testing.
+        /*
+        SdkHttpClient defaultHttpClient = S3Service.buildHttpClient(settings.get("default"));
+        assertThat(defaultHttpClient.getMaxConnections(), is(S3ClientSettings.Defaults.MAX_CONNECTIONS));
+        SdkHttpClient otherHttpClient = S3Service.buildHttpClient(settings.get("other"));
+        assertThat(otherHttpClient.getMaxConnections(), is(maxConnections));
+        */
     }
 
+    /*
+    // TODO NOMERGE: retryability is no longer testable via unit test: policy is not accessible. Need alternative testing.
     public void testStatelessDefaultRetryPolicy() {
         final var s3ClientSettings = S3ClientSettings.load(Settings.EMPTY).get("default");
         final var clientConfiguration = S3Service.buildConfiguration(s3ClientSettings, true);
-        assertThat(clientConfiguration.retryPolicy(), is(S3Service.RETRYABLE_403_RETRY_POLICY));
+        assertThat(clientConfiguration.getRetryPolicy(), is(S3Service.RETRYABLE_403_RETRY_POLICY));
     }
+    */
 }
-// TODO NOMERGE bring these tests back

@@ -253,7 +253,7 @@ final class S3ClientSettings {
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
-    /** Signer override to use or empty string to use default. */
+    /** Signer override to use or empty string to use default. */ // TODO: fix comment
     final AwsSignerOverrideType signerOverride; // TODO: document somewhat breaking change
 
     private S3ClientSettings(

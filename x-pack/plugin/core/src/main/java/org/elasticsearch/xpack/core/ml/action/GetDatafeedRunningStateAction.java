@@ -145,6 +145,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         }
 
         private final Map<String, RunningState> datafeedRunningState;
+
         private static RunningState selectMostRecentState(RunningState state1, RunningState state2) {
 
             if (state1.searchInterval != null && state2.searchInterval != null) {
@@ -158,9 +159,9 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 return state2;
             }
 
-
-              return state2;
+            return state2;
         }
+
         public static Response fromResponses(List<Response> responses) {
             return new Response(
                 responses.stream()

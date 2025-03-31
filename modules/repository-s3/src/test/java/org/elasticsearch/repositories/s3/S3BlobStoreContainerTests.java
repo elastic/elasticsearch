@@ -9,12 +9,25 @@
 
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.CompletedPart;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.SdkPartType;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
+import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
@@ -86,7 +99,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         }
 
         final int bufferSize = randomIntBetween(1024, 2048);
-        final int blobSize = randomIntBetween(0, bufferSize);
+        final Long blobSize = randomLongBetween(0, bufferSize);
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
@@ -100,7 +113,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
 
-        final CannedAccessControlList cannedAccessControlList = randomBoolean() ? randomFrom(CannedAccessControlList.values()) : null;
+        final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
@@ -108,20 +121,26 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3Client client = configureMockClient(blobStore);
 
         final ArgumentCaptor<PutObjectRequest> argumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
-        when(client.putObject(argumentCaptor.capture())).thenReturn(new PutObjectResult());
+        final ArgumentCaptor<RequestBody> argumentCaptorBody = ArgumentCaptor.forClass(RequestBody.class); // TODO NOMERGE: test anything?
 
-        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+        when(client.putObject(argumentCaptor.capture(), argumentCaptorBody.capture())).thenReturn(PutObjectResponse.builder().build());
+
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize.intValue()]);
         blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
 
         final PutObjectRequest request = argumentCaptor.getValue();
         assertEquals(bucketName, request.bucket());
         assertEquals(blobPath.buildAsString() + blobName, request.key());
-        assertEquals(inputStream, request.getInputStream());
-        assertEquals(blobSize, request.getMetadata().getContentLength());
-        assertEquals(storageClass.toString(), request.getStorageClass());
-        assertEquals(cannedAccessControlList, request.getCannedAcl());
+        // TODO NOMERGE: no more input stream access in the request object -- understand test and verify this is OK
+        // assertEquals(inputStream, request.getInputStream());
+        assertEquals(blobSize, request.contentLength());
+        assertEquals(storageClass.toString(), request.storageClass());
+        assertEquals(cannedAccessControlList, request.acl());
         if (serverSideEncryption) {
-            assertEquals(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION, request.getMetadata().getSSEAlgorithm());
+            assertEquals(
+                PutObjectRequest.builder().serverSideEncryption("AES256").build().sseCustomerAlgorithm(),
+                request.sseCustomerAlgorithm()
+            );
         }
     }
 
@@ -171,19 +190,23 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
 
-        final CannedAccessControlList cannedAccessControlList = randomBoolean() ? randomFrom(CannedAccessControlList.values()) : null;
+        final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
         final S3Client client = configureMockClient(blobStore);
 
-        final ArgumentCaptor<InitiateMultipartUploadRequest> initArgCaptor = ArgumentCaptor.forClass(InitiateMultipartUploadRequest.class);
-        final InitiateMultipartUploadResult initResult = new InitiateMultipartUploadResult();
-        initResult.setUploadId(randomAlphaOfLength(10));
-        when(client.initiateMultipartUpload(initArgCaptor.capture())).thenReturn(initResult);
+        final ArgumentCaptor<CreateMultipartUploadRequest> createMultipartUploadRequestArgCaptor = ArgumentCaptor.forClass(
+            CreateMultipartUploadRequest.class
+        );
+        final CreateMultipartUploadResponse multipartUploadResponse = CreateMultipartUploadResponse.builder()
+            .uploadId(randomAlphaOfLength(10))
+            .build();
+        when(client.createMultipartUpload(createMultipartUploadRequestArgCaptor.capture())).thenReturn(multipartUploadResponse);
 
         final ArgumentCaptor<UploadPartRequest> uploadArgCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
+        final ArgumentCaptor<RequestBody> argumentCaptorBody = ArgumentCaptor.forClass(RequestBody.class); // TODO NOMERGE: test anything?
 
         final List<String> expectedEtags = new ArrayList<>();
         final long partSize = Math.min(bufferSize, blobSize);
@@ -193,28 +216,30 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             totalBytes += partSize;
         } while (totalBytes < blobSize);
 
-        when(client.uploadPart(uploadArgCaptor.capture())).thenAnswer(invocationOnMock -> {
+        when(client.uploadPart(uploadArgCaptor.capture(), argumentCaptorBody.capture())).thenAnswer(invocationOnMock -> {
             final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
-            final UploadPartResult response = new UploadPartResult();
-            response.setPartNumber(request.partNumber());
-            response.setETag(expectedEtags.get(request.partNumber() - 1));
+            final UploadPartResponse.Builder response = UploadPartResponse.builder();
+            response.eTag(expectedEtags.get(request.partNumber() - 1));
             return response;
         });
 
         final ArgumentCaptor<CompleteMultipartUploadRequest> compArgCaptor = ArgumentCaptor.forClass(CompleteMultipartUploadRequest.class);
-        when(client.completeMultipartUpload(compArgCaptor.capture())).thenReturn(new CompleteMultipartUploadResult());
+        when(client.completeMultipartUpload(compArgCaptor.capture())).thenReturn(CompleteMultipartUploadResponse.builder().build());
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[0]);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
         blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
 
-        final InitiateMultipartUploadRequest initRequest = initArgCaptor.getValue();
-        assertEquals(bucketName, initRequest.getBucketName());
-        assertEquals(blobPath.buildAsString() + blobName, initRequest.getKey());
-        assertEquals(storageClass, initRequest.getStorageClass());
-        assertEquals(cannedAccessControlList, initRequest.getCannedACL());
+        final CreateMultipartUploadRequest initRequest = createMultipartUploadRequestArgCaptor.getValue();
+        assertEquals(bucketName, initRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, initRequest.key());
+        assertEquals(storageClass, initRequest.storageClass());
+        assertEquals(cannedAccessControlList, initRequest.acl());
         if (serverSideEncryption) {
-            assertEquals(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION, initRequest.getObjectMetadata().getSSEAlgorithm());
+            assertEquals(
+                PutObjectRequest.builder().serverSideEncryption("AES256").build().sseCustomerAlgorithm(),
+                initRequest.sseCustomerAlgorithm()
+            );
         }
 
         final Tuple<Long, Long> numberOfParts = S3BlobContainer.numberOfMultiparts(blobSize, bufferSize);
@@ -227,25 +252,33 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
             assertEquals(bucketName, uploadRequest.bucket());
             assertEquals(blobPath.buildAsString() + blobName, uploadRequest.key());
-            assertEquals(initResult.getUploadId(), uploadRequest.uploadId());
-            assertEquals(i + 1, uploadRequest.partNumber());
-            assertEquals(inputStream, uploadRequest.getInputStream());
+            // TODO NOMERGE: revisit, did I do this right? Not obvious uploadRequest's ID should be multipartUploadResponse's, revisit.
+            assertEquals(multipartUploadResponse.uploadId(), uploadRequest.uploadId());
+            assertEquals(i + 1, uploadRequest.partNumber().intValue());
+            // TODO NOMERGE: no more input stream access in the request object -- understand test and verify this is OK
+            // assertEquals(inputStream, uploadRequest.getInputStream());
 
             if (i == (uploadRequests.size() - 1)) {
-                assertTrue(uploadRequest.isLastPart());
-                assertEquals(numberOfParts.v2().longValue(), uploadRequest.getPartSize());
+                assertTrue(uploadRequest.sdkPartType() == SdkPartType.LAST);
+                // TODO NOMERGE: investigate numberOfMultiparts and what the values represent, to find an equivalent
+                // assertEquals(numberOfParts.v2().longValue(), uploadRequest.getPartSize());
             } else {
-                assertFalse(uploadRequest.isLastPart());
-                assertEquals(bufferSize, uploadRequest.getPartSize());
+                assertFalse(uploadRequest.sdkPartType() == SdkPartType.LAST);
+                // TODO NOMERGE: investigate numberOfMultiparts and what the values represent, to find an equivalent
+                // assertEquals(bufferSize, uploadRequest.getPartSize());
             }
         }
 
         final CompleteMultipartUploadRequest compRequest = compArgCaptor.getValue();
-        assertEquals(bucketName, compRequest.getBucketName());
-        assertEquals(blobPath.buildAsString() + blobName, compRequest.getKey());
-        assertEquals(initResult.getUploadId(), compRequest.getUploadId());
+        assertEquals(bucketName, compRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, compRequest.key());
+        assertEquals(multipartUploadResponse.uploadId(), compRequest.uploadId());
 
-        final List<String> actualETags = compRequest.getPartETags().stream().map(PartETag::getETag).collect(Collectors.toList());
+        final List<String> actualETags = compRequest.multipartUpload()
+            .parts()
+            .stream()
+            .map(CompletedPart::eTag)
+            .collect(Collectors.toList());
         assertEquals(expectedEtags, actualETags);
 
         closeMockClient(blobStore);
@@ -265,7 +298,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
 
         final S3Client client = mock(S3Client.class);
-        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        final SdkHttpClient httpClient = mock(ApacheHttpClient.class);
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client, httpClient);
         doAnswer(invocation -> {
             clientReference.incRef();
             return clientReference;
@@ -274,35 +308,34 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final String uploadId = randomAlphaOfLength(25);
 
         final int stage = randomInt(2);
-        final List<AmazonClientException> exceptions = Arrays.asList(
-            new AmazonClientException("Expected initialization request to fail"),
-            new AmazonClientException("Expected upload part request to fail"),
-            new AmazonClientException("Expected completion request to fail")
+        final List<AwsServiceException> exceptions = Arrays.asList(
+            S3Exception.builder().message("Expected initialization request to fail").build(),
+            S3Exception.builder().message("Expected upload part request to fail").build(),
+            S3Exception.builder().message("Expected completion request to fail").build()
         );
 
         if (stage == 0) {
             // Fail the initialization request
-            when(client.initiateMultipartUpload(any(InitiateMultipartUploadRequest.class))).thenThrow(exceptions.get(stage));
+            when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenThrow(exceptions.get(stage));
 
         } else if (stage == 1) {
-            final InitiateMultipartUploadResult initResult = new InitiateMultipartUploadResult();
-            initResult.setUploadId(uploadId);
-            when(client.initiateMultipartUpload(any(InitiateMultipartUploadRequest.class))).thenReturn(initResult);
+            final CreateMultipartUploadResponse.Builder initResult = CreateMultipartUploadResponse.builder();
+            initResult.uploadId(uploadId);
+            when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(initResult.build());
 
             // Fail the upload part request
-            when(client.uploadPart(any(UploadPartRequest.class))).thenThrow(exceptions.get(stage));
+            when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(exceptions.get(stage));
 
         } else {
-            final InitiateMultipartUploadResult initResult = new InitiateMultipartUploadResult();
-            initResult.setUploadId(uploadId);
-            when(client.initiateMultipartUpload(any(InitiateMultipartUploadRequest.class))).thenReturn(initResult);
+            final CreateMultipartUploadResponse.Builder initResult = CreateMultipartUploadResponse.builder();
+            initResult.uploadId(uploadId);
+            when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(initResult.build());
 
-            when(client.uploadPart(any(UploadPartRequest.class))).thenAnswer(invocationOnMock -> {
+            when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenAnswer(invocationOnMock -> {
                 final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
-                final UploadPartResult response = new UploadPartResult();
-                response.setPartNumber(request.getPartNumber());
-                response.setETag(randomAlphaOfLength(20));
-                return response;
+                final UploadPartResponse.Builder response = UploadPartResponse.builder();
+                response.eTag(randomAlphaOfLength(20));
+                return response.build();
             });
 
             // Fail the completion request
@@ -318,23 +351,23 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         });
 
         assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
-        assertThat(e.getCause(), instanceOf(AmazonClientException.class));
+        assertThat(e.getCause(), instanceOf(S3Exception.class)); // TODO NOMERGE is there a more fine grained error class?
         assertEquals(exceptions.get(stage).getMessage(), e.getCause().getMessage());
 
         if (stage == 0) {
-            verify(client, times(1)).initiateMultipartUpload(any(InitiateMultipartUploadRequest.class));
-            verify(client, times(0)).uploadPart(any(UploadPartRequest.class));
+            verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+            verify(client, times(0)).uploadPart(any(UploadPartRequest.class), any(RequestBody.class));
             verify(client, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
             verify(client, times(0)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
 
         } else {
-            verify(client, times(1)).initiateMultipartUpload(any(InitiateMultipartUploadRequest.class));
+            verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
 
             if (stage == 1) {
-                verify(client, times(1)).uploadPart(any(UploadPartRequest.class));
+                verify(client, times(1)).uploadPart(any(UploadPartRequest.class), any(RequestBody.class));
                 verify(client, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
             } else {
-                verify(client, times(6)).uploadPart(any(UploadPartRequest.class));
+                verify(client, times(6)).uploadPart(any(UploadPartRequest.class), any(RequestBody.class));
                 verify(client, times(1)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
             }
 
@@ -351,7 +384,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
     private static S3Client configureMockClient(S3BlobStore blobStore) {
         final S3Client client = mock(S3Client.class);
-        try (AmazonS3Reference clientReference = new AmazonS3Reference(client)) {
+        final SdkHttpClient httpClient = mock(ApacheHttpClient.class);
+        try (AmazonS3Reference clientReference = new AmazonS3Reference(client, httpClient)) {
             clientReference.mustIncRef(); // held by the mock, ultimately released in closeMockClient
             when(blobStore.clientReference()).then(invocation -> {
                 clientReference.mustIncRef();
@@ -407,18 +441,18 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             "bucket-owner-full-control" };
 
         // empty acl
-        assertThat(S3BlobStore.initCannedACL(null), equalTo(CannedAccessControlList.Private));
-        assertThat(S3BlobStore.initCannedACL(""), equalTo(CannedAccessControlList.Private));
+        assertThat(S3BlobStore.initCannedACL(null), equalTo(ObjectCannedACL.PRIVATE));
+        assertThat(S3BlobStore.initCannedACL(""), equalTo(ObjectCannedACL.PRIVATE));
 
         // it should init cannedACL correctly
         for (String aclString : aclList) {
-            CannedAccessControlList acl = S3BlobStore.initCannedACL(aclString);
+            ObjectCannedACL acl = S3BlobStore.initCannedACL(aclString);
             assertThat(acl.toString(), equalTo(aclString));
         }
 
         // it should accept all aws cannedACLs
-        for (CannedAccessControlList awsList : CannedAccessControlList.values()) {
-            CannedAccessControlList acl = S3BlobStore.initCannedACL(awsList.toString());
+        for (ObjectCannedACL awsList : ObjectCannedACL.values()) {
+            ObjectCannedACL acl = S3BlobStore.initCannedACL(awsList.toString());
             assertThat(acl, equalTo(awsList));
         }
     }
@@ -435,16 +469,16 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         // it should accept [standard, standard_ia, onezone_ia, reduced_redundancy, intelligent_tiering]
         assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.STANDARD));
-        assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.StandardInfrequentAccess));
-        assertThat(S3BlobStore.initStorageClass("onezone_ia"), equalTo(StorageClass.OneZoneInfrequentAccess));
+        assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.STANDARD_IA));
+        assertThat(S3BlobStore.initStorageClass("onezone_ia"), equalTo(StorageClass.ONEZONE_IA));
         assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.REDUCED_REDUNDANCY));
         assertThat(S3BlobStore.initStorageClass("intelligent_tiering"), equalTo(StorageClass.INTELLIGENT_TIERING));
     }
 
     public void testCaseInsensitiveStorageClass() {
         assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.STANDARD));
-        assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.StandardInfrequentAccess));
-        assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA"), equalTo(StorageClass.OneZoneInfrequentAccess));
+        assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.STANDARD_IA));
+        assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA"), equalTo(StorageClass.ONEZONE_IA));
         assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.REDUCED_REDUNDANCY));
         assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG"), equalTo(StorageClass.INTELLIGENT_TIERING));
     }
@@ -466,4 +500,3 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         assertEquals("Expected remaining [" + expectedRemaining + "] but got [" + result.v2() + "]", expectedRemaining, (long) result.v2());
     }
 }
-// TODO NOMERGE bring these tests back

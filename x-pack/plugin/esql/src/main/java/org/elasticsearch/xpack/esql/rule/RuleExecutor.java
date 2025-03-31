@@ -167,6 +167,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                 batchRuns++;
 
                 for (Rule<?, TreeType> rule : batch.rules) {
+                    long ruleStart = System.nanoTime();
                     if (log.isTraceEnabled()) {
                         log.trace("About to apply rule {}", rule);
                     }
@@ -184,6 +185,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                             log.trace("Rule {} applied w/o changes", rule);
                         }
                     }
+                    profile.recordRuleProfile(batch.name(), rule.name(), ruleStart - System.nanoTime(), hasChanged);
                 }
                 batchDuration = System.currentTimeMillis() - batchStart;
             } while (hasChanged && batch.limit.reached(batchRuns) == false);

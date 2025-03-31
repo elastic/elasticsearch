@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -557,6 +558,16 @@ public class EsqlDataTypeConverter {
         return DateUtils.toLong(parsed);
     }
 
+    public static String dateWithTypeToString(long dateTime, DataType type) {
+        if (type == DATETIME) {
+            return dateTimeToString(dateTime);
+        }
+        if (type == DATE_NANOS) {
+            return nanoTimeToString(dateTime);
+        }
+        throw new IllegalArgumentException("Unsupported data type [" + type + "]");
+    }
+
     public static String dateTimeToString(long dateTime) {
         return DEFAULT_DATE_TIME_FORMATTER.formatMillis(dateTime);
     }
@@ -689,6 +700,60 @@ public class EsqlDataTypeConverter {
         } catch (IOException e) {
             throw new IllegalStateException("error rendering aggregate metric double", e);
         }
+    }
+
+    public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            if (aggMetric.min() != null) {
+                builder.field(Metric.MIN.getLabel(), aggMetric.min());
+            }
+            if (aggMetric.max() != null) {
+                builder.field(Metric.MAX.getLabel(), aggMetric.max());
+            }
+            if (aggMetric.sum() != null) {
+                builder.field(Metric.SUM.getLabel(), aggMetric.sum());
+            }
+            if (aggMetric.count() != null) {
+                builder.field(Metric.COUNT.getLabel(), aggMetric.count());
+            }
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering aggregate metric double", e);
+        }
+    }
+
+    public static AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral stringToAggregateMetricDoubleLiteral(String s) {
+        Double min = null;
+        Double max = null;
+        Double sum = null;
+        Integer count = null;
+        String[] values = s.substring(1, s.length() - 1).split(",");
+        for (String v : values) {
+            var pair = v.split(":");
+            String type = pair[0];
+            String number = pair[1];
+            switch (type) {
+                case "min":
+                    min = Double.parseDouble(number);
+                    break;
+                case "max":
+                    max = Double.parseDouble(number);
+                    break;
+                case "sum":
+                    sum = Double.parseDouble(number);
+                    break;
+                case "value_count":
+                    count = Integer.parseInt(number);
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                        "Received a metric that wasn't min, max, sum, or value_count: " + type + " with value: " + number
+                    );
+            }
+        }
+        return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count);
     }
 
     public enum EsqlConverter implements Converter {

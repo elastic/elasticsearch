@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -116,7 +118,12 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
             + "Returns true if the provided query string matches the row.",
         examples = {
             @Example(file = "qstr-function", tag = "qstr-with-field"),
-            @Example(file = "qstr-function", tag = "qstr-with-options") }
+            @Example(file = "qstr-function", tag = "qstr-with-options") },
+        appliesTo = {
+            @FunctionAppliesTo(
+                lifeCycle = FunctionAppliesToLifecycle.COMING,
+                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
+            ) }
     )
     public QueryString(
         Source source,

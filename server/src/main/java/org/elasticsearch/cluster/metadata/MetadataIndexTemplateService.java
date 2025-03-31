@@ -1418,10 +1418,13 @@ public class MetadataIndexTemplateService {
      * Return an ordered list of the name (id) and composable index templates that would apply to an index. The first
      * one is the winner template that is applied to this index. In the event that no templates are matched,
      * an empty list is returned.
-     * <p>
-     * If <code>exitOnFirstMatch</code> is true, we return immediately after finding a match. That means that the <code>templates</code>
-     * parameter needs to be sorted based on priority (descending) for this method to return a sensible result -- otherwise this method
-     * would just return the first template that matches the name, in an unspecified order.
+     * @param templates a list of template entries (name, template) - needs to be sorted when {@code exitOnFirstMatch} is {@code true}
+     * @param indexName the index (or data stream) name that should be used for matching the index patterns on the templates
+     * @param isHidden whether {@code indexName} belongs to a hidden index - this option is redundant for data streams, as backing indices
+     *                 of data streams will always be returned, regardless of whether the data stream is hidden or not
+     * @param exitOnFirstMatch if true, we return immediately after finding a match. That means that the <code>templates</code>
+     *                         parameter needs to be sorted based on priority (descending) for this method to return a sensible result,
+     *                         otherwise this method would just return the first template that matches the name, in an unspecified order
      */
     private static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(
         Collection<Map.Entry<String, ComposableIndexTemplate>> templates,

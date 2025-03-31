@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.HashSet;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCase {
@@ -33,18 +34,10 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     }
 
     public void testOffsetArrayNoDocValues() throws Exception {
-        String mapping = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field": {
-                            "type": "{{type}}",
-                            "doc_values": false
-                        }
-                    }
-                }
-            }
-            """.replace("{{type}}", getFieldTypeName());
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.field("doc_values", false);
+        mapping.endObject().endObject().endObject().endObject();
         try (var mapperService = createMapperService(mapping)) {
             var fieldMapper = mapperService.mappingLookup().getMapper("field");
             assertThat(fieldMapper.getOffsetFieldName(), nullValue());
@@ -52,19 +45,10 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     }
 
     public void testOffsetArrayStored() throws Exception {
-        String mapping = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field": {
-                            "type": "{{type}}",
-                            "store": true
-                        }
-                    }
-                }
-            }
-            """.replace("{{type}}", getFieldTypeName());
-        ;
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.field("store", true);
+        mapping.endObject().endObject().endObject().endObject();
         try (var mapperService = createMapperService(mapping)) {
             var fieldMapper = mapperService.mappingLookup().getMapper("field");
             assertThat(fieldMapper.getOffsetFieldName(), nullValue());
@@ -72,22 +56,10 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     }
 
     public void testOffsetMultiFields() throws Exception {
-        String mapping = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field": {
-                            "type": "{{type}}",
-                            "fields": {
-                                "sub": {
-                                    "type": "text"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            """.replace("{{type}}", getFieldTypeName());
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.startObject("fields").startObject("sub").field("type", "text").endObject().endObject();
+        mapping.endObject().endObject().endObject().endObject();
         try (var mapperService = createMapperService(mapping)) {
             var fieldMapper = mapperService.mappingLookup().getMapper("field");
             assertThat(fieldMapper.getOffsetFieldName(), nullValue());
@@ -95,17 +67,9 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     }
 
     public void testOffsetArrayNoSyntheticSource() throws Exception {
-        String mapping = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field": {
-                            "type": "{{type}}"
-                        }
-                    }
-                }
-            }
-            """.replace("{{type}}", getFieldTypeName());
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject().endObject();
         try (var mapperService = createMapperService(Settings.EMPTY, mapping)) {
             var fieldMapper = mapperService.mappingLookup().getMapper("field");
             assertThat(fieldMapper.getOffsetFieldName(), nullValue());
@@ -114,36 +78,14 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
 
     public void testOffsetArrayNoSourceArrayKeep() throws Exception {
         var settingsBuilder = Settings.builder().put("index.mapping.source.mode", "synthetic");
-        String mapping;
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
         if (randomBoolean()) {
-            mapping = """
-                {
-                    "_doc": {
-                        "properties": {
-                            "field": {
-                                "type": "{{type}}",
-                                "synthetic_source_keep": "{{synthetic_source_keep}}"
-                            }
-                        }
-                    }
-                }
-                """.replace("{{synthetic_source_keep}}", randomBoolean() ? "none" : "all").replace("{{type}}", getFieldTypeName());
-        } else {
-            mapping = """
-                {
-                    "_doc": {
-                        "properties": {
-                            "field": {
-                                "type": "{{type}}"
-                            }
-                        }
-                    }
-                }
-                """.replace("{{type}}", getFieldTypeName());
-            if (randomBoolean()) {
-                settingsBuilder.put("index.mapping.synthetic_source_keep", "none");
-            }
+            mapping.field("synthetic_source_keep", randomBoolean() ? "none" : "all");
+        } else if (randomBoolean()) {
+            settingsBuilder.put("index.mapping.synthetic_source_keep", "none");
         }
+        mapping.endObject().endObject().endObject().endObject();
         try (var mapperService = createMapperService(settingsBuilder.build(), mapping)) {
             var fieldMapper = mapperService.mappingLookup().getMapper("field");
             assertThat(fieldMapper.getOffsetFieldName(), nullValue());
@@ -183,6 +125,12 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         verifyOffsets("{\"field\":" + values + "}");
     }
 
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        String fieldTypeName = getFieldTypeName();
+        assertThat(fieldTypeName, notNullValue());
+        b.field("type", fieldTypeName);
+    }
+
     protected abstract String getFieldTypeName();
 
     protected abstract Object randomValue();
@@ -192,21 +140,13 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     }
 
     protected void verifyOffsets(String source, String expectedSource) throws IOException {
-        String mapping = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field": {
-                            "type": "{{type}}"
-                        }
-                    }
-                }
-            }
-            """.replace("{{type}}", getFieldTypeName());
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject().endObject();
         verifyOffsets(mapping, source, expectedSource);
     }
 
-    private void verifyOffsets(String mapping, String source, String expectedSource) throws IOException {
+    private void verifyOffsets(XContentBuilder mapping, String source, String expectedSource) throws IOException {
         try (var mapperService = createMapperService(mapping)) {
             var mapper = mapperService.documentMapper();
 

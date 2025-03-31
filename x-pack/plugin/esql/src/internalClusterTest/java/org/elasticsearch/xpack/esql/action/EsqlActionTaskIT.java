@@ -573,8 +573,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             logger.info("unblocking script");
             scriptPermits.release(pageSize());
             List<TaskInfo> tasks = getTasksRunning();
-            String sourceStatus = "dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, needsScore = false"
-                .replace("pageSize()", Integer.toString(pageSize()));
+            String sourceStatus = "dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, needsScore = false".replace(
+                "pageSize()",
+                Integer.toString(pageSize())
+            );
             assertThat(
                 dataTasks(tasks).get(0).description(),
                 equalTo(

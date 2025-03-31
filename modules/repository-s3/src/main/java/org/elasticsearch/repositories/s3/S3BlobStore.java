@@ -51,10 +51,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 class S3BlobStore implements BlobStore {
@@ -564,15 +566,18 @@ class S3BlobStore implements BlobStore {
             );
         }
 
+        private static final Predicate<String> IS_PUT_MULTIPART_OPERATION = Set.of("CreateMultipartUpload", "UploadPart")::contains;
+
         boolean assertConsistentOperationName(MetricCollection metricCollection) {
             final var operationNameMetrics = metricCollection.metricValues(CoreMetric.OPERATION_NAME);
             assert operationNameMetrics.size() == 1 : operationNameMetrics;
-            final var expectedOperationName = switch (this) {
-                case LIST_OBJECTS -> "ListObjectsV2";
-                case PUT_MULTIPART_OBJECT -> "CreateMultipartUpload";
-                default -> key;
+            final Predicate<String> expectedOperationPredicate = switch (this) {
+                case LIST_OBJECTS -> "ListObjectsV2"::equals;
+                case PUT_MULTIPART_OBJECT -> IS_PUT_MULTIPART_OPERATION;
+                case ABORT_MULTIPART_OBJECT -> "AbortMultipartUpload"::equals;
+                default -> key::equals;
             };
-            assert expectedOperationName.equals(operationNameMetrics.get(0)) : expectedOperationName + " vs " + operationNameMetrics;
+            assert expectedOperationPredicate.test(operationNameMetrics.get(0)) : this + " vs " + operationNameMetrics;
             return true;
         }
     }

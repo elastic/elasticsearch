@@ -1429,6 +1429,7 @@ public class MetadataIndexTemplateService {
         boolean isHidden,
         boolean exitOnFirstMatch
     ) {
+        assert exitOnFirstMatch == false || areTemplatesSorted(templates) : "Expected templates to be sorted";
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final List<Tuple<String, ComposableIndexTemplate>> candidates = new ArrayList<>();
@@ -1453,6 +1454,17 @@ public class MetadataIndexTemplateService {
 
         CollectionUtil.timSort(candidates, Comparator.comparing(candidate -> candidate.v2().priorityOrZero(), Comparator.reverseOrder()));
         return candidates;
+    }
+
+    private static boolean areTemplatesSorted(Collection<Map.Entry<String, ComposableIndexTemplate>> templates) {
+        ComposableIndexTemplate previousTemplate = null;
+        for (Map.Entry<String, ComposableIndexTemplate> template : templates) {
+            if (previousTemplate != null && template.getValue().priorityOrZero() > previousTemplate.priorityOrZero()) {
+                return false;
+            }
+            previousTemplate = template.getValue();
+        }
+        return true;
     }
 
     // Checks if a global template specifies the `index.hidden` setting. This check is important because a global

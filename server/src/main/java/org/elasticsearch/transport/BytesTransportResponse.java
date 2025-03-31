@@ -49,7 +49,7 @@ public class BytesTransportResponse extends TransportResponse implements BytesTr
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBytesReference(bytes);
+        bytes.writeTo(out);
     }
 
     @Override

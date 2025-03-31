@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -410,7 +409,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                                 )
                             ) {
                                 var in = new NamedWriteableAwareStreamInput(decompressedIn, namedWriteableRegistry);
-                                in.setTransportVersion(TransportVersion.current());
+                                in.setTransportVersion(bytesTransportResponse.version());
                                 var mergeResult = QueryPhaseResultConsumer.MergeResult.readFrom(in);
                                 var topDocsStats = SearchPhaseController.TopDocsStats.readFrom(in);
                                 if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {

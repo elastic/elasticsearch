@@ -880,11 +880,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 ),
                 e
             );
-            DataStream latestDataStream = clusterService.state()
-                .metadata()
-                .getProject(project.id())
-                .dataStreams()
-                .get(dataStream.getName());
+            ProjectMetadata latestProject = clusterService.state().metadata().projects().get(project.id());
+            DataStream latestDataStream = latestProject == null ? null : latestProject.dataStreams().get(dataStream.getName());
             if (latestDataStream != null) {
                 if (latestDataStream.getWriteIndex().getName().equals(currentRunWriteIndex.getName())) {
                     // data stream has not been rolled over in the meantime so record the error against the write index we
@@ -1081,11 +1078,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             @Override
             public void onFailure(Exception e) {
-                DataStream dataStream = clusterService.state()
-                    .metadata()
-                    .getProject(projectId)
-                    .dataStreams()
-                    .get(resolvedRolloverTarget.resource());
+                ProjectMetadata latestProject = clusterService.state().metadata().projects().get(projectId);
+                DataStream dataStream = latestProject == null ? null : latestProject.dataStreams().get(resolvedRolloverTarget.resource());
                 if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
                     // the data stream has another write index so no point in recording an error for the previous write index we were
                     // attempting to roll over

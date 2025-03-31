@@ -309,12 +309,13 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                             logger.info("{} unhollowing shard (reason: ingestion)", shardId);
                             // Pre-warm the cache for the new index engine
                             indexShardCacheWarmer.preWarmIndexShardCache(indexShard, false);
-                            indexShard.resetEngine(Engine::skipTranslogRecovery);
+                            indexShard.resetEngine();
                             var engine = indexShard.getEngineOrNull();
                             assert engine instanceof IndexEngine : "After unhollowing we should switch to IndexEngine";
                             var newEngine = (IndexEngine) engine;
                             assert newEngine.isLastCommitHollow() : "After unhollowing the last commit should be hollow";
 
+                            newEngine.skipTranslogRecovery();
                             newEngine.refresh("post_unhollow");
 
                             logger.debug("Flushing shard [{}] to produce a blob with a local translog node id", shardId);

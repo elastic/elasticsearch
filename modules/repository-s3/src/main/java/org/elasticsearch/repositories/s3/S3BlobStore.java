@@ -143,6 +143,9 @@ class S3BlobStore implements BlobStore {
         return service.compareAndExchangeAntiContentionDelay;
     }
 
+    /**
+     * A {@link MetricPublisher} that processes the metrics related to each API invocation attempt according to Elasticsearch's needs
+     */
     class ElasticsearchS3MetricsCollector implements MetricPublisher {
 
         final LongAdder requests = new LongAdder();

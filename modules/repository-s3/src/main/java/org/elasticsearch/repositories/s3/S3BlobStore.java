@@ -564,7 +564,11 @@ class S3BlobStore implements BlobStore {
         boolean assertConsistentOperationName(MetricCollection metricCollection) {
             final var operationNameMetrics = metricCollection.metricValues(CoreMetric.OPERATION_NAME);
             assert operationNameMetrics.size() == 1 : operationNameMetrics;
-            final var expectedOperationName = this == LIST_OBJECTS ? "ListObjectsV2" : key;
+            final var expectedOperationName = switch (this) {
+                case LIST_OBJECTS -> "ListObjectsV2";
+                case PUT_MULTIPART_OBJECT -> "CreateMultipartUpload";
+                default -> key;
+            };
             assert expectedOperationName.equals(operationNameMetrics.get(0)) : expectedOperationName + " vs " + operationNameMetrics;
             return true;
         }

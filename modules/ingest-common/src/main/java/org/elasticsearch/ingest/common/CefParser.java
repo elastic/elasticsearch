@@ -332,6 +332,7 @@ final class CefParser {
             }
             processHeaders(headers, event);
             processExtensions(cefString, extensionStart, event);
+            event.addCefMapping("extensions", event.getExtensions());
             return event;
         } else {
             throw new IllegalArgumentException("Invalid CEF format");
@@ -556,8 +557,11 @@ final class CefParser {
         }
 
         public Map<String, Object> getCefMappings() {
-            cefMappings.put("extensions", extensions);
             return Collections.unmodifiableMap(cefMappings);
+        }
+
+        Map<String, Object> getExtensions() {
+            return Collections.unmodifiableMap(extensions);
         }
     }
 

@@ -46,19 +46,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
-import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
-import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
-import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SORTED_SET;
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBVersionZeroDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBVersionZeroDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBVersionZeroDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBVersionZeroDocValuesFormat.SORTED_SET;
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBVersionZeroDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK;
 
-final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
+final class ES87VersionZeroTSDBDocValuesConsumer extends DocValuesConsumer {
 
     IndexOutput data, meta;
     final int maxDoc;
     private byte[] termsDictBuffer;
     private final int skipIndexIntervalSize;
 
-    ES87TSDBDocValuesConsumer(
+    ES87VersionZeroTSDBDocValuesConsumer(
         SegmentWriteState state,
         int skipIndexIntervalSize,
         String dataCodec,
@@ -74,7 +75,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             CodecUtil.writeIndexHeader(
                 data,
                 dataCodec,
-                ES87TSDBDocValuesFormat.VERSION_CURRENT,
+                ES87TSDBVersionZeroDocValuesFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -83,7 +84,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             CodecUtil.writeIndexHeader(
                 meta,
                 metaCodec,
-                ES87TSDBDocValuesFormat.VERSION_CURRENT,
+                ES87TSDBVersionZeroDocValuesFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -100,7 +101,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     @Override
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
-        meta.writeByte(ES87TSDBDocValuesFormat.NUMERIC);
+        meta.writeByte(ES87TSDBVersionZeroDocValuesFormat.NUMERIC);
         DocValuesProducer producer = new EmptyDocValuesProducer() {
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
@@ -145,32 +146,31 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
         }
         meta.writeLong(numValues);
-        meta.writeInt(numDocsWithValue);
 
         if (numValues > 0) {
             // Special case for maxOrd of 1, signal -1 that no blocks will be written
-            meta.writeInt(maxOrd != 1 ? ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT : -1);
+            meta.writeInt(maxOrd != 1 ? ES87TSDBVersionZeroDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT : -1);
             final ByteBuffersDataOutput indexOut = new ByteBuffersDataOutput();
             final DirectMonotonicWriter indexWriter = DirectMonotonicWriter.getInstance(
                 meta,
                 new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),
-                1L + ((numValues - 1) >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
-                ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                1L + ((numValues - 1) >>> ES87TSDBVersionZeroDocValuesFormat.NUMERIC_BLOCK_SHIFT),
+                ES87TSDBVersionZeroDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
             );
 
             final long valuesDataOffset = data.getFilePointer();
             // Special case for maxOrd of 1, skip writing the blocks
             if (maxOrd != 1) {
-                final long[] buffer = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                final long[] buffer = new long[ES87TSDBVersionZeroDocValuesFormat.NUMERIC_BLOCK_SIZE];
                 int bufferSize = 0;
-                final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+                final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES87TSDBVersionZeroDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 values = valuesProducer.getSortedNumeric(field);
                 final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                     final int count = values.docValueCount();
                     for (int i = 0; i < count; ++i) {
                         buffer[bufferSize++] = values.nextValue();
-                        if (bufferSize == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
+                        if (bufferSize == ES87TSDBVersionZeroDocValuesFormat.NUMERIC_BLOCK_SIZE) {
                             indexWriter.add(data.getFilePointer() - valuesDataOffset);
                             if (maxOrd >= 0) {
                                 encoder.encodeOrdinals(buffer, data, bitsPerOrd);
@@ -184,7 +184,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 if (bufferSize > 0) {
                     indexWriter.add(data.getFilePointer() - valuesDataOffset);
                     // Fill unused slots in the block with zeroes rather than junk
-                    Arrays.fill(buffer, bufferSize, ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
+                    Arrays.fill(buffer, bufferSize, ES87TSDBVersionZeroDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
                     if (maxOrd >= 0) {
                         encoder.encodeOrdinals(buffer, data, bitsPerOrd);
                     } else {
@@ -213,7 +213,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     @Override
     public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
-        meta.writeByte(ES87TSDBDocValuesFormat.BINARY);
+        meta.writeByte(ES87TSDBVersionZeroDocValuesFormat.BINARY);
 
         BinaryDocValues values = valuesProducer.getBinary(field);
         long start = data.getFilePointer();
@@ -258,13 +258,13 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         if (maxLength > minLength) {
             start = data.getFilePointer();
             meta.writeLong(start);
-            meta.writeVInt(ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
+            meta.writeVInt(ES87TSDBVersionZeroDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
 
             final DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(
                 meta,
                 data,
                 numDocsWithField + 1,
-                ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                ES87TSDBVersionZeroDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
             );
             long addr = 0;
             writer.add(addr);
@@ -281,7 +281,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     @Override
     public void addSortedField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
-        meta.writeByte(ES87TSDBDocValuesFormat.SORTED);
+        meta.writeByte(ES87TSDBVersionZeroDocValuesFormat.SORTED);
         doAddSortedField(field, valuesProducer, false);
     }
 
@@ -340,8 +340,8 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         final long size = values.getValueCount();
         meta.writeVLong(size);
 
-        int blockMask = ES87TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_MASK;
-        int shift = ES87TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
+        int blockMask = ES87TSDBVersionZeroDocValuesFormat.TERMS_DICT_BLOCK_LZ4_MASK;
+        int shift = ES87TSDBVersionZeroDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
         meta.writeInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
         ByteBuffersDataOutput addressBuffer = new ByteBuffersDataOutput();
@@ -435,11 +435,11 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     private void writeTermsIndex(SortedSetDocValues values) throws IOException {
         final long size = values.getValueCount();
-        meta.writeInt(ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_SHIFT);
+        meta.writeInt(ES87TSDBVersionZeroDocValuesFormat.TERMS_DICT_REVERSE_INDEX_SHIFT);
         long start = data.getFilePointer();
 
-        long numBlocks = 1L + ((size + ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK)
-            >>> ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_SHIFT);
+        long numBlocks = 1L + ((size + TERMS_DICT_REVERSE_INDEX_MASK)
+            >>> ES87TSDBVersionZeroDocValuesFormat.TERMS_DICT_REVERSE_INDEX_SHIFT);
         ByteBuffersDataOutput addressBuffer = new ByteBuffersDataOutput();
         DirectMonotonicWriter writer;
         try (ByteBuffersIndexOutput addressOutput = new ByteBuffersIndexOutput(addressBuffer, "temp", "temp")) {
@@ -449,7 +449,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             long offset = 0;
             long ord = 0;
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
-                if ((ord & ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK) == 0) {
+                if ((ord & TERMS_DICT_REVERSE_INDEX_MASK) == 0) {
                     writer.add(offset);
                     final int sortKeyLength;
                     if (ord == 0) {
@@ -460,10 +460,9 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                     }
                     offset += sortKeyLength;
                     data.writeBytes(term.bytes, term.offset, sortKeyLength);
-                } else if ((ord
-                    & ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK) == ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK) {
-                        previous.copyBytes(term);
-                    }
+                } else if ((ord & TERMS_DICT_REVERSE_INDEX_MASK) == TERMS_DICT_REVERSE_INDEX_MASK) {
+                    previous.copyBytes(term);
+                }
                 ++ord;
             }
             writer.add(offset);
@@ -480,7 +479,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     @Override
     public void addSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
-        meta.writeByte(ES87TSDBDocValuesFormat.SORTED_NUMERIC);
+        meta.writeByte(ES87TSDBVersionZeroDocValuesFormat.SORTED_NUMERIC);
         writeSortedNumericField(field, valuesProducer, -1);
     }
 
@@ -496,16 +495,17 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         long numValues = stats[1];
         assert numValues >= numDocsWithField;
 
+        meta.writeInt(numDocsWithField);
         if (numValues > numDocsWithField) {
             long start = data.getFilePointer();
             meta.writeLong(start);
-            meta.writeVInt(ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
+            meta.writeVInt(ES87TSDBVersionZeroDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
 
             final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
                 meta,
                 data,
                 numDocsWithField + 1L,
-                ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                ES87TSDBVersionZeroDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
             );
             long addr = 0;
             addressesWriter.add(addr);

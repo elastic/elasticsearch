@@ -16,7 +16,12 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
-public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
+/**
+ * Fork of {@link ES87TSDBDocValuesFormat} of the state of tsdb doc value consumer at version zero.
+ * This is to test bwc between version zero and the current version.
+ */
+// TODO: can we only fork doc values consumer?
+public class ES87TSDBVersionZeroDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
     static final int NUMERIC_BLOCK_SHIFT = 7;
     public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
@@ -27,16 +32,13 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final String DATA_EXTENSION = "dvd";
     static final String META_CODEC = "ES87TSDBDocValuesMetadata";
     static final String META_EXTENSION = "dvm";
+    static final int VERSION_START = 0;
+    static final int VERSION_CURRENT = VERSION_START;
     static final byte NUMERIC = 0;
     static final byte BINARY = 1;
     static final byte SORTED = 2;
     static final byte SORTED_SET = 3;
     static final byte SORTED_NUMERIC = 4;
-
-    static final int VERSION_META_MOVE_META_ENTRY = 1;
-    // Move numDocsWithField from SortedNumericEntry to NumericEntry
-    static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_META_MOVE_META_ENTRY;
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -78,15 +80,15 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         }
     }
 
-    final int skipIndexIntervalSize;
+    private final int skipIndexIntervalSize;
 
     /** Default constructor. */
-    public ES87TSDBDocValuesFormat() {
+    public ES87TSDBVersionZeroDocValuesFormat() {
         this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES87TSDBDocValuesFormat(int skipIndexIntervalSize) {
+    public ES87TSDBVersionZeroDocValuesFormat(int skipIndexIntervalSize) {
         super(CODEC_NAME);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
@@ -96,11 +98,18 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ES87TSDBDocValuesConsumer(state, skipIndexIntervalSize, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        return new ES87VersionZeroTSDBDocValuesConsumer(
+            state,
+            skipIndexIntervalSize,
+            DATA_CODEC,
+            DATA_EXTENSION,
+            META_CODEC,
+            META_EXTENSION
+        );
     }
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new ES87TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        return new ES87TSDBVersionZeroDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
     }
 }

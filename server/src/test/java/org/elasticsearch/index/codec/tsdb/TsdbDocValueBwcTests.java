@@ -1,0 +1,158 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.codec.tsdb;
+
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataStream;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Locale;
+
+public class TsdbDocValueBwcTests extends LuceneTestCase {
+
+    public void testMixedIndex() throws Exception {
+        Codec oldCodec = TestUtil.alwaysDocValuesFormat(new ES87TSDBVersionZeroDocValuesFormat());
+        Codec newCodec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
+        testMixedIndex(oldCodec, newCodec);
+    }
+
+    void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+        int numRounds = 32 + random().nextInt(32);
+        int numDocsPerRound = 64 + random().nextInt(64);
+        int numDocs = numRounds * numDocsPerRound;
+
+        try (var dir = newDirectory()) {
+            long counter1 = 0;
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
+            var iwc = getTimeSeriesIndexWriterConfig(hostnameField, timestampField, oldCodec);
+            // avoids the usage of ES87TSDBDocValuesProducer while indexing using old codec:
+            // (The per field format encodes the dv codec name and that then loads the current dv codec)
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            try (var iw = new IndexWriter(dir, iwc)) {
+                long timestamp = baseTimestamp;
+                for (int i = 0; i < numRounds; i++) {
+                    int r = random().nextInt(10);
+                    for (int j = 0; j < numDocsPerRound; j++) {
+                        var d = new Document();
+                        // host in reverse, otherwise merging will detect that segments are already ordered and will use sequential docid
+                        // merger:
+                        String hostName = String.format(Locale.ROOT, "host-%03d", numRounds - i);
+                        d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
+                        // Index sorting doesn't work with NumericDocValuesField:
+                        d.add(new SortedNumericDocValuesField(timestampField, timestamp++));
+
+                        if (r % 10 < 7) {
+                            // Most of the time store counter:
+                            d.add(new NumericDocValuesField("counter_1", counter1++));
+                        }
+
+                        if (r % 10 == 5) {
+                            // sometimes no values
+                        } else if (r % 10 > 5) {
+                            // often single value:
+                            d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[j % gauge1Values.length]));
+                            d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j % tags.length])));
+                        } else {
+                            // otherwise multiple values:
+                            int numValues = 2 + random().nextInt(4);
+                            for (int k = 0; k < numValues; k++) {
+                                d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[(j + k) % gauge1Values.length]));
+                                d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[(j + k) % tags.length])));
+                            }
+                        }
+                        iw.addDocument(d);
+                    }
+                    iw.commit();
+                }
+            }
+            try (var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(hostnameField, timestampField, newCodec))) {
+                iw.forceMerge(1);
+                try (var reader = DirectoryReader.open(iw)) {
+                    assertEquals(1, reader.leaves().size());
+                    assertEquals(numDocs, reader.maxDoc());
+                    var leaf = reader.leaves().get(0).reader();
+                    var hostNameDV = leaf.getSortedDocValues(hostnameField);
+                    assertNotNull(hostNameDV);
+                    var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
+                    assertNotNull(timestampDV);
+                    var counterOneDV = leaf.getNumericDocValues("counter_1");
+                    assertNotNull(counterOneDV);
+                    var gaugeOneDV = leaf.getSortedNumericDocValues("gauge_1");
+                    assertNotNull(gaugeOneDV);
+                    var tagsDV = leaf.getSortedSetDocValues("tags");
+                    assertNotNull(tagsDV);
+                    for (int i = 0; i < numDocs; i++) {
+                        assertEquals(i, hostNameDV.nextDoc());
+                        String actualHostName = hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString();
+                        assertTrue("unexpected host name:" + actualHostName, actualHostName.startsWith("host-"));
+
+                        assertEquals(i, timestampDV.nextDoc());
+                        long timestamp = timestampDV.longValue();
+                        long lowerBound = baseTimestamp;
+                        long upperBound = baseTimestamp + numDocs;
+                        assertTrue(
+                            "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
+                            timestamp >= lowerBound && timestamp < upperBound
+                        );
+                        if (counterOneDV.advanceExact(i)) {
+                            long counterOneValue = counterOneDV.longValue();
+                            assertTrue("unexpected counter [" + counterOneValue + "]", counterOneValue >= 0 && counterOneValue < counter1);
+                        }
+                        if (gaugeOneDV.advanceExact(i)) {
+                            for (int j = 0; j < gaugeOneDV.docValueCount(); j++) {
+                                long value = gaugeOneDV.nextValue();
+                                assertTrue("unexpected gauge [" + value + "]", Arrays.binarySearch(gauge1Values, value) >= 0);
+                            }
+                        }
+                        if (tagsDV.advanceExact(i)) {
+                            for (int j = 0; j < tagsDV.docValueCount(); j++) {
+                                long ordinal = tagsDV.nextOrd();
+                                String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
+                                assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField, Codec codec) {
+        var config = new IndexWriterConfig();
+        config.setIndexSort(
+            new Sort(
+                new SortField(hostnameField, SortField.Type.STRING, false),
+                new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
+            )
+        );
+        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(codec);
+        return config;
+    }
+
+}

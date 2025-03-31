@@ -58,7 +58,7 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
     private final IntObjectHashMap<DocValuesSkipperEntry> skippers;
     private final IndexInput data;
     private final int maxDoc;
-    private final int version;
+    final int version;
     private final boolean merging;
 
     ES87TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)

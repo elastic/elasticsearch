@@ -20,20 +20,23 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 
-public class TsdbDocValueBwcTests extends LuceneTestCase {
+public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
         Codec oldCodec = TestUtil.alwaysDocValuesFormat(new ES87TSDBVersionZeroDocValuesFormat());
@@ -41,23 +44,19 @@ public class TsdbDocValueBwcTests extends LuceneTestCase {
         testMixedIndex(oldCodec, newCodec);
     }
 
-    void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException {
+    void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException {
         String timestampField = "@timestamp";
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
-        int numRounds = 32 + random().nextInt(32);
-        int numDocsPerRound = 64 + random().nextInt(64);
+        int numRounds = 4 + random().nextInt(8);
+        int numDocsPerRound = 64 + random().nextInt(128);
         int numDocs = numRounds * numDocsPerRound;
 
         try (var dir = newDirectory()) {
             long counter1 = 0;
             long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
             String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
-            var iwc = getTimeSeriesIndexWriterConfig(hostnameField, timestampField, oldCodec);
-            // avoids the usage of ES87TSDBDocValuesProducer while indexing using old codec:
-            // (The per field format encodes the dv codec name and that then loads the current dv codec)
-            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
-            try (var iw = new IndexWriter(dir, iwc)) {
+            try (var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(hostnameField, timestampField, oldCodec))) {
                 long timestamp = baseTimestamp;
                 for (int i = 0; i < numRounds; i++) {
                     int r = random().nextInt(10);
@@ -70,7 +69,7 @@ public class TsdbDocValueBwcTests extends LuceneTestCase {
                         // Index sorting doesn't work with NumericDocValuesField:
                         d.add(new SortedNumericDocValuesField(timestampField, timestamp++));
 
-                        if (r % 10 < 7) {
+                        if (r % 10 < 8) {
                             // Most of the time store counter:
                             d.add(new NumericDocValuesField("counter_1", counter1++));
                         }
@@ -94,22 +93,87 @@ public class TsdbDocValueBwcTests extends LuceneTestCase {
                     iw.commit();
                 }
             }
+            // Check documents before force merge:
             try (var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(hostnameField, timestampField, newCodec))) {
+                try (var reader = DirectoryReader.open(iw)) {
+                    assertDocValuesFormatVersion(reader, 0);
+
+                    var hostNameDV = MultiDocValues.getSortedValues(reader, hostnameField);
+                    assertNotNull(hostNameDV);
+                    var timestampDV = MultiDocValues.getSortedNumericValues(reader, timestampField);
+                    assertNotNull(timestampDV);
+                    var counterOneDV = MultiDocValues.getNumericValues(reader, "counter_1");
+                    if (counterOneDV == null) {
+                        counterOneDV = DocValues.emptyNumeric();
+                    }
+                    var gaugeOneDV = MultiDocValues.getSortedNumericValues(reader, "gauge_1");
+                    if (gaugeOneDV == null) {
+                        gaugeOneDV = DocValues.emptySortedNumeric();
+                    }
+                    var tagsDV = MultiDocValues.getSortedSetValues(reader, "tags");
+                    if (tagsDV == null) {
+                        tagsDV = DocValues.emptySortedSet();
+                    }
+                    for (int i = 0; i < numDocs; i++) {
+                        assertEquals(i, hostNameDV.nextDoc());
+                        String actualHostName = hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString();
+                        assertTrue("unexpected host name:" + actualHostName, actualHostName.startsWith("host-"));
+
+                        assertEquals(i, timestampDV.nextDoc());
+                        long timestamp = timestampDV.nextValue();
+                        long lowerBound = baseTimestamp;
+                        long upperBound = baseTimestamp + numDocs;
+                        assertTrue(
+                                "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
+                                timestamp >= lowerBound && timestamp < upperBound
+                        );
+                        if (counterOneDV.advanceExact(i)) {
+                            long counterOneValue = counterOneDV.longValue();
+                            assertTrue("unexpected counter [" + counterOneValue + "]", counterOneValue >= 0 && counterOneValue < counter1);
+                        }
+                        if (gaugeOneDV.advanceExact(i)) {
+                            for (int j = 0; j < gaugeOneDV.docValueCount(); j++) {
+                                long value = gaugeOneDV.nextValue();
+                                assertTrue("unexpected gauge [" + value + "]", Arrays.binarySearch(gauge1Values, value) >= 0);
+                            }
+                        }
+                        if (tagsDV.advanceExact(i)) {
+                            for (int j = 0; j < tagsDV.docValueCount(); j++) {
+                                long ordinal = tagsDV.nextOrd();
+                                String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
+                                assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
+                            }
+                        }
+                    }
+                }
+            }
+
+            var iwc = getTimeSeriesIndexWriterConfig(hostnameField, timestampField, newCodec);
+            iwc.setMergePolicy(new LogByteSizeMergePolicy());
+            try (var iw = new IndexWriter(dir, iwc)) {
                 iw.forceMerge(1);
+                // Check documents after force merge:
                 try (var reader = DirectoryReader.open(iw)) {
                     assertEquals(1, reader.leaves().size());
                     assertEquals(numDocs, reader.maxDoc());
+                    assertDocValuesFormatVersion(reader, 1);
                     var leaf = reader.leaves().get(0).reader();
                     var hostNameDV = leaf.getSortedDocValues(hostnameField);
                     assertNotNull(hostNameDV);
                     var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
                     assertNotNull(timestampDV);
                     var counterOneDV = leaf.getNumericDocValues("counter_1");
-                    assertNotNull(counterOneDV);
+                    if (counterOneDV == null) {
+                        counterOneDV = DocValues.emptyNumeric();
+                    }
                     var gaugeOneDV = leaf.getSortedNumericDocValues("gauge_1");
-                    assertNotNull(gaugeOneDV);
+                    if (gaugeOneDV == null) {
+                        gaugeOneDV = DocValues.emptySortedNumeric();
+                    }
                     var tagsDV = leaf.getSortedSetDocValues("tags");
-                    assertNotNull(tagsDV);
+                    if (tagsDV == null) {
+                        tagsDV = DocValues.emptySortedSet();
+                    }
                     for (int i = 0; i < numDocs; i++) {
                         assertEquals(i, hostNameDV.nextDoc());
                         String actualHostName = hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString();
@@ -146,6 +210,21 @@ public class TsdbDocValueBwcTests extends LuceneTestCase {
         }
     }
 
+    // A hacky way to figure out whether doc values format is written in what version. Need to use reflection, because
+    // PerFieldDocValuesFormat hides the doc values formats it wraps.
+    private static void assertDocValuesFormatVersion(DirectoryReader reader, int expectedVersion) throws NoSuchFieldException,
+        IllegalAccessException {
+        for (var leafReaderContext : reader.leaves()) {
+            var leaf = (SegmentReader) leafReaderContext.reader();
+            var dvReader = leaf.getDocValuesReader();
+            var f = dvReader.getClass().getDeclaredField("formats");
+            f.setAccessible(true);
+            Map<?, ?> formats = (Map<?, ?>) f.get(dvReader);
+            var tsdbDvReader = (ES87TSDBDocValuesProducer) formats.get("ES87TSDB_0");
+            assertEquals(expectedVersion, tsdbDvReader.version);
+        }
+    }
+
     private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField, Codec codec) {
         var config = new IndexWriterConfig();
         config.setIndexSort(
@@ -155,7 +234,9 @@ public class TsdbDocValueBwcTests extends LuceneTestCase {
             )
         );
         config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
-        config.setMergePolicy(new LogByteSizeMergePolicy());
+        // avoids the usage of ES87TSDBDocValuesProducer while indexing using old codec:
+        // (The per field format encodes the dv codec name and that then loads the current dv codec)
+        config.setMergePolicy(NoMergePolicy.INSTANCE);
         config.setCodec(codec);
         return config;
     }

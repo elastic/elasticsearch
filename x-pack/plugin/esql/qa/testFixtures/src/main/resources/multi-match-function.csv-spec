@@ -7,7 +7,7 @@ required_capability: multi_match_function
 
 // tag::multi-match-with-field[]
 FROM books
-| WHERE MULTI_MATCH("Faulkner", "author", "summary", {"fuzziness": 1})
+| WHERE MULTI_MATCH("Faulkner", author, summary, {"fuzziness": 1})
 | KEEP book_no, author
 | SORT book_no
 | LIMIT 5
@@ -28,7 +28,7 @@ testMultiMatchWithOptionsFuzziness
 required_capability: multi_match_function
 
 from books 
-| where multi_match("Pings", "title", "summary", {"fuzziness": 1})  
+| where multi_match("Pings", title, summary, {"fuzziness": 1})  
 | keep book_no;
 ignoreOrder:true
 
@@ -44,7 +44,7 @@ required_capability: multi_match_function
 
 // tag::multi-match-with-named-function-params[]
 FROM books
-| WHERE MULTI_MATCH("Hobbit Back Again", "title", "summary", {"operator": "AND"})
+| WHERE MULTI_MATCH("Hobbit Back Again", title, summary, {"operator": "AND"})
 | KEEP title;
 // end::multi-match-with-named-function-params[]
 
@@ -58,7 +58,7 @@ testMultiMatchWithOptionsMinimumShouldMatch
 required_capability: multi_match_function
 
 from books 
-| where multi_match("Hobbit Back Again", "title", "summary", {"minimum_should_match": 2})
+| where multi_match("Hobbit Back Again", title, summary, {"minimum_should_match": 2})
 | keep title;
 
 title:text
@@ -70,7 +70,7 @@ required_capability: multi_match_function
 required_capability: full_text_functions_disjunctions_compute_engine
 
 from books 
-| where multi_match("lord", "title", "summary", {"operator": "AND"}) or length(title) > 130 
+| where multi_match("lord", title, summary, {"operator": "AND"}) or length(title) > 130 
 | keep book_no
 ;
 ignoreOrder: true

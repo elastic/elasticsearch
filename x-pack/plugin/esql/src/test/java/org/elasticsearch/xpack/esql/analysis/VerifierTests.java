@@ -2329,17 +2329,17 @@ public class VerifierTests extends ESTestCase {
 
     public void testMultiMatchOptions() {
         // Check positive cases
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"slop\": 10})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"auto_generate_synonyms_phrase_query\": true})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"fuzziness\": 2})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"lenient\": false})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"max_expansions\": 10})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"operator\": \"AND\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"prefix_length\": 2})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"tie_breaker\": 1.0})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"analyzer\": \"standard\"})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", last_name, {\"slop\": 10})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"auto_generate_synonyms_phrase_query\": true})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"fuzziness\": 2})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"fuzzy_transpositions\": false})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"lenient\": false})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"max_expansions\": 10})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"minimum_should_match\": \"2\"})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"operator\": \"AND\"})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"prefix_length\": 2})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"tie_breaker\": 1.0})");
         // TODO: "type" option?
 
         // Check all data types for available options
@@ -2363,7 +2363,7 @@ public class VerifierTests extends ESTestCase {
                     queryOptionValue = "\"" + optionValue + "\"";
                 }
 
-                String query = "FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\""
+                String query = "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\""
                     + optionName
                     + "\": "
                     + queryOptionValue
@@ -2378,7 +2378,7 @@ public class VerifierTests extends ESTestCase {
                     assertEquals(
                         "1:19: Invalid option ["
                             + optionName
-                            + "] in [MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\""
+                            + "] in [MULTI_MATCH(\"Jean\", first_name, last_name, {\""
                             + optionName
                             + "\": "
                             + queryOptionValue
@@ -2398,9 +2398,9 @@ public class VerifierTests extends ESTestCase {
         }
 
         assertThat(
-            error("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", {\"unknown_option\": true})"),
+            error("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"unknown_option\": true})"),
             containsString(
-                "1:19: Invalid option [unknown_option] in [MULTI_MATCH(\"Jean\", \"first_name\", \"last_name\", "
+                "1:19: Invalid option [unknown_option] in [MULTI_MATCH(\"Jean\", first_name, last_name, "
                     + "{\"unknown_option\": true})], expected one of "
             )
         );

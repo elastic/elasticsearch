@@ -119,7 +119,7 @@ required_capability: multi_match_function
 required_capability: metadata_score
 
 from books metadata _score
-| where multi_match("Mark", "author", "title", {"fuzziness": 1})
+| where multi_match("Mark", author, title, {"fuzziness": 1})
 | keep book_no, title, author, _score;
 ignoreOrder:true
 

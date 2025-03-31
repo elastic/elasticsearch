@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
 
@@ -40,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
@@ -240,7 +244,10 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     protected Query translate(TranslatorHandler handler) {
         Map<String, Float> fieldsWithBoost = new HashMap<>();
         for (Expression field : fields) {
-            fieldsWithBoost.put(unpackLiteralValue((Literal) field), 1.0f);
+            var fieldAttribute = Match.fieldAsFieldAttribute(field);
+            Check.notNull(fieldAttribute, "MultiMatch must have field attributes as arguments #2 to #N-1.");
+            String fieldName = Match.getNameFromFieldAttribute(fieldAttribute);
+            fieldsWithBoost.put(fieldName, 1.0f);
         }
         return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, getOptions());
     }
@@ -368,5 +375,11 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     @Override
     public int hashCode() {
         return Objects.hash(fields(), query(), queryBuilder());
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        // TODO
+        return super.postAnalysisPlanVerification();
     }
 }

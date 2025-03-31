@@ -494,22 +494,31 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     protected Query translate(TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
+        String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
+        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
+    }
+
+    public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
         if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
             // If we have multiple field types, we allow the query to be done, but getting the underlying field name
             fieldName = multiTypeEsField.getName();
         }
-        // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
+        return fieldName;
     }
 
-    private FieldAttribute fieldAsFieldAttribute() {
+    public static FieldAttribute fieldAsFieldAttribute(Expression field) {
         Expression fieldExpression = field;
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
             fieldExpression = convertFunction.field();
         }
         return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
+    }
+
+    private FieldAttribute fieldAsFieldAttribute() {
+        return fieldAsFieldAttribute(field);
     }
 
     @Override

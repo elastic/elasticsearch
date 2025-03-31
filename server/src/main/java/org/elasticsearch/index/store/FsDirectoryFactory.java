@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.vectors.es818.DirectIODirectory;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
@@ -109,7 +110,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
-    static final class HybridDirectory extends NIOFSDirectory {
+    static final class HybridDirectory extends NIOFSDirectory implements DirectIODirectory {
         private final MMapDirectory delegate;
 
         HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
@@ -133,6 +134,20 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             } else {
                 return super.openInput(name, context);
             }
+        }
+
+        @Override
+        public IndexInput openInputDirect(String name, IOContext context) throws IOException {
+            // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+            ensureOpen();
+            ensureCanRead(name);
+            // we switch the context here since mmap checks for the READONCE context by identity
+            context = context == Store.READONCE_CHECKSUM ? IOContext.READONCE : context;
+            // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
+            // we might run into trouble with files that are pendingDelete in one directory but still
+            // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
+            // and intersect for perf reasons.
+            return delegate.openInput(name, context);
         }
 
         @Override

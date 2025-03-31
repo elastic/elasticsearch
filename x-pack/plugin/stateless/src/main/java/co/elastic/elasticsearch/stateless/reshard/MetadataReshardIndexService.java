@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.reshard;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
@@ -47,7 +48,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -132,6 +132,66 @@ public class MetadataReshardIndexService {
                 delegate.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
             }
         }));
+    }
+
+    public void transitionToHandoff(SplitStateRequest splitStateRequest, ActionListener<ActionResponse> listener) {
+        ShardId shardId = splitStateRequest.getShardId();
+        Index index = shardId.getIndex();
+        submitUnbatchedTask(
+            "transition-reshard-index-to-handoff [" + index.getName() + "]",
+            new ClusterStateUpdateTask(Priority.URGENT, splitStateRequest.masterNodeTimeout()) {
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(ActionResponse.Empty.INSTANCE);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    final ProjectMetadata project = currentState.metadata().projectFor(shardId.getIndex());
+                    final ProjectState projectState = currentState.projectState(project.id());
+                    final IndexMetadata sourceMetadata = projectState.metadata().getIndexSafe(index);
+                    IndexReshardingMetadata reshardingMetadata = sourceMetadata.getReshardingMetadata();
+                    if (reshardingMetadata == null) {
+                        throw new IllegalStateException("no existing resharding operation on " + index + ".");
+                    }
+
+                    ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
+                    IndexMetadata indexMetadata = projectMetadataBuilder.getSafe(index);
+                    long currentSourcePrimaryTerm = indexMetadata.primaryTerm(reshardingMetadata.getSplit().sourceShard(shardId.id()));
+                    long startingSourcePrimaryTerm = splitStateRequest.getSourcePrimaryTerm();
+                    if (startingSourcePrimaryTerm != currentSourcePrimaryTerm) {
+                        logger.debug(
+                            "{} cannot complete split handoff because source primary term advanced [{}>{}]",
+                            shardId,
+                            currentSourcePrimaryTerm,
+                            startingSourcePrimaryTerm
+                        );
+                        assert currentSourcePrimaryTerm > startingSourcePrimaryTerm;
+                        throw new IllegalStateException(
+                            "Cannot handoff "
+                                + shardId
+                                + ". Source primary term has advanced ["
+                                + currentSourcePrimaryTerm
+                                + ">"
+                                + startingSourcePrimaryTerm
+                                + "]."
+                        );
+                    }
+
+                    ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
+                        IndexMetadata.builder(indexMetadata).reshardingMetadata(reshardingMetadata.transitionSplitTargetToHandoff(shardId))
+                    );
+
+                    return ClusterState.builder(currentState).putProjectMetadata(projectMetadata.build()).build();
+                }
+            }
+        );
     }
 
     private void onlyReshardIndex(
@@ -254,9 +314,6 @@ public class MetadataReshardIndexService {
     ) {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
         IndexMetadata indexMetadata = projectMetadataBuilder.getSafe(index);
-        if (indexMetadata == null) {
-            throw new IndexNotFoundException(index);
-        }
         // Note that the IndexMetadata:version is incremented by the put operation
         return projectMetadataBuilder.put(
             IndexMetadata.builder(indexMetadata)
@@ -276,10 +333,6 @@ public class MetadataReshardIndexService {
     public static ProjectMetadata.Builder metadataRemoveReshardingState(final ProjectState projectState, final Index index) {
         var projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
         var indexMetadata = projectMetadataBuilder.getSafe(index);
-        if (indexMetadata == null) {
-            throw new IndexNotFoundException(index);
-        }
-
         return projectMetadataBuilder.put(IndexMetadata.builder(indexMetadata).reshardingMetadata(null));
     }
 

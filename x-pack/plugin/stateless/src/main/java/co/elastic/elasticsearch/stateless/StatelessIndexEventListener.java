@@ -35,12 +35,15 @@ import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
+import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -78,6 +81,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler;
     private final SharedBlobCacheWarmingService warmingService;
     private final HollowShardsService hollowShardsService;
+    private final SplitTargetService splitTargetService;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -86,7 +90,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         TranslogReplicator translogReplicator,
         RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
         SharedBlobCacheWarmingService warmingService,
-        HollowShardsService hollowShardsService
+        HollowShardsService hollowShardsService,
+        SplitTargetService splitTargetService
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -95,6 +100,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.recoveryCommitRegistrationHandler = recoveryCommitRegistrationHandler;
         this.warmingService = warmingService;
         this.hollowShardsService = hollowShardsService;
+        this.splitTargetService = splitTargetService;
     }
 
     @Override
@@ -115,7 +121,26 @@ class StatelessIndexEventListener implements IndexEventListener {
                 if (indexShard.routingEntry().isSearchable()) {
                     beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);
                 } else {
-                    beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, releaseAfterListener);
+                    IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
+                    if (reshardingMetadata != null && reshardingMetadata.getSplit().isTargetShard(indexShard.shardId().id())) {
+                        splitTargetService.startSplitRecovery(
+                            indexShard.shardId(),
+                            indexSettings.getIndexMetadata(),
+                            reshardingMetadata,
+                            new ThreadedActionListener<>(
+                                threadPool.generic(),
+                                releaseAfterListener.delegateFailureAndWrap(
+                                    (listener1, unused) -> beforeRecoveryOnIndexingShard(
+                                        indexShard,
+                                        existingBlobContainer,
+                                        releaseAfterListener
+                                    )
+                                )
+                            )
+                        );
+                    } else {
+                        beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, releaseAfterListener);
+                    }
                 }
                 success = true;
             } finally {

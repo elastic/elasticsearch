@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.reshard;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -37,8 +35,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportReshardAction extends TransportMasterNodeAction<ReshardIndexRequest, ReshardIndexResponse> {
+
     public static final ActionType<ReshardIndexResponse> TYPE = new ActionType<>("indices:admin/reshard");
-    private static final Logger logger = LogManager.getLogger(TransportReshardAction.class);
 
     private final MetadataReshardIndexService reshardIndexService;
     private final ProjectResolver projectResolver;

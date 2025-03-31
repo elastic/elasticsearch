@@ -414,25 +414,17 @@ final class CefParser {
     }
 
     private Object convertValueToType(String value, DataType type) {
-        if (type == DataType.LongType) {
-            return Long.parseLong(value);
-        } else if (type == DataType.DoubleType) {
-            return Double.parseDouble(value);
-        } else if (type == DataType.FloatType) {
-            return Float.parseFloat(value);
-        } else if (type == DataType.IntegerType) {
-            return Integer.parseInt(value);
-        } else if (type == DataType.TimestampType) {
-            return toTimestamp(value);
-        } else if (type == DataType.MACAddressType) {
-            return toMACAddress(value);
-        } else if (type == DataType.IPType) {
-            return toIP(value);
-        } else if (type == DataType.BooleanType) {
-            return Boolean.valueOf(value);
-        } else {
-            return value; // Default string if string type or extension is not defined
-        }
+        return switch (type) {
+            case LongType -> Long.parseLong(value);
+            case DoubleType -> Double.parseDouble(value);
+            case FloatType -> Float.parseFloat(value);
+            case IntegerType -> Integer.parseInt(value);
+            case TimestampType -> toTimestamp(value);
+            case MACAddressType -> toMACAddress(value);
+            case IPType -> toIP(value);
+            case BooleanType -> Boolean.valueOf(value);
+            default -> value; // Default string if string type or extension is not defined
+        };
     }
 
     // visible for testing

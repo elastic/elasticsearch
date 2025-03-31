@@ -3406,7 +3406,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankWithNamedParameters() {
-        assumeTrue("FORK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
         var queryParams = new QueryParams(List.of(paramAsConstant("queryText", "query text"), paramAsConstant("inferenceId", "reranker")));
         var rerank = as(parser.createStatement("row a = 1 | RERANK ?queryText ON title WITH ?inferenceId", queryParams), Rerank.class);

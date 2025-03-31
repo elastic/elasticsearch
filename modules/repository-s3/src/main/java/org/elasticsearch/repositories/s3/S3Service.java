@@ -260,7 +260,7 @@ class S3Service implements Closeable {
             // -- dct: yes, in serverless we sometimes get 403s during because of delays in propagating updated credentials
             // (IAM is not strongly consistent); TODO NOMERGE this should be covered by some end-to-end test, and documented more accurately
             if (isStateless) {
-                // Create a 403 error retyable policy.
+                // Create a 403 error retryable policy.
                 builder.retryOnException(S3Service::RETRYABLE_403_RETRY_PREDICATE);
             }
         });

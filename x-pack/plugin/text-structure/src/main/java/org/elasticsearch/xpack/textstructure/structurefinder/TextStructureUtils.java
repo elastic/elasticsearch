@@ -425,7 +425,10 @@ public final class TextStructureUtils {
             );
         }
 
-        Collection<String> fieldValuesAsStrings = fieldValues.stream().map(Object::toString).collect(Collectors.toList());
+        Collection<String> fieldValuesAsStrings = fieldValues.stream()
+            .filter(value -> value != null)
+            .map(Object::toString)
+            .collect(Collectors.toList());
         Map<String, String> mapping = guessScalarMapping(
             explanation,
             fieldName,

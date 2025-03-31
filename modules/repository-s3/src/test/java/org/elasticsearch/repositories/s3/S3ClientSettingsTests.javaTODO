@@ -225,3 +225,4 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(clientConfiguration.retryPolicy(), is(S3Service.RETRYABLE_403_RETRY_POLICY));
     }
 }
+// TODO NOMERGE bring these tests back

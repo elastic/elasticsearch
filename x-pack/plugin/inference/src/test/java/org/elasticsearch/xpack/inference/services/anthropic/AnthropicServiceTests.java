@@ -458,6 +458,8 @@ public class AnthropicServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -512,6 +514,8 @@ public class AnthropicServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("input"),
                 false,
@@ -570,6 +574,8 @@ public class AnthropicServiceTests extends ESTestCase {
             var listener = new PlainActionFuture<InferenceServiceResults>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 true,

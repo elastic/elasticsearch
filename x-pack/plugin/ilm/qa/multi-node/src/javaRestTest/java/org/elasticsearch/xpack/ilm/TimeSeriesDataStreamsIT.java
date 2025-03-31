@@ -83,9 +83,6 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             final var backingIndices = getDataStreamBackingIndexNames(dataStream);
             assertEquals(2, backingIndices.size());
             assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(backingIndices.getLast()).get("index.hidden")));
-        });
-        assertBusy(() -> {
-            final var backingIndices = getDataStreamBackingIndexNames(dataStream);
             assertEquals(PhaseCompleteStep.finalStep("hot").getKey(), getStepKeyForIndex(client(), backingIndices.getFirst()));
         });
     }

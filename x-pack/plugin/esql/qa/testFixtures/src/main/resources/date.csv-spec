@@ -344,7 +344,8 @@ null
 
 docsDateDiff#[skip:-8.12.99, reason:date_diff added in 8.13]
 // tag::docsDateDiff[]
-ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"), date2 = TO_DATETIME("2023-12-02T11:00:00.001Z")
+ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"),
+    date2 = TO_DATETIME("2023-12-02T11:00:00.001Z")
 | EVAL dd_ms = DATE_DIFF("microseconds", date1, date2)
 // end::docsDateDiff[]
 ;
@@ -446,12 +447,12 @@ evalDateDiffYearForDocs
 required_capability: date_diff_year_calendarial
 
 // tag::evalDateDiffYearForDocs[]
-ROW end_23=TO_DATETIME("2023-12-31T23:59:59.999Z"),
-  start_24=TO_DATETIME("2024-01-01T00:00:00.000Z"),
-    end_24=TO_DATETIME("2024-12-31T23:59:59.999")
-| EVAL end23_to_start24=DATE_DIFF("year", end_23, start_24)
-| EVAL end23_to_end24=DATE_DIFF("year", end_23, end_24)
-| EVAL start_to_end_24=DATE_DIFF("year", start_24, end_24)
+ROW end_23 = TO_DATETIME("2023-12-31T23:59:59.999Z"),
+  start_24 = TO_DATETIME("2024-01-01T00:00:00.000Z"),
+    end_24 = TO_DATETIME("2024-12-31T23:59:59.999")
+| EVAL end23_to_start24 = DATE_DIFF("year", end_23, start_24)
+| EVAL end23_to_end24   = DATE_DIFF("year", end_23, end_24)
+| EVAL start_to_end_24  = DATE_DIFF("year", start_24, end_24)
 // end::evalDateDiffYearForDocs[]
 ;
 
@@ -1023,7 +1024,8 @@ date:date                 | year:long
 docsDateExtractBusinessHours
 // tag::docsDateExtractBusinessHours[]
 FROM sample_data
-| WHERE DATE_EXTRACT("hour_of_day", @timestamp) < 9 AND DATE_EXTRACT("hour_of_day", @timestamp) >= 17
+| WHERE DATE_EXTRACT("hour_of_day", @timestamp) < 9
+    AND DATE_EXTRACT("hour_of_day", @timestamp) >= 17
 // end::docsDateExtractBusinessHours[]
 ;
 
@@ -1235,16 +1237,20 @@ required_capability: agg_values
 mvAppendDates
 required_capability: fn_mv_append
 
+// tag::mv_append_date[]
 FROM employees
 | WHERE emp_no == 10039 OR emp_no == 10040
 | SORT emp_no
-| EVAL dates = mv_append(birth_date, hire_date)
+| EVAL dates = MV_APPEND(birth_date, hire_date)
 | KEEP emp_no, birth_date, hire_date, dates
+// end::mv_append_date[]
 ;
 
+// tag::mv_append_date-result[]
 emp_no:integer | birth_date:date      | hire_date:date       | dates:date
 10039          | 1959-10-01T00:00:00Z | 1988-01-19T00:00:00Z | [1959-10-01T00:00:00Z, 1988-01-19T00:00:00Z]
 10040          | null                 | 1993-02-14T00:00:00Z | null 
+// end::mv_append_date-result[]
 ;
 
 

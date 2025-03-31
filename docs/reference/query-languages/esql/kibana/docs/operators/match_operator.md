@@ -13,7 +13,7 @@ For using the function syntax, or adding [match query parameters](https://www.el
 
 `:` returns true if the provided query matches the row.
 
-```
+```esql
 FROM books
 | WHERE MATCH(author, "Faulkner")
 | KEEP book_no, author

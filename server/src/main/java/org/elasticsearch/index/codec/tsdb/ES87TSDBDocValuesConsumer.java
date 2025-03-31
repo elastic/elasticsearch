@@ -39,7 +39,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LongsRef;
-import org.apache.lucene.util.RoaringDocIdSet;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
@@ -159,8 +158,9 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         meta.writeLong(numValues);
         meta.writeInt(numDocsWithValue);
 
-        // TODO: write DISI to temp file and append it later to data part:
-        var docIdSetBuilder = new RoaringDocIdSet.Builder(maxDoc);
+        // TODO: which IOContext should be used here?
+        IndexOutput disiTempOutput = null;
+        IndexedDISIBuilder docIdSetBuilder = null;
         if (numValues > 0) {
             // Special case for maxOrd of 1, signal -1 that no blocks will be written
             meta.writeInt(maxOrd != 1 ? ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT : -1);
@@ -181,13 +181,15 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 values = valuesProducer.getSortedNumeric(field);
                 final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
 
-                // Reset and recompute. The value gathered from TsdbDocValuesProducer may not be accurate if one of the leaves was singleton
-                // This could cause failures when writing addresses in writeSortedNumericField(...)
-                numDocsWithValue = 0;
+                if (numDocsWithValue != 0 && numDocsWithValue != maxDoc) {
+                    disiTempOutput = dir.createTempOutput(data.getName(), "disi", IOContext.DEFAULT);
+                    docIdSetBuilder = new IndexedDISIBuilder(disiTempOutput, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                }
 
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                    numDocsWithValue++;
-                    docIdSetBuilder.add(doc);
+                    if (docIdSetBuilder != null) {
+                        docIdSetBuilder.addDocId(doc);
+                    }
                     final int count = values.docValueCount();
                     if (docCountConsumer != null) {
                         docCountConsumer.accept(count);
@@ -244,13 +246,17 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             long offset = data.getFilePointer();
             meta.writeLong(offset); // docsWithFieldOffset
             final short jumpTableEntryCount;
-            if (maxOrd != 1) {
-                var bitSet = docIdSetBuilder.build();
-                var iterator = bitSet.iterator();
-                if (iterator == null) {
-                    iterator = DocIdSetIterator.empty();
+            if (maxOrd != 1 && docIdSetBuilder != null) {
+                jumpTableEntryCount = docIdSetBuilder.build();
+                String skipListTempFileName = disiTempOutput.getName();
+                disiTempOutput.close();
+                try (
+                    // TODO: which IOContext should be used here?
+                    var addressDataInput = dir.openInput(skipListTempFileName, IOContext.DEFAULT)
+                ) {
+                    data.copyBytes(addressDataInput, addressDataInput.length());
                 }
-                jumpTableEntryCount = IndexedDISI.writeBitSet(iterator, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, skipListTempFileName);
             } else {
                 values = valuesProducer.getSortedNumeric(field);
                 jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);

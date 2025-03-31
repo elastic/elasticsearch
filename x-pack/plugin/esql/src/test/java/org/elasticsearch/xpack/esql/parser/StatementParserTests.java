@@ -79,6 +79,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CLUSTER;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.DATE_MATH;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.INDEX_SELECTOR;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
@@ -500,6 +502,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                assertStringAsIndexPattern("foo::data", command + " foo::data");
+                assertStringAsIndexPattern("foo::failures", command + " foo::failures");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:\"foo::failures\"");
+                assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo\"::data");
+                assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo::data\"");
+                assertStringAsIndexPattern("*::data", command + " *::data");
+                assertStringAsIndexPattern(
+                    "<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
+                    command + " <logstash-{now/M{yyyy.MM}}>::data, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures"
+                );
+            }
         }
     }
 
@@ -582,6 +596,58 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectInvalidIndexNameErrorWithLineNumber(command, "<<logstash<{now/d}>>>", lineNumber, "<logstash<");
             expectInvalidIndexNameErrorWithLineNumber(command, "\"<<logstash<{now/d}>>>\"", lineNumber, "<logstash<");
             expectInvalidIndexNameErrorWithLineNumber(command, "\"-<logstash- {now/d{yyyy.MM.dd|+12:00}}>\"", lineNumber, "logstash- ");
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled() && command.contains("LOOKUP_🐔") == false) {
+                expectInvalidIndexNameErrorWithLineNumber(command, "index::dat", lineNumber);
+                expectInvalidIndexNameErrorWithLineNumber(command, "index::failure", lineNumber);
+
+                // Cluster name cannot be combined with selector yet.
+                var parseLineNumber = command.contains("FROM") ? 6 : 9;
+                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::data", parseLineNumber + 11);
+                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::failures", parseLineNumber + 11);
+
+                expectDoubleColonErrorWithLineNumber(command, "cluster:\"foo\"::data", parseLineNumber + 13);
+                expectDoubleColonErrorWithLineNumber(command, "cluster:\"foo\"::failures", parseLineNumber + 13);
+
+                // TODO: Edge case that will be invalidated in follow up (https://github.com/elastic/elasticsearch/issues/122651)
+                // expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::data", parseLineNumber + 13);
+                // expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::failures", parseLineNumber + 13);
+
+                expectErrorWithLineNumber(
+                    command,
+                    "\"cluster:foo::data\"",
+                    lineNumber,
+                    "Invalid index name [cluster:foo::data], Selectors are not yet supported on remote cluster patterns"
+                );
+                expectErrorWithLineNumber(
+                    command,
+                    "\"cluster:foo::failures\"",
+                    lineNumber,
+                    "Invalid index name [cluster:foo::failures], Selectors are not yet supported on remote cluster patterns"
+                );
+
+                // Wildcards
+                expectDoubleColonErrorWithLineNumber(command, "cluster:*::data", parseLineNumber + 9);
+                expectDoubleColonErrorWithLineNumber(command, "cluster:*::failures", parseLineNumber + 9);
+                expectDoubleColonErrorWithLineNumber(command, "*:index::data", parseLineNumber + 7);
+                expectDoubleColonErrorWithLineNumber(command, "*:index::failures", parseLineNumber + 7);
+                expectDoubleColonErrorWithLineNumber(command, "*:index*::data", parseLineNumber + 8);
+                expectDoubleColonErrorWithLineNumber(command, "*:index*::failures", parseLineNumber + 8);
+                expectDoubleColonErrorWithLineNumber(command, "*:*::data", parseLineNumber + 3);
+                expectDoubleColonErrorWithLineNumber(command, "*:*::failures", parseLineNumber + 3);
+
+                // Too many colons
+                expectInvalidIndexNameErrorWithLineNumber(command, "\"index:::data\"", lineNumber, "index:", "must not contain ':'");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"index::::data\"",
+                    lineNumber,
+                    "index::::data",
+                    "Invalid usage of :: separator"
+                );
+
+                // TODO: Edge case that will be invalidated in follow up (https://github.com/elastic/elasticsearch/issues/122651)
+                expectDoubleColonErrorWithLineNumber(command, "cluster:\"index,index2\"::failures", parseLineNumber + 22);
+            }
         }
 
         // comma separated indices, with exclusions
@@ -599,6 +665,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectInvalidIndexNameErrorWithLineNumber(command, "\"indexpattern,-\"", commands.get(command), "", "must not be empty");
             clustersAndIndices(command, "indexpattern", "*-");
             clustersAndIndices(command, "indexpattern", "-indexpattern");
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "indexpattern, --index::data",
+                    lineNumber,
+                    "-index",
+                    "must not start with '_', '-', or '+'"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "indexpattern, \"--index\"::data",
+                    lineNumber,
+                    "-index",
+                    "must not start with '_', '-', or '+'"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"indexpattern, --index::data\"",
+                    commands.get(command),
+                    "-index",
+                    "must not start with '_', '-', or '+'"
+                );
+            }
         }
 
         // Invalid index names, except invalid DateMath, are ignored if there is an index name with wildcard before it
@@ -608,6 +697,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 continue;
             }
             lineNumber = command.contains("FROM") ? "line 1:9: " : "line 1:12: ";
+            String indexStarLineNumber = command.contains("FROM") ? "line 1:14: " : "line 1:17: ";
             clustersAndIndices(command, "*", "-index#pattern");
             clustersAndIndices(command, "index*", "-index#pattern");
             clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>");
@@ -615,6 +705,61 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectDateMathErrorWithLineNumber(command, "*, \"-<-logstash-{now/D}>\"", lineNumber, dateMathError);
             expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>", lineNumber, dateMathError);
             expectDateMathErrorWithLineNumber(command, "\"*, -<-logstash-{now/D}>\"", commands.get(command), dateMathError);
+            expectDateMathErrorWithLineNumber(command, "\"*, -<-logst:ash-{now/D}>\"", commands.get(command), dateMathError);
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                clustersAndIndices(command, "*", "-index#pattern::data");
+                clustersAndIndices(command, "*", "-index#pattern::data");
+                clustersAndIndices(command, "index*", "-index#pattern::data");
+                clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>::data");
+                clustersAndIndices(command, "index*", "-<--logstash#-{now/M{yyyy.MM}}>::data");
+                // Throw on invalid date math
+                expectDateMathErrorWithLineNumber(command, "*, \"-<-logstash-{now/D}>\"::data", lineNumber, dateMathError);
+                expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>::data", lineNumber, dateMathError);
+                // Check that invalid selectors throw (they're resolved first in /_search, and always validated)
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "*, -index::garbage",
+                    lineNumber,
+                    "-index::garbage",
+                    "invalid usage of :: separator, [garbage] is not a recognized selector"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "index*, -index::garbage",
+                    indexStarLineNumber,
+                    "-index::garbage",
+                    "invalid usage of :: separator, [garbage] is not a recognized selector"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "*, -<logstash-{now/M{yyyy.MM}}>::garbage",
+                    lineNumber,
+                    "-<logstash-{now/M{yyyy.MM}}>::garbage",
+                    "invalid usage of :: separator, [garbage] is not a recognized selector"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "index*, -<logstash-{now/M{yyyy.MM}}>::garbage",
+                    indexStarLineNumber,
+                    "-<logstash-{now/M{yyyy.MM}}>::garbage",
+                    "invalid usage of :: separator, [garbage] is not a recognized selector"
+                );
+                // Invalid selectors will throw validation errors before invalid date math
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"*, -<-logstash-{now/D}>::d\"",
+                    commands.get(command),
+                    "-<-logstash-{now/D}>::d",
+                    "invalid usage of :: separator, [d] is not a recognized selector"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"*, -<-logstash-{now/D}>::\"",
+                    commands.get(command),
+                    "-<-logstash-{now/D}>::",
+                    "invalid usage of :: separator, [] is not a recognized selector"
+                );
+            }
         }
     }
 
@@ -2966,7 +3111,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
-        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER));
+        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER), without(INDEX_SELECTOR));
         var onField = randomIdentifier();
 
         var plan = statement("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onField);
@@ -2986,7 +3131,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         {
             // wildcard
-            var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(CROSS_CLUSTER));
+            var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(CROSS_CLUSTER), without(INDEX_SELECTOR));
             expectError(
                 "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
                 "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
@@ -2995,7 +3140,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         {
             // remote cluster on the right
             var fromPatterns = randomIndexPatterns(without(CROSS_CLUSTER));
-            var joinPattern = randomIndexPattern(CROSS_CLUSTER, without(WILDCARD_PATTERN));
+            var joinPattern = randomIndexPattern(CROSS_CLUSTER, without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
                 "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported in LOOKUP JOIN"
@@ -3004,11 +3149,68 @@ public class StatementParserTests extends AbstractStatementParserTests {
         {
             // remote cluster on the left
             var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-            var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN));
+            var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
                 "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported in LOOKUP JOIN"
             );
+        }
+
+        if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+            {
+                // Selectors are not supported on the left of the join query if used with cluster ids.
+                // Unquoted case: The language specification does not allow mixing `:` and `::` characters in an index expression
+                var fromPatterns = randomIndexPatterns(CROSS_CLUSTER, without(DATE_MATH));
+                // We do different validation based on the quotation of the pattern
+                // Autogenerated patterns will not mix cluster ids with selectors. Unquote it to ensure stable tests
+                fromPatterns = unquoteIndexPattern(fromPatterns) + "::data";
+                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
+                expectError(
+                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "mismatched input '::' expecting {"
+                );
+            }
+            {
+                // Selectors are not supported on the left of the join query if used with cluster ids.
+                // Quoted case: The language specification allows mixing `:` and `::` characters in a quoted expression, but this usage
+                // must cause a validation exception in the non-generated code.
+                var fromPatterns = randomIndexPatterns(CROSS_CLUSTER, without(INDEX_SELECTOR));
+                // We do different validation based on the quotation of the pattern
+                // Autogenerated patterns will not mix cluster ids with selectors. Unquote, modify, and requote it to ensure stable tests
+                fromPatterns = "\"" + unquoteIndexPattern(fromPatterns) + "::data\"";
+                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
+                expectError(
+                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "Selectors are not yet supported on remote cluster patterns"
+                );
+            }
+            {
+                // Selectors are not yet supported in join patterns on the right.
+                // Unquoted case: The language specification does not allow mixing `:` and `::` characters in an index expression
+                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(DATE_MATH), INDEX_SELECTOR);
+                // We do different validation based on the quotation of the pattern, so forcefully unquote the expression instead of leaving
+                // it to chance.
+                joinPattern = unquoteIndexPattern(joinPattern);
+                expectError(
+                    "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "extraneous input ':' expecting {QUOTED_STRING, UNQUOTED_SOURCE}"
+                );
+            }
+            {
+                // Selectors are not yet supported in join patterns on the right.
+                // Quoted case: The language specification allows `::` characters in a quoted expression, but this usage
+                // must cause a validation exception in the non-generated code.
+                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(DATE_MATH), INDEX_SELECTOR);
+                // We do different validation based on the quotation of the pattern, so forcefully quote the expression instead of leaving
+                // it to chance.
+                joinPattern = "\"" + unquoteIndexPattern(joinPattern) + "\"";
+                expectError(
+                    "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "invalid index pattern ["
+                        + unquoteIndexPattern(joinPattern)
+                        + "], index pattern selectors are not supported in LOOKUP JOIN"
+                );
+            }
         }
     }
 

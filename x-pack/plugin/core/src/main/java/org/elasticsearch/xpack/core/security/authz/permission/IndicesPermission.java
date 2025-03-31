@@ -886,7 +886,7 @@ public final class IndicesPermission {
         Automaton allowedPrivilegesAutomaton = null;
         for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
             Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
-            if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
+            if (Operations.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
                 Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
                 if (allowedPrivilegesAutomaton != null) {
                     allowedPrivilegesAutomaton = Automatons.unionAndMinimize(

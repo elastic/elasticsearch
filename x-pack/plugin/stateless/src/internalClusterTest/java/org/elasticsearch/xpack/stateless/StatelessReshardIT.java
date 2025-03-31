@@ -17,9 +17,14 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexResponse;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
+import co.elastic.elasticsearch.stateless.reshard.TransportSplitHandoffStateAction;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
@@ -37,12 +42,18 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.LockSupport;
@@ -50,6 +61,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -257,6 +269,232 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertThat(
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
             equalTo(1)
+        );
+    }
+
+    public void testReshardTargetWillEqualToPrimaryTermOfSource() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
+                client(indexNode).admin()
+                    .indices()
+                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                    .execute()
+                    .actionGet()
+                    .getIndexToSettings()
+                    .get(indexName)
+            ),
+            equalTo(1)
+        );
+
+        indexDocs(indexName, 100);
+
+        IndicesStatsResponse statsResponse = client(indexNode).admin().indices().prepareStats(indexName).execute().actionGet();
+        long indexCount = statsResponse.getAt(0).getStats().indexing.getTotal().getIndexCount();
+        assertThat(indexCount, equalTo(100L));
+
+        Index index = resolveIndex(indexName);
+        long currentPrimaryTerm = client().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .setMetadata(true)
+            .get()
+            .getState()
+            .getMetadata()
+            .findIndex(index)
+            .get()
+            .primaryTerm(0);
+
+        int primaryTermIncrements = randomIntBetween(2, 4);
+        for (int i = 0; i < primaryTermIncrements; i++) {
+            IndexShard indexShard = findIndexShard(index, 0);
+            indexShard.failShard("broken", new Exception("boom local"));
+            long finalCurrentPrimaryTerm = currentPrimaryTerm;
+            assertBusy(
+                () -> assertThat(
+                    client().admin()
+                        .cluster()
+                        .prepareState(TEST_REQUEST_TIMEOUT)
+                        .setMetadata(true)
+                        .get()
+                        .getState()
+                        .getMetadata()
+                        .findIndex(index)
+                        .get()
+                        .primaryTerm(0),
+                    greaterThan(finalCurrentPrimaryTerm)
+                )
+            );
+            ensureGreen(indexName);
+            currentPrimaryTerm = client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setMetadata(true)
+                .get()
+                .getState()
+                .getMetadata()
+                .findIndex(index)
+                .get()
+                .primaryTerm(0);
+        }
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName);
+        client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet();
+        ensureGreen(indexName);
+
+        assertThat(
+            client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setMetadata(true)
+                .get()
+                .getState()
+                .getMetadata()
+                .findIndex(index)
+                .get()
+                .primaryTerm(1),
+            equalTo(currentPrimaryTerm)
+        );
+    }
+
+    @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService:DEBUG", reason = "logging assertions")
+    public void testReshardTargetWillNotTransitionToHandoffIfSourcePrimaryTermChanged() throws Exception {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
+                client(indexNode).admin()
+                    .indices()
+                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                    .execute()
+                    .actionGet()
+                    .getIndexToSettings()
+                    .get(indexName)
+            ),
+            equalTo(1)
+        );
+
+        indexDocs(indexName, 100);
+
+        IndicesStatsResponse statsResponse = client(indexNode).admin().indices().prepareStats(indexName).execute().actionGet();
+        long indexCount = statsResponse.getAt(0).getStats().indexing.getTotal().getIndexCount();
+        assertThat(indexCount, equalTo(100L));
+
+        Index index = resolveIndex(indexName);
+        long currentPrimaryTerm = client().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .setMetadata(true)
+            .get()
+            .getState()
+            .getMetadata()
+            .findIndex(index)
+            .get()
+            .primaryTerm(0);
+
+        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
+        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
+        CountDownLatch handoffLatch = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
+            if (TransportSplitHandoffStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
+                try {
+                    handoffAttemptedLatch.countDown();
+                    handoffLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request1, options);
+        });
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName);
+        ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
+
+        handoffAttemptedLatch.await();
+
+        IndexShard indexShard = findIndexShard(index, 0);
+        indexShard.failShard("broken", new Exception("boom local"));
+        final long finalPrimaryTerm = currentPrimaryTerm;
+        assertBusy(() -> {
+            assertThat(
+                client().admin()
+                    .cluster()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
+                    .setMetadata(true)
+                    .get()
+                    .getState()
+                    .getMetadata()
+                    .findIndex(index)
+                    .get()
+                    .primaryTerm(0),
+                greaterThan(finalPrimaryTerm)
+            );
+            assertThat(
+                client().admin()
+                    .cluster()
+                    .prepareHealth(TimeValue.timeValueSeconds(30))
+                    .setIndices(indexName)
+                    .get()
+                    .getActivePrimaryShards(),
+                equalTo(1)
+            );
+        });
+
+        currentPrimaryTerm = client().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .setMetadata(true)
+            .get()
+            .getState()
+            .getMetadata()
+            .findIndex(index)
+            .get()
+            .primaryTerm(0);
+
+        MockLog.assertThatLogger(() -> {
+            // When we release the handoff block the recovery will progress. However, it will fail because the source shard primary term
+            // has
+            // advanced
+            handoffLatch.countDown();
+            reshard.actionGet();
+        },
+            MetadataReshardIndexService.class,
+            new MockLog.PatternSeenEventExpectation(
+                "split handoff failed",
+                MetadataReshardIndexService.class.getCanonicalName(),
+                Level.DEBUG,
+                ".*\\[" + indexName + "\\]\\[1\\] cannot complete split handoff because source primary term advanced \\[.*"
+            )
+        );
+
+        // After the target shard recovery tries again it will synchronize its primary term with the source and come online.
+        ensureGreen(indexName);
+
+        // The primary term has synchronized with the source
+        assertThat(
+            client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setMetadata(true)
+                .get()
+                .getState()
+                .getMetadata()
+                .findIndex(index)
+                .get()
+                .primaryTerm(1),
+            equalTo(currentPrimaryTerm)
         );
     }
 

@@ -102,7 +102,9 @@ import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRe
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService;
+import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
+import co.elastic.elasticsearch.stateless.reshard.TransportSplitHandoffStateAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyMonitoringInfoTransportAction;
@@ -306,6 +308,7 @@ public class Stateless extends Plugin
     public static final String MERGE_THREAD_POOL_SETTING = "stateless." + MERGE_THREAD_POOL + "_thread_pool";
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
+    private final SetOnce<SplitTargetService> splitTargetService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ClosedShardService> closedShardService = new SetOnce<>();
@@ -409,6 +412,7 @@ public class Stateless extends Plugin
             new ActionHandler<>(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
             new ActionHandler<>(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
             new ActionHandler<>(TransportUpdateReplicasAction.TYPE, TransportUpdateReplicasAction.class),
+            new ActionHandler<>(TransportSplitHandoffStateAction.TYPE, TransportSplitHandoffStateAction.class),
             new ActionHandler<>(TransportReshardAction.TYPE, TransportReshardAction.class)
         );
     }
@@ -482,6 +486,7 @@ public class Stateless extends Plugin
         Environment environment = services.environment();
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
         IndicesService indicesService = setAndGet(this.indicesService, services.indicesService());
+        splitTargetService.set(new SplitTargetService(client));
         final var blobCacheMetrics = setAndGet(
             this.blobCacheMetrics,
             new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
@@ -1171,7 +1176,8 @@ public class Stateless extends Plugin
                 localTranslogReplicator,
                 recoveryCommitRegistrationHandler.get(),
                 sharedBlobCacheWarmingService.get(),
-                hollowShardsService.get()
+                hollowShardsService.get(),
+                splitTargetService.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

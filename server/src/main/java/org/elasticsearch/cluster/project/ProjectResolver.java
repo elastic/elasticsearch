@@ -33,6 +33,14 @@ public interface ProjectResolver extends ProjectIdResolver {
         return getProjectMetadata(clusterState.metadata());
     }
 
+    default boolean hasProject(ClusterState clusterState) {
+        return hasProject(clusterState.metadata());
+    }
+
+    default boolean hasProject(Metadata metadata) {
+        return metadata.hasProject(getProjectId());
+    }
+
     // TODO: What happens if the context does not have a project? throw or return null?
     default ProjectState getProjectState(ClusterState clusterState) {
         final ProjectId id = getProjectId();

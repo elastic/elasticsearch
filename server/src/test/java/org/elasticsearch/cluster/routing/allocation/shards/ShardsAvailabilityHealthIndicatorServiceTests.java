@@ -984,12 +984,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of()
         );
         // add the data stream to the cluster state
-        ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
-        Metadata.Builder mdBuilder = Metadata.builder(clusterState.metadata())
-            .put(
-                ProjectMetadata.builder(projectMetadata).put(newInstance(featureDataStreamName, List.of(backingIndex.getIndex()))).build()
-            );
-        ClusterState state = ClusterState.builder(clusterState).metadata(mdBuilder).build();
+        var projectBuilder = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
+            .put(newInstance(featureDataStreamName, List.of(backingIndex.getIndex())));
+        ClusterState state = ClusterState.builder(clusterState).putProjectMetadata(projectBuilder).build();
 
         var service = createAllocationHealthIndicatorService(
             Settings.EMPTY,
@@ -1019,7 +1016,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         ProjectId projectId = randomProjectIdOrDefault();
         String featureDataStreamName = ".test-ds-feature";
         IndexMetadata backingIndex = createBackingIndex(featureDataStreamName, 1).build();
-        ProjectResolver projectResolver = DefaultProjectResolver.INSTANCE;
 
         List<IndexMetadata> indexMetadataList = List.of(
             IndexMetadata.builder(".feature-index")
@@ -1056,7 +1052,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     new ProjectIndexName(projectId, "regular-index")
                 ),
                 10,
-                projectResolver.supportsMultipleProjects()
+                false
             );
 
             assertThat(affectedResources.size(), is(2));
@@ -1080,7 +1076,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     new ProjectIndexName(projectId, "regular-index")
                 ),
                 0,
-                projectResolver.supportsMultipleProjects()
+                false
             );
 
             assertThat(affectedResources.size(), is(2));

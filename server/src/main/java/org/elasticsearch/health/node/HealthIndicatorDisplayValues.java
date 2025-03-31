@@ -75,7 +75,7 @@ public class HealthIndicatorDisplayValues {
         String truncatedIndicesString = indices.stream()
             .sorted(indicesComparatorByPriorityAndProjectIndex(clusterMetadata, supportsMultipleProjects))
             .limit(maxIndices)
-            .map(projectIndexName -> toDisplayValue(projectIndexName, supportsMultipleProjects))
+            .map(projectIndexName -> projectIndexName.toString(supportsMultipleProjects))
             .collect(joining(", "));
         if (maxIndices < indices.size()) {
             truncatedIndicesString = truncatedIndicesString + ", ...";
@@ -168,21 +168,6 @@ public class HealthIndicatorDisplayValues {
             ProjectMetadata projectMetadata = clusterMetadata.getProject(projectIndexName.projectId());
             IndexMetadata indexMetadata = projectMetadata.index(projectIndexName.indexName());
             return indexMetadata == null ? -1 : indexMetadata.priority();
-        }).reversed().thenComparing(projectIndex -> toDisplayValue(projectIndex, supportsMultipleProjects));
-    }
-
-    /**
-     * Converts the project index name to display name based on whether the cluster supports multi-projects.
-     * If not for multi-project, the default project id is omitted.
-     * @param projectIndexName Project specific index
-     * @param supportsMultipleProjects Whether cluster supports multi-project
-     * @return display string value
-     */
-    public static String toDisplayValue(ProjectIndexName projectIndexName, boolean supportsMultipleProjects) {
-        if (supportsMultipleProjects) {
-            return projectIndexName.toString(true);
-        } else {
-            return projectIndexName.toString(false);
-        }
+        }).reversed().thenComparing(projectIndex -> projectIndex.toString(supportsMultipleProjects));
     }
 }

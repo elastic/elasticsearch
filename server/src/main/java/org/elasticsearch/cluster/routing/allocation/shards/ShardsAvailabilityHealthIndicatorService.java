@@ -95,7 +95,6 @@ import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedProjectIndices;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indicesComparatorByPriorityAndProjectIndex;
-import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.toDisplayValue;
 
 /**
  * This indicator reports health for shards.
@@ -1197,7 +1196,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                                                 projectResolver.supportsMultipleProjects()
                                             )
                                         )
-                                        .map(projectIndex -> toDisplayValue(projectIndex, projectResolver.supportsMultipleProjects()))
+                                        .map(projectIndex -> projectIndex.toString(projectResolver.supportsMultipleProjects()))
                                         .limit(Math.min(e.getValue().size(), maxAffectedResourcesCount))
                                         .collect(Collectors.toList())
                                 )
@@ -1267,7 +1266,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         INDEX,
                         affectedIndices.stream()
                             .sorted(indicesComparatorByPriorityAndProjectIndex(metadata, supportsMultipleProjects))
-                            .map(index -> toDisplayValue(index, supportsMultipleProjects))
+                            .map(index -> index.toString(supportsMultipleProjects))
                             .limit(maxAffectedResourcesCount)
                             .toList()
                     )

@@ -237,6 +237,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            mergeResult.writeTo(out);
+            topDocsStats.writeTo(out);
             out.writeArray((o, v) -> {
                 if (v instanceof Exception e) {
                     o.writeBoolean(false);
@@ -247,8 +249,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     ((QuerySearchResult) v).writeTo(o);
                 }
             }, results);
-            mergeResult.writeTo(out);
-            topDocsStats.writeTo(out);
         }
 
         @Override
@@ -481,12 +481,16 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
                         @Override
                         public void handleResponse(BytesTransportResponse bytesTransportResponse) {
-                            outstandingShards.incrementAndGet();
                             try {
                                 var in = bytesTransportResponse.bytes().streamInput();
                                 in.setTransportVersion(TransportVersion.current());
                                 in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
                                 in.setTransportVersion(TransportVersion.current());
+                                var mergeResult = QueryPhaseResultConsumer.MergeResult.readFrom(in);
+                                var topDocsStats = SearchPhaseController.TopDocsStats.readFrom(in);
+                                if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                                    queryPhaseResultConsumer.addBatchedPartialResult(topDocsStats, mergeResult);
+                                }
                                 final int count = in.readVInt();
                                 for (int i = 0; i < count; i++) {
                                     var s = request.shards.get(i);
@@ -505,16 +509,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                                         onShardFailure(shardIdx, target, shardIterators[shardIdx], in.readException());
                                     }
                                 }
-                                var mergeResult = QueryPhaseResultConsumer.MergeResult.readFrom(in);
-                                var topDocsStats = SearchPhaseController.TopDocsStats.readFrom(in);
-                                if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                                    queryPhaseResultConsumer.addBatchedPartialResult(topDocsStats, mergeResult);
-                                }
                             } catch (IOException e) {
-                                assert false : e;
+                                assert false : new AssertionError("No real IO here this is a serialization bug", e);
                                 handleException(new TransportException(e));
-                            } finally {
-                                onShardDone();
                             }
                         }
 

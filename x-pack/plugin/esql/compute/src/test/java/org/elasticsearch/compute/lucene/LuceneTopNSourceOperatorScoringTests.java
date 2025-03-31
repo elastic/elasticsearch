@@ -110,8 +110,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return matchesRegex(
-            "LuceneTopNSourceOperator\\[shards = \\[test], "
-                + "maxPageSize = \\d+, limit = 100, needsScore = true, sorts = \\[\\{.+}]]"
+            "LuceneTopNSourceOperator\\[shards = \\[test], " + "maxPageSize = \\d+, limit = 100, needsScore = true, sorts = \\[\\{.+}]]"
         );
     }
 

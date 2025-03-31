@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -695,10 +696,53 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {
             List<LogicalPlan> subPlans = fork.subPlans();
 
-            List<LogicalPlan> newSubPlans = new ArrayList<>();
+            List<LogicalPlan> resolvedSubPlans = new ArrayList<>();
+            boolean unresolved = false;
+
+            // first resolve the subplans
             for (var logicalPlan : subPlans) {
-                newSubPlans.add(logicalPlan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : rule(p, context)));
+                Source source = logicalPlan.source();
+                LogicalPlan newSubPlan = logicalPlan.transformUp(
+                    LogicalPlan.class,
+                    p -> p.childrenResolved() == false ? p : rule(p, context)
+                );
+                if (newSubPlan.resolved() == false) {
+                    unresolved = true;
+                }
+                resolvedSubPlans.add(newSubPlan);
             }
+
+            fork = new Fork(fork.source(), fork.child(), resolvedSubPlans);
+
+            // if any of the sub plans is still unresolved we should just return before
+            // we attempt to align the outputs of the sub plans
+            if (unresolved) {
+                return fork;
+            }
+
+            // we align the outputs of the sub plans such that they have the same columns
+            boolean changed = false;
+            List<LogicalPlan> newSubPlans = new ArrayList<>();
+            for (var logicalPlan : resolvedSubPlans) {
+                Source source = logicalPlan.source();
+
+                AttributeSet missing = fork.outputSet().subtract(logicalPlan.outputSet());
+                List<Alias> aliases = missing.stream()
+                    .map(attr -> new Alias(source, attr.name(), new Literal(source, null, attr.dataType())))
+                    .collect(Collectors.toList());
+                ;
+
+                if (aliases.size() > 0) {
+                    logicalPlan = new Eval(source, logicalPlan, aliases);
+                    changed = true;
+                }
+
+                newSubPlans.add(logicalPlan);
+            }
+            if (changed == false) {
+                return fork;
+            }
+
             return new Fork(fork.source(), fork.child(), newSubPlans);
         }
 

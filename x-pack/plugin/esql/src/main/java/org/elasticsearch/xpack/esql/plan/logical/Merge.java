@@ -11,26 +11,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-
 /**
  * A Merge is a {@code LogicalPlan}, which has several logical subplans/children.
  */
 public class Merge extends LogicalPlan {
-
-    /**
-     * Replaces the stubbed source with the actual source.
-     */
-    public static LogicalPlan replaceStub(LogicalPlan source, LogicalPlan stubbed) {
-        return stubbed.transformUp(StubRelation.class, stubRelation -> source);
-    }
-
     List<Attribute> lazyOutput;
 
     public Merge(Source source, List<LogicalPlan> children) {
@@ -65,7 +54,7 @@ public class Merge extends LogicalPlan {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = mergeOutputAttributes(children().get(1).output(), children().getFirst().output());
+            lazyOutput = children().getFirst().output();
         }
         return lazyOutput;
     }

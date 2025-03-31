@@ -5,10 +5,10 @@ preview::[]
 
 This page provides an overview of how to use {esql} for search use cases.
 
-// [TIP]
-// ====
-// Prefer to get started with a hands-on tutorial? Check out <<esql-search-tutorial>>.
-// ====
+[TIP]
+====
+Prefer to get started with a hands-on tutorial? Check out <<esql-search-tutorial>>.
+====
 
 The following table summarizes the key search features available in {esql} and when they were introduced.
 
@@ -192,7 +192,7 @@ Refer to <<esql-limitations-full-text-search, {esql} limitations>> for a list of
 [[esql-for-search-tutorials]]
 ===== Tutorials and how-to guides
 
-// TODO * <<esql-search-tutorial>>: Hands-on tutorial for getting started with search tools in {esql}
+* <<esql-search-tutorial>>: Hands-on tutorial for getting started with search tools in {esql}
 * <<semantic-search-semantic-text>>: Learn how to use the `semantic_text` field type
 
 [[esql-for-search-reference]]

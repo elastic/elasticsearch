@@ -35,6 +35,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.ClassRule;
@@ -87,6 +88,10 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @TestLogging(
+        reason = "understanding why ipinfo asn database sometimes is not loaded",
+        value = "org.elasticsearch.ingest.geoip.DatabaseNodeService:TRACE"
+    )
     public void testEnterpriseDownloaderTask() throws Exception {
         /*
          * This test starts the enterprise geoip downloader task, and creates a database configuration. Then it creates an ingest

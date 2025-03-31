@@ -157,32 +157,19 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
          */
         CountDownLatch latch = new CountDownLatch(1);
         LatchedActionListener<AcknowledgedResponse> listener = new LatchedActionListener<>(ActionListener.noop(), latch);
-        SubscribableListener.<AcknowledgedResponse>newForked(
-            l -> admin().cluster()
-                .execute(
-                    DeleteDatabaseConfigurationAction.INSTANCE,
-                    new DeleteDatabaseConfigurationAction.Request(
-                        TimeValue.MAX_VALUE,
-                        TimeValue.timeValueSeconds(10),
-                        MAXMIND_CONFIGURATION
-                    ),
-                    l
-                )
-        )
-            .<AcknowledgedResponse>andThen(
-                l -> admin().cluster()
-                    .execute(
-                        DeleteDatabaseConfigurationAction.INSTANCE,
-                        new DeleteDatabaseConfigurationAction.Request(
-                            TimeValue.MAX_VALUE,
-                            TimeValue.timeValueSeconds(10),
-                            IPINFO_CONFIGURATION
-                        ),
-                        l
-                    )
-            )
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> deleteDatabaseConfiguration(MAXMIND_CONFIGURATION, l))
+            .<AcknowledgedResponse>andThen(l -> deleteDatabaseConfiguration(IPINFO_CONFIGURATION, l))
             .addListener(listener);
         latch.await(10, TimeUnit.SECONDS);
+    }
+
+    private void deleteDatabaseConfiguration(String configurationName, ActionListener<AcknowledgedResponse> listener) {
+        admin().cluster()
+            .execute(
+                DeleteDatabaseConfigurationAction.INSTANCE,
+                new DeleteDatabaseConfigurationAction.Request(TimeValue.MAX_VALUE, TimeValue.timeValueSeconds(10), configurationName),
+                listener
+            );
     }
 
     private void startEnterpriseGeoIpDownloaderTask() {

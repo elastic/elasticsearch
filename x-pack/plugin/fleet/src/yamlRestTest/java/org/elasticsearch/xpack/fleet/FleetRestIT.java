@@ -12,13 +12,34 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 public class FleetRestIT extends ESClientYamlSuiteTestCase {
 
     public FleetRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("x-pack-fleet")
+        .module("x-pack-ilm")
+        .module("data-streams")
+        .setting("xpack.license.self_generated.type", "basic")
+        .setting("xpack.security.enabled", "true")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("elastic_admin", "admin-password", "superuser", true)
+        .user("fleet_unprivileged_secrets", "password", "unprivileged_secrets", true)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @Override

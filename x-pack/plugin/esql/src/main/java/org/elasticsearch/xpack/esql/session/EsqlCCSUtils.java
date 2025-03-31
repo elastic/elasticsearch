@@ -283,7 +283,11 @@ public class EsqlCCSUtils {
         for (TableInfo tableInfo : indices) {
             Map<String, OriginalIndices> groupedIndices;
             try {
-                groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, tableInfo.id().indexPattern());
+                groupedIndices = indicesGrouper.groupIndices(
+                    executionInfo.getConfiguredClusters(),
+                    IndicesOptions.DEFAULT,
+                    tableInfo.id().indexPattern()
+                );
             } catch (NoSuchRemoteClusterException e) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
                     throw e;

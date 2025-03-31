@@ -5447,11 +5447,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 renamingEval = as(enrich.child(), Eval.class);
             }
 
-            AttributeSet attributesCreatedInEval = new AttributeSet();
+            var attributesCreatedInEval = AttributeSet.builder();
             for (Alias field : renamingEval.fields()) {
                 attributesCreatedInEval.add(field.toAttribute());
             }
-            assertThat(attributesCreatedInEval, allOf(hasItem(renamed_emp_no), hasItem(renamed_salary), hasItem(renamed_emp_no2)));
+            assertThat(attributesCreatedInEval.build(), allOf(hasItem(renamed_emp_no), hasItem(renamed_salary), hasItem(renamed_emp_no2)));
 
             assertThat(renamingEval.fields().size(), anyOf(equalTo(2), equalTo(4))); // 4 for EVAL, 3 for the other overwritingCommands
             // emp_no ASC nulls first

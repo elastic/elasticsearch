@@ -158,10 +158,16 @@ class S3Service implements Closeable {
             }
             // TODO NOMERGE: consider alternative methods of retaining an httpClient reference for an explicit close() call.
             SdkHttpClient httpClient = buildHttpClient(clientSettings);
-            final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings, httpClient), httpClient);
-            clientReference.mustIncRef();
-            clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
-            return clientReference;
+            Releasable toRelease = httpClient::close;
+            try {
+                final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings, httpClient), httpClient);
+                clientReference.mustIncRef();
+                clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
+                toRelease = null;
+                return clientReference;
+            } finally {
+                Releasables.close(toRelease);
+            }
         }
     }
 

@@ -60,6 +60,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * This class main focus is to resolve multi-syntax target expressions to resources or concrete indices. This resolution is influenced
@@ -2126,19 +2127,27 @@ public class IndexNameExpressionResolver {
             int lastDoubleColon = expression.lastIndexOf(SELECTOR_SEPARATOR);
             if (lastDoubleColon >= 0) {
                 String suffix = expression.substring(lastDoubleColon + SELECTOR_SEPARATOR.length());
-                IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
-                if (selector == null) {
-                    throw new InvalidIndexNameException(
-                        expression,
-                        "invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
-                    );
-                }
+                doValidateSelectorString(() -> expression, suffix);
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
                 return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
             return bindFunction.apply(expression, null);
+        }
+
+        public static void validateIndexSelectorString(String indexName, String suffix) {
+            doValidateSelectorString(() -> indexName + SELECTOR_SEPARATOR + suffix, suffix);
+        }
+
+        private static void doValidateSelectorString(Supplier<String> expression, String suffix) {
+            IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
+            if (selector == null) {
+                throw new InvalidIndexNameException(
+                    expression.get(),
+                    "invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
+                );
+            }
         }
 
         /**

@@ -416,6 +416,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitClusterString(EsqlBaseParser.ClusterStringContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#selectorString}.
+   * @param ctx the parse tree
+   */
+  void enterSelectorString(EsqlBaseParser.SelectorStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#selectorString}.
+   * @param ctx the parse tree
+   */
+  void exitSelectorString(EsqlBaseParser.SelectorStringContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    */

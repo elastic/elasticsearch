@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -87,8 +89,10 @@ public class IdentifierGenerator {
         if (canAdd(Features.CROSS_CLUSTER, features)) {
             var cluster = maybeQuote(randomIdentifier());
             pattern = maybeQuote(cluster + ":" + pattern);
+        } else if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled() && canAdd(Features.INDEX_SELECTOR, features)) {
+            var selector = ESTestCase.randomFrom(IndexComponentSelector.values());
+            pattern = maybeQuote(pattern + "::" + selector.getKey());
         }
-
         return pattern;
     }
 
@@ -103,7 +107,8 @@ public class IdentifierGenerator {
         HIDDEN_INDEX,
         WILDCARD_PATTERN,
         EXCLUDE_PATTERN,
-        DATE_MATH
+        DATE_MATH,
+        INDEX_SELECTOR
     }
 
     private record ExcludedFeature(Feature feature) implements Feature {}

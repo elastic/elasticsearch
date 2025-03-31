@@ -398,6 +398,9 @@ tests:
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testThrottleStats
   issue: https://github.com/elastic/elasticsearch/issues/125910
+- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
+  method: testCancelUnnecessaryRequests
+  issue: https://github.com/elastic/elasticsearch/issues/125947
 
 # Examples:
 #

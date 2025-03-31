@@ -127,7 +127,6 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
          * We know that the databases index has been populated (because we waited around, :wink:), but we don't know for sure that
          * the databases have been pulled down and made available on all nodes. So we run these ingest-and-check steps in assertBusy blocks.
          */
-
         assertBusy(() -> {
             logger.info("Ingesting a test document");
             String documentId = ingestDocument(indexName, geoipPipelineName, sourceField, "89.160.20.128");

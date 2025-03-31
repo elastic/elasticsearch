@@ -74,6 +74,10 @@ tasks.named("yamlRestTest") {
   usesDefaultDistribution("uses the xpack/usage api")
 }
 
+tasks.named("yamlRestCompatTest") {
+  usesDefaultDistribution("uses the xpack/usage api")
+}
+
 tasks.named("yamlRestCompatTestTransform") { task ->
   // Behavioral Analytics is deprecated with 9.0.0.
   task.addAllowedWarning("Behavioral Analytics is deprecated and will be removed in a future release.")

@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -86,8 +84,7 @@ public class Values extends AggregateFunction implements ToAggregator {
             a [Circuit Breaker Error](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
             ::::""",
         type = FunctionType.AGGREGATE,
-        examples = @Example(file = "string", tag = "values-grouped"),
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) }
+        examples = @Example(file = "string", tag = "values-grouped")
     )
     public Values(
         Source source,

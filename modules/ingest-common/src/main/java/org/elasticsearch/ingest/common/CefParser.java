@@ -415,15 +415,15 @@ final class CefParser {
 
     private Object convertValueToType(String value, DataType type) {
         return switch (type) {
-            case LongType -> Long.parseLong(value);
-            case DoubleType -> Double.parseDouble(value);
-            case FloatType -> Float.parseFloat(value);
+            case StringType -> value;
             case IntegerType -> Integer.parseInt(value);
+            case LongType -> Long.parseLong(value);
+            case FloatType -> Float.parseFloat(value);
+            case DoubleType -> Double.parseDouble(value);
+            case BooleanType -> Boolean.valueOf(value);
             case TimestampType -> toTimestamp(value);
             case MACAddressType -> toMACAddress(value);
             case IPType -> toIP(value);
-            case BooleanType -> Boolean.valueOf(value);
-            case StringType -> value;
             case null -> value; // default to string if extension is not defined
         };
     }

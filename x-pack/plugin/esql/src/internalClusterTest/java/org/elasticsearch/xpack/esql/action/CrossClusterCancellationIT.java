@@ -14,7 +14,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.RemoteComputeException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -27,6 +26,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.junit.After;
 import org.junit.Before;
@@ -87,14 +87,6 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
     @Override
     protected boolean reuseClusters() {
         return false;
-    }
-
-    private Exception unwrapIfWrappedInRemoteComputeException(Exception e) {
-        if (e instanceof RemoteComputeException rce) {
-            return (Exception) rce.getCause();
-        } else {
-            return e;
-        }
     }
 
     private void createRemoteIndex(int numDocs) throws Exception {
@@ -172,7 +164,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
-        error = unwrapIfWrappedInRemoteComputeException(error);
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteComputeException(error);
         assertThat(error.getMessage(), containsString("proxy timeout"));
     }
 
@@ -294,7 +286,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         }
 
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
-        error = unwrapIfWrappedInRemoteComputeException(error);
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteComputeException(error);
         assertThat(error, instanceOf(TaskCancelledException.class));
     }
 }

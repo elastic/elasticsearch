@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.RemoteComputeException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -30,6 +29,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -62,14 +62,6 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
         return Map.of(REMOTE_CLUSTER_1, randomBoolean(), REMOTE_CLUSTER_2, randomBoolean());
-    }
-
-    private Exception unwrapIfWrappedInRemoteComputeException(Exception e) {
-        if (e instanceof RemoteComputeException rce) {
-            return (Exception) rce.getCause();
-        } else {
-            return e;
-        }
     }
 
     public void testSuccessfulPathways() throws Exception {
@@ -825,7 +817,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         String q = Strings.format("FROM %s,cluster-a:%s*", localIndex, remote1Index);
 
         Exception error = expectThrows(Exception.class, () -> runQuery(q, false));
-        error = unwrapIfWrappedInRemoteComputeException(error);
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteComputeException(error);
 
         assertThat(error, instanceOf(IllegalStateException.class));
         assertThat(error.getMessage(), containsString("Accessing failing field"));

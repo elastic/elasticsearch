@@ -123,8 +123,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         long numValues = 0;
 
         SortedNumericDocValues values;
-        boolean computeEvenIfSupported = valuesProducer.mergeStats.sumNumDocsWithFieldAccurate() == false && maxOrd == 1;
-        if (valuesProducer.mergeStats.supported() && computeEvenIfSupported == false) {
+        if (valuesProducer.mergeStats.supported()) {
             numDocsWithValue = valuesProducer.mergeStats.sumNumDocsWithField();
             numValues = valuesProducer.mergeStats.sumNumValues();
         } else {
@@ -156,6 +155,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
         }
         meta.writeLong(numValues);
+        meta.writeInt(numDocsWithValue);
 
         if (numValues > 0) {
             // Special case for maxOrd of 1, signal -1 that no blocks will be written
@@ -177,12 +177,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 values = valuesProducer.getSortedNumeric(field);
                 final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
 
-                // Reset and recompute. The value gathered from TsdbDocValuesProducer may not be accurate if one of the leaves was singleton
-                // This could cause failures when writing addresses in writeSortedNumericField(...)
-                numDocsWithValue = 0;
-
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                    numDocsWithValue++;
                     final int count = values.docValueCount();
                     for (int i = 0; i < count; ++i) {
                         buffer[bufferSize++] = values.nextValue();
@@ -532,7 +527,6 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         long numValues = stats[1];
         assert numValues >= numDocsWithField;
 
-        meta.writeInt(numDocsWithField);
         if (numValues > numDocsWithField) {
             long start = data.getFilePointer();
             meta.writeLong(start);
@@ -567,7 +561,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     }
 
     private static boolean isSingleValued(FieldInfo field, TsdbDocValuesProducer producer) throws IOException {
-        if (producer.mergeStats.supported() && producer.mergeStats.sumNumDocsWithFieldAccurate()) {
+        if (producer.mergeStats.supported()) {
             return producer.mergeStats.sumNumValues() == producer.mergeStats.sumNumDocsWithField();
         }
 

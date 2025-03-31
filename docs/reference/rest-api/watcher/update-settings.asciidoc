@@ -12,7 +12,7 @@ For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{w
 --
 
 This API allows a user to modify the settings for the Watcher internal index (`.watches`). Only a subset of settings
-are allowed to by modified. This includes:
+are allowed to be modified. This includes:
 
 - `index.auto_expand_replicas`
 - `index.number_of_replicas`

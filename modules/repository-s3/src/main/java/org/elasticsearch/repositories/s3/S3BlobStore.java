@@ -13,6 +13,7 @@ import software.amazon.awssdk.awscore.AwsRequest;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.metrics.CoreMetric;
 import software.amazon.awssdk.core.retry.RetryUtils;
+import software.amazon.awssdk.http.HttpMetric;
 import software.amazon.awssdk.metrics.MetricCollection;
 import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
@@ -38,7 +39,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,6 +53,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
@@ -139,16 +143,14 @@ class S3BlobStore implements BlobStore {
         return service.compareAndExchangeAntiContentionDelay;
     }
 
-    // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
-    // issue
-    class IgnoreNoResponseMetricsPublisher implements MetricPublisher {
+    class ElasticsearchS3MetricsCollector implements MetricPublisher {
 
         final LongAdder requests = new LongAdder();
         final LongAdder operations = new LongAdder();
         private final Operation operation;
         private final Map<String, Object> attributes;
 
-        private IgnoreNoResponseMetricsPublisher(Operation operation, OperationPurpose purpose) {
+        private ElasticsearchS3MetricsCollector(Operation operation, OperationPurpose purpose) {
             this.operation = operation;
             this.attributes = RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey());
         }
@@ -159,6 +161,83 @@ class S3BlobStore implements BlobStore {
 
         @Override
         public void publish(MetricCollection metricCollection) {
+            logPublication(metricCollection);
+            assert operation.assertConsistentOperationName(metricCollection);
+
+            boolean overallSuccess = false;
+            for (final var successMetricValue : metricCollection.metricValues(CoreMetric.API_CALL_SUCCESSFUL)) {
+                if (Boolean.TRUE.equals(successMetricValue)) {
+                    overallSuccess = true; // but keep checking just in case
+                } else {
+                    overallSuccess = false;
+                    break;
+                }
+            }
+
+            long totalTimeNanoseconds = 0;
+            for (final var durationMetricValue : metricCollection.metricValues(CoreMetric.API_CALL_DURATION)) {
+                totalTimeNanoseconds += durationMetricValue.toNanos();
+            }
+
+            long requestCount = 0;
+            long responseCount = 0;
+            long awsErrorCount = 0;
+            long throttleCount = 0;
+            long http416ResponseCount = 0;
+            for (final var apiCallAttemptMetrics : metricCollection.children()) {
+                if ("ApiCallAttempt".equals(apiCallAttemptMetrics.name()) == false) {
+                    continue;
+                }
+                requestCount += 1;
+                final var errorTypes = apiCallAttemptMetrics.metricValues(CoreMetric.ERROR_TYPE);
+                if (errorTypes != null && errorTypes.size() > 0) {
+                    awsErrorCount += 1;
+                    if (errorTypes.contains("Throttling")) {
+                        throttleCount += 1;
+                    }
+                }
+
+                final var httpResponses = apiCallAttemptMetrics.metricValues(HttpMetric.HTTP_STATUS_CODE);
+                if (httpResponses != null && httpResponses.size() > 0) {
+                    responseCount += 1;
+                    if (httpResponses.contains(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus())) {
+                        http416ResponseCount += 1;
+                    }
+                }
+            }
+
+            // See https://github.com/elastic/elasticsearch/pull/71406 and https://elasticco.atlassian.net/browse/ES-10223
+            requests.add(responseCount); // requests that didn't get a HTTP status code assumed not to have reached S3 at all
+            s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
+            operations.increment();
+            if (overallSuccess) {
+                s3RepositoriesMetrics.common().unsuccessfulOperationCounter().incrementBy(1, attributes);
+            }
+
+            s3RepositoriesMetrics.common().requestCounter().incrementBy(requestCount, attributes);
+            if (awsErrorCount > 0) {
+                s3RepositoriesMetrics.common().exceptionCounter().incrementBy(awsErrorCount, attributes);
+                s3RepositoriesMetrics.common().exceptionHistogram().record(awsErrorCount, attributes);
+            }
+            if (throttleCount > 0) {
+                s3RepositoriesMetrics.common().throttleCounter().incrementBy(throttleCount, attributes);
+                s3RepositoriesMetrics.common().throttleHistogram().record(throttleCount, attributes);
+            }
+            if (http416ResponseCount > 0) {
+                s3RepositoriesMetrics.common().requestRangeNotSatisfiedExceptionCounter().incrementBy(http416ResponseCount, attributes);
+            }
+
+            if (totalTimeNanoseconds > 0) {
+                s3RepositoriesMetrics.common()
+                    .httpRequestTimeInMillisHistogram()
+                    .record(TimeUnit.NANOSECONDS.toMillis(totalTimeNanoseconds), attributes);
+            }
+        }
+
+        /**
+         * TODO NOMERGE remove this
+         */
+        private void logPublication(MetricCollection metricCollection) {
             logger.info("--> MetricPublisher#publish called:\n{}", Strings.toString((builder, params) -> {
                 builder.startObject("publish");
                 builder.field("operation", operation.toString());
@@ -167,174 +246,46 @@ class S3BlobStore implements BlobStore {
                     builder.field(attributesEntry.getKey(), attributesEntry.getValue().toString());
                 }
                 builder.endObject();
-                builder.field("name", metricCollection.name());
-                builder.field("creationTime", metricCollection.creationTime().toString());
-                builder.startArray("records");
-                for (final var metricRecord : metricCollection) {
-                    builder.startObject();
-                    builder.field("name", metricRecord.metric().name());
-                    builder.field("level", metricRecord.metric().level().toString());
-                    builder.startArray("categories");
-                    for (final var category : metricRecord.metric().categories()) {
-                        builder.value(category.toString());
-                    }
-                    builder.endArray();
-                    builder.field("valueClass", metricRecord.metric().valueClass().getCanonicalName());
-                    builder.field("value", metricRecord.value().toString());
-                    builder.endObject();
-                }
-                builder.endArray();
+                renderMetricCollection(metricCollection, builder);
                 builder.field("stack trace", ExceptionsHelper.stackTrace(new ElasticsearchException("stack trace")));
                 builder.endObject();
                 return builder;
             }, false, true));
-
-            assert operation.assertConsistentOperationName(metricCollection);
-
-            // TODO NOMERGE metrics collection
         }
 
-        // TODO NOMERGE metrics collection
-        // @Override
-        // public final void collectMetrics(Request<?> request, Response<?> response) {
-        // assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
-        // final AWSRequestMetrics awsRequestMetrics = request.getAWSRequestMetrics();
-        // final TimingInfo timingInfo = awsRequestMetrics.getTimingInfo();
-        // final long requestCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.RequestCount);
-        // final long exceptionCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.Exception);
-        // final long throttleCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.ThrottleException);
-        //
-        // // For stats reported by API, do not collect stats for null response for BWC.
-        // // See https://github.com/elastic/elasticsearch/pull/71406
-        // // TODO Is this BWC really necessary?
-        // // This behaviour needs to be updated, see https://elasticco.atlassian.net/browse/ES-10223
-        // if (response != null) {
-        // requests.add(requestCount);
-        // }
-        //
-        // // We collect all metrics regardless whether response is null
-        // // There are many situations other than network where a null response can be returned.
-        // // In addition, we are interested in the stats when there is a network outage.
-        // final int numberOfAwsErrors = Optional.ofNullable(awsRequestMetrics.getProperty(AWSRequestMetrics.Field.AWSErrorCode))
-        // .map(List::size)
-        // .orElse(0);
-        //
-        // if (exceptionCount > 0) {
-        // final List<Object> statusCodes = Objects.requireNonNullElse(
-        // awsRequestMetrics.getProperty(AWSRequestMetrics.Field.StatusCode),
-        // List.of()
-        // );
-        // // REQUESTED_RANGE_NOT_SATISFIED errors are expected errors due to RCO
-        // // TODO Add more expected client error codes?
-        // final long amountOfRequestRangeNotSatisfiedErrors = statusCodes.stream()
-        // .filter(e -> (Integer) e == REQUESTED_RANGE_NOT_SATISFIED.getStatus())
-        // .count();
-        // if (amountOfRequestRangeNotSatisfiedErrors > 0) {
-        // s3RepositoriesMetrics.common()
-        // .requestRangeNotSatisfiedExceptionCounter()
-        // .incrementBy(amountOfRequestRangeNotSatisfiedErrors, attributes);
-        // }
-        // }
-        //
-        // s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
-        // operations.increment();
-        // if (numberOfAwsErrors == requestCount) {
-        // s3RepositoriesMetrics.common().unsuccessfulOperationCounter().incrementBy(1, attributes);
-        // }
-        //
-        // s3RepositoriesMetrics.common().requestCounter().incrementBy(requestCount, attributes);
-        // if (exceptionCount > 0) {
-        // s3RepositoriesMetrics.common().exceptionCounter().incrementBy(exceptionCount, attributes);
-        // s3RepositoriesMetrics.common().exceptionHistogram().record(exceptionCount, attributes);
-        // }
-        // if (throttleCount > 0) {
-        // s3RepositoriesMetrics.common().throttleCounter().incrementBy(throttleCount, attributes);
-        // s3RepositoriesMetrics.common().throttleHistogram().record(throttleCount, attributes);
-        // }
-        // maybeRecordHttpRequestTime(request);
-        // }
-        //
-        // /**
-        // * Used for APM style metrics to measure statics about performance. This is not for billing.
-        // */
-        // private void maybeRecordHttpRequestTime(Request<?> request) {
-        // final List<TimingInfo> requestTimesIncludingRetries = request.getAWSRequestMetrics()
-        // .getTimingInfo()
-        // .getAllSubMeasurements(AWSRequestMetrics.Field.HttpRequestTime.name());
-        // // It can be null if the request did not reach the server for some reason
-        // if (requestTimesIncludingRetries == null) {
-        // return;
-        // }
-        //
-        // final long totalTimeInNanos = getTotalTimeInNanos(requestTimesIncludingRetries);
-        // if (totalTimeInNanos == 0) {
-        // logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
-        // } else {
-        // s3RepositoriesMetrics.common()
-        // .httpRequestTimeInMillisHistogram()
-        // .record(TimeUnit.NANOSECONDS.toMillis(totalTimeInNanos), attributes);
-        // }
-        // }
-        //
-        // private boolean assertConsistencyBetweenHttpRequestAndOperation(S3Request request, Operation operation) {
-        // switch (operation) {
-        // case HEAD_OBJECT -> {
-        // return request.getHttpMethod().name().equals("HEAD");
-        // }
-        // case GET_OBJECT, LIST_OBJECTS -> {
-        // return request.getHttpMethod().name().equals("GET");
-        // }
-        // case PUT_OBJECT -> {
-        // return request.getHttpMethod().name().equals("PUT");
-        // }
-        // case PUT_MULTIPART_OBJECT -> {
-        // return request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
-        // }
-        // case DELETE_OBJECTS -> {
-        // return request.getHttpMethod().name().equals("POST");
-        // }
-        // case ABORT_MULTIPART_OBJECT -> {
-        // return request.getHttpMethod().name().equals("DELETE");
-        // }
-        // default -> throw new AssertionError("unknown operation [" + operation + "]");
-        // }
-        // }
+        /**
+         * TODO NOMERGE remove this
+         */
+        private void renderMetricCollection(MetricCollection metricCollection, XContentBuilder builder) throws IOException {
+            builder.field("name", metricCollection.name());
+            builder.field("creationTime", metricCollection.creationTime().toString());
+            builder.startArray("records");
+            for (final var metricRecord : metricCollection) {
+                builder.startObject();
+                builder.field("name", metricRecord.metric().name());
+                builder.field("level", metricRecord.metric().level().toString());
+                builder.startArray("categories");
+                for (final var category : metricRecord.metric().categories()) {
+                    builder.value(category.toString());
+                }
+                builder.endArray();
+                builder.field("valueClass", metricRecord.metric().valueClass().getCanonicalName());
+                builder.field("value", metricRecord.value().toString());
+                builder.endObject();
+            }
+            builder.endArray();
+            builder.startArray("children");
+            for (final var child : metricCollection.children()) {
+                builder.startObject();
+                renderMetricCollection(child, builder);
+                builder.endObject();
+            }
+            builder.endArray();
+        }
 
         @Override
         public void close() {}
     }
-
-    // TODO NOMERGE metrics collection
-    // private static long getCountForMetric(TimingInfo info, AWSRequestMetrics.Field field) {
-    // var count = info.getCounter(field.name());
-    // if (count == null) {
-    // // This can be null if the thread was interrupted
-    // if (field == AWSRequestMetrics.Field.RequestCount && Thread.currentThread().isInterrupted() == false) {
-    // final String message = "Expected request count to be tracked but found not count.";
-    // assert false : message;
-    // logger.warn(message);
-    // }
-    // return 0L;
-    // } else {
-    // return count.longValue();
-    // }
-    // }
-    //
-    // private static long getTotalTimeInNanos(List<TimingInfo> requestTimesIncludingRetries) {
-    // // Here we calculate the timing in Nanoseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
-    // // (time to first byte). We use high precision time here to tell from the case when request time metric is missing (0).
-    // // The time is converted to milliseconds for later use with an APM style counter (exposed as a long), rather than using the
-    // // default double exposed by getTimeTakenMillisIfKnown().
-    // // We don't need sub-millisecond precision. So no need perform the data type castings.
-    // long totalTimeInNanos = 0;
-    // for (TimingInfo timingInfo : requestTimesIncludingRetries) {
-    // var endTimeInNanos = timingInfo.getEndTimeNanoIfKnown();
-    // if (endTimeInNanos != null) {
-    // totalTimeInNanos += endTimeInNanos - timingInfo.getStartTimeNano();
-    // }
-    // }
-    // return totalTimeInNanos;
-    // }
 
     @Override
     public String toString() {
@@ -627,7 +578,7 @@ class S3BlobStore implements BlobStore {
     }
 
     class StatsCollectors {
-        final Map<StatsKey, IgnoreNoResponseMetricsPublisher> collectors = new ConcurrentHashMap<>();
+        final Map<StatsKey, ElasticsearchS3MetricsCollector> collectors = new ConcurrentHashMap<>();
 
         MetricPublisher getMetricPublisher(Operation operation, OperationPurpose purpose) {
             return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricPublisher(k.operation(), k.purpose()));
@@ -650,8 +601,8 @@ class S3BlobStore implements BlobStore {
             }
         }
 
-        IgnoreNoResponseMetricsPublisher buildMetricPublisher(Operation operation, OperationPurpose purpose) {
-            return new IgnoreNoResponseMetricsPublisher(operation, purpose);
+        ElasticsearchS3MetricsCollector buildMetricPublisher(Operation operation, OperationPurpose purpose) {
+            return new ElasticsearchS3MetricsCollector(operation, purpose);
         }
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.IOException;
@@ -93,6 +94,21 @@ public class S3HttpHandler implements HttpHandler {
             assert read == -1 : "Request body should have been empty but saw [" + read + "]";
         }
         try {
+            // TODO NOMERGE remove this
+            // if (ESTestCase.randomBoolean()) {
+            // final var responseBody = """
+            // <?xml version="1.0" encoding="UTF-8"?>
+            // <Error>
+            // <Code>SlowDown</Code>
+            // <Message>Test throttling</Message>
+            // <Resource>/mybucket/myfoto.jpg</Resource>\s
+            // <RequestId>4442587FB7D0A2F9</RequestId>
+            // </Error>""".getBytes(UTF_8);
+            // exchange.sendResponseHeaders(RestStatus.SERVICE_UNAVAILABLE.getStatus(), responseBody.length);
+            // exchange.getResponseBody().write(responseBody);
+            // return;
+            // }
+
             if (Regex.simpleMatch("HEAD /" + path + "/*", request)) {
                 final BytesReference blob = blobs.get(requestComponents.path);
                 if (blob == null) {

@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.planner.ToAggregator;
+import org.elasticsearch.xpack.esql.planner.ToTimeSeriesAggregator;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.nullSafeList;
 
-public class Rate extends AggregateFunction implements OptionalArgument, ToAggregator {
+public class Rate extends AggregateFunction implements OptionalArgument, ToTimeSeriesAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
     private static final TimeValue DEFAULT_UNIT = TimeValue.timeValueSeconds(1);
 

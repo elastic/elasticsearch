@@ -42,7 +42,7 @@ The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} ind
 
 ## Example
 
-`LOOKUP JOIN` has left-join behavior. If no rows match in the looked index, `LOOKUP JOIN` retains the incoming row and adds `null`s. If many rows in the lookedup index match, `LOOKUP JOIN` adds one row per match.
+`LOOKUP JOIN` has left-join behavior. If no rows match in the lookup index, `LOOKUP JOIN` retains the incoming row and adds `null`s. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
 
 In this example, we have two sample tables:
 
@@ -112,7 +112,9 @@ To use `LOOKUP JOIN`, the following requirements must be met:
   * Numeric types follow these compatibility rules:
     * `short` and `byte` are compatible with `integer` (all represented as `int`)
     * `float`, `half_float`, and `scaled_float` are compatible with `double` (all represented as `double`)
-  * For text fields: You can use text fields on the left-hand side of the join only if they have a `.keyword` subfield
+  * For text fields: You can only use text fields as the join key on the left-hand side of the join and only if they have a `.keyword` subfield
+
+To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions) if needed.
 
 For a complete list of supported data types and their internal representations, see the [Supported Field Types documentation](/reference/query-languages/esql/limitations.md#_supported_types).
 
@@ -121,7 +123,7 @@ For a complete list of supported data types and their internal representations, 
 The following are the current limitations with `LOOKUP JOIN`
 
 * Indices in [lookup](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
-* Cross cluster search is unsupported. Both source and lookup indices must be local.
+* Cross cluster search is unsupported initially. Both source and lookup indices must be local.
 * Currently, only matching on equality is supported.
 * `LOOKUP JOIN` can only use a single match field and a single index. Wildcards, aliases, datemath, and datastreams are not supported.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.

@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.ClassRule;
@@ -59,6 +60,7 @@ public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTe
             .put("bucket", bucket)
             .put("base_path", basePath)
             .put("delete_objects_max_size", between(1, 1000))
+            .put("buffer_size", ByteSizeValue.ofMb(5)) // so some uploads are multipart ones
             .build();
     }
 }

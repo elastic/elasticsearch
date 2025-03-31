@@ -63,6 +63,8 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             .infer(
                 eq(mockModel),
                 eq(null),
+                eq(null),
+                eq(null),
                 eq(TEST_INPUT),
                 eq(false),
                 eq(Map.of()),
@@ -97,13 +99,15 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
 
     private void mockSuccessfulCallToService(String query, InferenceServiceResults result) {
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(7);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(9);
             responseListener.onResponse(result);
             return null;
         }).when(mockInferenceService)
             .infer(
                 eq(mockModel),
                 eq(query),
+                eq(null),
+                eq(null),
                 eq(TEST_INPUT),
                 eq(false),
                 eq(Map.of()),
@@ -120,6 +124,8 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
         verify(mockInferenceService).infer(
             eq(mockModel),
             eq(withQuery ? TEST_QUERY : null),
+            eq(null),
+            eq(null),
             eq(TEST_INPUT),
             eq(false),
             eq(Map.of()),

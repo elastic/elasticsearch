@@ -867,8 +867,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static List<String> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
         // We listen to the cluster state on the master node to ensure all other nodes have already acked the new cluster state.
         // This avoids inconsistencies in subsequent API calls which might hit a non-master node.
-        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        final var listener = ClusterServiceUtils.addTemporaryStateListener(clusterService, clusterState -> {
+        final var listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
             final var dataStream = clusterState.metadata().getProject().dataStreams().get(dataStreamName);
             if (dataStream == null) {
                 return false;

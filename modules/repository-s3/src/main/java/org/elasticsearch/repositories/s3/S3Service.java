@@ -261,7 +261,7 @@ class S3Service implements Closeable {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
 
         clientOverrideConfiguration.retryStrategy(builder -> {
-            builder.maxAttempts(clientSettings.maxRetries);
+            builder.maxAttempts(clientSettings.maxRetries + 1 /* first attempt is not a retry */);
             // TODO NOMERGE: revisit this, does it still make sense to specially retry?
             // -- dct: yes, in serverless we sometimes get 403s during because of delays in propagating updated credentials
             // (IAM is not strongly consistent); TODO NOMERGE this should be covered by some end-to-end test, and documented more accurately

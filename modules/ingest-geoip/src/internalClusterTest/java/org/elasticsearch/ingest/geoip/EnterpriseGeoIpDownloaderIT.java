@@ -131,17 +131,17 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
             assertNotNull(returnedSource);
             Object targetFieldValue = returnedSource.get(targetField);
             assertNotNull(targetFieldValue);
-            assertThat(((Map<String, Object>) targetFieldValue).get("city_name"), equalTo("Linköping"));
+            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("Bredband2 AB"));
         });
         assertBusy(() -> {
             logger.info("Ingesting another test document");
-            String documentId = ingestDocument(indexName, iplocationPipelineName, sourceField, "103.134.48.0");
+            String documentId = ingestDocument(indexName, iplocationPipelineName, sourceField, "12.10.66.1");
             GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
             Map<String, Object> returnedSource = getResponse.getSource();
             assertNotNull(returnedSource);
             Object targetFieldValue = returnedSource.get(targetField);
             assertNotNull(targetFieldValue);
-            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("PT Nevigate Telekomunikasi Indonesia"));
+            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("OAKLAWN JOCKEY CLUB, INC."));
         });
     }
 

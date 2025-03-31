@@ -64,8 +64,6 @@ class RegionFromEndpointGuesser {
     /**
      * @return a guess at the region name for the given S3 endpoint, or {@code null} if the endpoint is not recognised.
      */
-    // TODO NOMERGE needs tests
-    // TODO NOMERGE check this does the right thing with existing ECH configs
     @Nullable
     static String guessRegion(@Nullable String endpoint) {
         if (endpoint == null) {

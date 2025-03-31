@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -67,14 +68,17 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
     @FunctionInfo(
         returnType = "aggregate_metric_double",
         description = "Encode a numeric to an aggregate_metric_double.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING, version = "9.1") }
+        examples = {
+            @Example(file = "convert", tag = "toAggregateMetricDouble"),
+            @Example(description = "The expression also accepts multi-values", file = "convert", tag = "toAggregateMetricDoubleMv") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING) }
     )
     public ToAggregateMetricDouble(
         Source source,
         @Param(
             name = "number",
             type = { "double", "long", "unsigned_long", "integer", "aggregate_metric_double" },
-            description = "Input value. The input can be a single-valued column or an expression."
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {
         super(source, field);

@@ -403,6 +403,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             ++iota,
             no,
             no,
+            no,
             no
         );
         commonStats.getIndexing().add(new IndexingStats(indexingStats));

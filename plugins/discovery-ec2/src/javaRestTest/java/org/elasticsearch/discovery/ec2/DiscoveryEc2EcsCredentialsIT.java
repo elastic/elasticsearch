@@ -26,11 +26,11 @@ import java.util.Set;
 
 public class DiscoveryEc2EcsCredentialsIT extends DiscoveryEc2ClusterFormationTestCase {
 
-    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials();
-
     private static final String PREFIX = getIdentifierPrefix("DiscoveryEc2EcsCredentialsIT");
     private static final String REGION = PREFIX + "-region";
     private static final String CREDENTIALS_ENDPOINT = "/ecs_credentials_endpoint_" + PREFIX;
+
+    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(REGION, "ec2");
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
         new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(dynamicCredentials::addValidCredentials)

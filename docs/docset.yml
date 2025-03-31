@@ -22,6 +22,7 @@ cross_links:
   - go-elasticsearch
   - kibana
   - logstash
+  - logstash-docs-md
 toc:
   - toc: reference
   - toc: release-notes

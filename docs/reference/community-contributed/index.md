@@ -11,7 +11,7 @@ This is a list of clients submitted by members of the Elastic community. Elastic
 If you'd like to add a new client to this list, please [open a pull request](https://github.com/elastic/elasticsearch/blob/main/CONTRIBUTING.md).
 :::
 
-Besides the [officially supported Elasticsearch clients](docs-content://reference/elasticsearch/clients/index.md), there are
+Besides the [officially supported Elasticsearch clients](docs-content://reference/elasticsearch-clients/index.md), there are
 a number of clients that have been contributed by the community for various languages.
 
 ## B4J [b4j]

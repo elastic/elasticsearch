@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.request.voyageai;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankTaskSettings;
@@ -15,15 +16,19 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record VoyageAIRerankRequestEntity(String model, String query, List<String> documents, VoyageAIRerankTaskSettings taskSettings)
-    implements
-        ToXContentObject {
+public record VoyageAIRerankRequestEntity(
+    String model,
+    String query,
+    List<String> documents,
+    @Nullable Boolean returnDocuments,
+    @Nullable Integer topN,
+    VoyageAIRerankTaskSettings taskSettings
+) implements ToXContentObject {
 
     private static final String DOCUMENTS_FIELD = "documents";
     private static final String QUERY_FIELD = "query";
     private static final String MODEL_FIELD = "model";
     public static final String TRUNCATION_FIELD = "truncation";
-    public static final String RETURN_DOCUMENTS_FIELD = "return_documents";
 
     public VoyageAIRerankRequestEntity {
         Objects.requireNonNull(query);
@@ -32,8 +37,15 @@ public record VoyageAIRerankRequestEntity(String model, String query, List<Strin
         Objects.requireNonNull(taskSettings);
     }
 
-    public VoyageAIRerankRequestEntity(String query, List<String> input, VoyageAIRerankTaskSettings taskSettings, String model) {
-        this(model, query, input, taskSettings != null ? taskSettings : VoyageAIRerankTaskSettings.EMPTY_SETTINGS);
+    public VoyageAIRerankRequestEntity(
+        String query,
+        List<String> input,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
+        VoyageAIRerankTaskSettings taskSettings,
+        String model
+    ) {
+        this(model, query, input, returnDocuments, topN, taskSettings != null ? taskSettings : VoyageAIRerankTaskSettings.EMPTY_SETTINGS);
     }
 
     @Override
@@ -44,11 +56,17 @@ public record VoyageAIRerankRequestEntity(String model, String query, List<Strin
         builder.field(QUERY_FIELD, query);
         builder.field(DOCUMENTS_FIELD, documents);
 
-        if (taskSettings.getDoesReturnDocuments() != null) {
+        // prefer the root level return_documents over task settings
+        if (returnDocuments != null) {
+            builder.field(VoyageAIRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments);
+        } else if (taskSettings.getDoesReturnDocuments() != null) {
             builder.field(VoyageAIRerankTaskSettings.RETURN_DOCUMENTS, taskSettings.getDoesReturnDocuments());
         }
 
-        if (taskSettings.getTopKDocumentsOnly() != null) {
+        // prefer the root level top_n over task settings
+        if (topN != null) {
+            builder.field(VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY, topN);
+        } else if (taskSettings.getTopKDocumentsOnly() != null) {
             builder.field(VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY, taskSettings.getTopKDocumentsOnly());
         }
 

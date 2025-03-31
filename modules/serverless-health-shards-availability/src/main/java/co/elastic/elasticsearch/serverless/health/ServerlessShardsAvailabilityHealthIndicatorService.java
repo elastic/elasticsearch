@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
@@ -50,7 +51,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAl
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedProjectIndices;
 
 public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAvailabilityHealthIndicatorService {
     public static final String ALL_REPLICAS_UNASSIGNED_IMPACT_ID = "all_replicas_unassigned";
@@ -138,9 +139,10 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
     public ServerlessShardsAvailabilityHealthIndicatorService(
         ClusterService clusterService,
         AllocationService allocationService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ProjectResolver projectResolver
     ) {
-        super(clusterService, allocationService, systemIndices);
+        super(clusterService, allocationService, systemIndices, projectResolver);
     }
 
     @Override
@@ -186,10 +188,24 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
 
             final Map<String, Object> map = new HashMap<>(((SimpleHealthIndicatorDetails) details).details());
             if (primaries.indicesWithUnavailableShards.isEmpty() == false) {
-                map.put("indices_with_unavailable_primaries", getTruncatedIndices(primaries.indicesWithUnavailableShards, clusterMetadata));
+                map.put(
+                    "indices_with_unavailable_primaries",
+                    getTruncatedProjectIndices(
+                        primaries.indicesWithUnavailableShards,
+                        clusterMetadata,
+                        projectResolver.supportsMultipleProjects()
+                    )
+                );
             }
             if (replicas.indicesWithUnavailableShards.isEmpty() == false) {
-                map.put("indices_with_unavailable_replicas", getTruncatedIndices(replicas.indicesWithUnavailableShards, clusterMetadata));
+                map.put(
+                    "indices_with_unavailable_replicas",
+                    getTruncatedProjectIndices(
+                        replicas.indicesWithUnavailableShards,
+                        clusterMetadata,
+                        projectResolver.supportsMultipleProjects()
+                    )
+                );
             }
             return new SimpleHealthIndicatorDetails(Map.copyOf(map));
         }
@@ -203,7 +219,11 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
                     "Not all data is searchable. No searchable copies of the data exist on %d %s [%s].",
                     replicas.indicesWithAllShardsUnavailable.size(),
                     replicas.indicesWithAllShardsUnavailable.size() == 1 ? "index" : "indices",
-                    getTruncatedIndices(replicas.indicesWithAllShardsUnavailable, clusterMetadata)
+                    getTruncatedProjectIndices(
+                        replicas.indicesWithAllShardsUnavailable,
+                        clusterMetadata,
+                        projectResolver.supportsMultipleProjects()
+                    )
                 );
                 impacts.add(
                     new HealthIndicatorImpact(NAME, ALL_REPLICAS_UNASSIGNED_IMPACT_ID, 1, impactDescription, List.of(ImpactArea.SEARCH))

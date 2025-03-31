@@ -5,7 +5,7 @@
 
 reranker using a single field
 required_capability: rerank
-required_capability: match_function
+required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -23,7 +23,7 @@ book_no:keyword | title:text                                            | author
 
 reranker using multiple fields
 required_capability: rerank
-required_capability: match_function
+required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -41,7 +41,7 @@ book_no:keyword | title:text                                            | author
 
 reranker after a limit
 required_capability: rerank
-required_capability: match_function
+required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -60,7 +60,7 @@ book_no:keyword | title:text                         | author:text              
 
 reranker before a limit
 required_capability: rerank
-required_capability: match_function
+required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -78,7 +78,7 @@ book_no:keyword | title:text                         | author:text              
 
 reranker add the _score column when missing
 required_capability: rerank
-required_capability: match_function
+required_capability: match_operator_colon
 
 FROM books
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -92,4 +92,43 @@ book_no:keyword | title:text                                            | author
 4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
 9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.02083333395421505
 2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01515151560306549
+;
+
+
+reranker using another sort order
+required_capability: rerank
+required_capability: match_operator_colon
+
+FROM books
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| RERANK "war and peace" ON title WITH test_reranker
+| KEEP book_no, title, author, _score
+| SORT author, title 
+| LIMIT 3
+;
+
+book_no:keyword | title:text                                            | author:text                                 | _score:double
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01515151560306549
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.03846153989434242
+;
+
+
+reranker after RRF
+required_capability: fork
+required_capability: rrf
+required_capability: match_operator_colon
+
+FROM books METADATA _id, _index, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
+| RRF
+| RERANK "Tolkien" ON title WITH test_reranker
+| LIMIT 2
+| KEEP book_no, title, author, _score
+;
+
+book_no:keyword | title:keyword                         | author:keyword                                   | _score:double
+5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 0.02631578966975212
+2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 0.019607843831181526
 ;

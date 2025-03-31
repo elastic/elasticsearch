@@ -262,7 +262,6 @@ class S3Service implements Closeable {
             if (isStateless) {
                 // Create a 403 error retyable policy.
                 builder.retryOnException(S3Service::RETRYABLE_403_RETRY_PREDICATE);
-
             }
         });
         clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, clientSettings.signerOverride.signerFactory.get());

@@ -27,25 +27,6 @@ import java.util.SplittableRandom;
 
 public class SampleOperator implements Operator {
 
-    private boolean finished;
-    private final Deque<Page> outputPages;
-    private final RandomSamplingQuery.RandomSamplingIterator randomSamplingIterator;
-
-    private int pagesProcessed = 0;
-    private int rowsReceived = 0;
-    private int rowsEmitted = 0;
-
-    private long collectNanos;
-    private long emitNanos;
-
-    public SampleOperator(double probability, int seed) {
-        finished = false;
-        outputPages = new LinkedList<>();
-        SplittableRandom random = new SplittableRandom(seed);
-        randomSamplingIterator = new RandomSamplingQuery.RandomSamplingIterator(Integer.MAX_VALUE, probability, random::nextInt);
-        randomSamplingIterator.nextDoc();
-    }
-
     public record Factory(double probability, int seed) implements OperatorFactory {
 
         @Override
@@ -57,6 +38,24 @@ public class SampleOperator implements Operator {
         public String describe() {
             return "SampleOperator[probability = " + probability + ", seed = " + seed + "]";
         }
+    }
+
+    private final Deque<Page> outputPages;
+    private final RandomSamplingQuery.RandomSamplingIterator randomSamplingIterator;
+    private boolean finished;
+
+    private int pagesProcessed = 0;
+    private int rowsReceived = 0;
+    private int rowsEmitted = 0;
+    private long collectNanos;
+    private long emitNanos;
+
+    private SampleOperator(double probability, int seed) {
+        finished = false;
+        outputPages = new LinkedList<>();
+        SplittableRandom random = new SplittableRandom(seed);
+        randomSamplingIterator = new RandomSamplingQuery.RandomSamplingIterator(Integer.MAX_VALUE, probability, random::nextInt);
+        randomSamplingIterator.nextDoc();
     }
 
     /**

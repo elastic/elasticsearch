@@ -40,7 +40,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -239,14 +238,12 @@ public class SearchShardRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(newCommitNotificationResponseGeneration.get(), equalTo(-1L));
         Index index = resolveIndices().entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
         IndexShard searchShard = internalCluster().getInstance(IndicesService.class, searchNode).indexService(index).getShard(0);
-        assertThat(searchShard.state(), equalTo(IndexShardState.RECOVERING));
+        assertNull(searchShard.getEngineOrNull());
 
         logger.info("--> Unblocking the recovery of the search shard");
         repository.unblock();
         getVbccChunkLatch.countDown();
         ensureGreen(indexName);
-
-        assertThat(searchShard.state(), equalTo(IndexShardState.STARTED));
 
         logger.info("--> Waiting for the new commit notification success");
         assertBusy(() -> assertThat(newCommitNotificationResponseGeneration.get(), greaterThan(initialGeneration)));

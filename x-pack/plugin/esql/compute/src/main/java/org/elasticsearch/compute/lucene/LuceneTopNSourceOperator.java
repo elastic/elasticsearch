@@ -63,7 +63,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             List<SortBuilder<?>> sorts,
             boolean needsScore
         ) {
-            super(contexts, weightFunction(queryFunction, sorts), dataPartitioning, taskConcurrency, limit, needsScore);
+            super(contexts, weightFunction(queryFunction, sorts, needsScore), dataPartitioning, taskConcurrency, limit, needsScore);
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
         }
@@ -309,13 +309,13 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private static Function<ShardContext, Weight> weightFunction(Function<ShardContext, Query> queryFunction, List<SortBuilder<?>> sorts) {
+    private static Function<ShardContext, Weight> weightFunction(Function<ShardContext, Query> queryFunction, List<SortBuilder<?>> sorts, boolean needsScore) {
         return ctx -> {
             final var query = queryFunction.apply(ctx);
             final var searcher = ctx.searcher();
             try {
                 // we create a collector with a limit of 1 to determine the appropriate score mode to use.
-                var scoreMode = newPerShardCollector(ctx, sorts, false, 1).collector.scoreMode();
+                var scoreMode = newPerShardCollector(ctx, sorts, needsScore, 1).collector.scoreMode();
                 return searcher.createWeight(searcher.rewrite(query), scoreMode, 1);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -332,20 +332,17 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         if (needsScore == false) {
             return new NonScoringPerShardCollector(context, sortAndFormats.get().sort, limit);
         }
-        SortField[] sortFields = sortAndFormats.get().sort.getSort();
-        if (sortFields != null && sortFields.length == 1 && sortFields[0].needsScores() && sortFields[0].getReverse() == false) {
+        Sort sort = sortAndFormats.get().sort;
+        if (Sort.RELEVANCE.equals(sort)) {
             // SORT _score DESC
             return new ScoringPerShardCollector(context, new TopScoreDocCollectorManager(limit, null, 0).newCollector());
         }
 
         // SORT ..., _score, ...
-        var sort = new Sort();
-        if (sortFields != null) {
-            var l = new ArrayList<>(Arrays.asList(sortFields));
-            l.add(SortField.FIELD_DOC);
-            l.add(SortField.FIELD_SCORE);
-            sort = new Sort(l.toArray(SortField[]::new));
-        }
+        var l = new ArrayList<>(Arrays.asList(sort.getSort()));
+        l.add(SortField.FIELD_DOC);
+        l.add(SortField.FIELD_SCORE);
+        sort = new Sort(l.toArray(SortField[]::new));
         return new ScoringPerShardCollector(context, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
     }
 }

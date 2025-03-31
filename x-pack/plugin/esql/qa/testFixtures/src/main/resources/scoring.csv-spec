@@ -123,9 +123,8 @@ from books metadata _score
 | keep book_no, title, author, _score;
 ignoreOrder:true
 
-book_no:keyword | title:text                                                                            | author:text                       | _score:double
-3535            | Rainbow's End: A Magical Story and Moneybox                                           | [Beverlie Manson, Keith Faulkner] | 6.5579609870910645
-6151            | Pop! Went Another Balloon: A Magical Counting Storybook (Magical Counting Storybooks) | [Keith Faulkner, Rory Tyger]      | 5.975414276123047 
+book_no:keyword | title:text                                            | author:text      | _score:double
+2847            | To Love A Dark Stranger (Lovegram Historical Romance) | Colleen Faulkner | 0.0
 ;
 
 multipleWhereWithMatchScoringNoSort

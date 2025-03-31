@@ -270,13 +270,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         for (int i = 0; i < numShards; i++) {
             shardContexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    i,
-                    createSearchExecutionContext(createMapperService(mapping(b -> {
-                        b.startObject("point").field("type", "geo_point").endObject();
-                    })), searcher),
-                    AliasFilter.EMPTY
-                )
+                new EsPhysicalOperationProviders.DefaultShardContext(i, createSearchExecutionContext(createMapperService(mapping(b -> {
+                    b.startObject("point").field("type", "geo_point").endObject();
+                })), searcher), AliasFilter.EMPTY)
             );
         }
         releasables.add(searcher);

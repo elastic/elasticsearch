@@ -309,7 +309,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private static Function<ShardContext, Weight> weightFunction(Function<ShardContext, Query> queryFunction, List<SortBuilder<?>> sorts, boolean needsScore) {
+    private static Function<ShardContext, Weight> weightFunction(
+        Function<ShardContext, Query> queryFunction,
+        List<SortBuilder<?>> sorts,
+        boolean needsScore
+    ) {
         return ctx -> {
             final var query = queryFunction.apply(ctx);
             final var searcher = ctx.searcher();

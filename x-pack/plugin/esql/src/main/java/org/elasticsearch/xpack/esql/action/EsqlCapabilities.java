@@ -937,7 +937,12 @@ public class EsqlCapabilities {
         /**
          * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
          */
-        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT;
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT,
+
+        /**
+         * Support for sorting when aggregate_metric_doubles are present
+         */
+        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

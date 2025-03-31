@@ -50,7 +50,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     );
     private final ShardId shardId;
     private final MergeSchedulerConfig config;
-    private final Logger logger;
+    protected final Logger logger;
     private final MergeTracking mergeTracking;
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(
@@ -191,7 +191,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         int configuredMaxMergeCount = config.getMaxMergeCount();
         // both currently running and enqueued merge tasks are considered "active" for throttling purposes
         int activeMerges = (int) (submittedMergesCount - doneMergesCount);
-        if (activeMerges > configuredMaxMergeCount && shouldThrottleIncomingMerges.get() == false) {
+        if (activeMerges > configuredMaxMergeCount
+            // only throttle indexing if disk IO is un-throttled, and we still can't keep up with the merge load
+            && threadPoolMergeExecutorService.usingMaxTargetIORateBytesPerSec()
+            && shouldThrottleIncomingMerges.get() == false) {
             // maybe enable merge task throttling
             synchronized (shouldThrottleIncomingMerges) {
                 if (shouldThrottleIncomingMerges.getAndSet(true) == false) {

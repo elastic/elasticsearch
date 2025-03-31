@@ -1790,6 +1790,27 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
     }
 
+    public void testFailuresLifecycle() {
+        DataStream noFailureStoreDs = DataStream.builder("no-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID()))).build();
+        assertThat(noFailureStoreDs.getFailuresLifecycle(), nullValue());
+
+        assertThat(noFailureStoreDs.getFailuresLifecycle(true), equalTo(DataStreamLifecycle.DEFAULT));
+        assertThat(noFailureStoreDs.getFailuresLifecycle(randomBoolean() ? false : null), nullValue());
+
+        DataStream withFailureIndices = DataStream.builder("with-fs-indices", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
+            .setFailureIndices(
+                DataStream.DataStreamIndices.failureIndicesBuilder(List.of(new Index(randomAlphaOfLength(10), randomUUID()))).build()
+            )
+            .build();
+        assertThat(withFailureIndices.getFailuresLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
+
+        DataStreamLifecycle lifecycle = DataStreamLifecycleTests.randomFailureLifecycle();
+        DataStream withFailureLifecycle = DataStream.builder("with-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
+            .setDataStreamOptions(new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), lifecycle)))
+            .build();
+        assertThat(withFailureLifecycle.getFailuresLifecycle(), equalTo(lifecycle));
+    }
+
     private DataStream createDataStream(
         Metadata.Builder builder,
         String dataStreamName,

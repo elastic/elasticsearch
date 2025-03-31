@@ -531,12 +531,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public DataStreamLifecycle getFailuresLifecycle() {
+        return getFailuresLifecycle(
+            dataStreamOptions != null && dataStreamOptions.failureStore() != null ? dataStreamOptions.failureStore().enabled() : null
+        );
+    }
+
+    /**
+     * Retrieves the effective lifecycle configuration for the failure store. This can be either the configuration provided
+     * by a user or the default lifecycle if there are failure indices.
+     */
+    @Nullable
+    public DataStreamLifecycle getFailuresLifecycle(Boolean effectivelyEnabledFailureStore) {
         // When there is a lifecycle configured by the user we return it.
         if (dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
             return dataStreamOptions.failureStore().lifecycle();
         }
         // If there are failure indices we always provide the default lifecycle as a default
-        return getFailureIndices().isEmpty() ? null : DataStreamLifecycle.DEFAULT;
+        return Boolean.TRUE.equals(effectivelyEnabledFailureStore) || getFailureIndices().isEmpty() == false
+            ? DataStreamLifecycle.DEFAULT
+            : null;
     }
 
     /**

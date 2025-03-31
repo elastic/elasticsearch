@@ -115,7 +115,9 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return matchesRegex(
-            "LuceneTopNSourceOperator\\[shards = \\[test], maxPageSize = \\d+, limit = 100, needsScore = " + scoring + ", sorts = \\[\\{.+}]]"
+            "LuceneTopNSourceOperator\\[shards = \\[test], maxPageSize = \\d+, limit = 100, needsScore = "
+                + scoring
+                + ", sorts = \\[\\{.+}]]"
         );
     }
 

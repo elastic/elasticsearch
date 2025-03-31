@@ -13,7 +13,7 @@ setup:
             properties:
               aggregate_metric_double:
                 type: aggregate_metric_double
-                metrics: [ min, max ]
+                metrics: [ min, max, sum, value_count ]
                 default_metric: max
               binary:
                 type: binary
@@ -81,7 +81,7 @@ setup:
         body:
           - { "index": { } }
           - {
-            "aggregate_metric_double": { "min": 1.0, "max": 3.0 },
+            "aggregate_metric_double": { "min": 1.0, "max": 3.0, "sum": 10.1, "value_count": 5 },
             "binary": "U29tZSBiaW5hcnkgYmxvYg==",
             "completion": "foo bar",
             "date_nanos": "2015-01-01T12:10:30.123456789Z",
@@ -110,17 +110,13 @@ setup:
 ---
 unsupported:
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: "Latest types supported in ESQL as of 8.13.0"
-
-  - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [capabilities, contains]
       capabilities:
         - method: POST
           path: /_query
-          parameters: [ ]
-          capabilities: [ date_nanos_type ]
-      reason: "support for date nanos type"
+          parameters: []
+          capabilities: [REPORT_ORIGINAL_TYPES]
+      reason: "uses original_type"
 
   - do:
       allowed_warnings_regex:
@@ -131,11 +127,14 @@ unsupported:
           query: 'from test'
 
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
+  - is_false: columns.0.original_types
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
+  - match: { columns.1.original_types: [binary] }
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
+  - match: { columns.2.original_types: [completion] }
   - match: { columns.3.name: date_nanos }
   - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }
@@ -190,7 +189,7 @@ unsupported:
   - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: null }
+  - match: { values.0.0: '{"min":1.0,"max":3.0,"sum":10.1,"value_count":5}' }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
@@ -227,11 +226,14 @@ unsupported:
         body:
           query: 'from test | limit 0'
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
+  - is_false: columns.0.original_types
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
+  - match: { columns.1.original_types: [binary] }
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
+  - match: { columns.2.original_types: [completion] }
   - match: { columns.3.name: date_nanos }
   - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }
@@ -308,8 +310,8 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ date_nanos_type ]
-      reason: "support for date nanos type"
+          capabilities: [ aggregate_metric_double_sorting ]
+      reason: "support for sorting when aggregate_metric_double present"
 
   - do:
       allowed_warnings_regex:
@@ -320,7 +322,7 @@ unsupported with sort:
           query: 'from test | sort some_doc.bar'
 
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
   - match: { columns.2.name: completion }
@@ -379,7 +381,7 @@ unsupported with sort:
   - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: null }
+  - match: { values.0.0: '{"min":1.0,"max":3.0,"sum":10.1,"value_count":5}' }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
@@ -408,7 +410,6 @@ unsupported with sort:
   - match: { values.0.26: xy }
   - match: { values.0.27: "foo bar" }
   - match: { values.0.28: 3 }
-
 ---
 nested declared inline:
   - do:

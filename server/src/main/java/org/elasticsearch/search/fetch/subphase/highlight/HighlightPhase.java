@@ -66,7 +66,7 @@ public class HighlightPhase implements FetchSubPhase {
                 Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = fieldContext.builders;
                 for (String field : contextBuilders.keySet()) {
                     FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);
-                    Highlighter highlighter = getHighlighter(fieldContext.field);
+                    Highlighter highlighter = getHighlighter(fieldContext.field, fieldContext.fieldType);
                     HighlightField highlightField = highlighter.highlight(fieldContext);
                     if (highlightField != null) {
                         // Note that we make sure to use the original field name in the response. This is because the
@@ -80,10 +80,10 @@ public class HighlightPhase implements FetchSubPhase {
         };
     }
 
-    private Highlighter getHighlighter(SearchHighlightContext.Field field) {
+    private Highlighter getHighlighter(SearchHighlightContext.Field field, MappedFieldType fieldType) {
         String highlighterType = field.fieldOptions().highlighterType();
         if (highlighterType == null) {
-            highlighterType = "unified";
+            highlighterType = fieldType.getDefaultHighlighter();
         }
         Highlighter highlighter = highlighters.get(highlighterType);
         if (highlighter == null) {
@@ -103,8 +103,6 @@ public class HighlightPhase implements FetchSubPhase {
         Map<String, Function<HitContext, FieldHighlightContext>> builders = new LinkedHashMap<>();
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
         for (SearchHighlightContext.Field field : highlightContext.fields()) {
-            Highlighter highlighter = getHighlighter(field);
-
             Collection<String> fieldNamesToHighlight = context.getSearchExecutionContext().getMatchingFieldNames(field.field());
 
             boolean fieldNameContainsWildcards = field.field().contains("*");
@@ -112,6 +110,7 @@ public class HighlightPhase implements FetchSubPhase {
             boolean sourceRequired = false;
             for (String fieldName : fieldNamesToHighlight) {
                 MappedFieldType fieldType = context.getSearchExecutionContext().getFieldType(fieldName);
+                Highlighter highlighter = getHighlighter(field, fieldType);
 
                 // We should prevent highlighting if a field is anything but a text, match_only_text,
                 // or keyword field.

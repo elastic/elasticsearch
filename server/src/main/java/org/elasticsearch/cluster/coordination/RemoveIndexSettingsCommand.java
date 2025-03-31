@@ -60,7 +60,7 @@ public class RemoveIndexSettingsCommand extends ElasticsearchNodeCommand {
         final ClusterState oldClusterState = termAndClusterState.v2();
         final Metadata.Builder newMetadataBuilder = Metadata.builder(oldClusterState.metadata());
         int changes = 0;
-        for (IndexMetadata indexMetadata : oldClusterState.metadata()) {
+        for (IndexMetadata indexMetadata : oldClusterState.metadata().getProject()) {
             Settings oldSettings = indexMetadata.getSettings();
             Settings.Builder newSettings = Settings.builder().put(oldSettings);
             boolean removed = false;

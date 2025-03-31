@@ -18,6 +18,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
             restRequest.paramAsBoolean("summary", false),
             Strings.splitStringByCommaToArray(restRequest.param("id"))
         );
-        return channel -> client.execute(
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetPipelineAction.INSTANCE,
             request,
             new RestToXContentListener<>(channel, GetPipelineResponse::status)

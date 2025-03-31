@@ -7,8 +7,8 @@ echo "steps:"
 source .buildkite/scripts/branches.sh
 
 for BRANCH in "${BRANCHES[@]}"; do
-  if [[ "$BRANCH" == "main" ]]; then
-    export VERSION_QUALIFIER="alpha1"
+  if [[ "$BRANCH" == "9.0" ]]; then
+    continue
   fi
 
   INTAKE_PIPELINE_SLUG="elasticsearch-intake"

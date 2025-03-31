@@ -337,7 +337,14 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(client, SNAPSHOT_BLOB_CACHE_INDEX);
             this.blobStoreCacheService.set(blobStoreCacheService);
             clusterService.addListener(
-                new BlobStoreCacheMaintenanceService(settings, clusterService, threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX)
+                new BlobStoreCacheMaintenanceService(
+                    settings,
+                    clusterService,
+                    threadPool,
+                    client,
+                    services.systemIndices(),
+                    SNAPSHOT_BLOB_CACHE_INDEX
+                )
             );
             components.add(blobStoreCacheService);
         } else {
@@ -730,7 +737,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
-            final RepositoriesMetadata repositoriesMetadata = event.state().metadata().custom(RepositoriesMetadata.TYPE);
+            final RepositoriesMetadata repositoriesMetadata = event.state().metadata().getProject().custom(RepositoriesMetadata.TYPE);
             if (repositoriesMetadata == null) {
                 knownUuids.clear();
                 return;

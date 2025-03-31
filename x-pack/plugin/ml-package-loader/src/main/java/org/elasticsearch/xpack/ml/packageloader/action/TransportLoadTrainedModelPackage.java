@@ -20,7 +20,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -66,7 +65,6 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
         CircuitBreakerService circuitBreakerService
     ) {
@@ -77,7 +75,6 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             threadPool,
             actionFilters,
             LoadTrainedModelPackageAction.Request::new,
-            indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -154,7 +151,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
         ModelDownloadTask inProgress = null;
         for (var task : tasks) {
-            if (description.equals(task.getDescription()) && task instanceof ModelDownloadTask downloadTask) {
+            if (task instanceof ModelDownloadTask downloadTask && (description.equals(downloadTask.getDescription()))) {
                 inProgress = downloadTask;
                 break;
             }

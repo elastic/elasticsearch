@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,13 +37,12 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public record Stat(String name, StatsType type, QueryBuilder query) {
-
         public QueryBuilder filter(QueryBuilder sourceQuery) {
-            return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query));
+            return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query)).boost(0.0f);
         }
     }
 
-    private final EsIndex index;
+    private final String indexPattern;
     private final QueryBuilder query;
     private final Expression limit;
     private final List<Attribute> attrs;
@@ -52,14 +50,14 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public EsStatsQueryExec(
         Source source,
-        EsIndex index,
+        String indexPattern,
         QueryBuilder query,
         Expression limit,
         List<Attribute> attributes,
         List<Stat> stats
     ) {
         super(source);
-        this.index = index;
+        this.indexPattern = indexPattern;
         this.query = query;
         this.limit = limit;
         this.attrs = attributes;
@@ -78,11 +76,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EsStatsQueryExec> info() {
-        return NodeInfo.create(this, EsStatsQueryExec::new, index, query, limit, attrs, stats);
-    }
-
-    public EsIndex index() {
-        return index;
+        return NodeInfo.create(this, EsStatsQueryExec::new, indexPattern, query, limit, attrs, stats);
     }
 
     public QueryBuilder query() {
@@ -113,7 +107,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, query, limit, attrs, stats);
+        return Objects.hash(indexPattern, query, limit, attrs, stats);
     }
 
     @Override
@@ -127,7 +121,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         }
 
         EsStatsQueryExec other = (EsStatsQueryExec) obj;
-        return Objects.equals(index, other.index)
+        return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(attrs, other.attrs)
             && Objects.equals(query, other.query)
             && Objects.equals(limit, other.limit)
@@ -138,7 +132,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     public String nodeString() {
         return nodeName()
             + "["
-            + index
+            + indexPattern
             + "], stats"
             + stats
             + "], query["

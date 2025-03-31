@@ -15,22 +15,26 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StX}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class StXFromWKBEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public StXFromWKBEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator in;
+
+  public StXFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.in = in;
   }
 
   @Override
-  public String name() {
-    return "StXFromWKB";
+  public EvalOperator.ExpressionEvaluator next() {
+    return in;
   }
 
   @Override
@@ -59,7 +63,7 @@ public final class StXFromWKBEvaluator extends AbstractConvertFunction.AbstractE
     }
   }
 
-  private static double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return StX.fromWellKnownBinary(value);
   }
@@ -99,29 +103,39 @@ public final class StXFromWKBEvaluator extends AbstractConvertFunction.AbstractE
     }
   }
 
-  private static double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return StX.fromWellKnownBinary(value);
+  }
+
+  @Override
+  public String toString() {
+    return "StXFromWKBEvaluator[" + "in=" + in + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(in);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in) {
       this.source = source;
+      this.in = in;
     }
 
     @Override
     public StXFromWKBEvaluator get(DriverContext context) {
-      return new StXFromWKBEvaluator(field.get(context), source, context);
+      return new StXFromWKBEvaluator(source, in.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StXFromWKBEvaluator[field=" + field + "]";
+      return "StXFromWKBEvaluator[" + "in=" + in + "]";
     }
   }
 }

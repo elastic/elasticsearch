@@ -290,8 +290,7 @@ public interface SearchPlugin {
         /**
          * Specification of custom {@link RetrieverBuilder}.
          *
-         * @param name the name by which this retriever might be parsed or deserialized. Make sure that the retriever builder returns
-         *             this name for {@link NamedWriteable#getWriteableName()}.
+         * @param name the name by which this retriever might be parsed or deserialized.
          * @param parser the parser the reads the retriever builder from xcontent
          */
         public RetrieverSpec(String name, RetrieverParser<RB> parser) {

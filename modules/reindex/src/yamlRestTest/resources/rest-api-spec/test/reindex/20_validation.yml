@@ -107,7 +107,7 @@
         body:   { "text": "test" }
 
   - do:
-      catch: /invalid parameter \[size\], use \[max_docs\] instead/
+      catch: /(invalid parameter \[size\], use \[max_docs\] instead|unknown field \[size\])/
       reindex:
         body:
           source:

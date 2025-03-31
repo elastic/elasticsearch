@@ -50,15 +50,24 @@ public class ArchivePatcher {
                 ZipEntry entry = entries.nextElement();
                 output.putNextEntry(entry);
                 if (overrides.containsKey(entry.getName())) {
+                    Function<? super String, ? extends InputStream> override = overrides.remove(entry.getName());
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(input.getInputStream(entry)))) {
                         String content = reader.lines().collect(Collectors.joining(System.lineSeparator()));
-                        overrides.get(entry.getName()).apply(content).transferTo(output);
+                        override.apply(content).transferTo(output);
                     }
                 } else {
                     input.getInputStream(entry).transferTo(output);
                 }
                 output.closeEntry();
             }
+
+            for (Map.Entry<String, Function<? super String, ? extends InputStream>> override : overrides.entrySet()) {
+                ZipEntry entry = new ZipEntry(override.getKey());
+                output.putNextEntry(entry);
+                override.getValue().apply("").transferTo(output);
+                output.closeEntry();
+            }
+
             output.flush();
             output.finish();
         } catch (IOException e) {

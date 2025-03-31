@@ -21,8 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -70,11 +68,15 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
                 normalizedBucketValue = method.applyAsDouble(values[i]);
             }
 
-            List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                .collect(Collectors.toList());
-            aggs.add(new InternalSimpleValue(name(), normalizedBucketValue, formatter, metadata()));
-            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs), bucket);
-            newBuckets.add(newBucket);
+            newBuckets.add(
+                originalAgg.createBucket(
+                    InternalAggregations.append(
+                        bucket.getAggregations(),
+                        new InternalSimpleValue(name(), normalizedBucketValue, formatter, metadata())
+                    ),
+                    bucket
+                )
+            );
         }
 
         return originalAgg.create(newBuckets);

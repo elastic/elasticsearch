@@ -26,8 +26,8 @@ public class MaxFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MaxFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MaxFloatAggregatorFunctionSupplier();
     }
 
     @Override

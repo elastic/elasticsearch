@@ -2,5 +2,4 @@
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
-  clusterPlugins project(':x-pack:qa:freeze-plugin')
 }

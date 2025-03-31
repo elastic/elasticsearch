@@ -112,7 +112,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
         Metadata.Builder builder = Metadata.builder(metadata);
         for (IndexId indexId : indices) {
-            IndexMetadata index = metadata.index(indexId.getName());
+            IndexMetadata index = metadata.getProject().index(indexId.getName());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index);
             // for a minimal restore we basically disable indexing on all fields and only create an index
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/

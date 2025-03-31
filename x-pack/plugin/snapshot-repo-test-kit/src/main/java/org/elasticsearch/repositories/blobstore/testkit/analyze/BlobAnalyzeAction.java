@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -693,11 +692,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             earlyReadNodeCount = in.readVInt();
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-                abortWrite = in.readBoolean();
-            } else {
-                abortWrite = false;
-            }
+            abortWrite = in.readBoolean();
         }
 
         @Override
@@ -713,13 +708,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             out.writeVInt(earlyReadNodeCount);
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-                out.writeBoolean(abortWrite);
-            } else if (abortWrite) {
-                throw new IllegalStateException(
-                    "cannot send abortWrite request on transport version [" + out.getTransportVersion().toReleaseVersion() + "]"
-                );
-            }
+            out.writeBoolean(abortWrite);
         }
 
         @Override
@@ -825,7 +814,6 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             nodeId = in.readString();
             nodeName = in.readString();
             blobName = in.readString();

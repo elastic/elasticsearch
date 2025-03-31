@@ -19,8 +19,13 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -37,6 +42,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -62,12 +68,15 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction.getIndexDiskUsageInBytes;
 import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -86,10 +95,13 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         RoutingTable initialRoutingTable = RoutingTable.builder(
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             clusterState.routingTable()
-        ).addAsNew(metadata.index(index)).build();
+        ).addAsNew(metadata.getProject().index(index)).build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(initialRoutingTable).build();
 
-        ShardRouting shard = clusterState.routingTable().index("idx_new").shard(0).primaryShard();
+        assertThat(clusterState.metadata().projects(), aMapWithSize(1));
+        final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
+
+        ShardRouting shard = clusterState.globalRoutingTable().routingTable(projectId).index("idx_new").shard(0).primaryShard();
         RoutingAllocation allocation = createRoutingAllocation(clusterState);
 
         allocation.debugDecision(false);
@@ -103,7 +115,109 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         List<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shard.shardId());
         assertEquals(1, assignedShards.size());
         // the allocation result be consistent with allocation decision
-        assertNotNull(allocateDecision.getTargetNode().getId(), assignedShards.get(0).currentNodeId());
+        assertEquals(allocateDecision.getTargetNode().getId(), assignedShards.get(0).currentNodeId());
+    }
+
+    public void testDecideShardAllocationWhenThereAreMultipleProjects() {
+        final int numberOfNodes = randomIntBetween(3, 8);
+        final int numberOfProjects = randomIntBetween(3, 8);
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final GlobalRoutingTable.Builder routingTableBuilder = GlobalRoutingTable.builder();
+
+        // Create some nodes
+        final DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder();
+        for (int i = 1; i <= numberOfNodes; i++) {
+            final String nodeId = Strings.format("node_%02d", i);
+            final DiscoveryNode node = DiscoveryNodeUtils.create(nodeId);
+            nodeBuilder.add(node);
+            if (i == 1) {
+                nodeBuilder.localNodeId(nodeId);
+            }
+            if (i == 2) {
+                nodeBuilder.masterNodeId(nodeId);
+            }
+        }
+        final DiscoveryNodes nodes = nodeBuilder.build();
+
+        // Create some projects with some assigned indices
+        for (int i = 1; i <= numberOfProjects; i++) {
+            var projectId = ProjectId.fromId(Strings.format("proj_%02d", i));
+            String[] indices = {
+                // 2 indices that are unique to this project
+                "index_proj_" + i + "a",
+                "index_proj_" + i + "b",
+                // 1 index that is shared in all projects
+                "common_index",
+                // 1 index that is shared with some projects
+                "common_index_" + (i % 3) };
+            final Tuple<ProjectMetadata.Builder, RoutingTable.Builder> project = ClusterStateCreationUtils
+                .projectWithAssignedPrimariesAndReplicas(projectId, indices, 1, 0, nodes);
+            metadataBuilder.put(project.v1());
+            routingTableBuilder.put(projectId, project.v2());
+        }
+
+        ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName("test"));
+        stateBuilder.nodes(nodes);
+        stateBuilder.metadata(metadataBuilder.generateClusterUuidIfNeeded());
+        stateBuilder.routingTable(routingTableBuilder.build());
+
+        ClusterState clusterState = stateBuilder.build();
+        assertEquals(clusterState.nodes().getSize(), numberOfNodes);
+        assertEquals(clusterState.metadata().projects().size(), numberOfProjects);
+
+        // Verify that the initial state has no unassigned shards
+        {
+            RoutingAllocation allocation = createRoutingAllocation(clusterState);
+            assertThat(allocation.routingNodes().unassigned().size(), is(0));
+        }
+
+        // add new index to a random project
+        var origProject = randomFrom(clusterState.metadata().projects().values());
+        final var indexName = "new_index";
+        ProjectMetadata updatedProject = ProjectMetadata.builder(origProject)
+            .put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 1, 0)))
+            .build();
+        GlobalRoutingTable routingTable = GlobalRoutingTable.builder(clusterState.globalRoutingTable())
+            .put(
+                origProject.id(),
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.routingTable(origProject.id()))
+                    .addAsNew(updatedProject.index(indexName))
+                    .build()
+            )
+            .build();
+        clusterState = ClusterState.builder(clusterState).putProjectMetadata(updatedProject).routingTable(routingTable).build();
+        // Verify that new state has 1 unassigned shard (with the expected name)
+        {
+            RoutingAllocation allocation = createRoutingAllocation(clusterState);
+            final RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
+            assertThat(unassigned.size(), is(1));
+            assertThat(unassigned.iterator().next().getIndexName(), equalTo(indexName));
+        }
+
+        final BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
+        final RoutingAllocation allocation = createRoutingAllocation(clusterState);
+        final ShardRouting shard = clusterState.globalRoutingTable()
+            .routingTable(origProject.id())
+            .index(indexName)
+            .shard(0)
+            .primaryShard();
+        AllocateUnassignedDecision allocateDecision = allocator.decideShardAllocation(shard, allocation).getAllocateDecision();
+        final DiscoveryNode targetNode = allocateDecision.getTargetNode();
+        assertThat(targetNode, notNullValue());
+        assertThat(nodes.get(targetNode.getId()), sameInstance(targetNode));
+
+        int assignedShardsBefore = allocation.routingNodes().getAssignedShards().size();
+        allocator.allocate(allocation);
+
+        List<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shard.shardId());
+        assertThat(assignedShards.size(), equalTo(1));
+        // the allocation result be consistent with allocation decision
+        assertThat(assignedShards.get(0).currentNodeId(), equalTo(targetNode.getId()));
+
+        assertThat(allocation.routingNodes().getAssignedShards().size(), equalTo(assignedShardsBefore + 1));
+        assertThat(allocation.routingNodes().unassigned().size(), equalTo(0));
+
     }
 
     public void testBalanceByForecastWriteLoad() {
@@ -140,7 +254,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             getPerNode(
                 clusterState,
                 summingDouble(
-                    it -> TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().index(it.index())).orElse(0.0)
+                    it -> TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().getProject().index(it.index()))
+                        .orElse(0.0)
                 )
             ).values(),
             everyItem(lessThanOrEqualTo(8.0))
@@ -174,7 +289,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(
             getPerNode(
                 clusterState,
-                summingLong(it -> clusterState.metadata().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
+                summingLong(it -> clusterState.metadata().getProject().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
             ).values(),
             everyItem(lessThanOrEqualTo(ByteSizeValue.ofGb(8).getBytes()))
         );
@@ -219,7 +334,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(
             getPerNode(
                 clusterState,
-                summingLong(it -> clusterState.metadata().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
+                summingLong(it -> clusterState.metadata().getProject().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
             ).values(),
             everyItem(lessThanOrEqualTo(ByteSizeValue.ofGb(8).getBytes()))
         );
@@ -255,7 +370,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(
             getPerNode(
                 clusterState,
-                summingLong(it -> clusterState.metadata().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
+                summingLong(it -> clusterState.metadata().getProject().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
             ).values(),
             everyItem(lessThanOrEqualTo(ByteSizeValue.ofGb(8).getBytes()))
         );
@@ -512,7 +627,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     private RoutingAllocation createRoutingAllocation(ClusterState clusterState) {
         return new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            RoutingNodes.mutable(clusterState.routingTable(), clusterState.nodes()),
+            RoutingNodes.mutable(clusterState.globalRoutingTable(), clusterState.nodes()),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,

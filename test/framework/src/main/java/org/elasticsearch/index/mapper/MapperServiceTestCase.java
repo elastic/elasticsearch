@@ -61,7 +61,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -196,7 +195,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(getVersion(), getIndexSettings(), idFieldEnabled, mappings);
     }
 
-    protected final MapperService createMapperService(String mappings) throws IOException {
+    public final MapperService createMapperService(String mappings) throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
@@ -389,14 +388,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse(
-            id,
-            BytesReference.bytes(builder),
-            XContentType.JSON,
-            routing,
-            dynamicTemplates,
-            XContentMeteringParserDecorator.NOOP
-        );
+        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
     /**
@@ -744,7 +736,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createSearchExecutionContext(mapperService, null, Settings.EMPTY);
     }
 
-    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher) {
+    public final SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher) {
         return createSearchExecutionContext(mapperService, searcher, Settings.EMPTY);
     }
 
@@ -892,8 +884,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         throws IOException {
         assertReaderEquals(
             "round trip " + syntheticSource,
-            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, reader),
-            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, roundTripReader)
+            new FieldMaskingReader(Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME), reader),
+            new FieldMaskingReader(
+                Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME),
+                roundTripReader
+            )
         );
     }
 

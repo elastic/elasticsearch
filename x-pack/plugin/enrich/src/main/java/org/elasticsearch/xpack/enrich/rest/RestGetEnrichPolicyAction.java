@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
@@ -39,6 +40,10 @@ public class RestGetEnrichPolicyAction extends BaseRestHandler {
             RestUtils.getMasterNodeTimeout(restRequest),
             Strings.splitStringByCommaToArray(restRequest.param("name"))
         );
-        return channel -> client.execute(GetEnrichPolicyAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            GetEnrichPolicyAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

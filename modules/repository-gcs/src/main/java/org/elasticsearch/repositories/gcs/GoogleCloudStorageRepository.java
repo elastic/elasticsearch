@@ -13,12 +13,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -56,10 +58,33 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     );
     static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
 
+    /**
+     * We will retry CASes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
+     * with the following parameters
+     */
+    static final Setting<TimeValue> RETRY_THROTTLED_CAS_DELAY_INCREMENT = Setting.timeSetting(
+        "throttled_cas_retry.delay_increment",
+        TimeValue.timeValueMillis(100),
+        TimeValue.ZERO
+    );
+    static final Setting<Integer> RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
+        "throttled_cas_retry.maximum_number_of_retries",
+        2,
+        0
+    );
+    static final Setting<TimeValue> RETRY_THROTTLED_CAS_MAXIMUM_DELAY = Setting.timeSetting(
+        "throttled_cas_retry.maximum_delay",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.ZERO
+    );
+
     private final GoogleCloudStorageService storageService;
     private final ByteSizeValue chunkSize;
     private final String bucket;
     private final String clientName;
+    private final TimeValue retryThrottledCasDelayIncrement;
+    private final int retryThrottledCasMaxNumberOfRetries;
+    private final TimeValue retryThrottledCasMaxDelay;
 
     GoogleCloudStorageRepository(
         final RepositoryMetadata metadata,
@@ -83,6 +108,9 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());
+        this.retryThrottledCasDelayIncrement = RETRY_THROTTLED_CAS_DELAY_INCREMENT.get(metadata.settings());
+        this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
+        this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
 
@@ -105,7 +133,15 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
-        return new GoogleCloudStorageBlobStore(bucket, clientName, metadata.name(), storageService, bigArrays, bufferSize);
+        return new GoogleCloudStorageBlobStore(
+            bucket,
+            clientName,
+            metadata.name(),
+            storageService,
+            bigArrays,
+            bufferSize,
+            BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay)
+        );
     }
 
     @Override

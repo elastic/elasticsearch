@@ -519,7 +519,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to [" + getFieldName() + "] mappers has no effect and will be forbidden in future");
+        assertWarnings("Adding multifields to [" + getFieldName() + "] mappers has no effect");
     }
 
     public void testSelfIntersectPolygon() throws IOException {

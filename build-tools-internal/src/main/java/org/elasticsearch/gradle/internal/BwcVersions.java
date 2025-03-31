@@ -166,6 +166,7 @@ public class BwcVersions implements Serializable {
             .toList();
 
         boolean existingBugfix = false;
+        boolean existingStaged = false;
         for (int i = 0; i < featureFreezeBranches.size(); i++) {
             String branch = featureFreezeBranches.get(i);
             Version version = versions.stream()
@@ -193,7 +194,9 @@ public class BwcVersions implements Serializable {
             if (i == featureFreezeBranches.size() - 1) {
                 result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:maintenance"));
             } else if (version.getRevision() == 0) { // This is the next staged minor
-                result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:staged"));
+                String project = existingStaged ? "staged2" : "staged";
+                result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:" + project));
+                existingStaged = true;
             } else { // This is a bugfix
                 String project = existingBugfix ? "bugfix2" : "bugfix";
                 result.put(version, new UnreleasedVersionInfo(version, branch, ":distribution:bwc:" + project));

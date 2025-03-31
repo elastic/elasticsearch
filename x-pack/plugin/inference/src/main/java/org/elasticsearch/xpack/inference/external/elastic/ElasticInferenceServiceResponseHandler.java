@@ -21,6 +21,10 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
         super(requestType, parseFunction, ElasticInferenceServiceErrorResponseEntity::fromResponse);
     }
 
+    public ElasticInferenceServiceResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
+        super(requestType, parseFunction, ElasticInferenceServiceErrorResponseEntity::fromResponse, canHandleStreamingResponses);
+    }
+
     @Override
     protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {

@@ -11,6 +11,8 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -43,6 +45,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -51,33 +54,6 @@ import static org.hamcrest.Matchers.sameInstance;
  * which can be automatically tested against several scenarios (null handling, concurrency, etc).
  */
 public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTestCase {
-
-    /**
-     * Converts a list of test cases into a list of parameter suppliers.
-     * Also, adds a default set of extra test cases.
-     * <p>
-     *     Use if possible, as this method may get updated with new checks in the future.
-     * </p>
-     *
-     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
-     * @deprecated use {@link #parameterSuppliersFromTypedDataWithDefaultChecksNoErrors}
-     *             and make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase}.
-     *             It's a <strong>long</strong> faster.
-     */
-    @Deprecated
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        boolean entirelyNullPreservesType,
-        List<TestCaseSupplier> suppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)),
-                positionalErrorMessageSupplier
-            )
-        );
-    }
-
     /**
      * Converts a list of test cases into a list of parameter suppliers.
      * Also, adds a default set of extra test cases.
@@ -113,30 +89,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         return parameterSuppliersFromTypedData(anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString));
     }
 
-    /**
-     * Converts a list of test cases into a list of parameter suppliers.
-     * Also, adds a default set of extra test cases.
-     * <p>
-     *     Use if possible, as this method may get updated with new checks in the future.
-     * </p>
-     *
-     * @param nullsExpectedType See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
-     * @param evaluatorToString See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
-     */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        ExpectedType nullsExpectedType,
-        ExpectedEvaluatorToString evaluatorToString,
-        List<TestCaseSupplier> suppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString),
-                positionalErrorMessageSupplier
-            )
-        );
-    }
-
     public final void testEvaluate() {
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         boolean readFloating = randomBoolean();
@@ -161,12 +113,44 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
                 assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
             }
-            try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
+            Page row = row(testCase.getDataValues());
+            try (Block block = evaluator.eval(row)) {
                 assertThat(block.getPositionCount(), is(1));
                 result = toJavaObjectUnsignedLongAware(block, 0);
+                extraBlockTests(row, block);
+            } finally {
+                row.releaseBlocks();
             }
         }
         assertTestCaseResultAndWarnings(result);
+    }
+
+    /**
+     * Extra assertions on the output block.
+     */
+    protected void extraBlockTests(Page in, Block out) {}
+
+    protected final void assertIsOrdIfInIsOrd(Page in, Block out) {
+        BytesRefBlock inBytes = in.getBlock(0);
+        BytesRefBlock outBytes = (BytesRefBlock) out;
+
+        BytesRefVector inVec = inBytes.asVector();
+        if (inVec == null) {
+            assertThat(outBytes.asVector(), nullValue());
+            return;
+        }
+        BytesRefVector outVec = outBytes.asVector();
+
+        if (inVec.isConstant()) {
+            assertTrue(outVec.isConstant());
+            return;
+        }
+
+        if (inVec.asOrdinals() != null) {
+            assertThat(outBytes.asOrdinals(), not(nullValue()));
+            return;
+        }
+        assertThat(outBytes.asOrdinals(), nullValue());
     }
 
     /**
@@ -278,10 +262,8 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 }
                 b++;
             }
-            try (
-                ExpressionEvaluator eval = evaluator(expression).get(context);
-                Block block = eval.eval(new Page(positions, manyPositionsBlocks))
-            ) {
+            Page in = new Page(positions, manyPositionsBlocks);
+            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(in)) {
                 if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
                     assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
                 }
@@ -298,6 +280,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                     block.blockFactory(),
                     either(sameInstance(context.blockFactory())).or(sameInstance(inputBlockFactory))
                 );
+                extraBlockTests(in, block);
             }
         } finally {
             Releasables.close(onePositionPage::releaseBlocks, Releasables.wrap(manyPositionsBlocks));
@@ -452,8 +435,8 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 evaluator + "[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 dataType,
                 is(nullValue())
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.ArithmeticException: " + typeNameOverflow)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.ArithmeticException: " + typeNameOverflow)
         );
     }
 }

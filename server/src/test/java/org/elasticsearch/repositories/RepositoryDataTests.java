@@ -40,9 +40,12 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for the {@link RepositoryData} class.
@@ -428,6 +431,19 @@ public class RepositoryDataTests extends ESTestCase {
                 equalTo("this snapshot repository format requires Elasticsearch version [" + futureVersion + "] or later")
             );
         }
+    }
+
+    public void testToString() {
+        final var repositoryData = generateRandomRepoData();
+        assertThat(
+            repositoryData.toString(),
+            allOf(
+                containsString("RepositoryData"),
+                containsString(repositoryData.getUuid()),
+                containsString(Long.toString(repositoryData.getGenId())),
+                not(containsString("@")) // not the default Object#toString which does a very expensive hashcode computation
+            )
+        );
     }
 
     public static RepositoryData generateRandomRepoData() {

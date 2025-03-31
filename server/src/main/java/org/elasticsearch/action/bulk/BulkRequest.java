@@ -84,6 +84,7 @@ public class BulkRequest extends ActionRequest
     private String globalIndex;
     private Boolean globalRequireAlias;
     private Boolean globalRequireDatsStream;
+    private boolean includeSourceOnError = true;
 
     private long sizeInBytes = 0;
 
@@ -103,6 +104,9 @@ public class BulkRequest extends ActionRequest
         } else {
             incrementalState = BulkRequest.IncrementalState.EMPTY;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
+            includeSourceOnError = in.readBoolean();
+        } // else default value is true
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -278,7 +282,7 @@ public class BulkRequest extends ActionRequest
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
         Boolean requireDataStream = valueOrDefault(defaultRequireDataStream, globalRequireDatsStream);
-        new BulkRequestParser(true, restApiVersion).parse(
+        new BulkRequestParser(true, includeSourceOnError, restApiVersion).parse(
             data,
             defaultIndex,
             routing,
@@ -341,6 +345,11 @@ public class BulkRequest extends ActionRequest
         this.incrementalState = incrementalState;
     }
 
+    public final BulkRequest includeSourceOnError(boolean includeSourceOnError) {
+        this.includeSourceOnError = includeSourceOnError;
+        return this;
+    }
+
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
@@ -397,6 +406,10 @@ public class BulkRequest extends ActionRequest
 
     public Boolean requireDataStream() {
         return globalRequireDatsStream;
+    }
+
+    public boolean includeSourceOnError() {
+        return includeSourceOnError;
     }
 
     /**
@@ -456,6 +469,9 @@ public class BulkRequest extends ActionRequest
         out.writeTimeValue(timeout);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState.writeTo(out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
+            out.writeBoolean(includeSourceOnError);
         }
     }
 

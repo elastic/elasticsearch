@@ -64,7 +64,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
         String sourceIndexName = index.getName();
-        IndexMetadata sourceIndexMetadata = clusterState.metadata().index(sourceIndexName);
+        IndexMetadata sourceIndexMetadata = clusterState.metadata().getProject().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), sourceIndexName);
@@ -76,7 +76,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
         }
 
         String targetIndexName = targetIndexNameSupplier.apply(sourceIndexName, sourceIndexMetadata.getLifecycleExecutionState());
-        IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = clusterState.metadata().getProject().index(targetIndexName);
         if (targetIndexMetadata == null) {
             String errorMessage = Strings.format(
                 "index [%s] is being referenced by ILM action [%s] on step [%s] but it doesn't exist",

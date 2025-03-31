@@ -25,7 +25,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.IntStream;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.test.ByteSizeEqualsMatcher.byteSizeEquals;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -66,14 +70,15 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1424046L));
         /*
          * History:
          *  2.3mb - shorten error messages for UnsupportedAttributes #111973
          *  1.8mb - cache EsFields #112008
          *  1.4mb - string serialization #112929
          *  1424046b - remove node-level plan #117422
+         *  1040607b - remove EsIndex mapping serialization #119580
          */
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1040607));
     }
 
     /**
@@ -81,7 +86,6 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2774190));
         /*
          * History:
          *  2 gb+ - start
@@ -91,7 +95,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  2774214b - string serialization #112929
          *  2774192b - remove field attribute #112881
          *  2774190b - remove node-level plan #117422
+         *  2007288b - remove EsIndex mapping serialization #119580
          */
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2007288));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -105,19 +111,19 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * with a single root field that has many children, grandchildren etc.
      */
     public void testDeeplyNestedFields() throws IOException {
-        ByteSizeValue expected = ByteSizeValue.ofBytes(47252409);
         /*
          * History:
          *  48223371b - string serialization #112929
          *  47252411b - remove field attribute #112881
-         *  47252409b - remove node-level plan
+         *  47252409b - remove node-level plan #117422
+         *  43927169b - remove EsIndex mapping serialization #119580
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, expected);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927169));
     }
 
     /**
@@ -126,19 +132,39 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * with a single root field that has many children, grandchildren etc.
      */
     public void testDeeplyNestedFieldsKeepOnlyOne() throws IOException {
-        ByteSizeValue expected = ByteSizeValue.ofBytes(9425804);
         /*
          * History:
          *  9426058b - string serialization #112929
          *  9425806b - remove field attribute #112881
          *  9425804b - remove node-level plan #117422
+         *  352b - remove EsIndex mapping serialization #119580
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, expected, false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(352), false);
+    }
+
+    /**
+     * Test the size of serializing a plan like
+     * FROM index* | LIMIT 10 | KEEP one_single_field
+     * with an index pattern pointing to a hundred actual indices with rather long names
+     */
+    public void testIndexPatternTargetingMultipleIndices() throws IOException {
+        /*
+         * History: 4996b - initial
+         */
+
+        var index = new EsIndex(
+            "index*",
+            Map.of(),
+            IntStream.range(0, 100)
+                .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
+                .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
+        );
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4996));
     }
 
     /**
@@ -165,8 +191,8 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
 
     private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected, boolean keepAllFields) throws IOException {
         List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
-        List<Attribute> keepAttributes = keepAllFields ? allAttributes : List.of(allAttributes.get(0));
-        EsRelation relation = new EsRelation(randomSource(), index, keepAttributes, IndexMode.STANDARD);
+        List<Attribute> keepAttributes = keepAllFields || allAttributes.isEmpty() ? allAttributes : List.of(allAttributes.getFirst());
+        EsRelation relation = new EsRelation(randomSource(), index.name(), IndexMode.STANDARD, index.indexNameWithModes(), keepAttributes);
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);
         Project project = new Project(randomSource(), limit, limit.output());
         FragmentExec fragmentExec = new FragmentExec(project);

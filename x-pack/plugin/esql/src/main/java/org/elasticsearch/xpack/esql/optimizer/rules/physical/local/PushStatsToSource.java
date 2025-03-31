@@ -59,7 +59,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
             if (tuple.v2().size() == aggregateExec.aggregates().size()) {
                 plan = new EsStatsQueryExec(
                     aggregateExec.source(),
-                    queryExec.index(),
+                    queryExec.indexPattern(),
                     queryExec.query(),
                     queryExec.limit(),
                     tuple.v1(),
@@ -107,7 +107,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                                         return null; // can't push down
                                     }
                                     var countFilter = TRANSLATOR_HANDLER.asQuery(count.filter());
-                                    query = Queries.combine(Queries.Clause.MUST, asList(countFilter.asBuilder(), query));
+                                    query = Queries.combine(Queries.Clause.MUST, asList(countFilter.toQueryBuilder(), query));
                                 }
                                 return new EsStatsQueryExec.Stat(fieldName, COUNT, query);
                             }

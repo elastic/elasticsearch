@@ -67,7 +67,7 @@ public class DotPrefixValidatorTests extends ESTestCase {
 
         // Test ignored patterns
         nonOpV.validateIndices(Set.of(".ml-state-21309"));
-        nonOpV.validateIndices(Set.of(">.ml-state-21309>"));
+        nonOpV.validateIndices(Set.of("<.ml-state-21309>"));
         nonOpV.validateIndices(Set.of(".slo-observability.sli-v2"));
         nonOpV.validateIndices(Set.of(".slo-observability.sli-v2.3"));
         nonOpV.validateIndices(Set.of(".slo-observability.sli-v2.3-2024-01-01"));
@@ -79,6 +79,16 @@ public class DotPrefixValidatorTests extends ESTestCase {
         nonOpV.validateIndices(Set.of(".entities.v1.latest.builtin_services_from_ecs_data"));
         nonOpV.validateIndices(Set.of(".entities.v92.latest.eggplant.potato"));
         nonOpV.validateIndices(Set.of("<.entities.v12.latest.eggplant-{M{yyyy-MM-dd|UTC}}>"));
+        nonOpV.validateIndices(Set.of(".monitoring-es-8-thing"));
+        nonOpV.validateIndices(Set.of("<.monitoring-es-8-thing>"));
+        nonOpV.validateIndices(Set.of(".monitoring-logstash-8-thing"));
+        nonOpV.validateIndices(Set.of("<.monitoring-logstash-8-thing>"));
+        nonOpV.validateIndices(Set.of(".monitoring-kibana-8-thing"));
+        nonOpV.validateIndices(Set.of("<.monitoring-kibana-8-thing>"));
+        nonOpV.validateIndices(Set.of(".monitoring-beats-8-thing"));
+        nonOpV.validateIndices(Set.of("<.monitoring-beats-8-thing>"));
+        nonOpV.validateIndices(Set.of(".monitoring-ent-search-8-thing"));
+        nonOpV.validateIndices(Set.of("<.monitoring-ent-search-8-thing>"));
 
         // Test pattern added to the settings
         nonOpV.validateIndices(Set.of(".potato5"));

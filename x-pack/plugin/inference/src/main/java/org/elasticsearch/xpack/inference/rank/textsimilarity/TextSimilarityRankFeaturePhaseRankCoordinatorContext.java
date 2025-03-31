@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -43,9 +43,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         Client client,
         String inferenceId,
         String inferenceText,
-        Float minScore
+        Float minScore,
+        boolean failuresAllowed
     ) {
-        super(size, from, rankWindowSize);
+        super(size, from, rankWindowSize, failuresAllowed);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
@@ -126,14 +127,25 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
     /**
      * Sorts documents by score descending and discards those with a score less than minScore.
-     * @param originalDocs documents to process
+     *
+     * @param originalDocs   documents to process
+     * @param rerankedScores {@code true} if the document scores have been reranked
      */
     @Override
-    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
-        return Arrays.stream(originalDocs)
-            .filter(doc -> minScore == null || doc.score >= minScore)
-            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
-            .toArray(RankFeatureDoc[]::new);
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs, boolean rerankedScores) {
+        if (rerankedScores == false) {
+            // just return, don't normalize or apply minScore to scores that haven't been modified
+            return originalDocs;
+        }
+        List<RankFeatureDoc> docs = new ArrayList<>(originalDocs.length);
+        for (RankFeatureDoc doc : originalDocs) {
+            if (minScore == null || doc.score >= minScore) {
+                doc.score = normalizeScore(doc.score);
+                docs.add(doc);
+            }
+        }
+        docs.sort(null);
+        return docs.toArray(RankFeatureDoc[]::new);
     }
 
     protected InferenceAction.Request generateRequest(List<String> docFeatures) {
@@ -141,9 +153,11 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             TaskType.RERANK,
             inferenceId,
             inferenceText,
+            null,
+            null,
             docFeatures,
             Map.of(),
-            InputType.SEARCH,
+            InputType.INTERNAL_SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             false
         );
@@ -154,7 +168,15 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
             scores[rankedDoc.index()] = rankedDoc.relevanceScore();
         }
-
         return scores;
+    }
+
+    private static float normalizeScore(float score) {
+        // As some models might produce negative scores, we want to ensure that all scores will be positive
+        // so we will make use of the following normalization formula:
+        // score = max(score, 0) + min(exp(score), 1)
+        // this will ensure that all positive scores lie in the [1, inf) range,
+        // while negative values (and 0) will be shifted to (0, 1]
+        return Math.max(score, 0) + Math.min((float) Math.exp(score), 1);
     }
 }

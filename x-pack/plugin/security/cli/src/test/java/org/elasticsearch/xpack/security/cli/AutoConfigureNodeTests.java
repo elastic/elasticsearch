@@ -311,7 +311,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
         SecureString httpKeystorePassword = nodeKeystore.getString("xpack.security.http.ssl.keystore.secure_password");
         SecureString transportKeystorePassword = nodeKeystore.getString("xpack.security.transport.ssl.keystore.secure_password");
 
-        final Settings newSettings = Settings.builder().loadFromPath(env.configFile().resolve("elasticsearch.yml")).build();
+        final Settings newSettings = Settings.builder().loadFromPath(env.configDir().resolve("elasticsearch.yml")).build();
         final String httpKeystorePath = newSettings.get("xpack.security.http.ssl.keystore.path");
         final String transportKeystorePath = newSettings.get("xpack.security.transport.ssl.keystore.path");
 

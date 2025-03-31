@@ -46,17 +46,25 @@ public final class XContentTestUtils {
     }
 
     public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent) throws IOException {
-        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent));
+        return convertToMap(chunkedToXContent, EMPTY_PARAMS);
+    }
+
+    public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent, ToXContent.Params params) throws IOException {
+        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), params);
     }
 
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {
+        return convertToMap(part, EMPTY_PARAMS);
+    }
+
+    public static Map<String, Object> convertToMap(ToXContent part, ToXContent.Params params) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         if (part.isFragment()) {
             builder.startObject();
-            part.toXContent(builder, EMPTY_PARAMS);
+            part.toXContent(builder, params);
             builder.endObject();
         } else {
-            part.toXContent(builder, EMPTY_PARAMS);
+            part.toXContent(builder, params);
         }
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }

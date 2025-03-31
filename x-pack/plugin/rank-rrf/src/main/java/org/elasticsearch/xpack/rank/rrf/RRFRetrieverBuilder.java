@@ -71,7 +71,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         }, RETRIEVERS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
@@ -101,11 +101,12 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
         RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
+        clone.retrieverName = retrieverName;
         return clone;
     }
 
     @Override
-    protected RRFRankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RRFRankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         // combine the disjointed sets of TopDocs into a single set or RRFRankDocs
         // each RRFRankDoc will have both the position and score for each query where
         // it was within the result set for that query
@@ -121,20 +122,26 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 final int frank = rank;
                 docsToRankResults.compute(new RankDoc.RankKey(scoreDoc.doc, scoreDoc.shardIndex), (key, value) -> {
                     if (value == null) {
-                        value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries, rankConstant);
+                        if (explain) {
+                            value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries, rankConstant);
+                        } else {
+                            value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex);
+                        }
                     }
 
                     // calculate the current rrf score for this document
                     // later used to sort and covert to a rank
                     value.score += 1.0f / (rankConstant + frank);
 
-                    // record the position for each query
-                    // for explain and debugging
-                    value.positions[findex] = frank - 1;
+                    if (explain && value.positions != null && value.scores != null) {
+                        // record the position for each query
+                        // for explain and debugging
+                        value.positions[findex] = frank - 1;
 
-                    // record the score for each query
-                    // used to later re-rank on the coordinator
-                    value.scores[findex] = scoreDoc.score;
+                        // record the score for each query
+                        // used to later re-rank on the coordinator
+                        value.scores[findex] = scoreDoc.score;
+                    }
 
                     return value;
                 });

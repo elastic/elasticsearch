@@ -48,6 +48,11 @@ public class FleetDataStreamIT extends ESRestTestCase {
             .build();
     }
 
+    @Override
+    protected boolean preserveSecurityIndicesUponCompletion() {
+        return true;
+    }
+
     public void testAliasWithSystemDataStream() throws Exception {
         // Create a system data stream
         Request initialDocResponse = new Request("POST", ".fleet-actions-results/_doc");

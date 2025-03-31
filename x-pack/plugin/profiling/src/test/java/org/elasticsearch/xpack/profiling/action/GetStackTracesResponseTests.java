@@ -27,10 +27,7 @@ public class GetStackTracesResponseTests extends ESTestCase {
                     new int[] { 1083999 },
                     new String[] { "QCCDqjSg3bMK1C4YRK6Tiw" },
                     new String[] { "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf" },
-                    new int[] { 2 },
-                    0.3d,
-                    2.7d,
-                    1
+                    new int[] { 2 }
                 )
             )
         );
@@ -49,15 +46,17 @@ public class GetStackTracesResponseTests extends ESTestCase {
         Map<String, String> executables = randomNullable(Map.of("QCCDqjSg3bMK1C4YRK6Tiw", "libc.so.6"));
         long totalSamples = randomLongBetween(1L, 200L);
         String stackTraceID = randomAlphaOfLength(12);
-        Map<String, TraceEvent> stackTraceEvents = randomNullable(Map.of(stackTraceID, new TraceEvent(stackTraceID, totalSamples)));
+        Map<TraceEventID, TraceEvent> stackTraceEvents = randomNullable(
+            Map.of(new TraceEventID("", "", "", stackTraceID), new TraceEvent(totalSamples))
+        );
 
         return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, 1.0, totalSamples);
     }
 
     public void testChunking() {
         AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> {
-            // start, end, total_frames, samplingrate
-            int chunks = 4;
+            // start and {sampling_rate; end}; see GetStackTracesResponse.toXContentChunked()
+            int chunks = 2;
             chunks += size(instance.getExecutables());
             chunks += size(instance.getStackFrames());
             chunks += size(instance.getStackTraces());

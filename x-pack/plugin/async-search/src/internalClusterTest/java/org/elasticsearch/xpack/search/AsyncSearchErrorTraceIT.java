@@ -7,24 +7,25 @@
 
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.ErrorTraceHelper;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.TransportMessageListener;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
@@ -34,29 +35,23 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(AsyncSearch.class);
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), AsyncSearch.class, MockTransportService.TestPlugin.class);
     }
 
-    private AtomicBoolean transportMessageHasStackTrace;
+    private BooleanSupplier transportMessageHasStackTrace;
 
     @Before
-    private void setupMessageListener() {
-        internalCluster().getDataNodeInstances(TransportService.class).forEach(ts -> {
-            ts.addMessageListener(new TransportMessageListener() {
-                @Override
-                public void onResponseSent(long requestId, String action, Exception error) {
-                    TransportMessageListener.super.onResponseSent(requestId, action, error);
-                    if (action.startsWith("indices:data/read/search")) {
-                        Optional<Throwable> throwable = ExceptionsHelper.unwrapCausesAndSuppressed(
-                            error,
-                            t -> t.getStackTrace().length > 0
-                        );
-                        transportMessageHasStackTrace.set(throwable.isPresent());
-                    }
-                }
-            });
-        });
+    public void setupMessageListener() {
+        transportMessageHasStackTrace = ErrorTraceHelper.setupErrorTraceListener(internalCluster());
+        // TODO: make this test work with batched query execution by enhancing ErrorTraceHelper.setupErrorTraceListener
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
+    }
+
+    @After
+    public void resetSettings() {
+        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
     private void setupIndexWithDocs() {
@@ -70,7 +65,6 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     }
 
     public void testAsyncSearchFailingQueryErrorTraceDefault() throws IOException, InterruptedException {
-        transportMessageHasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
@@ -93,11 +87,10 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
         }
         // check that the stack trace was not sent from the data node to the coordinating node
-        assertFalse(transportMessageHasStackTrace.get());
+        assertFalse(transportMessageHasStackTrace.getAsBoolean());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceTrue() throws IOException, InterruptedException {
-        transportMessageHasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
@@ -122,11 +115,10 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
         }
         // check that the stack trace was sent from the data node to the coordinating node
-        assertTrue(transportMessageHasStackTrace.get());
+        assertTrue(transportMessageHasStackTrace.getAsBoolean());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceFalse() throws IOException, InterruptedException {
-        transportMessageHasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
@@ -151,11 +143,10 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
         }
         // check that the stack trace was not sent from the data node to the coordinating node
-        assertFalse(transportMessageHasStackTrace.get());
+        assertFalse(transportMessageHasStackTrace.getAsBoolean());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet() throws IOException, InterruptedException {
-        transportMessageHasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
@@ -180,11 +171,10 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
         }
         // check that the stack trace was not sent from the data node to the coordinating node
-        assertFalse(transportMessageHasStackTrace.get());
+        assertFalse(transportMessageHasStackTrace.getAsBoolean());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceTrueOnSubmitAndFalseOnGet() throws IOException, InterruptedException {
-        transportMessageHasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
@@ -209,7 +199,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
         }
         // check that the stack trace was sent from the data node to the coordinating node
-        assertTrue(transportMessageHasStackTrace.get());
+        assertTrue(transportMessageHasStackTrace.getAsBoolean());
     }
 
     private Map<String, Object> performRequestAndGetResponseEntityAfterDelay(Request r, TimeValue sleep) throws IOException,

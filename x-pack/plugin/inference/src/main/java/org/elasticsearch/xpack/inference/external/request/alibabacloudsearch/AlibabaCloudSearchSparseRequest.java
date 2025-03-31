@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -32,6 +33,7 @@ public class AlibabaCloudSearchSparseRequest extends AlibabaCloudSearchRequest {
 
     private final AlibabaCloudSearchAccount account;
     private final List<String> input;
+    private final InputType inputType;
     private final URI uri;
     private final AlibabaCloudSearchSparseTaskSettings taskSettings;
     private final String model;
@@ -43,12 +45,14 @@ public class AlibabaCloudSearchSparseRequest extends AlibabaCloudSearchRequest {
     public AlibabaCloudSearchSparseRequest(
         AlibabaCloudSearchAccount account,
         List<String> input,
+        InputType inputType,
         AlibabaCloudSearchSparseModel sparseEmbeddingsModel
     ) {
         Objects.requireNonNull(sparseEmbeddingsModel);
 
         this.account = Objects.requireNonNull(account);
         this.input = Objects.requireNonNull(input);
+        this.inputType = inputType;
         taskSettings = sparseEmbeddingsModel.getTaskSettings();
         model = sparseEmbeddingsModel.getServiceSettings().getCommonSettings().modelId();
         host = sparseEmbeddingsModel.getServiceSettings().getCommonSettings().getHost();
@@ -65,7 +69,7 @@ public class AlibabaCloudSearchSparseRequest extends AlibabaCloudSearchRequest {
         HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new AlibabaCloudSearchSparseRequestEntity(input, taskSettings)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new AlibabaCloudSearchSparseRequestEntity(input, inputType, taskSettings)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

@@ -9,13 +9,10 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
 
 /**
  * Base class for responses to action requests.
@@ -23,10 +20,6 @@ import java.io.IOException;
 public abstract class ActionResponse extends TransportResponse {
 
     public ActionResponse() {}
-
-    public ActionResponse(StreamInput in) throws IOException {
-        super(in);
-    }
 
     public static final class Empty extends ActionResponse implements ToXContentObject {
         public static final ActionResponse.Empty INSTANCE = new ActionResponse.Empty();

@@ -44,16 +44,8 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
 
     static final String SERVER_BUSY = "Received an Anthropic server is temporarily overloaded status code";
 
-    private final boolean canHandleStreamingResponses;
-
     public AnthropicResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
-        super(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse);
-        this.canHandleStreamingResponses = canHandleStreamingResponses;
-    }
-
-    @Override
-    public boolean canHandleStreamingResponses() {
-        return canHandleStreamingResponses;
+        super(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse, canHandleStreamingResponses);
     }
 
     @Override

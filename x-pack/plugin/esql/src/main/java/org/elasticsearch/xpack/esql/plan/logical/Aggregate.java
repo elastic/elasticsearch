@@ -10,7 +10,9 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -39,7 +41,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
-public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAware {
+public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Aggregate",
@@ -142,7 +144,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     }
 
     @Override
-    public String commandName() {
+    public String telemetryLabel() {
         return switch (aggregateType) {
             case STANDARD -> "STATS";
             case METRICS -> "METRICS";
@@ -251,12 +253,12 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
             // traverse the tree to find invalid matches
             checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
         });
-        if (aggregateType() == Aggregate.AggregateType.METRICS) {
+        if (anyMatch(l -> l instanceof EsRelation relation && relation.indexMode() == IndexMode.TIME_SERIES)) {
             aggregates.forEach(a -> checkRateAggregates(a, 0, failures));
         } else {
             forEachExpression(
                 Rate.class,
-                r -> failures.add(fail(r, "the rate aggregate[{}] can only be used within the metrics command", r.sourceText()))
+                r -> failures.add(fail(r, "the rate aggregate[{}] can only be used with the metrics command", r.sourceText()))
             );
         }
         checkCategorizeGrouping(failures);
@@ -354,7 +356,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
                 failures.add(
                     fail(
                         expr,
-                        "the rate aggregate [{}] can only be used within the metrics command and inside another aggregate",
+                        "the rate aggregate [{}] can only be used with the metrics command and inside another aggregate",
                         r.sourceText()
                     )
                 );

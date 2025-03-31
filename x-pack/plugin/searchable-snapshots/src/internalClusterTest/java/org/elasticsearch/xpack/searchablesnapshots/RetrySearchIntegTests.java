@@ -57,7 +57,8 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             equalTo(0)
         );
         refresh(indexName);
-        forceMerge();
+        // force merge with expunge deletes is not merging down to one segment only
+        forceMerge(false);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "fs");
@@ -90,6 +91,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         for (String allocatedNode : allocatedNodes) {
             if (randomBoolean()) {
                 internalCluster().restartNode(allocatedNode);
+                ensureGreen(indexName);
             }
         }
         ensureGreen(indexName);
@@ -124,7 +126,8 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             equalTo(0)
         );
         refresh(indexName);
-        forceMerge();
+        // force merge with expunge deletes is not merging down to one segment only
+        forceMerge(false);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "fs");
@@ -151,6 +154,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             final Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
             for (String allocatedNode : allocatedNodes) {
                 internalCluster().restartNode(allocatedNode);
+                ensureGreen(indexName);
             }
             ensureGreen(indexName);
             assertNoFailuresAndResponse(

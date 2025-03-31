@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -56,7 +57,8 @@ public class SimulateIngestService extends IngestService {
                     pipelineId,
                     entry.getValue(),
                     ingestService.getProcessorFactories(),
-                    ingestService.getScriptService()
+                    ingestService.getScriptService(),
+                    ingestService.getProjectResolver().getProjectId()
                 );
                 parsedPipelineSubstitutions.put(pipelineId, pipeline);
             }
@@ -75,5 +77,18 @@ public class SimulateIngestService extends IngestService {
             pipeline = super.getPipeline(pipelineId);
         }
         return pipeline;
+    }
+
+    /**
+     * This method returns the Pipeline for the given pipelineId. If a substitute definition of the pipeline has been defined for the
+     * current simulate, then that pipeline is returned. Otherwise, the pipeline stored in the cluster state is returned.
+     */
+    @Override
+    public Pipeline getPipeline(ProjectId projectId, String id) {
+        Pipeline pipeline = pipelineSubstitutions.get(id);
+        if (pipeline != null) {
+            return pipeline;
+        }
+        return super.getPipeline(projectId, id);
     }
 }

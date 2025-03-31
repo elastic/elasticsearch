@@ -38,7 +38,7 @@ public class TestCompoundRetrieverBuilder extends CompoundRetrieverBuilder<TestC
     }
 
     @Override
-    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         return new RankDoc[0];
     }
 

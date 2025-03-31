@@ -13,12 +13,13 @@ import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndices;
@@ -32,8 +33,10 @@ import java.util.List;
 /**
  * Transport action that resolves the data stream names from the request and sets the data stream lifecycle provided in the request.
  */
-public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransportMasterNodeAction<PutDataStreamLifecycleAction.Request> {
+public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransportMasterNodeProjectAction<
+    PutDataStreamLifecycleAction.Request> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final SystemIndices systemIndices;
 
@@ -43,6 +46,7 @@ public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransport
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataDataStreamsService metadataDataStreamsService,
         SystemIndices systemIndices
@@ -54,9 +58,10 @@ public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransport
             threadPool,
             actionFilters,
             PutDataStreamLifecycleAction.Request::new,
-            indexNameExpressionResolver,
+            projectResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.systemIndices = systemIndices;
     }
@@ -65,12 +70,12 @@ public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransport
     protected void masterOperation(
         Task task,
         PutDataStreamLifecycleAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
         List<String> dataStreamNames = DataStreamsActionUtil.getDataStreamNames(
             indexNameExpressionResolver,
-            state,
+            state.metadata(),
             request.getNames(),
             request.indicesOptions()
         );
@@ -78,6 +83,7 @@ public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransport
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
         }
         metadataDataStreamsService.setLifecycle(
+            state.projectId(),
             dataStreamNames,
             request.getLifecycle(),
             request.ackTimeout(),
@@ -87,7 +93,7 @@ public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransport
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutDataStreamLifecycleAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutDataStreamLifecycleAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

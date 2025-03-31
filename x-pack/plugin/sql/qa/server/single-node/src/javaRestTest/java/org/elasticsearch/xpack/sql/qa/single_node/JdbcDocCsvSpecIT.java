@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
  */
 public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
 
     @Override
     protected String getTestRestCluster() {
@@ -58,7 +58,7 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
 
     @Override
     protected void loadDataset(RestClient client) throws Exception {
-        DataLoader.loadDocsDatasetIntoEs(client, false);
+        DataLoader.loadDocsDatasetIntoEs(client);
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecTestCase.PARAM_FORMATTING)

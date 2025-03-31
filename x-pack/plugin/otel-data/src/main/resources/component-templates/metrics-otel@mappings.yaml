@@ -5,6 +5,7 @@ _meta:
 template:
   settings:
     index.mapping.ignore_malformed: true
+    index.mapping.total_fields.limit: 10000
   mappings:
     properties:
       start_timestamp:
@@ -13,6 +14,10 @@ template:
         type: passthrough
         dynamic: true
         priority: 10
+      # workaround for https://github.com/elastic/elasticsearch/issues/99123
+      _metric_names_hash:
+        type: keyword
+        time_series_dimension: true
       unit:
         type: keyword
         time_series_dimension: true

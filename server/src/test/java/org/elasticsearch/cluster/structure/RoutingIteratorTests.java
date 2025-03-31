@@ -13,13 +13,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.RotationShardShuffler;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -51,7 +54,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class RoutingIteratorTests extends ESAllocationTestCase {
     public void testEmptyIterator() {
         ShardShuffler shuffler = new RotationShardShuffler(0);
-        ShardIterator shardIterator = new PlainShardIterator(
+        ShardIterator shardIterator = new ShardIterator(
             new ShardId("test1", "_na_", 0),
             shuffler.shuffle(Collections.<ShardRouting>emptyList())
         );
@@ -61,21 +64,21 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
+        shardIterator = new ShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
+        shardIterator = new ShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
+        shardIterator = new ShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
@@ -84,7 +87,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
     }
 
     public void testIterator1() {
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(2))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -111,7 +114,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
     }
 
     public void testIterator2() {
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -191,7 +194,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
     }
 
     public void testRandomRouting() {
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -225,7 +228,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
                 .build()
         );
 
-        Metadata metadata = Metadata.builder()
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata metadata = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
@@ -234,8 +238,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .routingTable(routingTable)
+            .putProjectMetadata(metadata)
+            .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
             .nodes(
                 DiscoveryNodes.builder()
                     .add(newNode("fred", "node1", singletonMap("disk", "ebs")))
@@ -250,7 +254,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         assertThat(
             getShardNodeIds(
-                clusterState.routingTable()
+                clusterState.globalRoutingTable()
+                    .routingTable(projectId)
                     .index("test")
                     .shard(0)
                     .onlyNodeSelectorActiveInitializingShardsIt("disk:ebs", clusterState.nodes())
@@ -260,7 +265,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         assertThat(
             getShardNodeIds(
-                clusterState.routingTable()
+                clusterState.globalRoutingTable()
+                    .routingTable(projectId)
                     .index("test")
                     .shard(0)
                     .onlyNodeSelectorActiveInitializingShardsIt("dis*:eph*", clusterState.nodes())
@@ -270,20 +276,29 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         assertThat(
             getShardNodeIds(
-                clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("fred", clusterState.nodes())
+                clusterState.globalRoutingTable()
+                    .routingTable(projectId)
+                    .index("test")
+                    .shard(0)
+                    .onlyNodeSelectorActiveInitializingShardsIt("fred", clusterState.nodes())
             ),
             contains("node1")
         );
 
         assertThat(
             getShardNodeIds(
-                clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("bar*", clusterState.nodes())
+                clusterState.globalRoutingTable()
+                    .routingTable(projectId)
+                    .index("test")
+                    .shard(0)
+                    .onlyNodeSelectorActiveInitializingShardsIt("bar*", clusterState.nodes())
             ),
             contains("node2")
         );
 
         var nodeIds = getShardNodeIds(
-            clusterState.routingTable()
+            clusterState.globalRoutingTable()
+                .routingTable(projectId)
                 .index("test")
                 .shard(0)
                 .onlyNodeSelectorActiveInitializingShardsIt(new String[] { "disk:eph*", "disk:ebs" }, clusterState.nodes())
@@ -292,7 +307,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         assertThat(
             getShardNodeIds(
-                clusterState.routingTable()
+                clusterState.globalRoutingTable()
+                    .routingTable(projectId)
                     .index("test")
                     .shard(0)
                     .onlyNodeSelectorActiveInitializingShardsIt(new String[] { "disk:*", "invalid_name" }, clusterState.nodes())
@@ -302,7 +318,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         assertThat(
             getShardNodeIds(
-                clusterState.routingTable()
+                clusterState.globalRoutingTable()
+                    .routingTable(projectId)
                     .index("test")
                     .shard(0)
                     .onlyNodeSelectorActiveInitializingShardsIt(new String[] { "disk:*", "disk:*" }, clusterState.nodes())
@@ -311,7 +328,11 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         );
 
         try {
-            clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("welma", clusterState.nodes());
+            clusterState.globalRoutingTable()
+                .routingTable(projectId)
+                .index("test")
+                .shard(0)
+                .onlyNodeSelectorActiveInitializingShardsIt("welma", clusterState.nodes());
             fail("should have raised illegalArgumentException");
         } catch (IllegalArgumentException illegal) {
             // expected exception
@@ -319,7 +340,11 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         assertThat(
             getShardNodeIds(
-                clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("fred", clusterState.nodes())
+                clusterState.globalRoutingTable()
+                    .routingTable(projectId)
+                    .index("test")
+                    .shard(0)
+                    .onlyNodeSelectorActiveInitializingShardsIt("fred", clusterState.nodes())
             ),
             contains("node1")
         );
@@ -334,13 +359,15 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
 
+        ProjectId projectId = randomUniqueProjectId();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
+            )
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
-            .build();
+        GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
@@ -351,42 +378,38 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        ProjectState project = clusterState.projectState(projectId);
 
         OperationRouting operationRouting = new OperationRouting(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(
-            clusterState,
-            new String[] { "test" },
-            null,
-            "_shards:0"
-        );
+        List<ShardIterator> shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
 
-        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:1");
+        shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:1");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(1));
 
         // check node preference, first without preference to see they switch
-        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:0|");
+        shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0|");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
         String firstRoundNodeId = shardIterators.iterator().next().nextOrNull().currentNodeId();
 
-        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:0");
+        shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
         assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), not(equalTo(firstRoundNodeId)));
 
-        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1");
+        shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
         assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), equalTo("node1"));
 
-        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1,node2");
+        shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1,node2");
         assertThat(shardIterators.size(), equalTo(1));
         Iterator<ShardIterator> iterator = shardIterators.iterator();
         final ShardIterator it = iterator.next();
@@ -406,26 +429,26 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
+        ProjectId projectId = randomProjectIdOrDefault();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(2))
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(2))
+            )
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
-            .build();
+        GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew);
 
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).localNodeId("node1"))
             .build();
+        ProjectState project = clusterState.projectState(projectId);
 
         String[] removedPreferences = { "_primary", "_primary_first", "_replica", "_replica_first" };
         for (String pref : removedPreferences) {
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> operationRouting.searchShards(clusterState, new String[] { "test" }, null, pref)
-            );
+            expectThrows(IllegalArgumentException.class, () -> operationRouting.searchShards(project, new String[] { "test" }, null, pref));
         }
     }
 

@@ -44,6 +44,9 @@ dependencies {
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')
   clusterModules project(":modules:rest-root")
+
+  internalClusterTestImplementation project(':modules:lang-painless')
+  internalClusterTestImplementation project(':modules:lang-painless:spi')
 }
 
 restResources {
@@ -51,6 +54,18 @@ restResources {
     include '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
                 'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script', 'bulk', 'info'
   }
+}
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -163,4 +178,8 @@ if (OS.current() == OS.WINDOWS) {
         nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
     }
   }
+}
+
+tasks.named("yamlRestCompatTestTransform").configure { task ->
+  task.skipTest("reindex/20_validation/specifying size fails", "size is rejected in 9.0")
 }

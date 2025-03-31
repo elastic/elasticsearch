@@ -17,6 +17,7 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -25,9 +26,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
-
     private DocumentMapper getDocumentMapperWithFieldLimit() throws IOException {
         return createMapperService(
             Settings.builder()
@@ -743,7 +744,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject("int_value").field("type", "integer").endObject();
         })).documentMapper();
         var syntheticSource = syntheticSource(documentMapper, b -> b.array("int_value", new int[] { 10 }));
-        assertEquals("{\"int_value\":10}", syntheticSource);
+        assertEquals("{\"int_value\":[10]}", syntheticSource);
         ParsedDocument doc = documentMapper.parse(source(syntheticSource));
         assertNull(doc.rootDoc().getField("_ignored_source"));
     }
@@ -754,6 +755,25 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         })).documentMapper();
         var syntheticSource = syntheticSource(documentMapper, b -> b.array("value", new String[] { "foo", null }));
         assertEquals("{\"value\":[\"foo\",null]}", syntheticSource);
+    }
+
+    public void testIndexStoredArraySourceSingleLeafElementInObjectArray() throws IOException {
+        roundtripMaskedFields.add("path.int_value.offsets");
+
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(mapping(b -> {
+            b.startObject("path").field("synthetic_source_keep", "none").startObject("properties");
+            {
+                b.startObject("int_value").field("type", "integer").endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            b.startObject().field("int_value", 10).endObject();
+            b.startObject().array("int_value", new int[] { 20 }).endObject();
+            b.endArray();
+        });
+        assertEquals("{\"path\":{\"int_value\":[10,20]}}", syntheticSource);
     }
 
     public void testIndexStoredArraySourceSingleObjectElement() throws IOException {
@@ -826,6 +846,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testIndexStoredArraySourceRootObjectArrayWithBypass() throws IOException {
+        roundtripMaskedFields.add("path.int_value.offsets");
+
         DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(mapping(b -> {
             b.startObject("path");
             {
@@ -878,6 +900,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testIndexStoredArraySourceNestedValueArrayDisabled() throws IOException {
+        roundtripMaskedFields.add("path.obj.foo.offsets");
+
         DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(mapping(b -> {
             b.startObject("path");
             {
@@ -1108,6 +1132,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testConflictingFieldNameAfterArray() throws IOException {
+        roundtripMaskedFields.add("path.to.id.offsets");
+
         DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").startObject("properties");
             {
@@ -2403,6 +2429,43 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"outer":{"inner":[{"a.b":"a.b","a.c":"a.c"}]}}""", syntheticSource);
     }
 
+    public void testSingleDeepIgnoredField() throws IOException {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("top");
+            b.startObject("properties");
+            {
+                b.startObject("level1").startObject("properties");
+                {
+                    b.startObject("level2").startObject("properties");
+                    {
+                        b.startObject("n")
+                            .field("type", "integer")
+                            .field("doc_values", "false")
+                            .field("synthetic_source_keep", "all")
+                            .endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("top").startObject("level1").startObject("level2").field("n", 25).endObject().endObject().endObject();
+        });
+        assertEquals("{\"top\":{\"level1\":{\"level2\":{\"n\":25}}}}", syntheticSource);
+    }
+
+    private Set<String> roundtripMaskedFields;
+
+    @Before
+    public void resetRoundtripMaskedFields() {
+        roundtripMaskedFields = new TreeSet<>(
+            Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, IgnoredSourceFieldMapper.NAME, SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)
+        );
+    }
+
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
         throws IOException {
         // We exclude ignored source field since in some cases it contains an exact copy of a part of document source.
@@ -2410,8 +2473,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         // and since the copy is exact, contents of ignored source are different.
         assertReaderEquals(
             "round trip " + syntheticSource,
-            new FieldMaskingReader(Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, IgnoredSourceFieldMapper.NAME), reader),
-            new FieldMaskingReader(Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, IgnoredSourceFieldMapper.NAME), roundTripReader)
+            new FieldMaskingReader(roundtripMaskedFields, reader),
+            new FieldMaskingReader(roundtripMaskedFields, roundTripReader)
         );
     }
 }

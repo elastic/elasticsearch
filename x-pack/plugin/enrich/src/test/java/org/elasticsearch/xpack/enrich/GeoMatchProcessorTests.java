@@ -24,9 +24,11 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.enrich.MatchProcessorTests.str;
 import static org.hamcrest.Matchers.emptyArray;
@@ -99,7 +101,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
             1L,
             "_routing",
             VersionType.INTERNAL,
-            Map.of("location", fieldValue)
+            new HashMap<>(Map.of("location", fieldValue))
         );
         // Run
         IngestDocument[] holder = new IngestDocument[1];
@@ -139,7 +141,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
 
     }
 
-    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> {
+    private static final class MockSearchFunction implements EnrichProcessorFactory.SearchRunner {
         private final List<Map<?, ?>> mockResponse;
         private final SetOnce<SearchRequest> capturedRequest;
         private final Exception exception;
@@ -157,8 +159,13 @@ public class GeoMatchProcessorTests extends ESTestCase {
         }
 
         @Override
-        public void accept(SearchRequest request, BiConsumer<List<Map<?, ?>>, Exception> handler) {
-            capturedRequest.set(request);
+        public void accept(
+            Object value,
+            int maxMatches,
+            Supplier<SearchRequest> searchRequestSupplier,
+            BiConsumer<List<Map<?, ?>>, Exception> handler
+        ) {
+            capturedRequest.set(searchRequestSupplier.get());
             if (exception != null) {
                 handler.accept(null, exception);
             } else {

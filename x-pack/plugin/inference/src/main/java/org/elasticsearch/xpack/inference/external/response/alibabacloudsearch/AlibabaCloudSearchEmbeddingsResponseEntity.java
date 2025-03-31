@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.response.alibabacloudsearch;
 
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -70,21 +70,20 @@ public class AlibabaCloudSearchEmbeddingsResponseEntity extends AlibabaCloudSear
      * </code>
      * </pre>
      */
-    public static InferenceTextEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static TextEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
         return fromResponse(request, response, parser -> {
             positionParserAtTokenAfterField(parser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-            List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding> embeddingList = XContentParserUtils.parseList(
+            List<TextEmbeddingFloatResults.Embedding> embeddingList = XContentParserUtils.parseList(
                 parser,
                 AlibabaCloudSearchEmbeddingsResponseEntity::parseEmbeddingObject
             );
 
-            return new InferenceTextEmbeddingFloatResults(embeddingList);
+            return new TextEmbeddingFloatResults(embeddingList);
         });
     }
 
-    private static InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding parseEmbeddingObject(XContentParser parser)
-        throws IOException {
+    private static TextEmbeddingFloatResults.Embedding parseEmbeddingObject(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
@@ -96,7 +95,7 @@ public class AlibabaCloudSearchEmbeddingsResponseEntity extends AlibabaCloudSear
         // if there are additional fields within this object, lets skip them, so we can begin parsing the next embedding array
         parser.skipChildren();
 
-        return InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(embeddingValues);
+        return TextEmbeddingFloatResults.Embedding.of(embeddingValues);
     }
 
     private static float parseEmbeddingList(XContentParser parser) throws IOException {

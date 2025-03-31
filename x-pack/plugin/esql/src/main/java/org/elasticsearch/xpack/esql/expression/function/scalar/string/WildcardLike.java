@@ -58,18 +58,12 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         The escape character is backslash `\\`. Since also backslash is a special character in string literals,
         it will require further escaping.
 
-        [source.merge.styled,esql]
-        ----
-        include::{esql-specs}/string.csv-spec[tag=likeEscapingSingleQuotes]
-        ----
+        <<load-esql-example, file=string tag=likeEscapingSingleQuotes>>
 
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
-        [source.merge.styled,esql]
-        ----
-        include::{esql-specs}/string.csv-spec[tag=likeEscapingTripleQuotes]
-        ----
-        """, examples = @Example(file = "docs", tag = "like"))
+        <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
+        """, operator = "LIKE", examples = @Example(file = "docs", tag = "like"))
     public WildcardLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,

@@ -53,7 +53,6 @@ public class TransportCreateTrainedModelAssignmentAction extends TransportMaster
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

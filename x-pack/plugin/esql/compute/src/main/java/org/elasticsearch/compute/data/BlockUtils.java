@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -233,6 +234,14 @@ public final class BlockUtils {
             case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(val), size);
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
+            case COMPOSITE -> {
+                if (val instanceof AggregateMetricDoubleLiteral aggregateMetricDoubleLiteral) {
+                    yield blockFactory.newConstantAggregateMetricDoubleBlock(aggregateMetricDoubleLiteral, size);
+                }
+                throw new UnsupportedOperationException(
+                    "Composite block but received value that wasn't AggregateMetricDoubleLiteral [" + val + "]"
+                );
+            }
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -276,7 +285,19 @@ public final class BlockUtils {
                 DocVector v = ((DocBlock) block).asVector();
                 yield new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
-            case COMPOSITE -> throw new IllegalArgumentException("can't read values from composite blocks");
+            case COMPOSITE -> {
+                CompositeBlock compositeBlock = (CompositeBlock) block;
+                var minBlock = (DoubleBlock) compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex());
+                var maxBlock = (DoubleBlock) compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex());
+                var sumBlock = (DoubleBlock) compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex());
+                var countBlock = (IntBlock) compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex());
+                yield new AggregateMetricDoubleLiteral(
+                    minBlock.getDouble(offset),
+                    maxBlock.getDouble(offset),
+                    sumBlock.getDouble(offset),
+                    countBlock.getInt(offset)
+                );
+            }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }

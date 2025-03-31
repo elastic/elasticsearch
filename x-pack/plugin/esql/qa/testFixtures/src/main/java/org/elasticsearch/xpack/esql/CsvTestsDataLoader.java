@@ -42,6 +42,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
@@ -83,6 +85,22 @@ public class CsvTestsDataLoader {
         .withData("sample_data_ts_nanos.csv")
         .withTypeMapping(Map.of("@timestamp", "date_nanos"));
     private static final TestDataset MISSING_IP_SAMPLE_DATA = new TestDataset("missing_ip_sample_data");
+    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING = new TestDataset("partial_mapping_sample_data");
+    private static final TestDataset SAMPLE_DATA_NO_MAPPING = new TestDataset(
+        "no_mapping_sample_data",
+        "mapping-no_mapping_sample_data.json",
+        "partial_mapping_sample_data.csv"
+    ).withTypeMapping(Stream.of("timestamp", "client_ip", "event_duration").collect(Collectors.toMap(k -> k, k -> "keyword")));
+    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE = new TestDataset(
+        "partial_mapping_no_source_sample_data",
+        "mapping-partial_mapping_no_source_sample_data.json",
+        "partial_mapping_sample_data.csv"
+    ).withSetting("source_parameters-settings.json");
+    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE = new TestDataset(
+        "partial_mapping_excluded_source_sample_data",
+        "mapping-partial_mapping_excluded_source_sample_data.json",
+        "partial_mapping_sample_data.csv"
+    ).withSetting("source_parameters-settings.json");
     private static final TestDataset CLIENT_IPS = new TestDataset("clientips");
     private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
         .withSetting("clientips_lookup-settings.json");
@@ -128,6 +146,10 @@ public class CsvTestsDataLoader {
         Map.entry(LANGUAGES_NESTED_FIELDS.indexName, LANGUAGES_NESTED_FIELDS),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
+        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING.indexName, SAMPLE_DATA_PARTIAL_MAPPING),
+        Map.entry(SAMPLE_DATA_NO_MAPPING.indexName, SAMPLE_DATA_NO_MAPPING),
+        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE.indexName, SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE),
+        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE.indexName, SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE),
         Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
@@ -248,7 +270,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -267,14 +289,19 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public static Set<TestDataset> availableDatasetsForEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
+    public static Set<TestDataset> availableDatasetsForEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping
+    ) throws IOException {
         boolean inferenceEnabled = clusterHasInferenceEndpoint(client);
 
         Set<TestDataset> testDataSets = new HashSet<>();
 
         for (TestDataset dataset : CSV_DATASET_MAP.values()) {
             if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
-                && (supportsIndexModeLookup || isLookupDataset(dataset) == false)) {
+                && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
+                && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)) {
                 testDataSets.add(dataset);
             }
         }
@@ -282,24 +309,44 @@ public class CsvTestsDataLoader {
         return testDataSets;
     }
 
-    public static boolean isLookupDataset(TestDataset dataset) throws IOException {
+    private static boolean isLookupDataset(TestDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("lookup"));
     }
 
-    public static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, (restClient, indexName, indexMapping, indexSettings) -> {
-            ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
-        });
+    private static boolean isSourceMappingDataset(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return true;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        // BWC tests don't support _source field mappings, so don't load those datasets.
+        return mappingNode.get("_source") != null;
     }
 
-    private static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, IndexCreator indexCreator)
+    public static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, boolean supportsSourceFieldMapping)
         throws IOException {
+        loadDataSetIntoEs(
+            client,
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            (restClient, indexName, indexMapping, indexSettings) -> {
+                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
+            }
+        );
+    }
+
+    private static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        IndexCreator indexCreator
+    ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup)) {
+        for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup, supportsSourceFieldMapping)) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }
@@ -351,10 +398,7 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
-        URL policyMapping = CsvTestsDataLoader.class.getResource("/" + policyFileName);
-        if (policyMapping == null) {
-            throw new IllegalArgumentException("Cannot find resource " + policyFileName);
-        }
+        URL policyMapping = getResource("/" + policyFileName);
         String entity = readTextFile(policyMapping);
         Request request = new Request("PUT", "/_enrich/policy/" + policyName);
         request.setJsonEntity(entity);
@@ -364,17 +408,17 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
+    private static URL getResource(String name) {
+        URL result = CsvTestsDataLoader.class.getResource(name);
+        if (result == null) {
+            throw new IllegalArgumentException("Cannot find resource " + name);
+        }
+        return result;
+    }
+
     private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
-        final String mappingName = "/" + dataset.mappingFileName;
-        URL mapping = CsvTestsDataLoader.class.getResource(mappingName);
-        if (mapping == null) {
-            throw new IllegalArgumentException("Cannot find resource " + mappingName);
-        }
-        final String dataName = "/data/" + dataset.dataFileName;
-        URL data = CsvTestsDataLoader.class.getResource(dataName);
-        if (data == null) {
-            throw new IllegalArgumentException("Cannot find resource " + dataName);
-        }
+        URL mapping = getResource("/" + dataset.mappingFileName);
+        URL data = getResource("/data/" + dataset.dataFileName);
 
         Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);

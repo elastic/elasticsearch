@@ -42,12 +42,12 @@ public class RestStreamInferenceAction extends BaseInferenceAction {
     }
 
     @Override
-    protected InferenceAction.Request prepareInferenceRequest(InferenceAction.Request.Builder builder) {
-        return builder.setStream(true).build();
+    protected ActionListener<InferenceAction.Response> listener(RestChannel channel) {
+        return new ServerSentEventsRestActionListener(channel, threadPool);
     }
 
     @Override
-    protected ActionListener<InferenceAction.Response> listener(RestChannel channel) {
-        return new ServerSentEventsRestActionListener(channel, threadPool);
+    protected boolean shouldStream() {
+        return true;
     }
 }

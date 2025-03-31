@@ -27,7 +27,7 @@ import java.util.Objects;
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public class LicensesMetadata extends AbstractNamedDiffable<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
 
     public static final String TYPE = "licenses";
 
@@ -186,8 +186,8 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
         }
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
+    public static NamedDiff<Metadata.ClusterCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.ClusterCustom.class, TYPE, streamInput);
     }
 
     public static License extractLicense(LicensesMetadata licensesMetadata) {

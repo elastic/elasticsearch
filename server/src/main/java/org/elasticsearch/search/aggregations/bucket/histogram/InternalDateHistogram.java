@@ -377,7 +377,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         iterateEmptyBuckets(list, list.listIterator(), counter);
         reduceContext.consumeBucketsAndMaybeBreak(counter.size);
 
-        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(List.of(emptyBucketInfo.subAggregations), reduceContext);
+        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(emptyBucketInfo.subAggregations, reduceContext);
         ListIterator<Bucket> iter = list.listIterator();
         iterateEmptyBuckets(list, iter, new LongConsumer() {
             private int size = 0;
@@ -515,9 +515,13 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
         return new InternalDateHistogram(
             getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            buckets,
             order,
             minDocCount,
             offset,

@@ -40,6 +40,11 @@ public @interface FunctionInfo {
     boolean preview() default false;
 
     /**
+     * Whether this function applies to particular versions of Elasticsearch.
+     */
+    FunctionAppliesTo[] appliesTo() default {};
+
+    /**
      * The description of the function rendered in the docs and kibana's
      * json files that drive their IDE-like experience. These should be
      * complete sentences but can contain asciidoc syntax. It is rendered
@@ -66,9 +71,9 @@ public @interface FunctionInfo {
     String appendix() default "";
 
     /**
-     * Is this an aggregation (true) or a scalar function (false).
+     * The position the function can appear in the language.
      */
-    boolean isAggregation() default false;
+    FunctionType type() default FunctionType.SCALAR;
 
     /**
      * Examples of using this function that are rendered in the docs.

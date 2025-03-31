@@ -72,6 +72,7 @@ public class QueryRewriteContext {
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
+    private final boolean isExplain;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -89,7 +90,8 @@ public class QueryRewriteContext {
         final ScriptCompiler scriptService,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
-        final QueryRewriteInterceptor queryRewriteInterceptor
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final boolean isExplain
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -109,6 +111,7 @@ public class QueryRewriteContext {
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
         this.queryRewriteInterceptor = queryRewriteInterceptor;
+        this.isExplain = isExplain;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -128,7 +131,8 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            null
+            null,
+            false
         );
     }
 
@@ -139,6 +143,18 @@ public class QueryRewriteContext {
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor
+    ) {
+        this(parserConfiguration, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, false);
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final boolean isExplain
     ) {
         this(
             parserConfiguration,
@@ -156,7 +172,8 @@ public class QueryRewriteContext {
             null,
             resolvedIndices,
             pit,
-            queryRewriteInterceptor
+            queryRewriteInterceptor,
+            isExplain
         );
     }
 
@@ -260,6 +277,10 @@ public class QueryRewriteContext {
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    public boolean isExplain() {
+        return this.isExplain;
     }
 
     public NamedWriteableRegistry getWriteableRegistry() {

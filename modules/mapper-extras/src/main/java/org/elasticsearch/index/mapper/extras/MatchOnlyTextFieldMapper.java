@@ -157,6 +157,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;
+        private final String originalName;
 
         public MatchOnlyTextFieldType(
             String name,
@@ -168,6 +169,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource);
+            this.originalName = isSyntheticSource ? name() + "._original" : null;
         }
 
         public MatchOnlyTextFieldType(String name) {
@@ -394,7 +396,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         private String storedFieldNameForSyntheticSource() {
-            return name() + "._original";
+            return originalName;
         }
     }
 
@@ -463,13 +465,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var loader = new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), fieldType().name(), leafName()) {
-            @Override
-            protected void write(XContentBuilder b, Object value) throws IOException {
-                b.value((String) value);
+        return new SyntheticSourceSupport.Native(
+            () -> new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), fieldType().name(), leafName()) {
+                @Override
+                protected void write(XContentBuilder b, Object value) throws IOException {
+                    b.value((String) value);
+                }
             }
-        };
-
-        return new SyntheticSourceSupport.Native(loader);
+        );
     }
 }

@@ -41,12 +41,12 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().getIndexSafe(shardRouting.index()), allocation);
+        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
     }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().getIndexSafe(shardRouting.index()), allocation);
+        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
     }
 
     @Override

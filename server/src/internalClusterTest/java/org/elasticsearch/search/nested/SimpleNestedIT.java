@@ -345,7 +345,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 )
         );
 
-        indicesAdmin().prepareAliases().addAlias("test", "alias1", QueryBuilders.termQuery("field1", "value1")).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test", "alias1", QueryBuilders.termQuery("field1", "value1"))
+            .get();
 
         ensureGreen();
 

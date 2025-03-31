@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
@@ -46,7 +45,6 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         AllocationService allocationService,
         ShardsAllocator shardsAllocator
     ) {
@@ -57,7 +55,6 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             DesiredBalanceRequest::new,
-            indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -136,56 +137,53 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
 
         List<Page> intermediateOutput = new ArrayList<>();
 
-        Driver driver = new Driver(
+        Driver driver = TestDriverFactory.create(
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
                     groupSpecs,
                     AggregatorMode.INITIAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier(List.of(0)).groupingAggregatorFactory(AggregatorMode.INITIAL)),
+                    List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
                     16 * 1024,
                     analysisRegistry
                 ).get(driverContext)
             ),
-            new PageConsumerOperator(intermediateOutput::add),
-            () -> {}
+            new PageConsumerOperator(intermediateOutput::add)
         );
         runDriver(driver);
 
-        driver = new Driver(
+        driver = TestDriverFactory.create(
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
                     groupSpecs,
                     AggregatorMode.INITIAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier(List.of(0)).groupingAggregatorFactory(AggregatorMode.INITIAL)),
+                    List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
                     16 * 1024,
                     analysisRegistry
                 ).get(driverContext)
             ),
-            new PageConsumerOperator(intermediateOutput::add),
-            () -> {}
+            new PageConsumerOperator(intermediateOutput::add)
         );
         runDriver(driver);
 
         List<Page> finalOutput = new ArrayList<>();
 
-        driver = new Driver(
+        driver = TestDriverFactory.create(
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
                     groupSpecs,
                     AggregatorMode.FINAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier(List.of(2)).groupingAggregatorFactory(AggregatorMode.FINAL)),
+                    List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2))),
                     16 * 1024,
                     analysisRegistry
                 ).get(driverContext)
             ),
-            new PageConsumerOperator(finalOutput::add),
-            () -> {}
+            new PageConsumerOperator(finalOutput::add)
         );
         runDriver(driver);
 

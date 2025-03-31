@@ -65,7 +65,13 @@ public class AllocatedPersistentTask extends CancellableTask {
         final PersistentTaskState state,
         final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
     ) {
-        persistentTasksService.sendUpdateStateRequest(persistentTaskId, allocationId, state, null, listener);
+        persistentTasksService.sendUpdateStateRequest(
+            persistentTaskId,
+            allocationId,
+            state,
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer? infinite? */,
+            listener
+        );
     }
 
     public String getPersistentTaskId() {
@@ -201,7 +207,7 @@ public class AllocatedPersistentTask extends CancellableTask {
                         getAllocationId(),
                         failure,
                         localAbortReason,
-                        null,
+                        TimeValue.THIRTY_SECONDS /* TODO should this be longer? infinite? */,
                         new ActionListener<>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {

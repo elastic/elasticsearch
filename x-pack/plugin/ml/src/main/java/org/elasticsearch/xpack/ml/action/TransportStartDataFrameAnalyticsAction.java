@@ -136,7 +136,6 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             StartDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

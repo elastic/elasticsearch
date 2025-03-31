@@ -17,10 +17,8 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -46,7 +44,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -157,26 +155,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     } else {
                         searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    try (
-                        var searchResponseRef = ReleasableRef.of(
-                            new SearchResponse(
-                                searchHits,
-                                InternalAggregations.EMPTY,
-                                null,
-                                false,
-                                null,
-                                null,
-                                1,
-                                null,
-                                1,
-                                1,
-                                0,
-                                100,
-                                ShardSearchFailure.EMPTY_ARRAY,
-                                SearchResponse.Clusters.EMPTY
-                            )
-                        )
-                    ) {
+                    try (var searchResponseRef = ReleasableRef.of(SearchResponseUtils.successfulResponse(searchHits))) {
                         channel.sendResponse(searchResponseRef.get());
                     }
                 }

@@ -64,7 +64,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
                 );
             }
         }, RESCORE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static RescorerRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
@@ -144,11 +144,12 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
     protected RescorerRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
         var newInstance = new RescorerRetrieverBuilder(newChildRetrievers.get(0), rescorers);
         newInstance.preFilterQueryBuilders = newPreFilterQueryBuilders;
+        newInstance.retrieverName = retrieverName;
         return newInstance;
     }
 
     @Override
-    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         assert rankResults.size() == 1;
         ScoreDoc[] scoreDocs = rankResults.getFirst();
         RankDoc[] rankDocs = new RankDoc[scoreDocs.length];

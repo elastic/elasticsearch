@@ -30,7 +30,7 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
         TestClustersPlugin testClustersPlugin = project.getPlugins().apply(TestClustersPlugin.class);
         testClustersPlugin.setRuntimeJava(buildParams.getRuntimeJavaHome());
         testClustersPlugin.setIsReleasedVersion(
-            version -> (version.equals(VersionProperties.getElasticsearchVersion()) && buildParams.isSnapshotBuild() == false)
+            version -> (version.equals(VersionProperties.getElasticsearchVersion()) && buildParams.getSnapshotBuild() == false)
                 || buildParams.getBwcVersions().unreleasedInfo(version) == null
         );
 

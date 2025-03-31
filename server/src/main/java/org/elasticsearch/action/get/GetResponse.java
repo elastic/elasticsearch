@@ -36,7 +36,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     GetResult getResult;
 
     public GetResponse(StreamInput in) throws IOException {
-        super(in);
         getResult = new GetResult(in);
     }
 

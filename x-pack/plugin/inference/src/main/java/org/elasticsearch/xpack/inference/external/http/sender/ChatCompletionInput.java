@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.inference.TaskType;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -15,7 +17,7 @@ import java.util.Objects;
  * The main difference between this class and {@link UnifiedChatInput} is this should only be used for
  * {@link org.elasticsearch.inference.TaskType#COMPLETION} originating through the
  * {@link org.elasticsearch.inference.InferenceService#infer} code path. These are requests sent to the
- * API without using the <code>_unified</code> route.
+ * API without using the {@link TaskType#CHAT_COMPLETION} task type.
  */
 public class ChatCompletionInput extends InferenceInputs {
     private final List<String> input;

@@ -13,14 +13,15 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 
 public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     GetSettingsRequest,
     GetSettingsResponse,
     GetSettingsRequestBuilder> {
 
-    public GetSettingsRequestBuilder(ElasticsearchClient client, String... indices) {
-        super(client, GetSettingsAction.INSTANCE, new GetSettingsRequest().indices(indices));
+    public GetSettingsRequestBuilder(ElasticsearchClient client, TimeValue masterTimeout, String... indices) {
+        super(client, GetSettingsAction.INSTANCE, new GetSettingsRequest(masterTimeout).indices(indices));
     }
 
     public GetSettingsRequestBuilder setIndices(String... indices) {

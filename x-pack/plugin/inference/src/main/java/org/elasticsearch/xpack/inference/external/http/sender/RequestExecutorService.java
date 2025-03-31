@@ -19,6 +19,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
+import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.RateLimiter;
 import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -36,6 +37,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -92,12 +94,22 @@ class RequestExecutorService implements RequestExecutor {
         RateLimiter create(double accumulatedTokensLimit, double tokensPerTimeUnit, TimeUnit unit);
     }
 
+    // TODO: for later (after 8.18)
+    // TODO: pass in divisor to RateLimiterCreator
+    // TODO: another map for service/task-type-key -> set of RateLimitingEndpointHandler (used for updates; update divisor and then update
+    // all endpoint handlers)
+    // TODO: one map for service/task-type-key -> divisor (this gets also read when we create an inference endpoint)
+    // TODO: divisor value read/writes need to be synchronized in some way
+
     // default for testing
     static final RateLimiterCreator DEFAULT_RATE_LIMIT_CREATOR = RateLimiter::new;
     private static final Logger logger = LogManager.getLogger(RequestExecutorService.class);
     private static final TimeValue RATE_LIMIT_GROUP_CLEANUP_INTERVAL = TimeValue.timeValueDays(1);
 
     private final ConcurrentMap<Object, RateLimitingEndpointHandler> rateLimitGroupings = new ConcurrentHashMap<>();
+    // TODO: add one atomic integer (number of nodes); also explain the assumption and why this works
+    // TODO: document that this impacts chat completion (and increase the default rate limit)
+    private final AtomicInteger rateLimitDivisor = new AtomicInteger(1);
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
@@ -172,6 +184,19 @@ class RequestExecutorService implements RequestExecutor {
 
     public int queueSize() {
         return rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
+    }
+
+    @Override
+    public void updateRateLimitDivisor(int numResponsibleNodes) {
+        // in the unlikely case where we get an invalid value, we'll just ignore it
+        if (numResponsibleNodes <= 0) {
+            return;
+        }
+
+        rateLimitDivisor.set(numResponsibleNodes);
+        for (var rateLimitingEndpointHandler : rateLimitGroupings.values()) {
+            rateLimitingEndpointHandler.updateTokensPerTimeUnit(rateLimitDivisor.get());
+        }
     }
 
     /**
@@ -299,8 +324,11 @@ class RequestExecutorService implements RequestExecutor {
                 clock,
                 requestManager.rateLimitSettings(),
                 this::isShutdown,
-                rateLimiterCreator
+                rateLimiterCreator,
+                rateLimitDivisor.get()
             );
+
+            // TODO: add or create/compute if absent set for new map (service/task-type-key -> rate limit endpoint handler)
 
             endpointHandler.init();
             return endpointHandler;
@@ -314,7 +342,7 @@ class RequestExecutorService implements RequestExecutor {
      * This allows many requests to be serialized if they are being sent too fast. If the rate limit has not been met they will be sent
      * as soon as a thread is available.
      */
-    private static class RateLimitingEndpointHandler {
+    static class RateLimitingEndpointHandler {
 
         private static final TimeValue NO_TASKS_AVAILABLE = TimeValue.MAX_VALUE;
         private static final TimeValue EXECUTED_A_TASK = TimeValue.ZERO;
@@ -329,6 +357,8 @@ class RequestExecutorService implements RequestExecutor {
         private final Clock clock;
         private final RateLimiter rateLimiter;
         private final RequestExecutorServiceSettings requestExecutorServiceSettings;
+        private final RateLimitSettings rateLimitSettings;
+        private final Long originalRequestsPerTimeUnit;
 
         RateLimitingEndpointHandler(
             String id,
@@ -338,7 +368,8 @@ class RequestExecutorService implements RequestExecutor {
             Clock clock,
             RateLimitSettings rateLimitSettings,
             Supplier<Boolean> isShutdownMethod,
-            RateLimiterCreator rateLimiterCreator
+            RateLimiterCreator rateLimiterCreator,
+            Integer rateLimitDivisor
         ) {
             this.requestExecutorServiceSettings = Objects.requireNonNull(settings);
             this.id = Objects.requireNonNull(id);
@@ -346,6 +377,8 @@ class RequestExecutorService implements RequestExecutor {
             this.requestSender = Objects.requireNonNull(requestSender);
             this.clock = Objects.requireNonNull(clock);
             this.isShutdownMethod = Objects.requireNonNull(isShutdownMethod);
+            this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
+            this.originalRequestsPerTimeUnit = rateLimitSettings.requestsPerTimeUnit();
 
             Objects.requireNonNull(rateLimitSettings);
             Objects.requireNonNull(rateLimiterCreator);
@@ -355,10 +388,27 @@ class RequestExecutorService implements RequestExecutor {
                 rateLimitSettings.timeUnit()
             );
 
+            this.updateTokensPerTimeUnit(rateLimitDivisor);
         }
 
         public void init() {
             requestExecutorServiceSettings.registerQueueCapacityCallback(id, this::onCapacityChange);
+        }
+
+        /**
+         * This method is solely called by {@link InferenceServiceNodeLocalRateLimitCalculator} to update
+         * rate limits, so they're "node-local".
+         * The general idea is described in {@link InferenceServiceNodeLocalRateLimitCalculator} in more detail.
+         *
+         * @param divisor - divisor to divide the initial requests per time unit by
+         */
+        public synchronized void updateTokensPerTimeUnit(Integer divisor) {
+            double updatedTokensPerTimeUnit = (double) originalRequestsPerTimeUnit / divisor;
+            rateLimiter.setRate(ACCUMULATED_TOKENS_LIMIT, updatedTokensPerTimeUnit, rateLimitSettings.timeUnit());
+        }
+
+        public String id() {
+            return id;
         }
 
         private void onCapacityChange(int capacity) {

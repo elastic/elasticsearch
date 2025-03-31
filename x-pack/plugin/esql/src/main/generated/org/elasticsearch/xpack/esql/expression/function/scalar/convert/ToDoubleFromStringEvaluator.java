@@ -14,22 +14,26 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDouble}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDoubleFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator in;
+
+  public ToDoubleFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.in = in;
   }
 
   @Override
-  public String name() {
-    return "ToDoubleFromString";
+  public EvalOperator.ExpressionEvaluator next() {
+    return in;
   }
 
   @Override
@@ -58,7 +62,7 @@ public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.A
     }
   }
 
-  private static double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToDouble.fromKeyword(value);
   }
@@ -98,29 +102,39 @@ public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.A
     }
   }
 
-  private static double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToDouble.fromKeyword(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToDoubleFromStringEvaluator[" + "in=" + in + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(in);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in) {
       this.source = source;
+      this.in = in;
     }
 
     @Override
     public ToDoubleFromStringEvaluator get(DriverContext context) {
-      return new ToDoubleFromStringEvaluator(field.get(context), source, context);
+      return new ToDoubleFromStringEvaluator(source, in.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToDoubleFromStringEvaluator[field=" + field + "]";
+      return "ToDoubleFromStringEvaluator[" + "in=" + in + "]";
     }
   }
 }

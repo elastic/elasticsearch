@@ -2,7 +2,7 @@
   "priority" : 2147483647,
   "version" : ${xpack.ml.version.id},
   "index_patterns" : [
-    ".ml-notifications-000002"
+    ".ml-notifications-*"
   ],
   "template" : {
     "settings" : {

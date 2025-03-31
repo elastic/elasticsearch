@@ -36,6 +36,8 @@ public class StubRelation extends LeafPlan {
         StubRelation::new
     );
 
+    public static final StubRelation EMPTY = new StubRelation(null, null);
+
     private final List<Attribute> output;
 
     public StubRelation(Source source, List<Attribute> output) {
@@ -65,11 +67,6 @@ public class StubRelation extends LeafPlan {
     @Override
     protected NodeInfo<StubRelation> info() {
         return NodeInfo.create(this, StubRelation::new, output);
-    }
-
-    @Override
-    public String commandName() {
-        return "<telemetry needs decoupling from the logical plan>";
     }
 
     @Override

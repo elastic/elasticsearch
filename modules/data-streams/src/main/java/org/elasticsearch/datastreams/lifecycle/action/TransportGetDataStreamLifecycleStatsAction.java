@@ -10,13 +10,13 @@ package org.elasticsearch.datastreams.lifecycle.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
@@ -34,7 +34,7 @@ import java.util.Set;
 /**
  * Exposes stats about the latest lifecycle run and the error store.
  */
-public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterNodeReadAction<
+public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterNodeReadProjectAction<
     GetDataStreamLifecycleStatsAction.Request,
     GetDataStreamLifecycleStatsAction.Response> {
 
@@ -46,8 +46,8 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        DataStreamLifecycleService lifecycleService
+        DataStreamLifecycleService lifecycleService,
+        ProjectResolver projectResolver
     ) {
         super(
             GetDataStreamLifecycleStatsAction.NAME,
@@ -56,7 +56,7 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
             threadPool,
             actionFilters,
             GetDataStreamLifecycleStatsAction.Request::new,
-            indexNameExpressionResolver,
+            projectResolver,
             GetDataStreamLifecycleStatsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -67,23 +67,22 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
     protected void masterOperation(
         Task task,
         GetDataStreamLifecycleStatsAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetDataStreamLifecycleStatsAction.Response> listener
     ) throws Exception {
-        listener.onResponse(collectStats(state));
+        listener.onResponse(collectStats(state.metadata()));
     }
 
     // Visible for testing
-    GetDataStreamLifecycleStatsAction.Response collectStats(ClusterState state) {
-        Metadata metadata = state.metadata();
-        Set<String> indicesInErrorStore = lifecycleService.getErrorStore().getAllIndices();
+    GetDataStreamLifecycleStatsAction.Response collectStats(ProjectMetadata project) {
+        Set<String> indicesInErrorStore = lifecycleService.getErrorStore().getAllIndices(project.id());
         List<GetDataStreamLifecycleStatsAction.Response.DataStreamStats> dataStreamStats = new ArrayList<>();
-        for (DataStream dataStream : state.metadata().dataStreams().values()) {
-            if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+        for (DataStream dataStream : project.dataStreams().values()) {
+            if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
                 int total = 0;
                 int inError = 0;
                 for (Index index : dataStream.getIndices()) {
-                    if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
+                    if (dataStream.isIndexManagedByDataStreamLifecycle(index, project::index)) {
                         total++;
                         if (indicesInErrorStore.contains(index.getName())) {
                             inError++;
@@ -105,7 +104,7 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetDataStreamLifecycleStatsAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetDataStreamLifecycleStatsAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

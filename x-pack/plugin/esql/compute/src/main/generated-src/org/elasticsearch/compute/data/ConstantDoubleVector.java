@@ -13,7 +13,7 @@ import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Vector implementation that stores a constant double value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 

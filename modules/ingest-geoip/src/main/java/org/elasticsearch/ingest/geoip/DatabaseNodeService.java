@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -114,7 +116,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         ClusterService clusterService
     ) {
         this(
-            environment.tmpFile(),
+            environment.tmpDir(),
             new OriginSettingClient(client, IngestService.INGEST_ORIGIN),
             cache,
             new ConfigDatabases(environment, cache),
@@ -268,13 +270,13 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             return;
         }
 
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks == null) {
             logger.trace("Not checking databases because persistent tasks are null");
             return;
         }
 
-        IndexAbstraction databasesAbstraction = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        IndexAbstraction databasesAbstraction = state.getMetadata().getProject().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (databasesAbstraction == null) {
             logger.trace("Not checking databases because geoip databases index does not exist");
             return;
@@ -433,6 +435,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         });
     }
 
+    @FixForMultiProject // Don't use default project id
     void updateDatabase(String databaseFileName, String recordedMd5, Path file) {
         try {
             logger.debug("starting reload of changed database file [{}]", file);
@@ -443,12 +446,17 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             } else {
                 // Loaded a database for the first time, so reload pipelines for which a database was not available:
                 Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
-                var ids = ingestService.getPipelineWithProcessorType(GeoIpProcessor.DatabaseUnavailableProcessor.class, predicate);
+                var projectId = Metadata.DEFAULT_PROJECT_ID;
+                var ids = ingestService.getPipelineWithProcessorType(
+                    projectId,
+                    GeoIpProcessor.DatabaseUnavailableProcessor.class,
+                    predicate
+                );
                 if (ids.isEmpty() == false) {
                     logger.debug("pipelines [{}] found to reload", ids);
                     for (var id : ids) {
                         try {
-                            ingestService.reloadPipeline(id);
+                            ingestService.reloadPipeline(projectId, id);
                             logger.trace(
                                 "successfully reloaded pipeline [{}] after downloading of database [{}] for the first time",
                                 id,

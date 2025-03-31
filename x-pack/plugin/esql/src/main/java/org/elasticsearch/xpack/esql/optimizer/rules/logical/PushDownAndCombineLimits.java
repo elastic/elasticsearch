@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -21,6 +20,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
 
     public PushDownAndCombineLimits() {
@@ -31,27 +33,18 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
         if (limit.child() instanceof Limit childLimit) {
             var limitSource = limit.limit();
-            var l1 = (int) limitSource.fold(ctx.foldCtx());
-            var l2 = (int) childLimit.limit().fold(ctx.foldCtx());
-            return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
+            var parentLimitValue = (int) limitSource.fold(ctx.foldCtx());
+            var childLimitValue = (int) childLimit.limit().fold(ctx.foldCtx());
+            // We want to preserve the duplicated() value of the smaller limit, so we'll use replaceChild.
+            return parentLimitValue < childLimitValue ? limit.replaceChild(childLimit.child()) : childLimit;
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                 return unary.replaceChild(limit.replaceChild(unary.child()));
-            } else if (unary instanceof MvExpand mvx) {
+            } else if (unary instanceof MvExpand) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
                 // (we also have to preserve the LIMIT afterwards)
-                //
-                // To avoid infinite loops, ie.
-                // | MV_EXPAND | LIMIT -> | LIMIT | MV_EXPAND | LIMIT -> ... | MV_EXPAND | LIMIT
-                // we add an inner limit to MvExpand and just push down the existing limit, ie.
-                // | MV_EXPAND | LIMIT N -> | LIMIT N | MV_EXPAND (with limit N)
-                var limitSource = limit.limit();
-                var limitVal = (int) limitSource.fold(ctx.foldCtx());
-                Integer mvxLimit = mvx.limit();
-                if (mvxLimit == null || mvxLimit > limitVal) {
-                    mvx = new MvExpand(mvx.source(), mvx.child(), mvx.target(), mvx.expanded(), limitVal);
-                }
-                return mvx.replaceChild(limit.replaceChild(mvx.child()));
+                // To avoid repeating this infinitely, we have to set duplicated = true.
+                return duplicateLimitAsFirstGrandchild(limit);
             }
             // check if there's a 'visible' descendant limit lower than the current one
             // and if so, align the current limit since it adds no value
@@ -62,17 +55,15 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                     var l1 = (int) limit.limit().fold(ctx.foldCtx());
                     var l2 = (int) descendantLimit.limit().fold(ctx.foldCtx());
                     if (l2 <= l1) {
-                        return new Limit(limit.source(), Literal.of(limit.limit(), l2), limit.child());
+                        return limit.withLimit(descendantLimit.limit());
                     }
                 }
             }
-        } else if (limit.child() instanceof Join join) {
-            if (join.config().type() == JoinTypes.LEFT) {
-                // NOTE! This is only correct because our LEFT JOINs preserve the number of rows from the left hand side.
-                // This deviates from SQL semantics. In SQL, multiple matches on the right hand side lead to multiple rows in the output.
-                // For us, multiple matches on the right hand side are collected into multi-values.
-                return join.replaceChildren(limit.replaceChild(join.left()), join.right());
-            }
+        } else if (limit.child() instanceof Join join && join.config().type() == JoinTypes.LEFT) {
+            // Left joins increase the number of rows if any join key has multiple matches from the right hand side.
+            // Therefore, we cannot simply push down the limit - but we can add another limit before the join.
+            // To avoid repeating this infinitely, we have to set duplicated = true.
+            return duplicateLimitAsFirstGrandchild(limit);
         }
         return limit;
     }
@@ -99,5 +90,28 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             }
         }
         return null;
+    }
+
+    /**
+     * Duplicate the limit past its child if it wasn't duplicated yet. The duplicate is placed on top of its leftmost grandchild.
+     * Idempotent. (Sets {@link Limit#duplicated()} to {@code true} on the limit that remains at the top.)
+     */
+    private static Limit duplicateLimitAsFirstGrandchild(Limit limit) {
+        if (limit.duplicated()) {
+            return limit;
+        }
+
+        List<LogicalPlan> grandChildren = limit.child().children();
+        LogicalPlan firstGrandChild = grandChildren.getFirst();
+        LogicalPlan newFirstGrandChild = limit.replaceChild(firstGrandChild);
+
+        List<LogicalPlan> newGrandChildren = new ArrayList<>();
+        newGrandChildren.add(newFirstGrandChild);
+        for (int i = 1; i < grandChildren.size(); i++) {
+            newGrandChildren.add(grandChildren.get(i));
+        }
+
+        LogicalPlan newChild = limit.child().replaceChildren(newGrandChildren);
+        return limit.replaceChild(newChild).withDuplicated(true);
     }
 }

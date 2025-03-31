@@ -7,7 +7,7 @@ setup:
 ---
 "Test get reindex status with nonexistent task id":
   - requires:
-      reason: "migration reindex is behind a feature flag"
+      reason: "requires a cluster with the migration reindex feature"
       test_runner_features: [capabilities]
       capabilities:
         - method: POST
@@ -15,13 +15,13 @@ setup:
           capabilities: [migration_reindex]
   - do:
       catch: /resource_not_found_exception/
-      migrate.get_reindex_status:
+      indices.get_migrate_reindex_status:
         index: "does_not_exist"
 
 ---
 "Test Reindex With Existing Data Stream":
   - requires:
-      reason: "migration reindex is behind a feature flag"
+      reason: "requires a cluster with the migration reindex feature"
       test_runner_features: [capabilities]
       capabilities:
         - method: POST
@@ -47,7 +47,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      migrate.reindex:
+      indices.migrate_reindex:
         body: |
           {
             "mode": "upgrade",
@@ -58,7 +58,7 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      migrate.get_reindex_status:
+      indices.get_migrate_reindex_status:
         index: "my-data-stream"
   - match: { complete: true }
   - match: { total_indices_in_data_stream: 1 }
@@ -69,16 +69,16 @@ setup:
   - match: { errors: [] }
 
   - do:
-      migrate.cancel_reindex:
+      indices.cancel_migrate_reindex:
         index: "my-data-stream"
   - match: { acknowledged: true }
 
   - do:
       catch: /resource_not_found_exception/
-      migrate.cancel_reindex:
+      indices.cancel_migrate_reindex:
         index: "my-data-stream"
 
   - do:
       catch: /resource_not_found_exception/
-      migrate.get_reindex_status:
+      indices.get_migrate_reindex_status:
         index: "my-data-stream"

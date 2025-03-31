@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.transform.transforms.latest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -93,11 +91,7 @@ public class Latest extends AbstractCompositeAggFunction {
             );
         }
 
-        // We don't use #getSourceAsMap here because we don't want to cache the object as we
-        // only need it here. More over we are modifying the map of maps so we will be holding
-        // the wrong map.
-        BytesReference bytes = topHits.getHits().getHits()[0].getSourceRef();
-        Map<String, Object> document = XContentHelper.convertToMap(bytes, true).v2();
+        Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
 
         // generator to create unique but deterministic document ids, so we
         // - do not create duplicates if we re-run after failure

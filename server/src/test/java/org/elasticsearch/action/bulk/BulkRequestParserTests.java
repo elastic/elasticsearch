@@ -39,7 +39,7 @@ public class BulkRequestParserTests extends ESTestCase {
             {}
             """);
 
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
         BulkRequestParser.IncrementalParser incrementalParser = parser.incrementalParser(
             null,
             null,
@@ -70,7 +70,7 @@ public class BulkRequestParserTests extends ESTestCase {
         ArrayList<DocWriteRequest<?>> updateRequests = new ArrayList<>();
         ArrayList<DocWriteRequest<?>> deleteRequests = new ArrayList<>();
 
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
         BulkRequestParser.IncrementalParser incrementalParser = parser.incrementalParser(
             null,
             null,
@@ -116,7 +116,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "index":{ "_id": "bar" } }
             {}
             """);
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, null, null, null, false, XContentType.JSON, (indexRequest, type) -> {
             assertFalse(parsed.get());
@@ -152,7 +152,7 @@ public class BulkRequestParserTests extends ESTestCase {
         BytesArray request = new BytesArray("""
             { "delete":{ "_id": "bar" } }
             """);
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(
             request,
@@ -182,7 +182,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "update":{ "_id": "bar" } }
             {}
             """);
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, null, null, null, false, XContentType.JSON, (req, type) -> fail(), updateRequest -> {
             assertFalse(parsed.get());
@@ -218,7 +218,7 @@ public class BulkRequestParserTests extends ESTestCase {
         BytesArray request = new BytesArray("""
             { "index":{ "_id": "bar" } }
             {}""");
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> parser.parse(
@@ -266,7 +266,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "index":{ "_index": "foo", "_id": "bar" } }
             {}
             """);
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -294,7 +294,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "index":{ "_type": "quux", "_id": "bar" } }
             {}
             """);
-        BulkRequestParser parser = new BulkRequestParser(false, RestApiVersion.current());
+        BulkRequestParser parser = new BulkRequestParser(false, true, RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, null, null, null, false, XContentType.JSON, (indexRequest, type) -> {
             assertFalse(parsed.get());
@@ -313,7 +313,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "index":{ "_index": "bar", "pipeline": "foo", "routing": "blub" } }
             {}
             """);
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
         final List<IndexRequest> indexRequests = new ArrayList<>();
         parser.parse(
             request,
@@ -343,7 +343,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "invalidaction":{ } }
             {}
             """);
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), randomFrom(RestApiVersion.values()));
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, randomFrom(RestApiVersion.values()));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -374,7 +374,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "index":{ }
             {}
             """);
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), randomFrom(REST_API_VERSIONS_POST_V8));
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, randomFrom(REST_API_VERSIONS_POST_V8));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -402,7 +402,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "index":{ }, "something": "unexpected" }
             {}
             """);
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), randomFrom(REST_API_VERSIONS_POST_V8));
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, randomFrom(REST_API_VERSIONS_POST_V8));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -430,7 +430,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "index":{ } } { "something": "unexpected" }
             {}
             """);
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), randomFrom(REST_API_VERSIONS_POST_V8));
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, randomFrom(REST_API_VERSIONS_POST_V8));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -458,7 +458,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "index":{ "_id": "bar" } }
             {}
             """);
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
         parser.parse(request, "foo", null, null, null, null, null, null, false, XContentType.JSON, (indexRequest, type) -> {
             assertFalse(indexRequest.getListExecutedPipelines());
         }, req -> fail(), req -> fail());

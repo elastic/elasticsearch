@@ -80,7 +80,6 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

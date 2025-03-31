@@ -13,7 +13,7 @@ import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Vector implementation that stores a constant float value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class ConstantFloatVector extends AbstractVector implements FloatVector {
 

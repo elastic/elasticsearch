@@ -19,11 +19,21 @@ public class CodecIntegrationTests extends ESSingleNodeTestCase {
 
     public void testCanConfigureLegacySettings() {
         createIndex("index1", Settings.builder().put("index.codec", "legacy_default").build());
-        var codec = client().admin().indices().prepareGetSettings("index1").execute().actionGet().getSetting("index1", "index.codec");
+        var codec = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, "index1")
+            .execute()
+            .actionGet()
+            .getSetting("index1", "index.codec");
         assertThat(codec, equalTo("legacy_default"));
 
         createIndex("index2", Settings.builder().put("index.codec", "legacy_best_compression").build());
-        codec = client().admin().indices().prepareGetSettings("index2").execute().actionGet().getSetting("index2", "index.codec");
+        codec = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, "index2")
+            .execute()
+            .actionGet()
+            .getSetting("index2", "index.codec");
         assertThat(codec, equalTo("legacy_best_compression"));
     }
 

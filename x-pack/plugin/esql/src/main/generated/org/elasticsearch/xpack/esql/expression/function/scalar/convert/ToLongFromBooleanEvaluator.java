@@ -13,21 +13,25 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToLong}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToLongFromBooleanEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator bool;
+
+  public ToLongFromBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator bool,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.bool = bool;
   }
 
   @Override
-  public String name() {
-    return "ToLongFromBoolean";
+  public EvalOperator.ExpressionEvaluator next() {
+    return bool;
   }
 
   @Override
@@ -45,7 +49,7 @@ public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.Ab
     }
   }
 
-  private static long evalValue(BooleanVector container, int index) {
+  private long evalValue(BooleanVector container, int index) {
     boolean value = container.getBoolean(index);
     return ToLong.fromBoolean(value);
   }
@@ -80,29 +84,39 @@ public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.Ab
     }
   }
 
-  private static long evalValue(BooleanBlock container, int index) {
+  private long evalValue(BooleanBlock container, int index) {
     boolean value = container.getBoolean(index);
     return ToLong.fromBoolean(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToLongFromBooleanEvaluator[" + "bool=" + bool + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(bool);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory bool;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory bool) {
       this.source = source;
+      this.bool = bool;
     }
 
     @Override
     public ToLongFromBooleanEvaluator get(DriverContext context) {
-      return new ToLongFromBooleanEvaluator(field.get(context), source, context);
+      return new ToLongFromBooleanEvaluator(source, bool.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToLongFromBooleanEvaluator[field=" + field + "]";
+      return "ToLongFromBooleanEvaluator[" + "bool=" + bool + "]";
     }
   }
 }

@@ -60,16 +60,14 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         for (String index : indices) {
             // Indices are created on demand from templates.
             // It is not an error if the index doesn't exist yet
-            if (clusterState.metadata().hasIndex(index) == false) {
+            if (clusterState.metadata().getProject().hasIndex(index) == false) {
                 if (allowMissing == false) {
                     unavailableIndices.add(index);
                 }
                 continue;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null
-                || routingTable.allPrimaryShardsActive() == false
-                || routingTable.readyForSearch(clusterState) == false) {
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false || routingTable.readyForSearch() == false) {
                 unavailableIndices.add(index);
             }
         }

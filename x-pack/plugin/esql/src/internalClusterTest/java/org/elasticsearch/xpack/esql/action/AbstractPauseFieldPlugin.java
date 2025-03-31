@@ -34,12 +34,16 @@ public abstract class AbstractPauseFieldPlugin extends Plugin implements ScriptP
     // Called when the engine needs to wait for further execution to be allowed.
     protected abstract boolean onWait() throws InterruptedException;
 
+    protected String scriptTypeName() {
+        return "pause";
+    }
+
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         return new ScriptEngine() {
             @Override
             public String getType() {
-                return "pause";
+                return scriptTypeName();
             }
 
             @Override

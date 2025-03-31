@@ -270,7 +270,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         // have an older mapping version than the actual mapping version that IndexService will use to index "doc1".
         final CountDownLatch latch = new CountDownLatch(1);
         clusterService.addLowPriorityApplier(event -> {
-            IndexMetadata imd = event.state().metadata().index("leader-index");
+            IndexMetadata imd = event.state().metadata().getProject().index("leader-index");
             if (imd != null
                 && imd.mapping() != null
                 && XContentMapValues.extractValue("properties.balance.type", imd.mapping().sourceAsMap()) != null) {

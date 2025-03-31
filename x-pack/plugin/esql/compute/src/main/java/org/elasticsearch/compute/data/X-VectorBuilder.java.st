@@ -19,7 +19,7 @@ $endif$
 
 /**
  * Builder for {@link $Type$Vector}s that grows as needed.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBuilder.java.st} instead.
  */
 final class $Type$VectorBuilder extends AbstractVectorBuilder implements $Type$Vector.Builder {
 

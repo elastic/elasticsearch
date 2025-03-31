@@ -19,4 +19,9 @@ public interface SlowLogFieldProvider {
      * @param indexSettings settings for the index
      */
     SlowLogFields create(IndexSettings indexSettings);
+
+    /**
+     * Create a field provider without index level settings
+     */
+    SlowLogFields create();
 }

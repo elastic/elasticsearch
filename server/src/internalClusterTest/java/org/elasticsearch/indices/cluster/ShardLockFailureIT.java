@@ -72,7 +72,14 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
             var mockLog = MockLog.capture(IndicesClusterStateService.class);
         ) {
-
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "hot threads",
+                    "org.elasticsearch.indices.cluster.IndicesClusterStateService",
+                    Level.WARN,
+                    "[testindex][0]: acquire shard lock for create"
+                )
+            );
             mockLog.addExpectation(new MockLog.LoggingExpectation() {
                 private final CountDownLatch countDownLatch = new CountDownLatch(1);
                 int debugMessagesSeen = 0;
@@ -147,6 +154,14 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
             var mockLog = MockLog.capture(IndicesClusterStateService.class);
         ) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "hot threads",
+                    "org.elasticsearch.indices.cluster.IndicesClusterStateService",
+                    Level.WARN,
+                    "[testindex][0]: acquire shard lock for create"
+                )
+            );
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "timeout message",

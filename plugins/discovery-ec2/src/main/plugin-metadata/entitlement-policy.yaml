@@ -1,4 +1,3 @@
 ALL-UNNAMED:
-  - network:
-      actions:
-        - connect
+  - manage_threads
+  - outbound_network

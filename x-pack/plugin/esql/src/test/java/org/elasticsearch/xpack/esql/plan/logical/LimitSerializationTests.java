@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
@@ -19,23 +20,33 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
         Source source = randomSource();
         Expression limit = FieldAttributeTests.createFieldAttribute(0, false);
         LogicalPlan child = randomChild(0);
-        return new Limit(source, limit, child);
+        return new Limit(source, limit, child, randomBoolean());
     }
 
     @Override
     protected Limit mutateInstance(Limit instance) throws IOException {
         Expression limit = instance.limit();
         LogicalPlan child = instance.child();
-        if (randomBoolean()) {
-            limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
-        } else {
-            child = randomValueOtherThan(child, () -> randomChild(0));
+        boolean duplicated = instance.duplicated();
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
+            case 2 -> duplicated = duplicated == false;
+            default -> throw new IllegalStateException("Should never reach here");
         }
-        return new Limit(instance.source(), limit, child);
+        return new Limit(instance.source(), limit, child, duplicated);
     }
 
     @Override
     protected boolean alwaysEmptySource() {
         return true;
+    }
+
+    @Override
+    protected Limit copyInstance(Limit instance, TransportVersion version) throws IOException {
+        // Limit#duplicated() is ALWAYS false when being serialized and we assert that in Limit#writeTo().
+        // So, we need to manually simulate this situation.
+        Limit deserializedCopy = super.copyInstance(instance.withDuplicated(false), version);
+        return deserializedCopy.withDuplicated(instance.duplicated());
     }
 }

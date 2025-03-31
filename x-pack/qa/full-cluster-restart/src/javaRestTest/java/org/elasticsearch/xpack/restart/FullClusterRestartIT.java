@@ -430,6 +430,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
             // create the rollup job
             final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
+            createRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
             createRollupJobRequest.setJsonEntity("""
                 {
                   "index_pattern": "rollup-*",
@@ -455,6 +456,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
             // start the rollup job
             final Request startRollupJobRequest = new Request("POST", "/_rollup/job/rollup-job-test/_start");
+            startRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -823,6 +825,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
         // check that the rollup job is started using the RollUp API
         final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
+        getRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<?, ?> job = getJob(getRollupJobResponse, rollupJob);
         assertNotNull(job);
@@ -865,7 +868,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
         assertBusy(() -> {
             final Request getRollupJobRequest = new Request("GET", "/_rollup/job/" + rollupJob);
-
+            getRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 

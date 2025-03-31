@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -95,7 +97,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 false, // non-grouping
-                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode))
+                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channels))
             );
 
             if (aggregatorFactories.isEmpty() == false) {
@@ -169,10 +171,21 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 true, // grouping
-                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
+                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels))
             );
-
-            if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
+            // time-series aggregation
+            if (Expressions.anyMatch(aggregates, a -> a instanceof ToTimeSeriesAggregator)
+                && groupSpecs.size() == 2
+                && groupSpecs.get(0).attribute.name().equals(MetadataAttribute.TSID_FIELD)) {
+                operatorFactory = new TimeSeriesAggregationOperator.Factory(
+                    groupSpecs.get(0).toHashGroupSpec(),
+                    groupSpecs.get(1).toHashGroupSpec(),
+                    aggregatorMode,
+                    aggregatorFactories,
+                    context.pageSize(aggregateExec.estimatedRowSize())
+                );
+                // ordinal grouping
+            } else if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
                 operatorFactory = ordinalGroupingOperatorFactory(
                     source,
                     aggregateExec,
@@ -251,7 +264,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         return attrs;
     }
 
-    private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, AggregatorMode mode) {}
+    private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, List<Integer> channels, AggregatorMode mode) {}
 
     private void aggregatesToFactory(
 
@@ -308,10 +321,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     } else {
                         throw new EsqlIllegalArgumentException("illegal aggregation mode");
                     }
+
+                    AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction);
+
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
                     assert inputChannels.stream().allMatch(i -> i >= 0) : inputChannels;
-
-                    AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction, inputChannels);
 
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {
@@ -322,15 +336,15 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         );
                         aggSupplier = new FilteredAggregatorFunctionSupplier(aggSupplier, evalFactory);
                     }
-                    consumer.accept(new AggFunctionSupplierContext(aggSupplier, mode));
+                    consumer.accept(new AggFunctionSupplierContext(aggSupplier, inputChannels, mode));
                 }
             }
         }
     }
 
-    private static AggregatorFunctionSupplier supplier(AggregateFunction aggregateFunction, List<Integer> inputChannels) {
+    private static AggregatorFunctionSupplier supplier(AggregateFunction aggregateFunction) {
         if (aggregateFunction instanceof ToAggregator delegate) {
-            return delegate.supplier(inputChannels);
+            return delegate.supplier();
         }
         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
     }

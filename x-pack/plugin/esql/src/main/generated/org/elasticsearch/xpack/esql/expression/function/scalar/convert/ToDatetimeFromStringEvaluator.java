@@ -15,21 +15,25 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDatetime}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDatetimeFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator in;
+
+  public ToDatetimeFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.in = in;
   }
 
   @Override
-  public String name() {
-    return "ToDatetimeFromString";
+  public EvalOperator.ExpressionEvaluator next() {
+    return in;
   }
 
   @Override
@@ -58,7 +62,7 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToDatetime.fromKeyword(value);
   }
@@ -98,29 +102,39 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToDatetime.fromKeyword(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToDatetimeFromStringEvaluator[" + "in=" + in + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(in);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in) {
       this.source = source;
+      this.in = in;
     }
 
     @Override
     public ToDatetimeFromStringEvaluator get(DriverContext context) {
-      return new ToDatetimeFromStringEvaluator(field.get(context), source, context);
+      return new ToDatetimeFromStringEvaluator(source, in.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToDatetimeFromStringEvaluator[field=" + field + "]";
+      return "ToDatetimeFromStringEvaluator[" + "in=" + in + "]";
     }
   }
 }

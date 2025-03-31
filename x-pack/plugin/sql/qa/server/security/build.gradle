@@ -46,7 +46,6 @@ subprojects {
     user username: "user1", password: 'x-pack-test-password', role: "user1"
     user username: "user2", password: 'x-pack-test-password', role: "user2"
     user username: "manage_user", password: 'x-pack-test-password', role: "manage_user"
-    plugin ':x-pack:qa:freeze-plugin'
   }
 
   File testArtifactsDir = project.file("$buildDir/testArtifacts")

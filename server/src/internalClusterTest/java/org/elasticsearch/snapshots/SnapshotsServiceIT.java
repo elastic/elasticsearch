@@ -16,11 +16,12 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -168,22 +169,19 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
      */
     private SubscribableListener<Void> createSnapshotDeletionListener(String repositoryName) {
         AtomicBoolean deleteHasStarted = new AtomicBoolean(false);
-        return ClusterServiceUtils.addTemporaryStateListener(
-            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
-            state -> {
-                SnapshotDeletionsInProgress deletionsInProgress = (SnapshotDeletionsInProgress) state.getCustoms()
-                    .get(SnapshotDeletionsInProgress.TYPE);
-                if (deletionsInProgress == null) {
-                    return false;
-                }
-                if (deleteHasStarted.get() == false) {
-                    deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(repositoryName));
-                    return false;
-                } else {
-                    return deletionsInProgress.hasExecutingDeletion(repositoryName) == false;
-                }
+        return ClusterServiceUtils.addMasterTemporaryStateListener(state -> {
+            SnapshotDeletionsInProgress deletionsInProgress = (SnapshotDeletionsInProgress) state.getCustoms()
+                .get(SnapshotDeletionsInProgress.TYPE);
+            if (deletionsInProgress == null) {
+                return false;
             }
-        );
+            if (deleteHasStarted.get() == false) {
+                deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(repositoryName));
+                return false;
+            } else {
+                return deletionsInProgress.hasExecutingDeletion(repositoryName) == false;
+            }
+        });
     }
 
     public void testRerouteWhenShardSnapshotsCompleted() throws Exception {
@@ -207,13 +205,10 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", originalNode)
         );
 
-        final var shardMovedListener = ClusterServiceUtils.addTemporaryStateListener(
-            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
-            state -> {
-                final var primaryShard = state.routingTable().index(indexName).shard(0).primaryShard();
-                return primaryShard.started() && originalNode.equals(state.nodes().get(primaryShard.currentNodeId()).getName()) == false;
-            }
-        );
+        final var shardMovedListener = ClusterServiceUtils.addMasterTemporaryStateListener(state -> {
+            final var primaryShard = state.routingTable().index(indexName).shard(0).primaryShard();
+            return primaryShard.started() && originalNode.equals(state.nodes().get(primaryShard.currentNodeId()).getName()) == false;
+        });
         assertFalse(shardMovedListener.isDone());
 
         unblockAllDataNodes(repoName);
@@ -223,4 +218,30 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         safeAwait(shardMovedListener);
         ensureGreen(indexName);
     }
+
+    @TestLogging(reason = "testing task description, logged at DEBUG", value = "org.elasticsearch.cluster.service.MasterService:DEBUG")
+    public void testCreateSnapshotTaskDescription() {
+        createIndexWithRandomDocs(randomIdentifier(), randomIntBetween(1, 5));
+        final var repositoryName = randomIdentifier();
+        createRepository(repositoryName, "mock");
+
+        final var snapshotName = randomIdentifier();
+        MockLog.assertThatLogger(
+            () -> createFullSnapshot(repositoryName, snapshotName),
+            MasterService.class,
+            new MockLog.SeenEventExpectation(
+                "executing cluster state update debug message",
+                MasterService.class.getCanonicalName(),
+                Level.DEBUG,
+                "executing cluster state update for [create_snapshot ["
+                    + snapshotName
+                    + "][CreateSnapshotTask{repository="
+                    + repositoryName
+                    + ", snapshot=*"
+                    + snapshotName
+                    + "*}]]"
+            )
+        );
+    }
+
 }

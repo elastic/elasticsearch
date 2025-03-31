@@ -63,7 +63,6 @@ public class ConditionalProcessorTests extends ESTestCase {
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
             () -> 1L
         );
-        Map<String, Object> document = new HashMap<>();
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
         ConditionalProcessor processor = new ConditionalProcessor(
@@ -102,7 +101,7 @@ public class ConditionalProcessorTests extends ESTestCase {
 
         // false, never call processor never increments metrics
         String falseValue = "falsy";
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(conditionalField, falseValue);
         execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(falseValue));
@@ -110,21 +109,21 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertStats(processor, 0, 0, 0);
         assertEquals(scriptName, processor.getCondition());
 
-        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(conditionalField, falseValue);
         ingestDocument.setFieldValue("error", true);
         execProcessor(processor, ingestDocument, (result, e) -> {});
         assertStats(processor, 0, 0, 0);
 
         // true, always call processor and increments metrics
-        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(conditionalField, trueValue);
         execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(trueValue));
         assertThat(ingestDocument.getSourceAndMetadata().get("foo"), is("bar"));
         assertStats(processor, 1, 0, 1);
 
-        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(conditionalField, trueValue);
         ingestDocument.setFieldValue("error", true);
         IngestDocument finalIngestDocument = ingestDocument;

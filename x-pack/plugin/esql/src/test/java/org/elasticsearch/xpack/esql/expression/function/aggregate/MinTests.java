@@ -157,11 +157,7 @@ public class MinTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            suppliers,
-            false,
-            (v, p) -> "representable except unsigned_long and spatial types"
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);
     }
 
     @Override

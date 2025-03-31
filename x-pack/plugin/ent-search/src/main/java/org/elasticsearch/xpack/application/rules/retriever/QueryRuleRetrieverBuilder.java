@@ -70,7 +70,7 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static QueryRuleRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
@@ -164,13 +164,17 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
     }
 
     @Override
-    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         assert rankResults.size() == 1;
         ScoreDoc[] scoreDocs = rankResults.getFirst();
         RankDoc[] rankDocs = new RuleQueryRankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];
-            rankDocs[i] = new RuleQueryRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, rulesetIds, matchCriteria);
+            if (explain) {
+                rankDocs[i] = new RuleQueryRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, rulesetIds, matchCriteria);
+            } else {
+                rankDocs[i] = new RuleQueryRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+            }
             rankDocs[i].rank = i + 1;
         }
         return rankDocs;

@@ -28,8 +28,8 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     public static final String NAME = "bucket_metric_value";
     static final ParseField KEYS_FIELD = new ParseField("keys");
 
-    private double value;
-    private String[] keys;
+    private final double value;
+    private final String[] keys;
 
     public InternalBucketMetricValue(String name, String[] keys, double value, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, formatter, metadata);

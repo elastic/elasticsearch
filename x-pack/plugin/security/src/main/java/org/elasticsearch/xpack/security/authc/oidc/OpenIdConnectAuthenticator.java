@@ -365,7 +365,7 @@ public class OpenIdConnectAuthenticator {
      * @throws IOException    if the file cannot be read
      */
     private JWKSet readJwkSetFromFile(String jwkSetPath) throws IOException, ParseException {
-        final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
+        final Path path = realmConfig.env().configDir().resolve(jwkSetPath);
         // avoid using JWKSet.loadFile() as it does not close FileInputStream internally
         try {
             String jwkSet = AccessController.doPrivileged(
@@ -814,7 +814,7 @@ public class OpenIdConnectAuthenticator {
     }
 
     private void setMetadataFileWatcher(String jwkSetPath) throws IOException {
-        final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
+        final Path path = realmConfig.env().configDir().resolve(jwkSetPath);
         FileWatcher watcher = new PrivilegedFileWatcher(path);
         watcher.addListener(new FileListener(LOGGER, () -> this.idTokenValidator.set(createIdTokenValidator(false))));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);

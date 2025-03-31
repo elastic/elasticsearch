@@ -139,7 +139,8 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
                         "some_inference_id",
                         "some_inference_text",
                         "some_field",
-                        10
+                        10,
+                        false
                     )
                 )
             );

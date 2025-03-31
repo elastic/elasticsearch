@@ -58,7 +58,7 @@ public final class UnfollowAction implements LifecycleAction {
             indexingComplete,
             nextStepKey,
             (index, clusterState) -> {
-                IndexMetadata followerIndex = clusterState.metadata().index(index);
+                IndexMetadata followerIndex = clusterState.metadata().getProject().index(index);
                 Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);
                 // if the index has no CCR metadata we'll skip the unfollow action completely
                 return customIndexMetadata == null;

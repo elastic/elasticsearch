@@ -198,6 +198,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
+                    if (reasonForUsageProvided(args) == false) {
+                        throw new IllegalArgumentException(
+                            "Reason for using `usesDefaultDistribution` required.\nUse usesDefaultDistribution(\"reason why default distro is required here\")."
+                        );
+                    }
                     task.dependsOn(defaultDistro);
                     registerDistributionInputs(task, defaultDistro);
 
@@ -212,6 +217,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
                     return null;
                 }
+
+                private static boolean reasonForUsageProvided(Object[] args) {
+                    return args.length == 1 && args[0] instanceof String && ((String) args[0]).isBlank() == false;
+                }
             });
 
             // Add `usesBwcDistribution(version)` extension method to test tasks to indicate they require a BWC distribution
@@ -223,7 +232,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
 
                     Version version = (Version) args[0];
-                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null;
+                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null && version.toString().equals("0.0.0") == false;
                     String versionString = version.toString();
                     ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
 

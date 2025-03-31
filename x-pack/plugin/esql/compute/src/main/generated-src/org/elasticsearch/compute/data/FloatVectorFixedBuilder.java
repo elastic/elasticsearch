@@ -13,7 +13,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Builder for {@link FloatVector}s that never grows. Prefer this to
  * {@link FloatVectorBuilder} if you know the precise size up front because
  * it's faster.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorFixedBuilder.java.st} instead.
  */
 public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
     private final BlockFactory blockFactory;

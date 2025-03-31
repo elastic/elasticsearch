@@ -54,11 +54,12 @@ public class ResolveClusterActionResponseTests extends AbstractWireSerializingTe
     }
 
     static ResolveClusterInfo randomResolveClusterInfo() {
-        int val = randomIntBetween(1, 3);
+        int val = randomIntBetween(1, 4);
         return switch (val) {
             case 1 -> new ResolveClusterInfo(false, randomBoolean());
             case 2 -> new ResolveClusterInfo(randomBoolean(), randomBoolean(), randomAlphaOfLength(15));
             case 3 -> new ResolveClusterInfo(randomBoolean(), randomBoolean(), randomBoolean(), Build.current());
+            case 4 -> new ResolveClusterInfo(true, randomBoolean(), null, Build.current());
             default -> throw new UnsupportedOperationException("should not get here");
         };
     }

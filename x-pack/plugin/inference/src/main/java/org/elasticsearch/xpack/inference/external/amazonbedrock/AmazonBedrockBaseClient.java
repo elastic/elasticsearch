@@ -28,7 +28,7 @@ public abstract class AmazonBedrockBaseClient implements AmazonBedrockClient {
     public static Integer getModelKeysAndRegionHashcode(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         var secretSettings = model.getSecretSettings();
         var serviceSettings = model.getServiceSettings();
-        return Objects.hash(secretSettings.accessKey, secretSettings.secretKey, serviceSettings.region(), timeout);
+        return Objects.hash(secretSettings.accessKey(), secretSettings.secretKey(), serviceSettings.region(), timeout);
     }
 
     public final void setClock(Clock clock) {

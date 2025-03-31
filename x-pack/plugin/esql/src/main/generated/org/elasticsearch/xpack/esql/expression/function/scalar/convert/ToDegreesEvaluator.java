@@ -13,21 +13,25 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDegrees}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDegreesEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator deg;
+
+  public ToDegreesEvaluator(Source source, EvalOperator.ExpressionEvaluator deg,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.deg = deg;
   }
 
   @Override
-  public String name() {
-    return "ToDegrees";
+  public EvalOperator.ExpressionEvaluator next() {
+    return deg;
   }
 
   @Override
@@ -55,7 +59,7 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     }
   }
 
-  private static double evalValue(DoubleVector container, int index) {
+  private double evalValue(DoubleVector container, int index) {
     double value = container.getDouble(index);
     return ToDegrees.process(value);
   }
@@ -94,29 +98,39 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     }
   }
 
-  private static double evalValue(DoubleBlock container, int index) {
+  private double evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToDegrees.process(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToDegreesEvaluator[" + "deg=" + deg + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(deg);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory deg;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory deg) {
       this.source = source;
+      this.deg = deg;
     }
 
     @Override
     public ToDegreesEvaluator get(DriverContext context) {
-      return new ToDegreesEvaluator(field.get(context), source, context);
+      return new ToDegreesEvaluator(source, deg.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToDegreesEvaluator[field=" + field + "]";
+      return "ToDegreesEvaluator[" + "deg=" + deg + "]";
     }
   }
 }

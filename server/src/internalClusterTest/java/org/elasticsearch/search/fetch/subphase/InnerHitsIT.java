@@ -490,8 +490,9 @@ public class InnerHitsIT extends ESIntegTestCase {
             response -> {
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
                 innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-                assertNotNull(innerHits.getAt(0).getSourceAsMap());
-                assertFalse(innerHits.getAt(0).getSourceAsMap().isEmpty());
+                Map<String, Object> source = innerHits.getAt(0).getSourceAsMap();
+                assertNotNull(source);
+                assertFalse(source.isEmpty());
             }
         );
         assertNoFailuresAndResponse(
@@ -507,8 +508,9 @@ public class InnerHitsIT extends ESIntegTestCase {
             response -> {
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
                 innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-                assertNotNull(innerHits.getAt(0).getSourceAsMap());
-                assertFalse(innerHits.getAt(0).getSourceAsMap().isEmpty());
+                Map<String, Object> source = innerHits.getAt(0).getSourceAsMap();
+                assertNotNull(source);
+                assertFalse(source.isEmpty());
             }
         );
     }
@@ -845,16 +847,12 @@ public class InnerHitsIT extends ESIntegTestCase {
                 assertHitCount(response, 1);
 
                 assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(2L));
-                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(1));
-                assertThat(
-                    response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().get("message"),
-                    equalTo("fox eat quick")
-                );
-                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap().size(), equalTo(1));
-                assertThat(
-                    response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap().get("message"),
-                    equalTo("fox ate rabbit x y z")
-                );
+                Map<String, Object> source0 = response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap();
+                assertThat(source0.size(), equalTo(1));
+                assertThat(source0.get("message"), equalTo("fox eat quick"));
+                Map<String, Object> source1 = response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap();
+                assertThat(source1.size(), equalTo(1));
+                assertThat(source1.get("message"), equalTo("fox ate rabbit x y z"));
             }
         );
 
@@ -866,16 +864,12 @@ public class InnerHitsIT extends ESIntegTestCase {
                 assertHitCount(response, 1);
 
                 assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(2L));
-                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(2));
-                assertThat(
-                    response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().get("message"),
-                    equalTo("fox eat quick")
-                );
-                assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(2));
-                assertThat(
-                    response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap().get("message"),
-                    equalTo("fox ate rabbit x y z")
-                );
+                Map<String, Object> source0 = response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap();
+                assertThat(source0.size(), equalTo(2));
+                assertThat(source0.get("message"), equalTo("fox eat quick"));
+                Map<String, Object> source1 = response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap();
+                assertThat(source1.size(), equalTo(2));
+                assertThat(source1.get("message"), equalTo("fox ate rabbit x y z"));
             }
         );
 

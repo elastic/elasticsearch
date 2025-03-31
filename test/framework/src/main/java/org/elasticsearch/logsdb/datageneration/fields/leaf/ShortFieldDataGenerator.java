@@ -13,21 +13,28 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 
+import java.util.Map;
 import java.util.function.Supplier;
 
 public class ShortFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
+    private final Supplier<Object> valueGeneratorWithMalformed;
 
     public ShortFieldDataGenerator(String fieldName, DataSource dataSource) {
-        var shorts = dataSource.get(new DataSourceRequest.ShortGenerator());
-        var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
-        var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
+        var shorts = dataSource.get(new DataSourceRequest.ShortGenerator()).generator();
 
-        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> shorts.generator().get());
+        this.valueGenerator = Wrappers.defaults(shorts::get, dataSource);
+
+        var strings = dataSource.get(new DataSourceRequest.StringGenerator()).generator();
+        this.valueGeneratorWithMalformed = Wrappers.defaultsWithMalformed(shorts::get, strings::get, dataSource);
     }
 
     @Override
-    public Object generateValue() {
+    public Object generateValue(Map<String, Object> fieldMapping) {
+        if (fieldMapping != null && (Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {
+            return valueGeneratorWithMalformed.get();
+        }
+
         return valueGenerator.get();
     }
 }

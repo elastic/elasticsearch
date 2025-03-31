@@ -11,13 +11,16 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
 
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -106,7 +109,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoring() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -122,8 +124,120 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Test for https://github.com/elastic/elasticsearch/issues/123967
+     */
+    public void testWhereMatchWithScoring_AndRequestFilter() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE content:"fox"
+            | SORT _score DESC
+            | KEEP content, _score
+            """;
+
+        QueryBuilder filter = boolQuery().must(matchQuery("content", "brown"));
+
+        try (var resp = run(query, randomPragmas(), filter)) {
+            assertColumnNames(resp.columns(), List.of("content", "_score"));
+            assertColumnTypes(resp.columns(), List.of("text", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 1.4274532794952393),
+                    List.of("The quick brown fox jumps over the lazy dog", 1.1248724460601807)
+                )
+            );
+        }
+    }
+
+    public void testWhereMatchWithScoring_AndNoScoreRequestFilter() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE content:"fox"
+            | SORT _score DESC
+            | KEEP content, _score
+            """;
+
+        QueryBuilder filter = boolQuery().filter(matchQuery("content", "brown"));
+
+        try (var resp = run(query, randomPragmas(), filter)) {
+            assertColumnNames(resp.columns(), List.of("content", "_score"));
+            assertColumnTypes(resp.columns(), List.of("text", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 1.156558871269226),
+                    List.of("The quick brown fox jumps over the lazy dog", 0.9114001989364624)
+                )
+            );
+        }
+    }
+
+    public void testWhereMatchWithScoring_And_MatchAllRequestFilter() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE content:"fox"
+            | SORT _score DESC
+            | KEEP content, _score
+            """;
+
+        QueryBuilder filter = QueryBuilders.matchAllQuery();
+
+        try (var resp = run(query, randomPragmas(), filter)) {
+            assertColumnNames(resp.columns(), List.of("content", "_score"));
+            assertColumnTypes(resp.columns(), List.of("text", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 2.1565589904785156),
+                    List.of("The quick brown fox jumps over the lazy dog", 1.9114001989364624)
+                )
+            );
+        }
+    }
+
+    public void testScoringOutsideQuery() {
+        var query = """
+            FROM test METADATA _score
+            | SORT _score DESC
+            | KEEP content, _score
+            """;
+
+        QueryBuilder filter = boolQuery().must(matchQuery("content", "fox"));
+
+        try (var resp = run(query, randomPragmas(), filter)) {
+            assertColumnNames(resp.columns(), List.of("content", "_score"));
+            assertColumnTypes(resp.columns(), List.of("text", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 1.156558871269226),
+                    List.of("The quick brown fox jumps over the lazy dog", 0.9114001989364624)
+                )
+            );
+        }
+    }
+
+    public void testScoring_Zero_OutsideQuery() {
+        var query = """
+            FROM test METADATA _score
+            | SORT content DESC
+            | KEEP content, _score
+            """;
+
+        QueryBuilder filter = boolQuery().filter(matchQuery("content", "fox"));
+
+        try (var resp = run(query, randomPragmas(), filter)) {
+            assertColumnNames(resp.columns(), List.of("content", "_score"));
+            assertColumnTypes(resp.columns(), List.of("text", "double"));
+            assertValues(
+                resp.values(),
+                List.of(List.of("This is a brown fox", 0.0), List.of("The quick brown fox jumps over the lazy dog", 0.0))
+            );
+        }
+    }
+
     public void testWhereMatchWithScoringDifferentSort() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -140,7 +254,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringNoSort() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -206,20 +319,19 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Unknown column [content]"));
     }
 
-    public void testWhereMatchWithFunctions() {
+    public void testWhereMatchNotPushedDown() {
         var query = """
             FROM test
-            | WHERE content:"fox" OR to_upper(content) == "FOX"
+            | WHERE content:"fox" OR length(content) < 20
+            | KEEP id
+            | SORT id
             """;
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString(
-                "Invalid condition [content:\"fox\" OR to_upper(content) == \"FOX\"]. "
-                    + "Full text functions can be used in an OR condition, "
-                    + "but only if just full text functions are used in the OR condition"
-            )
-        );
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
     }
 
     public void testWhereMatchWithRow() {
@@ -231,7 +343,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[:] operator cannot operate on [\"a brown fox\"], which is not a field from an index mapping")
+            containsString("line 2:9: [:] operator cannot operate on [content], which is not a field from an index mapping")
         );
     }
 

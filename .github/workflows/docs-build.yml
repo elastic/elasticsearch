@@ -1,0 +1,19 @@
+name: docs-build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request_target: ~
+  merge_group: ~
+
+jobs:
+  docs-preview:
+    uses: elastic/docs-builder/.github/workflows/preview-build.yml@main
+    with:
+      path-pattern: docs/**
+    permissions:
+      deployments: write
+      id-token: write
+      contents: read
+      pull-requests: read

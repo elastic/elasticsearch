@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
@@ -39,6 +41,8 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     private static final Logger logger = LogManager.getLogger(TransportOpenIndexAction.class);
 
     private final MetadataIndexStateService indexStateService;
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
@@ -48,6 +52,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
         ThreadPool threadPool,
         MetadataIndexStateService indexStateService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DestructiveOperations destructiveOperations
     ) {
@@ -58,11 +63,12 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
             threadPool,
             actionFilters,
             OpenIndexRequest::new,
-            indexNameExpressionResolver,
             OpenIndexResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexStateService = indexStateService;
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
     }
 
@@ -74,8 +80,13 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
 
     @Override
     protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(
+                projectMetadata.id(),
+                ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(projectMetadata, request)
+            );
     }
 
     @Override
@@ -95,6 +106,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
             new OpenIndexClusterStateUpdateRequest(
                 request.masterNodeTimeout(),
                 request.ackTimeout(),
+                projectResolver.getProjectId(),
                 request.waitForActiveShards(),
                 concreteIndices
             ),

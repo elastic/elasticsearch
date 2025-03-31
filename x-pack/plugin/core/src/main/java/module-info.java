@@ -7,6 +7,7 @@
 
 module org.elasticsearch.xcore {
     requires org.elasticsearch.cli;
+    requires org.elasticsearch.entitlement;
     requires org.elasticsearch.base;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.server;
@@ -66,7 +67,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.esql.action;
     exports org.elasticsearch.xpack.core.esql.action.internal; // TODO: qualify to esql when modularized
-    exports org.elasticsearch.xpack.core.frozen.action;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
     exports org.elasticsearch.xpack.core.graph;
@@ -173,6 +173,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.authz.store;
     exports org.elasticsearch.xpack.core.security.authz.support;
     exports org.elasticsearch.xpack.core.security.authz;
+    exports org.elasticsearch.xpack.core.security.operator;
     exports org.elasticsearch.xpack.core.security.support;
     exports org.elasticsearch.xpack.core.security.user;
     exports org.elasticsearch.xpack.core.security.xcontent;

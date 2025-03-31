@@ -17,7 +17,7 @@ import java.io.IOException;
 
 /**
  * Vector that stores boolean values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, BooleanArrayVector, BooleanBigArrayVector,
     ConstantNullVector {

@@ -25,13 +25,13 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -96,7 +96,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -107,22 +107,21 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         );
 
         // TODO chunking sparse embeddings not implemented
-        doInfer(model, inputs, taskSettings, inputType, timeout, inferListener);
+        doInfer(model, inputs, taskSettings, timeout, inferListener);
     }
 
-    private static List<ChunkedInference> translateToChunkedResults(DocumentsOnlyInput inputs, InferenceServiceResults inferenceResults) {
-        if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
+    private static List<ChunkedInference> translateToChunkedResults(EmbeddingsInput inputs, InferenceServiceResults inferenceResults) {
+        if (inferenceResults instanceof TextEmbeddingFloatResults textEmbeddingResults) {
             validateInputSizeAgainstEmbeddings(inputs.getInputs(), textEmbeddingResults.embeddings().size());
 
             var results = new ArrayList<ChunkedInference>(inputs.getInputs().size());
 
             for (int i = 0; i < inputs.getInputs().size(); i++) {
                 results.add(
-                    new ChunkedInferenceEmbeddingFloat(
+                    new ChunkedInferenceEmbedding(
                         List.of(
-                            new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
-                                textEmbeddingResults.embeddings().get(i).values(),
-                                inputs.getInputs().get(i),
+                            new EmbeddingResults.Chunk(
+                                textEmbeddingResults.embeddings().get(i),
                                 new ChunkedInference.TextOffset(0, inputs.getInputs().get(i).length())
                             )
                         )
@@ -131,14 +130,14 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
             }
             return results;
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            var inputsAsList = DocumentsOnlyInput.of(inputs).getInputs();
-            return ChunkedInferenceEmbeddingSparse.listOf(inputsAsList, sparseEmbeddingResults);
+            var inputsAsList = EmbeddingsInput.of(inputs).getInputs();
+            return ChunkedInferenceEmbedding.listOf(inputsAsList, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ChunkedInferenceError(error.getException()));
         } else {
             String expectedClasses = Strings.format(
                 "One of [%s,%s]",
-                InferenceTextEmbeddingFloatResults.class.getSimpleName(),
+                TextEmbeddingFloatResults.class.getSimpleName(),
                 SparseEmbeddingResults.class.getSimpleName()
             );
             throw createInvalidChunkedResultException(expectedClasses, inferenceResults.getWriteableName());
@@ -151,8 +150,8 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
-    public Boolean hideFromConfigurationApi() {
-        return Boolean.TRUE;
+    public boolean hideFromConfigurationApi() {
+        return true;
     }
 
     @Override

@@ -65,7 +65,7 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         AutoscalingDeciderContext context = mock(AutoscalingDeciderContext.class);
         when(context.state()).thenReturn(state);
-        final Tuple<Long, ClusterInfo> sizeAndClusterInfo = sizeAndClusterInfo(metadata.index("index"));
+        final Tuple<Long, ClusterInfo> sizeAndClusterInfo = sizeAndClusterInfo(metadata.getProject().index("index"));
         final long dataSetSize = sizeAndClusterInfo.v1();
         final ClusterInfo info = sizeAndClusterInfo.v2();
         when(context.info()).thenReturn(info);

@@ -122,15 +122,20 @@ final class TikaImpl {
 
     // apply additional containment for parsers, this is intersected with the current permissions
     // its hairy, but worth it so we don't have some XML flaw reading random crap from the FS
-    private static final AccessControlContext RESTRICTED_CONTEXT = new AccessControlContext(
-        new ProtectionDomain[] { new ProtectionDomain(null, getRestrictedPermissions()) }
-    );
+    private static final AccessControlContext RESTRICTED_CONTEXT = isUsingSecurityManager()
+        ? new AccessControlContext(new ProtectionDomain[] { new ProtectionDomain(null, getRestrictedPermissions()) })
+        : null;
+
+    private static boolean isUsingSecurityManager() {
+        return false;
+    }
 
     // compute some minimal permissions for parsers. they only get r/w access to the java temp directory,
     // the ability to load some resources from JARs, and read sysprops
     @SuppressForbidden(reason = "adds access to tmp directory")
     static PermissionCollection getRestrictedPermissions() {
         Permissions perms = new Permissions();
+
         // property/env access needed for parsing
         perms.add(new PropertyPermission("*", "read"));
         perms.add(new RuntimePermission("getenv.TIKA_CONFIG"));

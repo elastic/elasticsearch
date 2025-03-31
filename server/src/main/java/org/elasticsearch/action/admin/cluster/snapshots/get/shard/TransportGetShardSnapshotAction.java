@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -50,8 +49,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
         ClusterService clusterService,
         ThreadPool threadPool,
         RepositoriesService repositoriesService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             TYPE.name(),
@@ -60,7 +58,6 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
             threadPool,
             actionFilters,
             GetShardSnapshotRequest::new,
-            indexNameExpressionResolver,
             GetShardSnapshotResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

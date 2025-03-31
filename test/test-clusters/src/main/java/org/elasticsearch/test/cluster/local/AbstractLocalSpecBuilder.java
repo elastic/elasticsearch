@@ -17,6 +17,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -34,7 +35,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Map<String, String> settings = new HashMap<>();
     private final List<EnvironmentProvider> environmentProviders = new ArrayList<>();
     private final Map<String, String> environment = new HashMap<>();
-    private final Set<String> modules = new HashSet<>();
+    private final Map<String, DefaultPluginInstallSpec> modules = new HashMap<>();
     private final Map<String, DefaultPluginInstallSpec> plugins = new HashMap<>();
     private final Set<FeatureFlag> features = EnumSet.noneOf(FeatureFlag.class);
     private final List<SettingsProvider> keystoreProviders = new ArrayList<>();
@@ -47,6 +48,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private DistributionType distributionType;
     private Version version;
     private String keystorePassword;
+    private Supplier<Path> configDirSupplier;
 
     protected AbstractLocalSpecBuilder(AbstractLocalSpecBuilder<?> parent) {
         this.parent = parent;
@@ -123,11 +125,19 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     @Override
     public T module(String moduleName) {
-        this.modules.add(moduleName);
+        this.modules.put(moduleName, new DefaultPluginInstallSpec());
         return cast(this);
     }
 
-    Set<String> getModules() {
+    @Override
+    public T module(String moduleName, Consumer<? super PluginInstallSpec> config) {
+        DefaultPluginInstallSpec spec = new DefaultPluginInstallSpec();
+        config.accept(spec);
+        this.modules.put(moduleName, spec);
+        return cast(this);
+    }
+
+    Map<String, DefaultPluginInstallSpec> getModules() {
         return inherit(() -> parent.getModules(), modules);
     }
 
@@ -263,8 +273,24 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     }
 
     @Override
+    public T withConfigDir(Supplier<Path> configDirSupplier) {
+        this.configDirSupplier = configDirSupplier;
+        return cast(this);
+    }
+
+    public Supplier<Path> getConfigDirSupplier() {
+        return inherit(() -> parent.getConfigDirSupplier(), configDirSupplier);
+    }
+
+    @Override
     public T version(Version version) {
         this.version = version;
+        return cast(this);
+    }
+
+    @Override
+    public T version(String version) {
+        this.version = Version.fromString(version);
         return cast(this);
     }
 

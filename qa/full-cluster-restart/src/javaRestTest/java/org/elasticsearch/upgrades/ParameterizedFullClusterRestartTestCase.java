@@ -38,8 +38,10 @@ import static org.hamcrest.Matchers.notNullValue;
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
 
-    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString(System.getProperty("tests.minimum.wire.compatible"));
-    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
+    protected static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString(
+        System.getProperty("tests.minimum.wire.compatible")
+    );
+    protected static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static IndexVersion oldIndexVersion;
     private static boolean upgradeFailed = false;
     private static boolean upgraded = false;
@@ -133,7 +135,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     }
 
     public static String getOldClusterVersion() {
-        return OLD_CLUSTER_VERSION;
+        return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 
     protected static boolean oldClusterHasFeature(String featureId) {
@@ -152,7 +154,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     }
 
     public static Version getOldClusterTestVersion() {
-        return Version.fromString(OLD_CLUSTER_VERSION);
+        return Version.fromString(System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION));
     }
 
     protected abstract ElasticsearchCluster getUpgradeCluster();

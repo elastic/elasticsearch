@@ -100,7 +100,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     // Designed to be overridden by subclasses that may score docs by criteria
     // other than Lucene score
     protected TopDocsCollector<? extends ScoreDoc> createTopDocsCollector(int size) throws IOException {
-        return new TopScoreDocCollectorManager(size, null, Integer.MAX_VALUE, false).newCollector();
+        return new TopScoreDocCollectorManager(size, null, Integer.MAX_VALUE).newCollector();
     }
 
     // Can be overridden by subclasses that have a different priority queue implementation

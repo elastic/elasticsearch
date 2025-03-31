@@ -53,7 +53,7 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(serviceSettings, is(new ElasticInferenceServiceCompletionServiceSettings(modelId, new RateLimitSettings(240L))));
+        assertThat(serviceSettings, is(new ElasticInferenceServiceCompletionServiceSettings(modelId, new RateLimitSettings(720L))));
     }
 
     public void testFromMap_MissingModelId_ThrowsException() {

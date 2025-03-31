@@ -23,10 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class RestEnrichTestCase extends ESRestTestCase {
 
@@ -194,14 +191,14 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("from test1 | enrich countries | keep number | sort number");
         var columns = List.of(Map.of("name", "number", "type", "long"));
         var values = List.of(List.of(1000), List.of(1000), List.of(5000));
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(result, columns, values);
     }
 
     public void testMatchField_ImplicitFieldsList_WithStats() throws IOException {
         Map<String, Object> result = runEsql("from test1 | enrich countries | stats s = sum(number) by country_name");
         var columns = List.of(Map.of("name", "s", "type", "long"), Map.of("name", "country_name", "type", "keyword"));
         var values = List.of(List.of(2000, "United States of America"), List.of(5000, "China"));
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(result, columns, values);
     }
 
     public void testSimpleIndexFilteringWithEnrich() throws IOException {
@@ -226,7 +223,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
             Arrays.asList(null, 1000, "US", "test1"),
             Arrays.asList(3, null, "US", "test2")
         );
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(result, columns, values);
 
         // filter something that won't affect the columns
         result = runEsql("""
@@ -235,7 +232,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
                 | keep *number, geo.dest, _index
                 | sort geo.dest, _index
             """, b -> b.startObject("exists").field("field", "foobar").endObject());
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", List.of()).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(result, columns, List.of());
     }
 
     public void testIndexFilteringWithEnrich_RemoveOneIndex() throws IOException {
@@ -259,7 +256,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
             Arrays.asList(null, 1000, "US", "test1")
         );
 
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(result, columns, values);
 
         // filter out test2 and use a wildcarded field name in the "keep" command
         result = runEsql("""
@@ -275,7 +272,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
             Map.of("name", "_index", "type", "keyword")
         );
         values = List.of(Arrays.asList(5000, "CN", "test1"), Arrays.asList(1000, "US", "test1"), Arrays.asList(1000, "US", "test1"));
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(result, columns, values);
     }
 
     public void testIndexFilteringWithEnrich_ExpectException() throws IOException {
@@ -315,7 +312,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
             Map.of("name", "_index", "type", "keyword")
         );
         var values = List.of(Arrays.asList(2, "IN", "test2"), Arrays.asList(2, "IN", "test2"), Arrays.asList(3, "US", "test2"));
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(result, columns, values);
     }
 
     private Map<String, Object> runEsql(String query) throws IOException {

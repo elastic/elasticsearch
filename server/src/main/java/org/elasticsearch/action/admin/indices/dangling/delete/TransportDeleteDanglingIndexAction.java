@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -62,7 +61,6 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Settings settings,
         NodeClient nodeClient
     ) {
@@ -73,7 +71,6 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
             threadPool,
             actionFilters,
             DeleteDanglingIndexRequest::new,
-            indexNameExpressionResolver,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.settings = settings;
@@ -131,7 +128,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
         final Metadata metaData = currentState.getMetadata();
 
-        for (Map.Entry<String, IndexMetadata> each : metaData.indices().entrySet()) {
+        for (Map.Entry<String, IndexMetadata> each : metaData.getProject().indices().entrySet()) {
             if (indexToDelete.getUUID().equals(each.getValue().getIndexUUID())) {
                 throw new IllegalArgumentException(
                     "Refusing to delete dangling index "
@@ -146,7 +143,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
         // By definition, a dangling index is an index not present in the cluster state and with no tombstone,
         // so we shouldn't reach this point if these conditions aren't met. For super-safety, however, check
         // that a tombstone doesn't already exist for this index.
-        if (metaData.indexGraveyard().containsIndex(indexToDelete)) {
+        if (metaData.getProject().indexGraveyard().containsIndex(indexToDelete)) {
             return currentState;
         }
 

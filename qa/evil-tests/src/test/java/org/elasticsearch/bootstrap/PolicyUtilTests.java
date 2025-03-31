@@ -10,6 +10,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -40,6 +41,7 @@ public class PolicyUtilTests extends ESTestCase {
 
     @Before
     public void assumeSecurityManagerDisabled() {
+        assumeTrue("test requires security manager to be supported", RuntimeVersionFeature.isSecurityManagerAvailable());
         assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
     }
 

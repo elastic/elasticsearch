@@ -74,6 +74,12 @@ public abstract class BuildVersion implements ToXContentFragment, Writeable {
     public abstract String toNodeMetadata();
 
     /**
+     * Returns the minimum compatible build version based on the current version.
+     * Ie a node needs to have at least the return version in order to communicate with a node running the current version.
+     */
+    public abstract BuildVersion minimumCompatibilityVersion();
+
+    /**
      * Create a {@link BuildVersion} from a version ID number.
      *
      * <p>By default, this identifier should match the integer ID of a {@link Version};

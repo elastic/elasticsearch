@@ -146,7 +146,7 @@ public class CertParsingUtils {
         boolean acceptNonSecurePasswords
     ) {
         final SslSettingsLoader settingsLoader = new SslSettingsLoader(settings, prefix, acceptNonSecurePasswords);
-        return settingsLoader.buildKeyConfig(environment.configFile());
+        return settingsLoader.buildKeyConfig(environment.configDir());
     }
 
     /**

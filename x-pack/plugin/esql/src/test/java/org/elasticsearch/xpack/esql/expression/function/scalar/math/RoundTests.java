@@ -200,8 +200,8 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                     "RoundUnsignedLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
                     DataType.UNSIGNED_LONG,
                     equalTo(null)
-                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("Line -1:-1: java.lang.ArithmeticException: unsigned_long overflow")
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.ArithmeticException: unsigned_long overflow")
             )
         );
         suppliers.add(

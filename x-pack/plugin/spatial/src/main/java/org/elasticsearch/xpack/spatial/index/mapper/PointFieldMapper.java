@@ -100,10 +100,14 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         public FieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
+                /*
+                 * We have no plans to fail on multifields because it isn't worth breaking
+                 * even the tiny fraction of users.
+                 */
                 DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "point_multifields",
-                    "Adding multifields to [point] mappers has no effect and will be forbidden in future"
+                    "Adding multifields to [point] mappers has no effect"
                 );
             }
             CartesianPointParser parser = new CartesianPointParser(

@@ -16,12 +16,15 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
@@ -53,6 +56,9 @@ import static org.hamcrest.Matchers.equalTo;
 public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
     implements
         Supplier<TestCaseSupplier.TestCase> {
+
+    public static final Source TEST_SOURCE = new Source(new Location(1, 0), "source");
+    public static final Configuration TEST_CONFIGURATION = EsqlTestUtils.configuration(TEST_SOURCE.text());
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
 
@@ -111,6 +117,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     @Override
     public TestCase get() {
         TestCase supplied = supplier.get();
+        if (types.size() != supplied.getData().size()) {
+            throw new IllegalStateException(name + ": type/data size mismatch " + types.size() + "/" + supplied.getData().size());
+        }
         for (int i = 0; i < types.size(); i++) {
             if (supplied.getData().get(i).type() != types.get(i)) {
                 throw new IllegalStateException(
@@ -1389,6 +1398,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final Source source;
         /**
+         * The {@link Configuration} this test case should use
+         */
+        private final Configuration configuration;
+        /**
          * The parameter values and types to pass into the function for this test run
          */
         private final List<TypedData> data;
@@ -1490,7 +1503,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra,
             boolean canBuildEvaluator
         ) {
-            this.source = Source.EMPTY;
+            this.source = TEST_SOURCE;
+            this.configuration = TEST_CONFIGURATION;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
             this.expectedType = expectedType == null ? null : expectedType.noText();
@@ -1508,6 +1522,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public Source getSource() {
             return source;
+        }
+
+        public Configuration getConfiguration() {
+            return configuration;
         }
 
         public List<TypedData> getData() {

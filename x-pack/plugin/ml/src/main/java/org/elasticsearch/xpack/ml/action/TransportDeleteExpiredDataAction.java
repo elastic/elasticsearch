@@ -134,10 +134,9 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         BooleanSupplier isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
-        AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(client, clusterService, auditor.includeNodeInfo());
 
         if (Strings.isNullOrEmpty(request.getJobId()) || Strings.isAllOrWildcard(request.getJobId())) {
-            List<MlDataRemover> dataRemovers = createDataRemovers(client, taskId, anomalyDetectionAuditor);
+            List<MlDataRemover> dataRemovers = createDataRemovers(client, taskId, auditor);
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
                 .execute(ActionRunnable.wrap(listener, l -> deleteExpiredData(request, dataRemovers, l, isTimedOutSupplier)));
         } else {
@@ -152,7 +151,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
                             List<Job> jobs = jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
                             String[] jobIds = jobs.stream().map(Job::getId).toArray(String[]::new);
                             request.setExpandedJobIds(jobIds);
-                            List<MlDataRemover> dataRemovers = createDataRemovers(jobs, taskId, anomalyDetectionAuditor);
+                            List<MlDataRemover> dataRemovers = createDataRemovers(jobs, taskId, auditor);
                             deleteExpiredData(request, dataRemovers, l, isTimedOutSupplier);
                         }))
                 )

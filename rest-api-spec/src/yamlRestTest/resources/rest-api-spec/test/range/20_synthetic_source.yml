@@ -7,9 +7,9 @@ setup:
       indices.create:
         index: synthetic_source_test
         body:
+          settings:
+            index.mapping.source.mode: synthetic
           mappings:
-            "_source":
-              "mode": "synthetic"
             "properties":
               "integer_range":
                 "type" : "integer_range"

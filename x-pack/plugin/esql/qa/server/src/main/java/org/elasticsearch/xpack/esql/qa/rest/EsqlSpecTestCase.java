@@ -70,6 +70,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEnd
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -132,8 +133,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             createInferenceEndpoint(client());
         }
 
-        if (indexExists(availableDatasetsForEs(client(), supportsIndexModeLookup()).iterator().next().indexName()) == false) {
-            loadDataSetIntoEs(client(), supportsIndexModeLookup());
+        boolean supportsLookup = supportsIndexModeLookup();
+        boolean supportsSourceMapping = supportsSourceFieldMapping();
+        if (indexExists(availableDatasetsForEs(client(), supportsLookup, supportsSourceMapping).iterator().next().indexName()) == false) {
+            loadDataSetIntoEs(client(), supportsLookup, supportsSourceMapping);
         }
     }
 
@@ -172,6 +175,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        if (supportsSourceFieldMapping() == false) {
+            assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
+        }
     }
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
@@ -229,10 +235,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
+    protected boolean supportsSourceFieldMapping() throws IOException {
+        return true;
+    }
+
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
-        if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP")) {
+        if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
             builder.tables(tables());
         }
 

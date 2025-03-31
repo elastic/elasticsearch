@@ -6,12 +6,15 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -80,7 +84,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 Map<String, Processor.Factory> processorFactories,
                 String tag,
                 String description,
-                Map<String, Object> config
+                Map<String, Object> config,
+                ProjectId projectId
             ) {
                 return new NotInferenceProcessor();
             }
@@ -95,7 +100,12 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
             factoryMap.put(
                 InferenceProcessor.TYPE,
-                new InferenceProcessor.Factory(parameters.client, parameters.ingestService.getClusterService(), Settings.EMPTY, true)
+                new InferenceProcessor.Factory(
+                    parameters.client,
+                    parameters.ingestService.getClusterService(),
+                    Settings.EMPTY,
+                    new SetOnce<>(mock(InferenceAuditor.class))
+                )
             );
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
@@ -138,7 +148,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             Collections.singletonList(SKINNY_INGEST_PLUGIN),
             client,
             null,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.alwaysThrow()
         );
     }
 

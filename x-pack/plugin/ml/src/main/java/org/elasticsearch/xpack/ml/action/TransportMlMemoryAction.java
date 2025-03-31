@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -61,7 +60,6 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
         MlMemoryTracker memoryTracker
     ) {
@@ -72,7 +70,6 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             threadPool,
             actionFilters,
             MlMemoryAction.Request::new,
-            indexNameExpressionResolver,
             MlMemoryAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -130,7 +127,10 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
         if (memoryTracker.isEverRefreshed()) {
             memoryTrackerRefreshListener.onResponse(null);
         } else {
-            memoryTracker.refresh(state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE), memoryTrackerRefreshListener);
+            memoryTracker.refresh(
+                state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE),
+                memoryTrackerRefreshListener
+            );
         }
     }
 

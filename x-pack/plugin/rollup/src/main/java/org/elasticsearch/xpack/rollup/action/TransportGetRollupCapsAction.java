@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -32,7 +34,12 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
+
 public class TransportGetRollupCapsAction extends HandledTransportAction<GetRollupCapsAction.Request, GetRollupCapsAction.Response> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportGetRollupCapsAction.class);
 
     private final ClusterService clusterService;
     private final Executor managementExecutor;
@@ -53,13 +60,14 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     @Override
     protected void doExecute(Task task, GetRollupCapsAction.Request request, ActionListener<GetRollupCapsAction.Response> listener) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         // Workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
         managementExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(request.getIndexPattern(), l)));
     }
 
     private void doExecuteForked(String indexPattern, ActionListener<GetRollupCapsAction.Response> listener) {
         Transports.assertNotTransportThread("retrieving rollup job caps may be expensive");
-        Map<String, RollableIndexCaps> allCaps = getCaps(indexPattern, clusterService.state().getMetadata().indices());
+        Map<String, RollableIndexCaps> allCaps = getCaps(indexPattern, clusterService.state().getMetadata().getProject().indices());
         listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
 

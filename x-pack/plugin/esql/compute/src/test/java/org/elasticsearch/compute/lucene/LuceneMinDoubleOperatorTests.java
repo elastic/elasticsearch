@@ -70,7 +70,7 @@ public class LuceneMinDoubleOperatorTests extends LuceneMinOperatorTestCase {
 
             @Override
             public AggregatorFunction newAggregatorFunction(DriverContext context) {
-                return new MinDoubleAggregatorFunctionSupplier(List.of(0, 1)).aggregator(context);
+                return new MinDoubleAggregatorFunctionSupplier().aggregator(context, List.of(0, 1));
             }
 
             @Override

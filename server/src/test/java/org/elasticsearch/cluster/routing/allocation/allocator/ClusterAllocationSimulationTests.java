@@ -139,7 +139,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var metadata = metadataBuilder.build();
 
         final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        for (final var indexMetadata : metadata) {
+        for (final var indexMetadata : metadata.getProject()) {
             routingTableBuilder.addAsNew(indexMetadata);
         }
 
@@ -322,11 +322,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 final var unassignedIterator = routingNodes.unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     final var shardRouting = unassignedIterator.next();
-                    final var badNodes = routingAllocation.routingTable()
-                        .index(shardRouting.index())
-                        .shard(shardRouting.id())
-                        .assignedShards()
+                    final var badNodes = routingAllocation.globalRoutingTable()
+                        .routingTables()
+                        .values()
                         .stream()
+                        .filter(table -> table.hasIndex(shardRouting.index()))
+                        .flatMap(table -> table.index(shardRouting.index()).shard(shardRouting.id()).assignedShards().stream())
                         .map(ShardRouting::currentNodeId)
                         .collect(Collectors.toSet());
                     unassignedIterator.initialize(
@@ -388,8 +389,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 for (ShardRouting shardRouting : routingNode) {
                     shards += 1;
                     totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
-                    totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().index(shardRouting.index()))
-                        .orElseThrow(() -> new AssertionError("missing write load"));
+                    totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(
+                        clusterState.metadata().getProject().index(shardRouting.index())
+                    ).orElseThrow(() -> new AssertionError("missing write load"));
                 }
 
                 results.startObject();

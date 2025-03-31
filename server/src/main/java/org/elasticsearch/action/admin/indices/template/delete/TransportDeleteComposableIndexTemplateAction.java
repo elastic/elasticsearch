@@ -20,8 +20,8 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,6 +46,7 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/index_template/delete");
     private final MetadataIndexTemplateService indexTemplateService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteComposableIndexTemplateAction(
@@ -54,19 +55,11 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
-        super(
-            TYPE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            Request::new,
-            indexNameExpressionResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(TYPE.name(), transportService, clusterService, threadPool, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.indexTemplateService = indexTemplateService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -81,7 +74,8 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        indexTemplateService.removeIndexTemplateV2(request.names(), request.masterNodeTimeout(), listener);
+        final var projectId = projectResolver.getProjectId();
+        indexTemplateService.removeIndexTemplateV2(projectId, request.names(), request.masterNodeTimeout(), listener);
     }
 
     @Override
@@ -92,8 +86,20 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
     @Override
     public Set<String> modifiedKeys(Request request) {
         return Arrays.stream(request.names())
-            .map(n -> ReservedComposableIndexTemplateAction.reservedComposableIndexName(n))
+            .map(ReservedComposableIndexTemplateAction::reservedComposableIndexName)
             .collect(Collectors.toSet());
+    }
+
+    @Override
+    protected void validateForReservedState(Request request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            projectResolver.getProjectMetadata(state).reservedStateMetadata().values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request.toString()
+        );
     }
 
     public static class Request extends MasterNodeRequest<Request> {

@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -27,7 +26,9 @@ public class FleetRestIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
+        .module("x-pack-fleet")
+        .module("x-pack-ilm")
+        .module("data-streams")
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))

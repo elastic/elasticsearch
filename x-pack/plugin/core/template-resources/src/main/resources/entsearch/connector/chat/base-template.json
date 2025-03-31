@@ -1,0 +1,86 @@
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "id": {
+          "type": "keyword"
+        },
+        "_allow_access_control": {
+          "type": "keyword"
+        },
+        "_deny_access_control": {
+          "type": "keyword"
+        },
+        "title": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          },
+          "copy_to": [
+            "content_semantic"
+          ]
+        },
+        "description": {
+          "type": "text",
+          "copy_to": [
+            "content_semantic"
+          ]
+        },
+        "content": {
+          "type": "text",
+          "copy_to": [
+            "content_semantic"
+          ]
+        },
+        "content_semantic": {
+          "type": "semantic_text"
+        },
+        "url": {
+          "type": "keyword"
+        },
+        "type": {
+          "type": "keyword"
+        },
+        "provenance": {
+          "type": "keyword"
+        },
+        "owner": {
+          "properties": {
+            "name": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "email_address": {
+              "type": "keyword"
+            },
+            "id": {
+              "type": "keyword"
+            }
+          }
+        },
+        "keywords": {
+          "type": "text"
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date"
+        },
+        "updated_at": {
+          "type": "date"
+        },
+        "metadata": {
+          "dynamic": true,
+          "properties": {}
+        }
+      }
+    }
+  }
+}

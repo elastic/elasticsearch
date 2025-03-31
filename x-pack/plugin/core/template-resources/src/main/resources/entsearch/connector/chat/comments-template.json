@@ -1,0 +1,46 @@
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "comments": {
+          "type": "nested",
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "author": {
+              "properties": {
+                "email": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "id": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "content": {
+              "type": "text"
+            },
+            "replies_to": {
+              "type": "keyword"
+            },
+            "created_at": {
+              "type": "date"
+            },
+            "updated_at": {
+              "type": "date"
+            }
+          }
+        }
+      }
+    }
+  }
+}

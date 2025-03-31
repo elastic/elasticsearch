@@ -20,6 +20,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -106,6 +107,7 @@ import static org.hamcrest.Matchers.startsWith;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+@LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
 public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);

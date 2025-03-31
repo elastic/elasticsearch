@@ -277,10 +277,10 @@ public class EsqlQueryGenerator {
             String newName;
             if (names.isEmpty() || randomBoolean()) {
                 newName = randomAlphaOfLength(5);
+                names.add(newName);
             } else {
                 newName = names.get(randomIntBetween(0, names.size() - 1));
             }
-            names.add(newName);
             proj.add(name + " AS " + newName);
         }
         if (proj.isEmpty()) {

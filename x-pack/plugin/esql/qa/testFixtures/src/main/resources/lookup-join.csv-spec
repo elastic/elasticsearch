@@ -1452,3 +1452,90 @@ emp_no:integer | language_code:integer | language_name:keyword
 10092          | 1                     | English
 10093          | 3                     | Spanish
 ;
+
+multipleBatchesWithSort
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+required_capability: make_number_of_channels_consistent_with_layout
+
+from *
+| rename city.country.continent.planet.name as message
+| lookup join message_types_lookup on message
+| sort language_code, birth_date
+| keep language_code
+| limit 1
+;
+
+language_code:integer
+1
+;
+
+multipleBatchesWithMvExpand
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+required_capability: make_number_of_channels_consistent_with_layout
+
+from *
+| rename city.country.continent.planet.name as message
+| lookup join message_types_lookup on message
+| keep birth_date, language_code
+| mv_expand birth_date
+| sort birth_date, language_code
+| limit 1
+;
+
+birth_date:datetime      |language_code:integer
+1952-02-27T00:00:00.000Z |null
+;
+
+multipleBatchesWithAggregate1
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+required_capability: make_number_of_channels_consistent_with_layout
+
+from *
+| rename city.country.continent.planet.name as message
+| lookup join message_types_lookup on message
+| keep birth_date, language_code
+| stats x=max(birth_date), y=min(language_code)
+;
+
+x:datetime               |y:integer
+1965-01-03T00:00:00.000Z |1
+;
+
+multipleBatchesWithAggregate2
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+required_capability: make_number_of_channels_consistent_with_layout
+
+from *
+| rename city.country.continent.planet.name as message
+| lookup join message_types_lookup on message
+| keep birth_date, language_code
+| stats m=min(birth_date) by language_code
+| sort language_code
+| limit 1
+;
+
+m:datetime |language_code:integer
+null       |1
+;
+
+multipleBatchesWithAggregate3
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+required_capability: make_number_of_channels_consistent_with_layout
+
+from *
+| rename city.country.continent.planet.name as message
+| lookup join message_types_lookup on message
+| keep birth_date, language_code
+| stats m=min(language_code) by birth_date
+| sort birth_date
+| limit 1
+;
+
+m:integer |birth_date:datetime
+null      |1952-02-27T00:00:00.000Z
+;

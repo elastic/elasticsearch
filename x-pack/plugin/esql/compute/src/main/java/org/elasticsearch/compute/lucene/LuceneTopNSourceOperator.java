@@ -43,8 +43,8 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.apache.lucene.search.ScoreMode.COMPLETE;
 import static org.apache.lucene.search.ScoreMode.TOP_DOCS;
+import static org.apache.lucene.search.ScoreMode.TOP_DOCS_WITH_SCORES;
 
 /**
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
@@ -65,7 +65,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             List<SortBuilder<?>> sorts,
             boolean scoring
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, scoring ? COMPLETE : TOP_DOCS);
+            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, scoring ? TOP_DOCS_WITH_SCORES : TOP_DOCS);
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
         }
@@ -287,7 +287,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             SortField[] sortFields = sortAndFormats.get().sort.getSort();
             if (sortFields != null && sortFields.length == 1 && sortFields[0].needsScores() && sortFields[0].getReverse() == false) {
                 // SORT _score DESC
-                return new ScoringPerShardCollector(shardContext, new TopScoreDocCollectorManager(limit, null, limit).newCollector());
+                return new ScoringPerShardCollector(shardContext, new TopScoreDocCollectorManager(limit, null, 0).newCollector());
             } else {
                 // SORT ..., _score, ...
                 var sort = new Sort();
@@ -297,7 +297,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                     l.add(SortField.FIELD_SCORE);
                     sort = new Sort(l.toArray(SortField[]::new));
                 }
-                return new ScoringPerShardCollector(shardContext, new TopFieldCollectorManager(sort, limit, null, limit).newCollector());
+                return new ScoringPerShardCollector(shardContext, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
             }
         }
     }

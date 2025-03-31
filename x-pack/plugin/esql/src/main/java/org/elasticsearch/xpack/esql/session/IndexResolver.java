@@ -137,7 +137,7 @@ public class IndexResolver {
                 ? createField(fieldCapsResponse, name, fullName, fcs, isAlias)
                 : new UnsupportedEsField(
                     fullName,
-                    firstUnsupportedParent.getOriginalType(),
+                    firstUnsupportedParent.getOriginalTypes(),
                     firstUnsupportedParent.getName(),
                     new HashMap<>()
                 );
@@ -243,7 +243,7 @@ public class IndexResolver {
 
     private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
         String originalType = fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
-        return new UnsupportedEsField(name, originalType);
+        return new UnsupportedEsField(name, List.of(originalType));
     }
 
     private static EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {

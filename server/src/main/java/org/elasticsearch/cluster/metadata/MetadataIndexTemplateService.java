@@ -1441,7 +1441,7 @@ public class MetadataIndexTemplateService {
              * and we do want to return even match-all templates for those. Not doing so can result in a situation where a data stream is
              * built with a template that none of its indices match.
              */
-            if (isHidden && template.getDataStreamTemplate() == null && anyMatch(template.indexPatterns(), Regex::isMatchAllPattern)) {
+            if (anyMatch(template.indexPatterns(), Regex::isMatchAllPattern) && isHidden && template.getDataStreamTemplate() == null) {
                 continue;
             }
             if (anyMatch(template.indexPatterns(), patternMatchPredicate)) {

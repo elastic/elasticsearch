@@ -40,6 +40,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -446,6 +447,7 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     public void testCircuitBreakerReduceFail() throws Exception {
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         int numShards = randomIntBetween(1, 10);
         indexSomeDocs("test", numShards, numShards * 3);
 
@@ -519,7 +521,9 @@ public class TransportSearchIT extends ESIntegTestCase {
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
-            updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
+            updateClusterSettings(
+                Settings.builder().putNull("indices.breaker.request.limit").putNull(SearchService.BATCHED_QUERY_PHASE.getKey())
+            );
         }
     }
 

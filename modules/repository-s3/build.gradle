@@ -46,8 +46,6 @@ dependencies {
   runtimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   runtimeOnly "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
-  runtimeOnly "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:aws-query-protocol:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:checksums:${versions.awsv2sdk}"
@@ -90,19 +88,32 @@ restResources {
 }
 
 tasks.named("dependencyLicenses").configure {
+  mapping from: 'annotations',              to: 'aws-sdk-2'
   mapping from: 'apache-client',            to: 'aws-sdk-2'
   mapping from: 'auth',                     to: 'aws-sdk-2'
-  mapping from: 'aws-xml-protocol',         to: 'aws-sdk-2'
   mapping from: 'aws-core',                 to: 'aws-sdk-2'
+  mapping from: 'aws-query-protocol',       to: 'aws-sdk-2'
+  mapping from: 'aws-xml-protocol',         to: 'aws-sdk-2'
+  mapping from: 'checksums',                to: 'aws-sdk-2'
+  mapping from: 'checksums-spi',            to: 'aws-sdk-2'
+  mapping from: 'endpoints-spi',            to: 'aws-sdk-2'
+  mapping from: 'http-auth',                to: 'aws-sdk-2'
+  mapping from: 'http-auth-aws',            to: 'aws-sdk-2'
+  mapping from: 'http-auth-spi',            to: 'aws-sdk-2'
   mapping from: 'http-client-spi',          to: 'aws-sdk-2'
   mapping from: 'identity-spi',             to: 'aws-sdk-2'
-  mapping from: 'identity-spi',             to: 'aws-sdk-2'
+  mapping from: 'json-utils',               to: 'aws-sdk-2'
   mapping from: 'metrics-spi',              to: 'aws-sdk-2'
+  mapping from: 'profiles',                 to: 'aws-sdk-2'
+  mapping from: 'protocol-core',            to: 'aws-sdk-2'
   mapping from: 'regions',                  to: 'aws-sdk-2'
+  mapping from: 'retries',                  to: 'aws-sdk-2'
+  mapping from: 'retries-spi',              to: 'aws-sdk-2'
   mapping from: 's3',                       to: 'aws-sdk-2'
   mapping from: 'sdk-core',                 to: 'aws-sdk-2'
   mapping from: 'services',                 to: 'aws-sdk-2'
   mapping from: 'sts',                      to: 'aws-sdk-2'
+  mapping from: 'third-party-jackson-core', to: 'aws-sdk-2'
   mapping from: 'utils',                    to: 'aws-sdk-2'
 }
 

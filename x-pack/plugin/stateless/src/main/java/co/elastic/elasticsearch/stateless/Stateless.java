@@ -1109,7 +1109,7 @@ public class Stateless extends Plugin
                     if (indexShard != null) {
                         statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
                         statelessCommitService.closeShard(shardId);
-                        hollowShardsService.get().removeHollowShard(indexShard);
+                        hollowShardsService.get().removeHollowShard(indexShard, "index shard closed");
                     }
                 }
 

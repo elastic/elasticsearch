@@ -215,7 +215,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
         String format = null;
 
         DataType dataType = value.dataType();
-        logger.warn(
+        logger.trace(
             "Translating Range into lucene query.  dataType is [{}] upper is [{}<{}>]  lower is [{}<{}>]",
             dataType,
             lower,
@@ -263,7 +263,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
                 u = unsignedLongAsNumber(ul);
             }
         }
-        logger.warn("Building range query with format string [{}]", format);
+        logger.trace("Building range query with format string [{}]", format);
         return new RangeQuery(source(), handler.nameOf(value), l, includeLower(), u, includeUpper(), format, zoneId);
     }
 

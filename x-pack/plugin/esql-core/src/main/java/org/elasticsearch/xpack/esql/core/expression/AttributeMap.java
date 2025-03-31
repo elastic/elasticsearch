@@ -386,9 +386,9 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     public static <E> AttributeMap<E> of(Attribute key, E value) {
-        var builder = new Builder<E>();
-        builder.put(key, value);
-        return builder.build();
+        final AttributeMap<E> map = new AttributeMap<>();
+        map.add(key, value);
+        return map;
     }
 
     public static <E> Builder<E> builder() {

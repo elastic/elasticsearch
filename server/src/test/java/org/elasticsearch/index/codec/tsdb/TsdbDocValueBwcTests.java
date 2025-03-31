@@ -29,9 +29,11 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
@@ -210,21 +212,6 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         }
     }
 
-    // A hacky way to figure out whether doc values format is written in what version. Need to use reflection, because
-    // PerFieldDocValuesFormat hides the doc values formats it wraps.
-    private static void assertDocValuesFormatVersion(DirectoryReader reader, int expectedVersion) throws NoSuchFieldException,
-        IllegalAccessException {
-        for (var leafReaderContext : reader.leaves()) {
-            var leaf = (SegmentReader) leafReaderContext.reader();
-            var dvReader = leaf.getDocValuesReader();
-            var f = dvReader.getClass().getDeclaredField("formats");
-            f.setAccessible(true);
-            Map<?, ?> formats = (Map<?, ?>) f.get(dvReader);
-            var tsdbDvReader = (ES87TSDBDocValuesProducer) formats.get("ES87TSDB_0");
-            assertEquals(expectedVersion, tsdbDvReader.version);
-        }
-    }
-
     private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField, Codec codec) {
         var config = new IndexWriterConfig();
         config.setIndexSort(
@@ -239,6 +226,27 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         config.setMergePolicy(NoMergePolicy.INSTANCE);
         config.setCodec(codec);
         return config;
+    }
+
+    // A hacky way to figure out whether doc values format is written in what version. Need to use reflection, because
+    // PerFieldDocValuesFormat hides the doc values formats it wraps.
+    private static void assertDocValuesFormatVersion(DirectoryReader reader, int expectedVersion) throws NoSuchFieldException,
+        IllegalAccessException {
+        for (var leafReaderContext : reader.leaves()) {
+            var leaf = (SegmentReader) leafReaderContext.reader();
+            var dvReader = leaf.getDocValuesReader();
+            var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
+            Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
+            var tsdbDvReader = (ES87TSDBDocValuesProducer) formats.get("ES87TSDB_0");
+            assertEquals(expectedVersion, tsdbDvReader.version);
+        }
+    }
+
+    @SuppressForbidden(reason = "access violation required in order to read private field for this test")
+    private static Field getFormatsFieldFromPerFieldFieldsReader(Class<?> c) throws NoSuchFieldException {
+        var field = c.getDeclaredField("formats");
+        field.setAccessible(true);
+        return field;
     }
 
 }

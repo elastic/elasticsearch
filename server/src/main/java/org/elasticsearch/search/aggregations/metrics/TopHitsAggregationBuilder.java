@@ -823,18 +823,4 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
     }
-
-    @Override
-    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
-        if (sorts != null) {
-            // the implicit sorting is by _score, which supports parallel collection
-            for (SortBuilder<?> sortBuilder : sorts) {
-                if (sortBuilder.supportsParallelCollection() == false) {
-                    return false;
-                }
-            }
-        }
-
-        return super.supportsParallelCollection(fieldCardinalityResolver);
-    }
 }

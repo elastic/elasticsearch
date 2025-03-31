@@ -2439,11 +2439,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     if (isClosed()) {
                         break;
                     }
-                    assert latest.primaryTermAndGeneration().generation() > 0;
-                    assert latest.primaryTermAndGeneration().generation() > previousGenerationUploaded;
+                    assert latest.primaryTermAndGeneration().generation() > 0
+                        : latest.lastCompoundCommit().shardId() + " " + latest.primaryTermAndGeneration();
+                    assert latest.primaryTermAndGeneration().generation() > previousGenerationUploaded
+                        : latest.lastCompoundCommit().shardId()
+                            + " "
+                            + latest.primaryTermAndGeneration()
+                            + " gen <= "
+                            + previousGenerationUploaded;
                     assert latest.primaryTermAndGeneration().primaryTerm() == allocationPrimaryTerm
-                        || latest.primaryTermAndGeneration()
-                            .equals(new PrimaryTermAndGeneration(recoveredPrimaryTerm, recoveredGeneration));
+                        || latest.primaryTermAndGeneration().equals(new PrimaryTermAndGeneration(recoveredPrimaryTerm, recoveredGeneration))
+                        : latest.lastCompoundCommit().shardId()
+                            + " unexpected "
+                            + latest.primaryTermAndGeneration()
+                            + " vs "
+                            + allocationPrimaryTerm
+                            + " or "
+                            + recoveredPrimaryTerm
+                            + " "
+                            + recoveredGeneration;
 
                     var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(
                         latest.lastCompoundCommit()

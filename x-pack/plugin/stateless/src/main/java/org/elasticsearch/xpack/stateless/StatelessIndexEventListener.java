@@ -335,7 +335,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                         engine.flush(true, true, l.map(f -> null));
                     }
                 } else if (engineOrNull instanceof HollowIndexEngine hollowIndexEngine) {
-                    hollowShardsService.addHollowShard(indexShard);
+                    hollowShardsService.addHollowShard(indexShard, "recovery");
                     hollowIndexEngine.callRefreshListeners();
                     l.onResponse(null);
                 } else if (engineOrNull == null) {
@@ -365,7 +365,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> listener) {
-        hollowShardsService.onMutableOperation(indexShard.shardId(), listener);
+    public void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
+        hollowShardsService.onMutableOperation(indexShard, permitAcquired, listener);
     }
 }

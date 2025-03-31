@@ -33,10 +33,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -159,6 +159,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
     @After
     @Override
     public void tearDown() throws Exception {
+        logger.info("releasing ingestion blockers due to test tear down");
         releaseIngestionBlockers();
         super.tearDown();
     }
@@ -170,7 +171,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             .flatMap(e -> IntStream.range(0, e.getValue()).mapToObj(i -> findIndexShard(e.getKey(), i)))
             .collect(Collectors.toUnmodifiableSet());
         internalCluster().getInstances(HollowShardsService.class).forEach(hollowShardsService -> {
-            shards.forEach(shard -> hollowShardsService.removeHollowShard(shard));
+            shards.forEach(shard -> hollowShardsService.removeHollowShard(shard, "test cleanup"));
         });
     }
 
@@ -1173,12 +1174,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         }
     }
 
-    public void testStress() throws Exception {
-        startMasterOnlyNode();
-        int numOfShards = randomIntBetween(4, 8);
+    // A mix of threads that do indexing, updates, gets, force merges, and one thread moving shards so they can be hollowed.
+    // Boolean flags give the possibility to randomly fail a relocation due to a relocation failure or object store failure.
+    private void doTestStress(boolean failRelocations, boolean failObjectStore) throws Exception {
+        final var masterNode = startMasterOnlyNode();
+        int numOfShards = randomIntBetween(6, 8);
         var indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
+            .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 5) // so that relocations are fast in case of replaying translog
             .build();
         List<String> indexNodes = startIndexNodes(randomIntBetween(2, 4), indexNodeSettings);
         String searchNode = startSearchNode();
@@ -1192,14 +1196,16 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         indexDocs(indexName, docs0);
         flush(indexName);
 
-        CountDownLatch hollowRelocationsLatch = new CountDownLatch(10);
-
         var threads = new ArrayList<Thread>();
-        var stopHollowing = new AtomicBoolean(false);
+        var stopThreads = new AtomicBoolean(false);
+
+        // The following thread is what drives the end of the whole experiment, until it moves 10 hollowable shards.
+        // It iterates shards to find hollowable shards. If none is found, it repeats.
+        // It is important we give enough windows of opportunities for the thread to find hollowable shards sometimes, so
+        // should not hammer the shards all the time with indexing operations or merges.
+        CountDownLatch hollowRelocationsLatch = new CountDownLatch(10);
         threads.add(new Thread(() -> {
-            while (stopHollowing.get() == false) {
-                safeSleep(randomLongBetween(0, 100));
-                ensureGreenViaMasterNode(indexName);
+            while (stopThreads.get() == false) {
                 for (int i = 0; i < numOfShards; i++) {
                     var indexShard = findIndexShard(index, i);
                     if (indexShard.getEngineOrNull() instanceof IndexEngine indexEngine && indexEngine.isLastCommitHollow() == false) {
@@ -1220,7 +1226,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                         boolean failingObjectStore = false;
                         try {
                             // Randomly fail relocations to test how deal with failed shards with IndexEngine and a hollow commit
-                            if (randomIntBetween(0, 10) <= 2) {
+                            if (failRelocations && randomIntBetween(0, 10) <= 2) {
                                 logger.info("--> Failing relocation between nodes {} and {}", sourceNode, targetNode);
                                 relocationFailedLatch = breakRelocation(
                                     sourceNode,
@@ -1229,15 +1235,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                                 );
                             }
 
-                            // TODO https://elasticco.atlassian.net/browse/ES-10705
-                            // Inject delays when the IndexWriter is created by introducing sleeps into the blob store reads,
-                            // as currently we test only really tiny shards.
-                            if (relocationFailedLatch == null && randomIntBetween(0, 10) <= 2) {
+                            if (failObjectStore && relocationFailedLatch == null && randomIntBetween(0, 10) <= 2) {
                                 logger.info("--> Failing object store on {}", sourceNode);
-                                // TODO https://elasticco.atlassian.net/browse/ES-10705
-                                // Stabilize the test with injected object store failures
-                                // (currently they sometimes make the test randomly hang for 1m+)
-                                // failingObjectStore = failObjectStore(sourceNode);
+                                failingObjectStore = failObjectStore(sourceNode);
                             }
 
                             logger.info("--> Relocating {} hollowable shards from {} to {}", shardId, sourceNode, targetNode);
@@ -1254,8 +1254,14 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                                 safeAwait(relocationFailedLatch);
                             } else if (failingObjectStore == false) {
                                 assertAcked(response);
-                                logger.info("Shard [{}] has been relocated (#{} remaining)", shardId, hollowRelocationsLatch.getCount());
+                                // Note that the shard may still need time to fully relocate, that's why we ensure green without
+                                // any ongoing relocations before next move.
                                 hollowRelocationsLatch.countDown();
+                                logger.info(
+                                    "Shard [{}] move command processed (#{} remaining)",
+                                    shardId,
+                                    hollowRelocationsLatch.getCount()
+                                );
                                 break;
                             }
                         } catch (Exception e) {
@@ -1270,22 +1276,25 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                             if (failingObjectStore) {
                                 stopFailingObjectStore(sourceNode);
                             }
+                            safeSleep(randomLongBetween(0, 100));
+                            ensureGreenViaMasterNode(masterNode, indexName, false);
                         }
                     }
                 }
             }
-        }));
+            logger.info("exiting");
+        }, "RelocDriver"));
 
         Queue<String> insertedDocs = new ConcurrentLinkedQueue<>();
-
-        var stopIndexing = new AtomicBoolean(false);
         int numIndexingThreads = randomIntBetween(2, 4);
         var insertedDocsCount = new AtomicLong(docs0);
         for (int i = 0; i < numIndexingThreads; i++) {
             threads.add(new Thread(() -> {
-                while (stopIndexing.get() == false) {
-                    safeSleep(randomLongBetween(0, 100));
-                    int docs = randomIntBetween(16, 128);
+                while (stopThreads.get() == false) {
+                    // Sleep a bit and do not insert too many docs, so that we give windows of opportunities w/o ingestion for
+                    // shards to become hollowable.
+                    safeSleep(randomLongBetween(10, 100));
+                    int docs = numOfShards / numIndexingThreads;
                     var bulkResponse = indexDocs(indexName, docs);
                     logger.info("Inserted {} docs", docs);
                     insertedDocsCount.addAndGet(Arrays.stream(bulkResponse.getItems()).filter(r -> r.isFailed() == false).count());
@@ -1296,10 +1305,18 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                     );
                     switch (randomInt(2)) {
                         case 0:
-                            flush(indexName);
+                            try {
+                                client().admin().indices().prepareFlush(indexName).get();
+                            } catch (Exception e) {
+                                // ignore
+                            }
                             break;
                         case 1:
-                            refresh(indexName);
+                            try {
+                                client().admin().indices().prepareRefresh(indexName).get();
+                            } catch (Exception e) {
+                                // ignore
+                            }
                             break;
                         case 2:
                             // do nothing
@@ -1308,14 +1325,27 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                             throw new AssertionError();
                     }
                 }
-            }));
+                logger.info("exiting");
+            }, "Ingest" + i));
         }
 
-        var stopReading = new AtomicBoolean(false);
+        threads.add(new Thread(() -> {
+            while (stopThreads.get() == false) {
+                safeSleep(randomLongBetween(1000, 10000));
+                logger.info("Requesting force merge of index {}", indexName);
+                try {
+                    client().admin().indices().prepareForceMerge(indexName).get();
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+            logger.info("exiting");
+        }, "ForceMerge"));
+
         int numReadingThreads = randomIntBetween(2, 4);
         for (int i = 0; i < numReadingThreads; i++) {
             threads.add(new Thread(() -> {
-                while (stopReading.get() == false) {
+                while (stopThreads.get() == false) {
                     safeSleep(randomLongBetween(0, 100));
                     if (insertedDocs.isEmpty()) {
                         continue;
@@ -1357,12 +1387,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                         throw new RuntimeException("Unable to get docs in real-time", e);
                     }
                 }
-            }));
+                logger.info("exiting");
+            }, "Read" + i));
         }
 
-        var stopUpdating = new AtomicBoolean(false);
         threads.add(new Thread(() -> {
-            while (stopUpdating.get() == false) {
+            while (stopThreads.get() == false) {
                 safeSleep(randomLongBetween(0, 100));
                 if (insertedDocs.isEmpty()) {
                     continue;
@@ -1380,26 +1410,24 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                 }
                 assertNoFailures(bulkRequestBuilder.get());
             }
-        }));
+            logger.info("exiting");
+        }, "Update"));
 
         for (Thread thread : threads) {
             thread.start();
         }
 
         logger.info("Waiting for hollowRelocationsLatch");
-        safeAwait(hollowRelocationsLatch, TimeValue.timeValueMinutes(3));
+        safeAwait(hollowRelocationsLatch, TimeValue.timeValueMinutes(10));
         logger.info("Waited for hollowRelocationsLatch");
 
-        stopHollowing.set(true);
-        stopIndexing.set(true);
-        stopUpdating.set(true);
-        stopReading.set(true);
+        stopThreads.set(true);
         for (Thread thread : threads) {
             thread.join();
         }
 
         logger.info("Waiting for ensureGreen");
-        ensureGreen(indexName);
+        ensureGreenViaMasterNode(masterNode, indexName, true);
         logger.info("Waited for ensureGreen");
 
         // Unhollow to calculate the amount of inserted docs
@@ -1417,6 +1445,23 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         // Verify that all ingested docs are searchable
         refresh(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), insertedDocsCount.get());
+    }
+
+    public void testStressWithoutFailures() throws Exception {
+        doTestStress(false, false);
+    }
+
+    public void testStressWithRelocationFailures() throws Exception {
+        doTestStress(true, false);
+    }
+
+    // TODO: Stabilize the test with injected object store failures
+    // (currently they sometimes make the test randomly hang for 1m+)
+    // Inject delays when the IndexWriter is created by introducing sleeps into the blob store reads,
+    // as currently we test only really tiny shards.
+    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-10705")
+    public void testStressWithRelocationOrObjectStoreFailures() throws Exception {
+        doTestStress(true, true);
     }
 
     public void testRealTimeGet() throws Exception {
@@ -1557,20 +1602,53 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         }
     }
 
-    private static void ensureGreenViaMasterNode(String index) {
-        assertThat(
-            client(internalCluster().getMasterName()).admin()
-                .cluster()
-                .health(
-                    new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, index).waitForStatus(ClusterHealthStatus.GREEN)
-                        .waitForNoInitializingShards(true)
-                        .waitForNoRelocatingShards(true)
-                        .waitForEvents(Priority.LANGUID)
-                )
-                .actionGet(TEST_REQUEST_TIMEOUT)
-                .getStatus(),
-            equalTo(ClusterHealthStatus.GREEN)
-        );
+    private void ensureGreenViaMasterNode(String masterNode, String index, boolean waitForEvents) {
+        var healthRequest = client(masterNode).admin()
+            .cluster()
+            .prepareHealth(TEST_REQUEST_TIMEOUT, index)
+            .setWaitForStatus(ClusterHealthStatus.GREEN)
+            .setWaitForNoInitializingShards(true)
+            .setWaitForNoRelocatingShards(true);
+        if (waitForEvents) {
+            healthRequest = healthRequest.setWaitForEvents(Priority.LANGUID);
+        }
+        final var future = healthRequest.execute();
+        long start = System.currentTimeMillis();
+        try {
+            assertBusy(() -> {
+                if (System.currentTimeMillis() - start > 10 * 1000) {
+                    logger.warn(
+                        "cluster state:\n{}",
+                        client(masterNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState()
+                    );
+                    logger.warn("cluster pending tasks:\n{}", getClusterPendingTasks());
+                    logger.warn(
+                        "recoveries:\n{}",
+                        client(masterNode).admin()
+                            .indices()
+                            .recoveries(new RecoveryRequest(index))
+                            .get()
+                            .shardRecoveryStates()
+                            .entrySet()
+                            .stream()
+                            .map(
+                                e -> e.getKey()
+                                    + ":"
+                                    + e.getValue()
+                                        .stream()
+                                        .map(rs -> rs.getShardId() + " - " + rs.getTimer().time())
+                                        .collect(Collectors.joining(","))
+                            )
+                            .toList()
+                    );
+                }
+                assertThat(future.isDone(), equalTo(true));
+            }, 1, TimeUnit.MINUTES);
+            assertThat(future.get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        } catch (Exception e) {
+            assert false : "unexpected exception: " + e;
+            throw new RuntimeException(e);
+        }
     }
 
     private static void stopFailingObjectStore(String node) {

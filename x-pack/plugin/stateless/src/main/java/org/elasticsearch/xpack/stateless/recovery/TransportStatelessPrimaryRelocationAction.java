@@ -307,7 +307,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                             indexShard.failShard("failed to reset index engine for shard " + shardId, e);
                             throw e;
                         }
-                        hollowShardsService.addHollowShard(indexShard);
+                        hollowShardsService.addHollowShard(indexShard, "hollowing");
                         hollowShardsMetrics.hollowSuccessCounter().increment();
                         hollowShardsMetrics.hollowTimeMs().record(threadPool.relativeTimeInMillisSupplier().getAsLong() - startTime);
                     } else {

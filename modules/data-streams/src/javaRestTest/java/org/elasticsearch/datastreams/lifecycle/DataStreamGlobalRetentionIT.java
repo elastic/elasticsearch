@@ -42,15 +42,34 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
               "index_patterns": ["my-data-stream*"],
               "data_stream": {},
               "template": {
-                "lifecycle": {}
+                "settings": {
+                  "number_of_replicas": 0
+                },
+                "mappings": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "lifecycle": {},
+                "data_stream_options": {
+                  "failure_store": {
+                    "enabled": true
+                  }
+                }
               }
             }
             """);
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
-        // Create a data streams with one doc
+        // Index one doc, this will trigger a rollover
         Request createDocRequest = new Request("POST", "/my-data-stream/_doc?refresh=true");
         createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+        // Index failed doc, this will create the failure store
+        createDocRequest = new Request("POST", "/my-data-stream/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\", \"count\": \"not-a-number\"}");
         assertOK(client().performRequest(createDocRequest));
     }
 
@@ -64,7 +83,7 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
 
     @SuppressWarnings("unchecked")
     public void testDataStreamRetention() throws Exception {
-        // Set global retention and add retention to the data stream
+        // Set global retention and add retention to the data stream & failure store
         {
             updateClusterSettings(
                 Settings.builder()
@@ -76,6 +95,18 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             request.setJsonEntity("""
                 {
                   "data_retention": "10s"
+                }""");
+            assertAcknowledged(client().performRequest(request));
+
+            request = new Request("PUT", "_data_stream/my-data-stream/_options");
+            request.setJsonEntity("""
+                {
+                  "failure_store": {
+                    "enabled": true,
+                    "lifecycle": {
+                      "data_retention": "10s"
+                    }
+                  }
                 }""");
             assertAcknowledged(client().performRequest(request));
         }
@@ -92,6 +123,10 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             assertThat(lifecycle.get("effective_retention"), is("10s"));
             assertThat(lifecycle.get("retention_determined_by"), is("data_stream_configuration"));
             assertThat(lifecycle.get("data_retention"), is("10s"));
+            Map<String, Object> failureLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
+            assertThat(failureLifecycle.get("effective_retention"), is("10s"));
+            assertThat(failureLifecycle.get("retention_determined_by"), is("data_stream_configuration"));
+            assertThat(failureLifecycle.get("data_retention"), is("10s"));
         }
 
         // Verify that the first generation index was removed
@@ -101,8 +136,11 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             assertThat(dataStream.get("name"), is("my-data-stream"));
             List<Object> backingIndices = (List<Object>) dataStream.get("indices");
             assertThat(backingIndices.size(), is(1));
+            List<Object> failureIndices = (List<Object>) ((Map<String, Object>) dataStream.get("failure_store")).get("indices");
+            assertThat(failureIndices.size(), is(1));
             // 2 backing indices created + 1 for the deleted index
-            assertThat(dataStream.get("generation"), is(3));
+            // 2 failure indices created + 1 for the deleted failure index
+            assertThat(dataStream.get("generation"), is(6));
         }, 20, TimeUnit.SECONDS);
     }
 
@@ -123,6 +161,10 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             assertThat(lifecycle.get("effective_retention"), is("10s"));
             assertThat(lifecycle.get("retention_determined_by"), is("default_global_retention"));
             assertThat(lifecycle.get("data_retention"), nullValue());
+            Map<String, Object> failureLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
+            assertThat(failureLifecycle.get("effective_retention"), is("10s"));
+            assertThat(failureLifecycle.get("retention_determined_by"), is("default_global_retention"));
+            assertThat(failureLifecycle.get("data_retention"), nullValue());
         }
 
         // Verify that the first generation index was removed
@@ -132,8 +174,11 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             assertThat(dataStream.get("name"), is("my-data-stream"));
             List<Object> backingIndices = (List<Object>) dataStream.get("indices");
             assertThat(backingIndices.size(), is(1));
+            List<Object> failureIndices = (List<Object>) ((Map<String, Object>) dataStream.get("failure_store")).get("indices");
+            assertThat(failureIndices.size(), is(1));
             // 2 backing indices created + 1 for the deleted index
-            assertThat(dataStream.get("generation"), is(3));
+            // 2 failure indices created + 1 for the deleted failure index
+            assertThat(dataStream.get("generation"), is(6));
         }, 20, TimeUnit.SECONDS);
     }
 
@@ -175,6 +220,14 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             } else {
                 assertThat(lifecycle.get("data_retention"), nullValue());
             }
+            Map<String, Object> failureLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
+            assertThat(failureLifecycle.get("effective_retention"), is("10s"));
+            assertThat(failureLifecycle.get("retention_determined_by"), is("max_global_retention"));
+            if (withDataStreamLevelRetention) {
+                assertThat(failureLifecycle.get("data_retention"), is("30d"));
+            } else {
+                assertThat(failureLifecycle.get("data_retention"), nullValue());
+            }
         }
 
         // Verify that the first generation index was removed
@@ -184,8 +237,11 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             assertThat(dataStream.get("name"), is("my-data-stream"));
             List<Object> backingIndices = (List<Object>) dataStream.get("indices");
             assertThat(backingIndices.size(), is(1));
+            List<Object> failureIndices = (List<Object>) ((Map<String, Object>) dataStream.get("failure_store")).get("indices");
+            assertThat(failureIndices.size(), is(1));
             // 2 backing indices created + 1 for the deleted index
-            assertThat(dataStream.get("generation"), is(3));
+            // 2 failure indices created + 1 for the deleted failure index
+            assertThat(dataStream.get("generation"), is(6));
         }, 20, TimeUnit.SECONDS);
     }
 }

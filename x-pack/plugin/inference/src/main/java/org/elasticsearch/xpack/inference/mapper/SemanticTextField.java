@@ -13,7 +13,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -126,7 +128,7 @@ public record SemanticTextField(
         }
     }
 
-    static DenseVectorFieldMapper.IndexOptions parseIndexOptionsFromMap(String fieldName, Object node) {
+    static DenseVectorFieldMapper.IndexOptions parseIndexOptionsFromMap(String fieldName, Object node, IndexVersion indexVersion) {
         if (node == null) {
             return null;
         }
@@ -140,7 +142,7 @@ public record SemanticTextField(
                 XContentMapValues.nodeStringValue(type.toString(), null)
             ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " [" + type + "]"));
 
-            return vectorIndexType.parseIndexOptions(fieldName, map);
+            return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }

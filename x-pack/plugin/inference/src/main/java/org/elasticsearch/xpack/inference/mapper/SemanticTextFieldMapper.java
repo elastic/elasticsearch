@@ -183,7 +183,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             INDEX_OPTIONS_FIELD,
             true,
             () -> null,
-            (n, c, o) -> SemanticTextField.parseIndexOptionsFromMap(n, o),
+            (n, c, o) -> SemanticTextField.parseIndexOptionsFromMap(n, o, c.indexVersionCreated()),
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
             XContentBuilder::field,
             Objects::toString

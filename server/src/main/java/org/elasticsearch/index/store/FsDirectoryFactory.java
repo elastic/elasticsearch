@@ -27,6 +27,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.vectors.es818.DirectIODirectory;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
@@ -38,6 +40,8 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+
+    private static final Logger Log = LogManager.getLogger(FsDirectoryFactory.class);
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         return switch (s) {
@@ -118,12 +122,21 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
-            this.directIODelegate = new org.apache.lucene.misc.store.DirectIODirectory(delegate) {
-                @Override
-                protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
-                    return true;
-                }
-            };
+
+            org.apache.lucene.misc.store.DirectIODirectory directIO;
+            try {
+                directIO = new org.apache.lucene.misc.store.DirectIODirectory(delegate) {
+                    @Override
+                    protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
+                        return true;
+                    }
+                };
+            } catch (Exception e) {
+                // directio not supported
+                Log.warn("Could not initialize DirectIO access", e);
+                directIO = null;
+            }
+            this.directIODelegate = directIO;
         }
 
         @Override
@@ -146,6 +159,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         @Override
         public IndexInput openInputDirect(String name, IOContext context) throws IOException {
+            if (directIODelegate == null) {
+                return openInput(name, context);
+            }
             // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
             ensureOpen();
             ensureCanRead(name);

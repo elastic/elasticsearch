@@ -47,7 +47,7 @@ public class MetadataOnlyBKDReader extends PointValues {
     final int docCount;
     final int version;
 
-    public MetadataOnlyBKDReader(IndexInput metaIn) throws IOException {
+    public MetadataOnlyBKDReader(IndexInput metaIn, boolean isVersionPost86) throws IOException {
         version = CodecUtil.checkHeader(metaIn, "BKD", VERSION_START, VERSION_CURRENT);
         final int numDims = metaIn.readVInt();
         final int numIndexDims;
@@ -85,6 +85,23 @@ public class MetadataOnlyBKDReader extends PointValues {
 
         pointCount = metaIn.readVLong();
         docCount = metaIn.readVInt();
+
+        // The pre-8.6 code does not read the following fields that its standard Lucene counterpart does. After experimenting with the
+        // code, we got to the conclusion that these are the last fields being read, which are not needed in the metadata-only reader, and
+        // we can safely ignore them when loading the file. Although by coincidence, nothing breaks if we read a couple of VLongs, as long
+        // as some bytes are available to read.
+        //
+        // The extra reads have been introduced to process IndexInput created with Lucene86Codec+, where a new BKD format has been
+        // introduced. We have stricter checks around the header and footer starting from the 86 formats hence we do need to
+        // consume all the data input there but not in previous formats.
+        //
+        // For correctness, we added version checking here. If and only if, the version is 8.6 or higher, we read the additional fields.
+        if (isVersionPost86) {
+            metaIn.readVInt();
+            metaIn.readLong();
+            // The following fields are not used in this class, but we need to read them to advance the pointer
+            metaIn.readLong();
+        }
     }
 
     @Override

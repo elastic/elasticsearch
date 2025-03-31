@@ -247,9 +247,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         || Objects.equals(previous, current)
                         || previous.updatableTo(current)
                 );
-            if (defaultInt8Hnsw) {
-                this.indexOptions.alwaysSerialize();
-            }
+            // if (defaultInt8Hnsw) {
+            this.indexOptions.alwaysSerialize();
+            // }
             this.indexed.addValidator(v -> {
                 if (v) {
                     if (similarity.getValue() == null) {
@@ -2480,7 +2480,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return new Builder(leafName(), indexCreatedVersion).init(this);
     }
 
-    private static IndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {
+    public static IndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {
         @SuppressWarnings("unchecked")
         Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
         Object typeNode = indexOptionsMap.remove("type");

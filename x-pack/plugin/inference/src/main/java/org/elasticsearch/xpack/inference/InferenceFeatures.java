@@ -57,7 +57,6 @@ public class InferenceFeatures implements FeatureSpecification {
             SemanticTextFieldMapper.SEMANTIC_TEXT_BIT_VECTOR_SUPPORT,
             SemanticTextFieldMapper.SEMANTIC_TEXT_HANDLE_EMPTY_INPUT,
             TEST_RULE_RETRIEVER_WITH_INDICES_THAT_DONT_RETURN_RANK_DOCS,
-            TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX,
             SEMANTIC_TEXT_INDEX_OPTIONS
         );
     }

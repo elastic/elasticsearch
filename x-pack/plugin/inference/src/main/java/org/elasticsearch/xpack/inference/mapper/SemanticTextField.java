@@ -13,9 +13,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -71,10 +69,6 @@ public record SemanticTextField(
     static final String CHUNKED_START_OFFSET_FIELD = "start_offset";
     static final String CHUNKED_END_OFFSET_FIELD = "end_offset";
     static final String MODEL_SETTINGS_FIELD = "model_settings";
-    static final String TASK_TYPE_FIELD = "task_type";
-    static final String DIMENSIONS_FIELD = "dimensions";
-    static final String SIMILARITY_FIELD = "similarity";
-    static final String ELEMENT_TYPE_FIELD = "element_type";
     static final String INDEX_OPTIONS_FIELD = "index_options";
     static final String TYPE_FIELD = "type";
 
@@ -123,26 +117,6 @@ public record SemanticTextField(
                 XContentType.JSON
             );
             return MinimalServiceSettings.parse(parser);
-        } catch (Exception exc) {
-            throw new ElasticsearchException(exc);
-        }
-    }
-
-    static DenseVectorFieldMapper.IndexOptions parseIndexOptionsFromMap(String fieldName, Object node, IndexVersion indexVersion) {
-        if (node == null) {
-            return null;
-        }
-        try {
-            Map<String, Object> map = XContentMapValues.nodeMapValue(node, INDEX_OPTIONS_FIELD);
-            Object type = map.remove(TYPE_FIELD);
-            if (type == null) {
-                throw new IllegalArgumentException("Required [" + TYPE_FIELD + "]");
-            }
-            DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
-                XContentMapValues.nodeStringValue(type.toString(), null)
-            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " [" + type + "]"));
-
-            return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }

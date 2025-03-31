@@ -364,7 +364,7 @@ setup:
 "Users can set dense vector index options and index documents using those options":
   - requires:
       cluster_features: "semantic_text.index_options"
-      reason: Index options introduced in 8.18.0
+      reason: Index options introduced in 8.19.0
 
   - do:
       indices.create:
@@ -419,11 +419,10 @@ setup:
                     embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
 
   - do:
-      get:
+      indices.get_mapping:
         index: test-index-options
-        id: doc_1
 
-  - match: { _source.semantic_field: "these are not the droids you're looking for. He's free to go around" }
+  - match: { test-index-options.mappings.properties.semantic_field: "foo" }
 
 
 ---

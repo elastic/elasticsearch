@@ -192,17 +192,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     public MappedFieldType getMappedFieldType() {
-        return new SemanticTextFieldMapper.SemanticTextFieldType(
-            "field",
-            "fake-inference-id",
-            null,
-            null,
-            null,
-            null,
-            getVersion(),
-            false,
-            Map.of()
-        );
+        return new SemanticTextFieldMapper.SemanticTextFieldType("field", "fake-inference-id", null, null, null, null, false, Map.of());
     }
 
     @Override
@@ -364,7 +354,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.endObject();
                 b.endObject();
             }), useLegacyFormat);
-            assertSemanticTextField(mapperService, "field.semantic", true);
+            assertSemanticTextField(mapperService, "field.semantic", true, null);
 
             mapperService = createMapperService(fieldMapping(b -> {
                 b.field("type", "semantic_text");
@@ -378,7 +368,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.endObject();
                 b.endObject();
             }), useLegacyFormat);
-            assertSemanticTextField(mapperService, "field", true);
+            assertSemanticTextField(mapperService, "field", true, null);
 
             mapperService = createMapperService(fieldMapping(b -> {
                 b.field("type", "semantic_text");
@@ -396,8 +386,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.endObject();
                 b.endObject();
             }), useLegacyFormat);
-            assertSemanticTextField(mapperService, "field", true);
-            assertSemanticTextField(mapperService, "field.semantic", true);
+            assertSemanticTextField(mapperService, "field", true, null);
+            assertSemanticTextField(mapperService, "field.semantic", true, null);
 
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "semantic_text");

@@ -183,7 +183,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             INDEX_OPTIONS_FIELD,
             true,
             () -> null,
-            (n, c, o) -> SemanticTextField.parseIndexOptionsFromMap(n, o, c.indexVersionCreated()),
+            (n, c, o) -> DenseVectorFieldMapper.parseIndexOptions(n, o, c.indexVersionCreated()),
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
             XContentBuilder::field,
             Objects::toString
@@ -216,6 +216,19 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 indexSettings
             );
         }
+        //
+        // private void validateInference(
+        // @Nullable MinimalServiceSettings minimalServiceSettings,
+        // @Nullable DenseVectorFieldMapper.IndexOptions indexOptions
+        // ) {
+        // if (minimalServiceSettings != null && indexOptions != null) {
+        // if (minimalServiceSettings.taskType() == SPARSE_EMBEDDING) {
+        // throw new IllegalArgumentException(
+        // "[" + INDEX_OPTIONS_FIELD + "] not supported for [" + SPARSE_EMBEDDING + "] task type"
+        // );
+        // }
+        // }
+        // }
 
         public Builder setInferenceId(String id) {
             this.inferenceId.setValue(id);
@@ -999,7 +1012,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 }
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
-                denseVectorMapperBuilder.indexOptions(indexOptions);
+                if (indexOptions != null) {
+                    denseVectorMapperBuilder.indexOptions(indexOptions);
+                }
 
                 yield denseVectorMapperBuilder;
             }

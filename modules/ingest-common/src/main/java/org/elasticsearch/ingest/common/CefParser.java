@@ -423,7 +423,8 @@ final class CefParser {
             case MACAddressType -> toMACAddress(value);
             case IPType -> toIP(value);
             case BooleanType -> Boolean.valueOf(value);
-            default -> value; // Default string if string type or extension is not defined
+            case StringType -> value;
+            case null -> value; // default to string if extension is not defined
         };
     }
 

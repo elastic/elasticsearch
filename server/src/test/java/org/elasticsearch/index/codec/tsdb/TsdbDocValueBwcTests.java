@@ -124,8 +124,8 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                         long lowerBound = baseTimestamp;
                         long upperBound = baseTimestamp + numDocs;
                         assertTrue(
-                                "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
-                                timestamp >= lowerBound && timestamp < upperBound
+                            "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
+                            timestamp >= lowerBound && timestamp < upperBound
                         );
                         if (counterOneDV.advanceExact(i)) {
                             long counterOneValue = counterOneDV.longValue();

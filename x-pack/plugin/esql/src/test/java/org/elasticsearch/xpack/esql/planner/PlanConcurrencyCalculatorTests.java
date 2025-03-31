@@ -239,7 +239,8 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
         Analyzer analyzer = analyzer(analyzerDefaultMapping(), TEST_VERIFIER, configuration);
         LogicalPlan logicalPlan = AnalyzerTestUtils.analyze(query, analyzer);
-        logicalPlan = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, FoldContext.small()), PlannerProfile.EMPTY).optimize(logicalPlan);
+        logicalPlan = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, FoldContext.small()), PlannerProfile.EMPTY)
+            .optimize(logicalPlan);
 
         PhysicalPlan physicalPlan = new Mapper().map(logicalPlan);
         physicalPlan = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration), PlannerProfile.EMPTY).optimize(physicalPlan);

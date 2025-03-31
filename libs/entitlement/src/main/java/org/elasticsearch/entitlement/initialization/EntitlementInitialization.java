@@ -249,7 +249,10 @@ public class EntitlementInitialization {
             ),
             new Scope(
                 "org.apache.lucene.misc",
-                List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))))
+                List.of(
+                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))),
+                    new ReadStoreAttributesEntitlement()
+                )
             ),
             new Scope(
                 "org.apache.logging.log4j.core",

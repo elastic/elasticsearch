@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.s3;
 
 import software.amazon.awssdk.awscore.AwsRequest;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.metrics.CoreMetric;
 import software.amazon.awssdk.core.retry.RetryUtils;
 import software.amazon.awssdk.metrics.MetricCollection;
 import software.amazon.awssdk.metrics.MetricPublisher;
@@ -187,6 +188,9 @@ class S3BlobStore implements BlobStore {
                 builder.endObject();
                 return builder;
             }, false, true));
+
+            assert operation.assertConsistentOperationName(metricCollection);
+
             // TODO NOMERGE metrics collection
         }
 
@@ -592,7 +596,7 @@ class S3BlobStore implements BlobStore {
         }
 
         Operation(String key) {
-            this.key = key;
+            this.key = Objects.requireNonNull(key);
         }
 
         static Operation parse(String s) {
@@ -604,6 +608,14 @@ class S3BlobStore implements BlobStore {
             throw new IllegalArgumentException(
                 Strings.format("invalid operation [%s] expected one of [%s]", s, Strings.arrayToCommaDelimitedString(Operation.values()))
             );
+        }
+
+        boolean assertConsistentOperationName(MetricCollection metricCollection) {
+            final var operationNameMetrics = metricCollection.metricValues(CoreMetric.OPERATION_NAME);
+            assert operationNameMetrics.size() == 1 : operationNameMetrics;
+            final var expectedOperationName = this == LIST_OBJECTS ? "ListObjectsV2" : key;
+            assert expectedOperationName.equals(operationNameMetrics.get(0)) : expectedOperationName + " vs " + operationNameMetrics;
+            return true;
         }
     }
 

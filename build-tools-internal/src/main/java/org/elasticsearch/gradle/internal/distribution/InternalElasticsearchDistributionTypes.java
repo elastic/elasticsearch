@@ -28,6 +28,6 @@ public class InternalElasticsearchDistributionTypes {
         DOCKER,
         DOCKER_IRONBANK,
         DOCKER_WOLFI,
-        DOCKER_CLOUD_ESS,
+        DOCKER_CLOUD_ESS
     );
 }

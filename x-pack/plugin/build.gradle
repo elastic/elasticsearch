@@ -126,6 +126,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.replaceValueInMatch("Size", 49, "Test flamegraph from test-events")
 })
 
-tasks.named('yamlRestCompatTest').configure {
+tasks.named('yamlRestCompatTest').configure { task ->
+  task.skipTest("privileges/11_builtin/Test get builtin privileges" ,"adding new built-in privileges will always break compatibility tests")
   systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }

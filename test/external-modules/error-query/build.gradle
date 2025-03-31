@@ -29,7 +29,7 @@ dependencies {
   clusterModules project(':x-pack:plugin:ilm')
 }
 
-tasks.withType(StandaloneRestIntegTestTask) {
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
   def isSnapshot = buildParams.snapshotBuild
   onlyIf("snapshot build") { isSnapshot }
 }

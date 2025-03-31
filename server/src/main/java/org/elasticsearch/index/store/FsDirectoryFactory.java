@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiPredicate;
 
@@ -112,10 +113,17 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     static final class HybridDirectory extends NIOFSDirectory implements DirectIODirectory {
         private final MMapDirectory delegate;
+        private final org.apache.lucene.misc.store.DirectIODirectory directIODelegate;
 
         HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
+            this.directIODelegate = new org.apache.lucene.misc.store.DirectIODirectory(delegate) {
+                @Override
+                protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
+                    return true;
+                }
+            };
         }
 
         @Override
@@ -141,13 +149,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
             ensureOpen();
             ensureCanRead(name);
-            // we switch the context here since mmap checks for the READONCE context by identity
-            context = context == Store.READONCE_CHECKSUM ? IOContext.READONCE : context;
-            // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
-            // we might run into trouble with files that are pendingDelete in one directory but still
-            // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
-            // and intersect for perf reasons.
-            return delegate.openInput(name, context);
+
+            return directIODelegate.openInput(name, context);
         }
 
         @Override

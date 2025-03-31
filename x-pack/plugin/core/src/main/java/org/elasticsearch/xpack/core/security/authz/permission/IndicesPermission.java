@@ -356,13 +356,13 @@ public final class IndicesPermission {
                     final Automaton automatonToCheck = indexPrivilege.getAutomaton();
                     if (checkWithDataSelector
                         && allowedPrivilegesAutomatonForDataSelector != null
-                        && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForDataSelector)) {
+                        && Operations.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForDataSelector)) {
                         if (resourcePrivilegesMapBuilder != null) {
                             resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                         }
                     } else if (checkWithFailuresSelector
                         && allowedPrivilegesAutomatonForFailuresSelector != null
-                        && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForFailuresSelector)) {
+                        && Operations.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForFailuresSelector)) {
                             if (resourcePrivilegesMapBuilder != null) {
                                 resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                             }

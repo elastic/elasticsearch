@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.qa.rest.RestRerankTestCase;
 import org.junit.ClassRule;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class RestRerankIT extends RestRerankTestCase  {
+public class RestRerankIT extends RestRerankTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
 

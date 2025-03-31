@@ -139,7 +139,6 @@ public class RestRerankTestCase extends ESRestTestCase {
         assertResultMap(result, defaultOutputColumns(), expectedValues);
     }
 
-
     public void testRerankWithNamedParams() throws IOException {
         assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.RERANK.isEnabled());
 

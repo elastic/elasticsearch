@@ -457,6 +457,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterSelectorString(EsqlBaseParser.SelectorStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSelectorString(EsqlBaseParser.SelectorStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterIndexString(EsqlBaseParser.IndexStringContext ctx) { }
   /**
    * {@inheritDoc}

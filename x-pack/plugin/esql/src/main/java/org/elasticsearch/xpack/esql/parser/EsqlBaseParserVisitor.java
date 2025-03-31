@@ -255,6 +255,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitClusterString(EsqlBaseParser.ClusterStringContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#selectorString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSelectorString(EsqlBaseParser.SelectorStringContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    * @return the visitor result

@@ -468,9 +468,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.request.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTests
   method: testCreateRequest_WithEntraIdDefined
   issue: https://github.com/elastic/elasticsearch/issues/125061
-- class: org.elasticsearch.xpack.ilm.history.ILMHistoryItemTests
-  method: testTruncateLongError
-  issue: https://github.com/elastic/elasticsearch/issues/125216
 - class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
   method: testLuceneVersionConstant
   issue: https://github.com/elastic/elasticsearch/issues/125638
@@ -498,9 +495,15 @@ tests:
 - class: org.elasticsearch.packaging.test.DebPreservationTests
   method: test40RestartOnUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/125821
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
-  issue: https://github.com/elastic/elasticsearch/issues/125822
 - class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
   method: testAlreadyUpgraded
   issue: https://github.com/elastic/elasticsearch/issues/125585
+- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
+  method: testHFEmbeddings {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/125551
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
+  method: testDataStreamLifecycleDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/123769
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/125668

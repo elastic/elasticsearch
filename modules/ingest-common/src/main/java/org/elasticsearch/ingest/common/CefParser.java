@@ -370,13 +370,13 @@ final class CefParser {
 
     private void processExtensions(String cefString, int extensionStart, CEFEvent event) {
         String extensionString = cefString.substring(extensionStart);
-        Map<String, String> extensions = parseExtensions(extensionString);
+        final Map<String, String> parsedExtensions = parseExtensions(extensionString);
         // Cleanup empty values in extensions
         if (removeEmptyValue) {
-            removeEmptyValue(extensions);
+            removeEmptyValue(parsedExtensions);
         }
         // Translate extensions to possible ECS fields
-        for (Map.Entry<String, String> entry : extensions.entrySet()) {
+        for (Map.Entry<String, String> entry : parsedExtensions.entrySet()) {
             ExtensionMapping mapping = EXTENSION_MAPPINGS.get(entry.getKey());
             if (mapping != null) {
                 String ecsKey = mapping.ecsKey();

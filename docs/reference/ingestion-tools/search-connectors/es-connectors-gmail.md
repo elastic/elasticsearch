@@ -267,8 +267,6 @@ For example:
 }
 ```
 % NOTCONSOLE
-% NOTCONSOLE
-
 
 ### Document level security [es-connectors-gmail-client-document-level-security]
 

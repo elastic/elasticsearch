@@ -9,18 +9,19 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.http.AbortableInputStream;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
-import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -115,9 +116,19 @@ public class S3RetryingInputStreamTests extends ESTestCase {
         }
     }
 
+    /**
+     * Creates a mock BlobStore that returns a mock S3Client, configured to supply a #getObject response. The blob store is then wrapped in
+     * a {@link S3RetryingInputStream}.
+     *
+     * @param data The data to stream.
+     * @param position The position at which to start reading from the stream.
+     * @param length How much to read from the data stream starting at {@code position}
+     * @return A {@link S3RetryingInputStream} that reads from the data stream.
+     * @throws IOException
+     */
     private S3RetryingInputStream createInputStream(final byte[] data, @Nullable final Integer position, @Nullable final Integer length)
         throws IOException {
-        final AmazonS3 client = mock(AmazonS3.class);
+        final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         when(clientReference.client()).thenReturn(client);
         final S3BlobStore blobStore = mock(S3BlobStore.class);
@@ -125,24 +136,31 @@ public class S3RetryingInputStreamTests extends ESTestCase {
 
         if (position != null && length != null) {
             if (data.length <= position) {
-                var amazonS3Exception = new AmazonS3Exception("test");
-                amazonS3Exception.setStatusCode(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus());
-                when(client.getObject(any(GetObjectRequest.class))).thenThrow(amazonS3Exception);
+                var s3Exception = S3Exception.builder().message("test");
+                s3Exception.statusCode(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus());
+                when(client.getObject(any(GetObjectRequest.class))).thenThrow(s3Exception.build());
                 return new S3RetryingInputStream(randomPurpose(), blobStore, "_blob", position, Math.addExact(position, length - 1));
             }
 
-            final S3Object s3Object = new S3Object();
-            s3Object.getObjectMetadata().setContentLength(length);
-            s3Object.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(data, position, length), new HttpGet()));
-            when(client.getObject(any(GetObjectRequest.class))).thenReturn(s3Object);
+            // NOMERGE: I think blobStore.getMetricPublisher(operation, purpose) needs to be defined, to fix the NPE. I didn't get that far.
+            // TODO NOMERGE: revisit AbortableInputStream, I just threw it on to see if that fixed the NPE.
+            ResponseInputStream<GetObjectResponse> objectResponse =
+                new ResponseInputStream<>(
+                    GetObjectResponse.builder().build(),//.contentLength(length.longValue()).build(),
+                    AbortableInputStream.create(new ByteArrayInputStream(data, position, length))
+                );
+            when(client.getObject(any(GetObjectRequest.class))).thenReturn(objectResponse);
             return new S3RetryingInputStream(randomPurpose(), blobStore, "_blob", position, Math.addExact(position, length - 1));
         }
 
-        final S3Object s3Object = new S3Object();
-        s3Object.getObjectMetadata().setContentLength(data.length);
-        s3Object.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(data), new HttpGet()));
-        when(client.getObject(any(GetObjectRequest.class))).thenReturn(s3Object);
+        // NOMERGE: I think blobStore.getMetricPublisher(operation, purpose) needs to be defined, to fix the NPE. I didn't get that far.
+        // TODO NOMERGE: revisit AbortableInputStream, I just threw it on to see if that fixed the NPE.
+        ResponseInputStream<GetObjectResponse> objectResponse =
+            new ResponseInputStream<>(
+                GetObjectResponse.builder().build(),//.contentLength(Long.valueOf(data.length)).build(),
+                AbortableInputStream.create(new ByteArrayInputStream(data))
+            );
+        when(client.getObject(any(GetObjectRequest.class))).thenReturn(objectResponse);
         return new S3RetryingInputStream(randomPurpose(), blobStore, "_blob");
     }
 }
-// TODO NOMERGE bring these tests back

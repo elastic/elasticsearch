@@ -17,9 +17,10 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
@@ -29,18 +30,32 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
 public class LookupJoinTypesIT extends ESIntegTestCase {
 
-    private static final Map<DataType, DataType> compatibleJoinTypes = Map.of(
-        DataType.KEYWORD,
-        DataType.KEYWORD,
-        DataType.TEXT,
-        DataType.KEYWORD,
-        DataType.INTEGER,
-        DataType.INTEGER,
-        DataType.FLOAT,
-        DataType.FLOAT,
-        DataType.DOUBLE,
-        DataType.DOUBLE
-    );
+    private static final Set<TestConfig> compatibleJoinTypes = new LinkedHashSet<>();
+    static {
+        addConfig(DataType.KEYWORD, DataType.KEYWORD, true);
+        addConfig(DataType.TEXT, DataType.KEYWORD, true);
+        addConfig(DataType.INTEGER, DataType.INTEGER, true);
+        addConfig(DataType.FLOAT, DataType.FLOAT, true);
+        addConfig(DataType.DOUBLE, DataType.DOUBLE, true);
+    }
+
+    private static void addConfig(DataType mainType, DataType lookupType, boolean passes) {
+        compatibleJoinTypes.add(new TestConfig(mainType, lookupType, passes));
+    }
+
+    record TestConfig(DataType mainType, DataType lookupType, boolean passes) {
+        private String indexName() {
+            return "index_" + mainType.esType() + "_" + lookupType.esType();
+        }
+
+        private String fieldName() {
+            return "field_" + mainType.esType();
+        }
+
+        private String mainProperty() {
+            return "\"" + fieldName() + "\": { \"type\" : \"" + mainType.esType() + "\" }";
+        }
+    }
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(EsqlPlugin.class);
@@ -49,12 +64,12 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     public void testLookupJoinTypes() {
         initIndexes();
         initData();
-        for (Map.Entry<DataType, DataType> entry : compatibleJoinTypes.entrySet()) {
+        for (TestConfig config : compatibleJoinTypes) {
             String query = String.format(
                 Locale.ROOT,
-                "FROM index | LOOKUP JOIN %s ON field_%s | KEEP other",
-                indexName(entry.getKey(), entry.getValue()),
-                entry.getKey().esType()
+                "FROM index | LOOKUP JOIN %s ON %s | KEEP other",
+                config.indexName(),
+                config.fieldName()
             );
             try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
                 Iterator<Object> results = response.response().column(0).iterator();
@@ -68,12 +83,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     private void initIndexes() {
         // The main index will have many fields, one of each type to use in later type specific joins
         StringBuilder mainFields = new StringBuilder("{\n  \"properties\" : {\n");
-        mainFields.append(
-            compatibleJoinTypes.keySet()
-                .stream()
-                .map((l) -> "\"field_" + l.esType() + "\": { \"type\" : \"" + l.esType() + "\" }")
-                .collect(Collectors.joining(",\n    "))
-        );
+        mainFields.append(compatibleJoinTypes.stream().map(TestConfig::mainProperty).collect(Collectors.joining(",\n    ")));
         mainFields.append("  }\n}\n");
         assertAcked(prepareCreate("index").setMapping(mainFields.toString()));
 
@@ -83,39 +93,31 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             .put("index.mode", "lookup");
         compatibleJoinTypes.forEach(
             // Each lookup index will get a document with a field to join on, and a results field to get back
-            (l, r) -> { assertAcked(prepareCreate(indexName(l, r)).setSettings(settings.build()).setMapping(String.format(Locale.ROOT, """
+            (c) -> { assertAcked(prepareCreate(c.indexName()).setSettings(settings.build()).setMapping(String.format(Locale.ROOT, """
                 {
                   "properties" : {
-                   "field_%s": { "type" : "%s" },
+                   "%s": { "type" : "%s" },
                    "other": { "type" : "keyword" }
                   }
                 }
-                """, l.esType(), r.esType()))); }
+                """, c.fieldName(), c.lookupType.esType()))); }
         );
-    }
-
-    private String indexName(DataType mainType, DataType lookupType) {
-        return "index_" + mainType.esType() + "_" + lookupType.esType();
     }
 
     private void initData() {
         List<String> mainProperties = new ArrayList<>();
         int docId = 0;
-        for (Map.Entry<DataType, DataType> entry : compatibleJoinTypes.entrySet()) {
-            DataType mainType = entry.getKey();
-            DataType lookupType = entry.getValue();
-            String index = indexName(mainType, lookupType);
-            String field = "field_" + mainType.esType();
-            String value = sampleDataFor(lookupType);
+        for (TestConfig config : compatibleJoinTypes) {
+            String value = sampleDataFor(config.lookupType());
             String doc = String.format(Locale.ROOT, """
                 {
                   "%s": %s,
                   "other": "value"
                 }
-                """, field, value);
-            mainProperties.add(String.format(Locale.ROOT, "\"%s\": %s", field, value));
-            index(index, "" + (++docId), doc);
-            refresh(index);
+                """, config.fieldName(), value);
+            mainProperties.add(String.format(Locale.ROOT, "\"%s\": %s", config.fieldName(), value));
+            index(config.indexName(), "" + (++docId), doc);
+            refresh(config.indexName());
         }
         index("index", "1", String.format(Locale.ROOT, """
             {

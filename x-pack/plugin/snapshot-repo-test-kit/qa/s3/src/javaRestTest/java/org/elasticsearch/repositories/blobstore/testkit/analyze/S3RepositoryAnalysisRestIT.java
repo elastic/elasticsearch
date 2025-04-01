@@ -55,6 +55,13 @@ public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTe
     }
 
     @Override
+    protected boolean abortWritesPermitted() {
+        // S3 SDK reads the full blob twice, once to compute the checksum and then again to do the upload; aborting a write operation blocks
+        // the checksum computation rather than the actual upload.
+        return false;
+    }
+
+    @Override
     protected Settings repositorySettings() {
         final String bucket = System.getProperty("test.s3.bucket");
         assertThat(bucket, not(blankOrNullString()));

@@ -332,9 +332,6 @@ final class CefParser {
             }
             processHeaders(headers, event);
             processExtensions(cefString, extensionStart, event);
-            if (event.getExtensions().isEmpty() == false) {
-                event.addCefMapping("extensions", event.getExtensions());
-            }
             return event;
         } else {
             throw new IllegalArgumentException("Invalid CEF format");
@@ -391,6 +388,10 @@ final class CefParser {
                 // Add the extension if the key is not in the mapping
                 event.addExtension(entry.getKey(), entry.getValue());
             }
+        }
+        // Bang the extensions into the cef mappings
+        if (event.getExtensions().isEmpty() == false) {
+            event.addCefMapping("extensions", event.getExtensions());
         }
     }
 

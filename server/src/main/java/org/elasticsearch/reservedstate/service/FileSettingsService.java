@@ -40,9 +40,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -128,7 +131,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
-        if (watching() && Files.exists(watchedFile)) {
+        if (watching() && filesExists(watchedFile)) {
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
@@ -201,7 +204,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
     private void processFileChanges(ReservedStateVersionCheck versionCheck) throws IOException, InterruptedException, ExecutionException {
         PlainActionFuture<Void> completion = new PlainActionFuture<>();
-        try (var bis = new BufferedInputStream(Files.newInputStream(watchedFile)); var parser = createParser(bis)) {
+        try (var bis = new BufferedInputStream(filesNewInputStream(watchedFile)); var parser = createParser(bis)) {
             stateService.process(NAMESPACE, parser, versionCheck, (e) -> completeProcessing(e, completion));
         }
         completion.get();
@@ -342,5 +345,38 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
                 );
             }
         }
+    }
+
+    // the following methods are a workaround to ensure exclusive access for files
+    // required by child watchers; this is required because we only check the caller's module
+    // not the entire stack
+    @Override
+    protected boolean filesExists(Path path) {
+        return Files.exists(path);
+    }
+
+    @Override
+    protected boolean filesIsDirectory(Path path) {
+        return Files.isDirectory(path);
+    }
+
+    @Override
+    protected <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException {
+        return Files.readAttributes(path, clazz);
+    }
+
+    @Override
+    protected Stream<Path> filesList(Path dir) throws IOException {
+        return Files.list(dir);
+    }
+
+    @Override
+    protected Path filesSetLastModifiedTime(Path path, FileTime time) throws IOException {
+        return Files.setLastModifiedTime(path, time);
+    }
+
+    @Override
+    protected InputStream filesNewInputStream(Path path) throws IOException {
+        return Files.newInputStream(path);
     }
 }

@@ -384,7 +384,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
     private static S3Client configureMockClient(S3BlobStore blobStore) {
         final S3Client client = mock(S3Client.class);
-        final SdkHttpClient httpClient = mock(ApacheHttpClient.class);
+        final SdkHttpClient httpClient = mock(SdkHttpClient.class);
         try (AmazonS3Reference clientReference = new AmazonS3Reference(client, httpClient)) {
             clientReference.mustIncRef(); // held by the mock, ultimately released in closeMockClient
             when(blobStore.clientReference()).then(invocation -> {
@@ -436,7 +436,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             "public-read",
             "public-read-write",
             "authenticated-read",
-            "log-delivery-write",
+            // "log-delivery-write", TODO NOMERGE this isn't supported in SDKv2
             "bucket-owner-read",
             "bucket-owner-full-control" };
 
@@ -485,7 +485,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
     public void testInvalidStorageClass() {
         BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("whatever"));
-        assertThat(ex.getMessage(), equalTo("`whatever` is not a valid S3 Storage Class."));
+        assertThat(ex.getMessage(), equalTo("`whatever` is not a known S3 Storage Class."));
     }
 
     public void testRejectGlacierStorageClass() {

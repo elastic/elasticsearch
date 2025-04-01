@@ -306,7 +306,7 @@ You can search documents, filter results, and perform analytics at the same time
 data, in a single request.
 That means aggregations are calculated in the context of the search query.
 
-The folowing aggregation types are available:
+The following aggregation types are available:
 
 * <<search-aggregations-metrics,Metric>>: Calculate metrics,
 such as a sum or average, from field values.

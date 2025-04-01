@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -4594,7 +4595,7 @@ public class IndexShardTests extends IndexShardTestCase {
         var onAcquired = new PlainActionFuture<Releasable>();
         indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
         try (var permits = safeGet(onAcquired)) {
-            indexShard.resetEngine();
+            indexShard.resetEngine(newEngine -> {});
         }
         safeAwait(newEngineCreated);
         safeAwait(newEngineNotification);
@@ -5092,6 +5093,67 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
         assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
         closeShards(shard);
+    }
+
+    public void testCloseShardWhileRetainingEngine() throws Exception {
+        final var primary = newStartedShard(true);
+        try {
+            final var release = new CountDownLatch(1);
+            final var hold = new PlainActionFuture<Engine>();
+            final var holdEngineThread = new Thread(() -> {
+                primary.withEngine(engine -> {
+                    assertThat(engine, notNullValue());
+                    EngineTestCase.ensureOpen(engine);
+                    hold.onResponse(engine);
+                    safeAwait(release);
+                    return null;
+                });
+            });
+            holdEngineThread.start();
+
+            final var secondReaderExecuting = new CountDownLatch(1);
+            final var closed = new CountDownLatch(1);
+            final var closeEngineThread = new Thread(() -> {
+                try {
+                    safeGet(hold);
+                    // Unfair ReentrantReadWriteLock would prioritize writers over readers to avoid starving writers,
+                    // hence we need to wait to close the engine until the second reader has acquired the read lock before
+                    // closing, otherwise the test would deadlock.
+                    safeAwait(secondReaderExecuting);
+                    closeShardNoCheck(primary);
+                    assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
+                    closed.countDown();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closeEngineThread.start();
+
+            final var retainedInstance = asInstanceOf(InternalEngine.class, safeGet(hold));
+            assertSame(retainedInstance, primary.getEngineOrNull());
+            assertThat(primary.state(), equalTo(IndexShardState.STARTED));
+            primary.withEngineOrNull(engine -> {
+                secondReaderExecuting.countDown();
+                assertSame(retainedInstance, engine);
+                EngineTestCase.ensureOpen(engine);
+                return null;
+            });
+
+            release.countDown();
+            safeAwait(closed);
+
+            assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
+            assertThat(primary.getEngineOrNull(), nullValue());
+            primary.withEngineOrNull(engine -> {
+                assertThat(engine, nullValue());
+                return null;
+            });
+
+            holdEngineThread.join();
+            closeEngineThread.join();
+        } finally {
+            IOUtils.close(primary.store());
+        }
     }
 
     public void testShardExposesWriteLoadStats() throws Exception {

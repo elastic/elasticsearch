@@ -131,26 +131,26 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        String sourceIp = ingestDocument.getFieldValue(sourceIpField, String.class, ignoreMissing);
-        String destinationIp = ingestDocument.getFieldValue(destinationIpField, String.class, ignoreMissing);
-        Object ianaNumber = ingestDocument.getFieldValue(ianaNumberField, Object.class, true);
-        Supplier<Object> transport = () -> ingestDocument.getFieldValue(transportField, Object.class, ignoreMissing);
-        Supplier<Object> sourcePort = () -> ingestDocument.getFieldValue(sourcePortField, Object.class, ignoreMissing);
-        Supplier<Object> destinationPort = () -> ingestDocument.getFieldValue(destinationPortField, Object.class, ignoreMissing);
-        Object icmpType = ingestDocument.getFieldValue(icmpTypeField, Object.class, true);
-        Object icmpCode = ingestDocument.getFieldValue(icmpCodeField, Object.class, true);
+    public IngestDocument execute(IngestDocument document) throws Exception {
+        String sourceIp = document.getFieldValue(sourceIpField, String.class, ignoreMissing);
+        String destinationIp = document.getFieldValue(destinationIpField, String.class, ignoreMissing);
+        Object ianaNumber = document.getFieldValue(ianaNumberField, Object.class, true);
+        Supplier<Object> transport = () -> document.getFieldValue(transportField, Object.class, ignoreMissing);
+        Supplier<Object> sourcePort = () -> document.getFieldValue(sourcePortField, Object.class, ignoreMissing);
+        Supplier<Object> destinationPort = () -> document.getFieldValue(destinationPortField, Object.class, ignoreMissing);
+        Object icmpType = document.getFieldValue(icmpTypeField, Object.class, true);
+        Object icmpCode = document.getFieldValue(icmpCodeField, Object.class, true);
         Flow flow = buildFlow(sourceIp, destinationIp, ianaNumber, transport, sourcePort, destinationPort, icmpType, icmpCode);
         if (flow == null) {
             if (ignoreMissing) {
-                return ingestDocument;
+                return document;
             } else {
                 throw new IllegalArgumentException("unable to construct flow from document");
             }
         }
 
-        ingestDocument.setFieldValue(targetField, flow.toCommunityId(seed));
-        return ingestDocument;
+        document.setFieldValue(targetField, flow.toCommunityId(seed));
+        return document;
     }
 
     public static String apply(
@@ -295,28 +295,28 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         @Override
         public CommunityIdProcessor create(
             Map<String, Processor.Factory> registry,
-            String processorTag,
+            String tag,
             String description,
             Map<String, Object> config,
             ProjectId projectId
         ) throws Exception {
-            String sourceIpField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "source_ip", DEFAULT_SOURCE_IP);
-            String sourcePortField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "source_port", DEFAULT_SOURCE_PORT);
-            String destIpField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "destination_ip", DEFAULT_DEST_IP);
-            String destPortField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "destination_port", DEFAULT_DEST_PORT);
-            String ianaNumberField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "iana_number", DEFAULT_IANA_NUMBER);
-            String transportField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "transport", DEFAULT_TRANSPORT);
-            String icmpTypeField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "icmp_type", DEFAULT_ICMP_TYPE);
-            String icmpCodeField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "icmp_code", DEFAULT_ICMP_CODE);
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET);
-            int seedInt = ConfigurationUtils.readIntProperty(TYPE, processorTag, config, "seed", 0);
+            String sourceIpField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "source_ip", DEFAULT_SOURCE_IP);
+            String sourcePortField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "source_port", DEFAULT_SOURCE_PORT);
+            String destIpField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "destination_ip", DEFAULT_DEST_IP);
+            String destPortField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "destination_port", DEFAULT_DEST_PORT);
+            String ianaNumberField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "iana_number", DEFAULT_IANA_NUMBER);
+            String transportField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "transport", DEFAULT_TRANSPORT);
+            String icmpTypeField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "icmp_type", DEFAULT_ICMP_TYPE);
+            String icmpCodeField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "icmp_code", DEFAULT_ICMP_CODE);
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field", DEFAULT_TARGET);
+            int seedInt = ConfigurationUtils.readIntProperty(TYPE, tag, config, "seed", 0);
             if (seedInt < 0 || seedInt > 65535) {
-                throw newConfigurationException(TYPE, processorTag, "seed", "must be a value between 0 and 65535");
+                throw newConfigurationException(TYPE, tag, "seed", "must be a value between 0 and 65535");
             }
 
-            boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
+            boolean ignoreMissing = readBooleanProperty(TYPE, tag, config, "ignore_missing", true);
             return new CommunityIdProcessor(
-                processorTag,
+                tag,
                 description,
                 sourceIpField,
                 sourcePortField,

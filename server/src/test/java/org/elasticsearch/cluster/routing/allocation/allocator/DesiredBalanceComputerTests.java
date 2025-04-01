@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndPath;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
@@ -43,11 +44,13 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -69,6 +72,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
@@ -88,6 +93,9 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
@@ -1209,7 +1217,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should not report long computation too early",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [*] and [*] iterations"
+                "Desired balance computation for [*] is still not converged after [*] and [*] iterations, "
+                    + "[1] compute() calls with [*] total iterations since last convergence [*] ago"
             )
         );
 
@@ -1220,7 +1229,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should report long computation based on iteration count",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [10s] and [1000] iterations"
+                "Desired balance computation for [*] is still not converged after [10s] and [1000] iterations, "
+                    + "[1] compute() calls with [1000] total iterations since last convergence [10s] ago"
             )
         );
 
@@ -1231,7 +1241,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should report long computation based on time",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [1m] and [60] iterations"
+                "Desired balance computation for [*] is still not converged after [59s] and [59] iterations, "
+                    + "[1] compute() calls with [59] total iterations since last convergence [1m] ago"
             )
         );
     }
@@ -1284,17 +1295,139 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         }, DesiredBalanceComputer.class, expectation);
     }
 
+    public void testLoggingOfComputeCallsAndIterationsSinceConvergence() {
+        final var clusterSettings = new ClusterSettings(
+            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(5L)).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        final var timeInMillis = new AtomicLong(-1L);
+        final var computerLogger = mock(Logger.class);
+        final var iterationCounter = new AtomicInteger(0);
+        final var requiredIterations = new AtomicInteger(2);
+        final var computer = new DesiredBalanceComputer(
+            clusterSettings,
+            TimeProviderUtils.create(timeInMillis::incrementAndGet),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            computerLogger
+        ) {
+            @Override
+            boolean hasEnoughIterations(int currentIteration) {
+                iterationCounter.incrementAndGet();
+                return currentIteration >= requiredIterations.get();
+            }
+        };
+
+        // No compute() calls yet, last convergence timestamp is the startup time.
+        final var startTimeMillis = timeInMillis.get();
+        assertEquals(new DesiredBalanceComputer.LastConvergenceInfo(0L, 0L, startTimeMillis), computer.getLastConvergence());
+
+        var desiredBalance = DesiredBalance.BECOME_MASTER_INITIAL;
+        final AtomicLong indexSequence = new AtomicLong(0);
+        var clusterState = createInitialClusterState(1, 1, 0);
+        Supplier<DesiredBalanceInput> rebuildInput = () -> {
+            return new DesiredBalanceInput(indexSequence.incrementAndGet(), routingAllocationOf(clusterState), List.of());
+        };
+
+        record ComputeLogMsgInput(
+            String currentDuration,
+            int currentIterations,
+            long totalComputeCalls,
+            long totalIterations,
+            String timeSinceConverged
+        ) {}
+
+        Consumer<ComputeLogMsgInput> verifyNoConvergence = data -> {
+            verify(computerLogger, times(1)).log(
+                Level.INFO,
+                "Desired balance computation for [{}] is still not converged after [{}] and [{}] iterations, "
+                    + "[{}] compute() calls with [{}] total iterations since last convergence [{}] ago",
+                indexSequence.get(),
+                data.currentDuration,
+                data.currentIterations,
+                data.totalComputeCalls,
+                data.totalIterations,
+                data.timeSinceConverged
+            );
+        };
+        Consumer<ComputeLogMsgInput> verifyConvergence = data -> {
+            verify(computerLogger, times(1)).debug(
+                "Desired balance computation for [{}] converged after [{}] and [{}] iterations, "
+                    + "[{}] compute() calls with [{}] total iterations since last convergence [{}] ago",
+                indexSequence.get(),
+                data.currentDuration,
+                data.currentIterations,
+                data.totalComputeCalls,
+                data.totalIterations,
+                data.timeSinceConverged
+            );
+            // Verify the number of compute() calls and total iterations have been reset after converging.
+            assertEquals(new DesiredBalanceComputer.LastConvergenceInfo(0L, 0L, timeInMillis.get()), computer.getLastConvergence());
+        };
+
+        // Converges right away, verify the debug level convergence message.
+        desiredBalance = computer.compute(desiredBalance, rebuildInput.get(), queue(), ignored -> true);
+        assertEquals(DesiredBalance.ComputationFinishReason.CONVERGED, desiredBalance.finishReason());
+        verifyConvergence.accept(new ComputeLogMsgInput("2ms", 2, 1L, 2L, "3ms"));
+        var lastConvergenceTimestampMillis = computer.getLastConvergence().timestampMillis();
+
+        // Test a series of compute() calls that don't converge.
+        iterationCounter.set(0);
+        requiredIterations.set(10);
+        desiredBalance = computer.compute(desiredBalance, rebuildInput.get(), queue(), ignored -> iterationCounter.get() < 6);
+        assertEquals(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT, desiredBalance.finishReason());
+        // This INFO is triggered from the interval since last convergence timestamp.
+        verifyNoConvergence.accept(new ComputeLogMsgInput("4ms", 4, 1L, 4L, "5ms"));
+        assertEquals(new DesiredBalanceComputer.LastConvergenceInfo(1L, 6L, lastConvergenceTimestampMillis), computer.getLastConvergence());
+
+        iterationCounter.set(0);
+        desiredBalance = computer.compute(desiredBalance, rebuildInput.get(), queue(), ignored -> iterationCounter.get() < 8);
+        assertEquals(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT, desiredBalance.finishReason());
+        // The next INFO is triggered from the interval since last INFO message logged.
+        verifyNoConvergence.accept(new ComputeLogMsgInput("2ms", 2, 2L, 8L, "10ms"));
+        // Followed by another log message after the interval.
+        verifyNoConvergence.accept(new ComputeLogMsgInput("7ms", 7, 2L, 13L, "15ms"));
+        assertEquals(
+            new DesiredBalanceComputer.LastConvergenceInfo(2L, 14L, lastConvergenceTimestampMillis),
+            computer.getLastConvergence()
+        );
+
+        desiredBalance = computer.compute(desiredBalance, rebuildInput.get(), queue(), ignored -> true);
+        verifyNoConvergence.accept(new ComputeLogMsgInput("3ms", 3, 3L, 17L, "20ms"));
+        verifyNoConvergence.accept(new ComputeLogMsgInput("8ms", 8, 3L, 22L, "25ms"));
+        verifyConvergence.accept(new ComputeLogMsgInput("10ms", 10, 3L, 24L, "27ms"));
+        assertEquals(DesiredBalance.ComputationFinishReason.CONVERGED, desiredBalance.finishReason());
+
+        desiredBalance = computer.compute(desiredBalance, rebuildInput.get(), queue(), ignored -> true);
+        // First INFO is triggered from interval since last converged.
+        verifyNoConvergence.accept(new ComputeLogMsgInput("4ms", 4, 1L, 4L, "5ms"));
+        // Second INFO is triggered from the interval since the last INFO log.
+        verifyNoConvergence.accept(new ComputeLogMsgInput("9ms", 9, 1L, 9L, "10ms"));
+        verifyConvergence.accept(new ComputeLogMsgInput("10ms", 10, 1L, 10L, "11ms"));
+        assertEquals(DesiredBalance.ComputationFinishReason.CONVERGED, desiredBalance.finishReason());
+
+        // Verify the final assignment mappings after converging.
+        final var index = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(TEST_INDEX).getIndex();
+        final var expectedAssignmentsMap = Map.of(new ShardId(index, 0), new ShardAssignment(Set.of("node-0"), 1, 0, 0));
+        assertDesiredAssignments(desiredBalance, expectedAssignmentsMap);
+    }
+
     private static ShardId findShardId(ClusterState clusterState, String name) {
         return clusterState.getRoutingTable().index(name).shard(0).shardId();
     }
 
     static ClusterState createInitialClusterState(int dataNodesCount) {
+        return createInitialClusterState(dataNodesCount, 2, 1);
+    }
+
+    static ClusterState createInitialClusterState(int dataNodesCount, int numShards, int numReplicas) {
         var discoveryNodes = DiscoveryNodes.builder().add(newNode("master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
         for (int i = 0; i < dataNodesCount; i++) {
             discoveryNodes.add(newNode("node-" + i, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         }
 
-        var indexMetadata = IndexMetadata.builder(TEST_INDEX).settings(indexSettings(IndexVersion.current(), 2, 1)).build();
+        var indexMetadata = IndexMetadata.builder(TEST_INDEX)
+            .settings(indexSettings(IndexVersion.current(), numShards, numReplicas))
+            .build();
 
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes.masterNodeId("master").localNodeId("master"))

@@ -363,7 +363,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        public void maybeTrack(final String request, Headers requestHeaders) {
+        public void maybeTrack(HttpExchange exchange) {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+            final Headers requestHeaders = exchange.getRequestHeaders();
             if (Regex.simpleMatch("GET */storage/v1/b/*/o/*", request)) {
                 trackRequest(Operation.GET_OBJECT.key());
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {

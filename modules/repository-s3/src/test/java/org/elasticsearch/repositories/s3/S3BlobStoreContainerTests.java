@@ -13,6 +13,8 @@ import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.metrics.MetricCollection;
+import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
@@ -99,7 +101,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         }
 
         final int bufferSize = randomIntBetween(1024, 2048);
-        final Long blobSize = randomLongBetween(0, bufferSize);
+        final int blobSize = randomIntBetween(0, bufferSize);
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
@@ -120,27 +122,35 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final S3Client client = configureMockClient(blobStore);
 
-        final ArgumentCaptor<PutObjectRequest> argumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
-        final ArgumentCaptor<RequestBody> argumentCaptorBody = ArgumentCaptor.forClass(RequestBody.class); // TODO NOMERGE: test anything?
+        final ArgumentCaptor<PutObjectRequest> requestCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        final ArgumentCaptor<RequestBody> bodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
 
-        when(client.putObject(argumentCaptor.capture(), argumentCaptorBody.capture())).thenReturn(PutObjectResponse.builder().build());
+        when(client.putObject(requestCaptor.capture(), bodyCaptor.capture())).thenReturn(PutObjectResponse.builder().build());
 
-        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize.intValue()]);
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
         blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
 
-        final PutObjectRequest request = argumentCaptor.getValue();
+        final PutObjectRequest request = requestCaptor.getValue();
         assertEquals(bucketName, request.bucket());
         assertEquals(blobPath.buildAsString() + blobName, request.key());
-        // TODO NOMERGE: no more input stream access in the request object -- understand test and verify this is OK
-        // assertEquals(inputStream, request.getInputStream());
-        assertEquals(blobSize, request.contentLength());
-        assertEquals(storageClass.toString(), request.storageClass());
+
+        assertEquals(Long.valueOf(blobSize), request.contentLength());
+        assertEquals(storageClass, request.storageClass());
         assertEquals(cannedAccessControlList, request.acl());
         if (serverSideEncryption) {
             assertEquals(
                 PutObjectRequest.builder().serverSideEncryption("AES256").build().sseCustomerAlgorithm(),
                 request.sseCustomerAlgorithm()
             );
+        }
+
+        final RequestBody requestBody = bodyCaptor.getValue();
+        try (var contentStream = requestBody.contentStreamProvider().newStream()) {
+            assertEquals(inputStream.available(), blobSize);
+            // checking that reading from contentStream also reads from inputStream
+            final int toSkip = between(0, blobSize);
+            contentStream.skipNBytes(toSkip);
+            assertEquals(inputStream.available(), blobSize - toSkip);
         }
     }
 
@@ -390,6 +400,13 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             when(blobStore.clientReference()).then(invocation -> {
                 clientReference.mustIncRef();
                 return clientReference;
+            });
+            when(blobStore.getMetricPublisher(any(), any())).thenReturn(new MetricPublisher() {
+                @Override
+                public void publish(MetricCollection metricCollection) {}
+
+                @Override
+                public void close() {}
             });
         }
         return client;

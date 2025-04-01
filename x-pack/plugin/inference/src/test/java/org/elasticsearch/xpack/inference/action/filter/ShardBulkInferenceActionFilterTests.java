@@ -38,6 +38,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInference;
@@ -97,11 +98,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -490,8 +494,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testCircuitBreaker() throws Exception {
-        final CircuitBreaker circuitBreaker = spy(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+    public void testIndexingPressure() throws Exception {
+        final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(Settings.EMPTY);
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final StaticModel denseModel = StaticModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
         final int denseModelEmbeddingBytes = denseModel.getServiceSettings()
@@ -504,7 +508,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             useLegacyFormat,
             true
         );
-        filter.setInferenceBytesCircuitBreaker(circuitBreaker);
+        filter.setIndexingPressure(indexingPressure);
 
         XContentBuilder doc0Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "a test value");
         XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "dense_field", "another test value");
@@ -548,19 +552,19 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     assertNull(item.getPrimaryResponse());
                 }
 
-                assertThat(circuitBreaker.getUsed(), equalTo(0L));
-                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(128 + bytesUsed.apply(doc0Source), "doc_0");
-                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(denseModelEmbeddingBytes + bytesUsed.apply(doc1Source), "doc_1");
-                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(128 + denseModelEmbeddingBytes + bytesUsed.apply(doc2Source), "doc_2");
-                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(denseModelEmbeddingBytes * 2L + bytesUsed.apply(doc3Source), "doc_3");
-                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(bytesUsed.apply(doc4Source), "doc_4");
-                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(128 + bytesUsed.apply(doc0UpdateSource), "doc_0");
-                if (useLegacyFormat == false) {
-                    verify(circuitBreaker).addEstimateBytesAndMaybeBreak(bytesUsed.apply(doc1UpdateSource), "doc_1");
-                }
+                IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+                assertThat(coordinatingIndexingPressure, notNullValue());
+                verify(coordinatingIndexingPressure).increment(1, 128 + bytesUsed.apply(doc0Source));
+                verify(coordinatingIndexingPressure).increment(1, denseModelEmbeddingBytes + bytesUsed.apply(doc1Source));
+                verify(coordinatingIndexingPressure).increment(1, 128 + denseModelEmbeddingBytes + bytesUsed.apply(doc2Source));
+                verify(coordinatingIndexingPressure).increment(1, denseModelEmbeddingBytes * 2L + bytesUsed.apply(doc3Source));
+                verify(coordinatingIndexingPressure).increment(1, 128 + bytesUsed.apply(doc0UpdateSource));
 
-                // Verify that the only times that addEstimateBytesAndMaybeBreak is called are the times verified above
-                verify(circuitBreaker, times(useLegacyFormat ? 6 : 7)).addEstimateBytesAndMaybeBreak(anyLong(), anyString());
+                // Verify that the only times that increment is called are the times verified above
+                verify(coordinatingIndexingPressure, times(5)).increment(anyInt(), anyLong());
+
+                // Verify that the coordinating indexing pressure is maintained through downstream action filters
+                verify(coordinatingIndexingPressure, never()).close();
             } finally {
                 chainExecuted.countDown();
             }
@@ -594,6 +598,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+
+        IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+        assertThat(coordinatingIndexingPressure, notNullValue());
+        verify(coordinatingIndexingPressure).close();
     }
 
     @SuppressWarnings("unchecked")
@@ -894,6 +902,24 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         boolean hasResult(String text) {
             return resultMap.containsKey(text);
+        }
+    }
+
+    private static class InstrumentedIndexingPressure extends IndexingPressure {
+        private Coordinating coordinating = null;
+
+        InstrumentedIndexingPressure(Settings settings) {
+            super(settings);
+        }
+
+        public Coordinating getCoordinating() {
+            return coordinating;
+        }
+
+        @Override
+        public Coordinating createCoordinatingOperation(boolean forceExecution) {
+            coordinating = spy(super.createCoordinatingOperation(forceExecution));
+            return coordinating;
         }
     }
 }

@@ -56,6 +56,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
                 taskConcurrency,
                 limit,
+                false,
                 ScoreMode.COMPLETE_NO_SCORES
             );
         }

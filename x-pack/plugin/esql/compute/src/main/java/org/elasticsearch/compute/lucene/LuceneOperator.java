@@ -10,7 +10,6 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -87,13 +86,13 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final DataPartitioning dataPartitioning;
         protected final int taskConcurrency;
         protected final int limit;
-        protected final ScoreMode scoreMode;
+        protected final boolean needsScore;
         protected final LuceneSliceQueue sliceQueue;
 
         /**
          * Build the factory.
          *
-         * @param scoreMode the {@link ScoreMode} passed to {@link IndexSearcher#createWeight}
+         * @param needsScore Whether the score is needed.
          */
         protected Factory(
             List<? extends ShardContext> contexts,
@@ -102,13 +101,14 @@ public abstract class LuceneOperator extends SourceOperator {
             Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
             int taskConcurrency,
             int limit,
+            boolean needsScore,
             ScoreMode scoreMode
         ) {
             this.limit = limit;
-            this.scoreMode = scoreMode;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(contexts, queryFunction, dataPartitioning, autoStrategy, taskConcurrency, scoreMode);
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
+            this.needsScore = needsScore;
         }
 
         public final int taskConcurrency() {

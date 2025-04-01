@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -82,11 +83,18 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertBusy(() -> {
             final var backingIndices = getDataStreamBackingIndexNames(dataStream);
             assertEquals(2, backingIndices.size());
-            assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(backingIndices.getLast()).get("index.hidden")));
-        });
-        assertBusy(() -> {
-            final var backingIndices = getDataStreamBackingIndexNames(dataStream);
-            assertEquals(PhaseCompleteStep.finalStep("hot").getKey(), getStepKeyForIndex(client(), backingIndices.getFirst()));
+            try {
+                assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(backingIndices.getLast()).get("index.hidden")));
+                assertEquals(PhaseCompleteStep.finalStep("hot").getKey(), getStepKeyForIndex(client(), backingIndices.getFirst()));
+            } catch (ResponseException e) {
+                // These API calls may hit different nodes and they might see slightly different versions of the cluster state,
+                // potentially resulting in a 404 which means we just need to try again.
+                if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                    fail(e);
+                } else {
+                    throw e;
+                }
+            }
         });
     }
 

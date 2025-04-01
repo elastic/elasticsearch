@@ -35,7 +35,7 @@ public class RepositoryS3EcsCredentialsRestIT extends AbstractRepositoryS3RestTe
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "ecs_credentials_client";
 
-    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials();
+    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials("*", "s3");
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
         new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(dynamicCredentials::addValidCredentials)

@@ -285,7 +285,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             final BlobStore blobStore = blobStoreRepository.blobStore();
             final BlobStore delegateBlobStore = ((BlobStoreWrapper) blobStore).delegate();
             final S3BlobStore s3BlobStore = (S3BlobStore) delegateBlobStore;
-            final Map<S3BlobStore.StatsKey, S3BlobStore.IgnoreNoResponseMetricsCollector> statsCollectors = s3BlobStore
+            final Map<S3BlobStore.StatsKey, S3BlobStore.ElasticsearchS3MetricsCollector> statsCollectors = s3BlobStore
                 .getStatsCollectors().collectors;
 
             final var plugins = internalCluster().getInstance(PluginsService.class, nodeName)

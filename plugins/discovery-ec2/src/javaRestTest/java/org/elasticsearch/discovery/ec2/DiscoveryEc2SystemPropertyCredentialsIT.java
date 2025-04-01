@@ -29,7 +29,7 @@ public class DiscoveryEc2SystemPropertyCredentialsIT extends DiscoveryEc2Cluster
     private static final String ACCESS_KEY = PREFIX + "-access-key";
 
     private static final AwsEc2HttpFixture ec2ApiFixture = new AwsEc2HttpFixture(
-        fixedAccessKey(ACCESS_KEY),
+        fixedAccessKey(ACCESS_KEY, REGION, "ec2"),
         DiscoveryEc2SystemPropertyCredentialsIT::getAvailableTransportEndpoints
     );
 

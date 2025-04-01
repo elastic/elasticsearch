@@ -129,35 +129,25 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(path, ifGenerationMatch);
                 if (blob != null) {
                     final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
-                    final long offset;
-                    final long end;
+                    final BytesReference response;
                     if (rangeHeader == null) {
-                        offset = 0L;
-                        end = blob.contents().length() - 1;
+                        response = blob.contents();
                     } else {
                         final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
                         if (range == null) {
                             throw new AssertionError("Range bytes header does not match expected format: " + rangeHeader);
                         }
-                        offset = range.start();
-                        end = range.end();
-                    }
 
-                    if (offset >= blob.contents().length()) {
-                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
-                        return;
-                    }
+                        if (range.start() >= blob.contents().length()) {
+                            exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                            exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                            return;
+                        }
 
-                    BytesReference response = blob.contents();
+                        final long lastIndex = Math.min(range.end(), blob.contents().length() - 1);
+                        response = blob.contents().slice(Math.toIntExact(range.start()), Math.toIntExact(lastIndex - range.start() + 1));
+                    }
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    final int bufferedLength = response.length();
-                    if (offset > 0 || bufferedLength > end) {
-                        response = response.slice(
-                            Math.toIntExact(offset),
-                            Math.toIntExact(Math.min(end + 1 - offset, bufferedLength - offset))
-                        );
-                    }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length());
                     response.writeTo(exchange.getResponseBody());
                 } else {

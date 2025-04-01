@@ -186,6 +186,33 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         );
     }
 
+    public void testZeroLengthObjectGets() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobBytes = BytesArray.EMPTY;
+
+        assertEquals(RestStatus.OK, executeMultipartUpload(handler, bucket, blobName, blobBytes, 0L).restStatus());
+
+        assertEquals(
+            "No Range",
+            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            getBlobContents(handler, bucket, blobName, null, null)
+        );
+
+        assertEquals(
+            "Range 0-0",
+            new TestHttpResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, BytesArray.EMPTY, TestHttpExchange.EMPTY_HEADERS),
+            getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(0, 0))
+        );
+
+        assertEquals(
+            "Random range x-y",
+            new TestHttpResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, BytesArray.EMPTY, TestHttpExchange.EMPTY_HEADERS),
+            getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(randomIntBetween(0, 30), randomIntBetween(31, 100)))
+        );
+    }
+
     public void testResumableUpload() {
         final var bucket = randomIdentifier();
         final var handler = new GoogleCloudStorageHttpHandler(bucket);
@@ -545,7 +572,6 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         BytesReference bytes,
         Long ifGenerationMatch
     ) {
-        assert bytes.length() > 20;
         if (randomBoolean()) {
             return executeResumableUpload(handler, bucket, blobName, bytes, ifGenerationMatch);
         } else {
@@ -560,6 +586,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         BytesReference bytes,
         Long ifGenerationMatch
     ) {
+        assert bytes.length() >= 2 : "We can't split anything smaller than two";
         final var createUploadResponse = handleRequest(
             handler,
             "POST",
@@ -572,7 +599,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         final var sessionURI = locationHeader.substring(locationHeader.indexOf(HOST) + HOST.length());
         assertEquals(RestStatus.OK, createUploadResponse.restStatus());
 
-        final int partBoundary = randomIntBetween(10, bytes.length() - 1);
+        final int partBoundary = randomIntBetween(1, bytes.length() - 1);
         final var part1 = bytes.slice(0, partBoundary);
         final var uploadPart1Response = handleRequest(handler, "PUT", sessionURI, part1, contentRangeHeader(0, partBoundary - 1, null));
         assertEquals(RESUME_INCOMPLETE, uploadPart1Response.status());

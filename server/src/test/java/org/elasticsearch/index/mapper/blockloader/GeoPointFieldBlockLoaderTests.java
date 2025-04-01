@@ -34,11 +34,16 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         var extractedFieldValues = (ExtractedFieldValues) value;
         var values = extractedFieldValues.values();
 
-        var nullValue = switch (fieldMapping.get("null_value")) {
-            case String s -> convert(s, null);
-            case null -> null;
-            default -> throw new IllegalStateException("Unexpected null_value format");
-        };
+        var rawNullValue = fieldMapping.get("null_value");
+
+        GeoPoint nullValue;
+        if (rawNullValue == null) {
+            nullValue = null;
+        } else if (rawNullValue instanceof String s) {
+            nullValue = convert(s, null);
+        } else {
+            throw new IllegalStateException("Unexpected null_value format");
+        }
 
         if (params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES && hasDocValues(fieldMapping, true)) {
             if (values instanceof List<?> == false) {

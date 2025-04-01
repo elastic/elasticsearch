@@ -35,11 +35,16 @@ public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
     @Override
     @SuppressWarnings("unchecked")
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        var nullValue = switch (fieldMapping.get("null_value")) {
-            case Map<?, ?> m -> convert(m, null);
-            case null -> null;
-            default -> throw new IllegalStateException("Unexpected null_value format");
-        };
+        var rawNullValue = fieldMapping.get("null_value");
+
+        CartesianPoint nullValue;
+        if (rawNullValue == null) {
+            nullValue = null;
+        } else if (rawNullValue instanceof Map<?, ?> m) {
+            nullValue = convert(m, null);
+        } else {
+            throw new IllegalStateException("Unexpected null_value format");
+        }
 
         if (params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES && hasDocValues(fieldMapping, true)) {
             if (value instanceof List<?> == false) {

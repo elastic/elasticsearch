@@ -471,6 +471,7 @@ final class CefParser {
         throw new IllegalArgumentException("Value is not a valid timestamp: " + value);
     }
 
+    // visible for testing
     String toMACAddress(String v) throws IllegalArgumentException {
         // Insert separators if necessary
         String macWithSeparators = insertMACSeparators(v);
@@ -483,6 +484,7 @@ final class CefParser {
         return macWithSeparators;
     }
 
+    // visible for testing
     String toIP(String v) {
         InetAddress address;
         try {
@@ -532,23 +534,23 @@ final class CefParser {
         return desanitized;
     }
 
-    public static class CEFEvent implements AutoCloseable {
+    static class CEFEvent implements AutoCloseable {
         private Map<String, Object> rootMappings = new HashMap<>();
         private Map<String, Object> cefMappings = new HashMap<>();
 
-        public void addRootMapping(String key, Object value) {
+        void addRootMapping(String key, Object value) {
             this.rootMappings.put(key, value);
         }
 
-        public void addCefMapping(String key, Object value) {
+        void addCefMapping(String key, Object value) {
             this.cefMappings.put(key, value);
         }
 
-        public Map<String, Object> getRootMappings() {
+        Map<String, Object> getRootMappings() {
             return Objects.requireNonNull(rootMappings);
         }
 
-        public Map<String, Object> getCefMappings() {
+        Map<String, Object> getCefMappings() {
             return Objects.requireNonNull(cefMappings);
         }
 

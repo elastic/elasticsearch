@@ -503,9 +503,16 @@ public class AuthorizationService {
                                 indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
                             ),
                             e -> {
-                                if (e instanceof IndexNotFoundException
-                                    || e instanceof InvalidIndexNameException
-                                    || e instanceof IllegalArgumentException) {
+                                if (e instanceof IndexNotFoundException || e instanceof InvalidIndexNameException) {
+                                    logger.debug(
+                                        () -> Strings.format(
+                                            "failed [%s] action authorization for [%s] due [%s] exception",
+                                            action,
+                                            authentication,
+                                            e.getClass().getSimpleName()
+                                        ),
+                                        e
+                                    );
                                     listener.onFailure(e);
                                 } else {
                                     auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);

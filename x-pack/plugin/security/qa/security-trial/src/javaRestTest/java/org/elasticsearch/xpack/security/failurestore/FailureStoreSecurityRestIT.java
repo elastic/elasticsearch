@@ -1801,12 +1801,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
 
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1"), 403);
-        // delete API does not allow selectors
-        expectThrows(
-            () -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"),
-            400,
-            "Index component selectors are not supported in this context but found selector in expression [test1::failures]"
-        );
+        expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"), 403);
 
         // manage user can delete data stream
         deleteDataStream(MANAGE_ACCESS, "test1");

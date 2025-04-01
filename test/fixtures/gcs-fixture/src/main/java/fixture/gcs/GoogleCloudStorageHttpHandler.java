@@ -130,8 +130,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 if (blob != null) {
                     final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                     final BytesReference response;
+                    final int statusCode;
                     if (rangeHeader == null) {
                         response = blob.contents();
+                        statusCode = RestStatus.OK.getStatus();
                     } else {
                         final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
                         if (range == null) {
@@ -146,9 +148,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
                         final long lastIndex = Math.min(range.end(), blob.contents().length() - 1);
                         response = blob.contents().slice(Math.toIntExact(range.start()), Math.toIntExact(lastIndex - range.start() + 1));
+                        statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
                     }
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length());
+                    exchange.sendResponseHeaders(statusCode, response.length());
                     response.writeTo(exchange.getResponseBody());
                 } else {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);

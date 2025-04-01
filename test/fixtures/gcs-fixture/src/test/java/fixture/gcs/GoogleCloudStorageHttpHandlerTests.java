@@ -157,14 +157,14 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         var end = blobBytes.length() - 1;
         assertEquals(
             "Exact Range: bytes=0-" + end,
-            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, TestHttpExchange.EMPTY_HEADERS),
             getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(0, end))
         );
 
         end = randomIntBetween(blobBytes.length() - 1, Integer.MAX_VALUE);
         assertEquals(
             "Larger Range: bytes=0-" + end,
-            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, TestHttpExchange.EMPTY_HEADERS),
             getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(0, end))
         );
 
@@ -181,7 +181,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         end = start + length - 1;
         assertEquals(
             "Range: bytes=" + start + '-' + end,
-            new TestHttpResponse(RestStatus.OK, blobBytes.slice(start, length), TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes.slice(start, length), TestHttpExchange.EMPTY_HEADERS),
             getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(start, end))
         );
     }

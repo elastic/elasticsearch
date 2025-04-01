@@ -74,7 +74,7 @@ public class QueryFeatureExtractor implements FeatureExtractor {
         if (approximation.docID() != docId) {
             return;
         }
-        var w = (FeatureDisiWrapper) subScorers.topList();
+        var w = (FeatureDisiWrapper) approximation.topList();
         for (; w != null; w = (FeatureDisiWrapper) w.next) {
             if (w.twoPhaseView == null || w.twoPhaseView.matches()) {
                 featureMap.put(w.featureName, w.scorable.score());

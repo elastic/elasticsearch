@@ -3,8 +3,6 @@ setup:
       cluster_features: "gte_v8.12.0"
       reason: 'ability to update non-dynamic settings added in 8.12'
 
----
-"Test update non dynamic settings":
   - do:
       indices.create:
         index: test-index
@@ -13,6 +11,8 @@ setup:
             index:
               number_of_replicas: 0
 
+---
+"Test update non dynamic settings":
   - do:
       indices.put_settings:
         index: test-index
@@ -55,3 +55,4 @@ setup:
         flat_settings: false
   - match:
       test-index.settings.index.codec: "best_compression"
+

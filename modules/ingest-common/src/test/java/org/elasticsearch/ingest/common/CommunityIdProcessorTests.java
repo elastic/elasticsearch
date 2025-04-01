@@ -46,17 +46,20 @@ public class CommunityIdProcessorTests extends ESTestCase {
     }
 
     private Map<String, Object> buildEvent() {
-        event = new HashMap<>();
         var source = new HashMap<String, Object>();
         source.put("ip", "128.232.110.120");
         source.put("port", 34855);
-        event.put("source", source);
+
         var destination = new HashMap<String, Object>();
         destination.put("ip", "66.35.250.204");
         destination.put("port", 80);
-        event.put("destination", destination);
+
         var network = new HashMap<String, Object>();
         network.put("transport", "TCP");
+
+        var event = new HashMap<String, Object>();
+        event.put("source", source);
+        event.put("destination", destination);
         event.put("network", network);
         return event;
     }

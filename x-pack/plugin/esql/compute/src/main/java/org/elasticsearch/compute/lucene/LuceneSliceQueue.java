@@ -79,6 +79,7 @@ public final class LuceneSliceQueue {
         Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>(contexts.size());
         for (ShardContext ctx : contexts) {
             Query query = queryFunction.apply(ctx);
+            query = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
             /*
              * Rewrite the query on the local index so things like fully
              * overlapping range queries become match all. It's important
@@ -87,7 +88,7 @@ public final class LuceneSliceQueue {
              * into MatchAll.
              */
             try {
-                query = query.rewrite(ctx.searcher());
+                query = ctx.searcher().rewrite(query);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

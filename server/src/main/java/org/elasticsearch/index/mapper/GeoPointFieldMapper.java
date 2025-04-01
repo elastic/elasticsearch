@@ -537,7 +537,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
 
-            // _ignored_source field will only be present if there is no doc_values
+            // There are two scenarios possible once we arrive here:
+            //
+            // * Stored source - we'll just use blockLoaderFromSource
+            // * Synthetic source. However, because of the fieldExtractPreference() check above it is still possible that doc_values are
+            // present here.
+            // So we have two subcases:
+            // - doc_values are enabled - _ignored_source field does not exist since we have doc_values. We will use
+            // blockLoaderFromSource which reads "native" synthetic source.
+            // - doc_values are disabled - we know that _ignored_source field is present and use a special block loader.
             if (isSyntheticSource && hasDocValues() == false) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }

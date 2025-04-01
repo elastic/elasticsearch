@@ -71,7 +71,23 @@ import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionT
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.mapParam;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.param;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.paramWithoutAnnotation;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle.GA;
 
+/**
+ * This class exists to support the new Docs V3 system.
+ * Between Elasticsearch 8.x and 9.0 the reference documents were completely re-written, with several key changes:
+ * <ol>
+ *     <li>Port from ASCIIDOC to MD (markdown)</li>
+ *     <li>Restructures all Elastic docs with clearer separate between reference docs and other docs</li>
+ *     <li>All versions published from the main branch,
+ *     requiring version specific information to be included in the docs as appropriate</li>
+ *     <li>Including sub-docs inside bigger docs works differently, requiring a new directory structure</li>
+ *     <li>Images and Kibana docs cannot be in the same location as snippets</li>
+ * </ol>
+ *
+ * For these reasons the docs generating code that used to live inside <code>AbstractFunctionTestCase</code> has been pulled out
+ * and partially re-written to satisfy the above requirements.
+ */
 public abstract class DocsV3Support {
 
     static final String DOCS_WARNING =
@@ -190,6 +206,7 @@ public abstract class DocsV3Support {
         operatorEntry("match_operator", ":", MatchOperator.class, OperatorCategory.SEARCH)
     );
 
+    /** Each grouping represents a subsection in the docs. Currently, this is manually maintained, but could be partially automated */
     public enum OperatorCategory {
         BINARY,
         UNARY,
@@ -200,6 +217,7 @@ public abstract class DocsV3Support {
         SEARCH
     }
 
+    /** Since operators do not exist in the function registry, we need an equivalent registry here in the docs generating code */
     public record OperatorConfig(String name, String symbol, Class<?> clazz, OperatorCategory category, boolean variadic) {}
 
     private static Map.Entry<String, OperatorConfig> operatorEntry(
@@ -213,19 +231,53 @@ public abstract class DocsV3Support {
     }
 
     private static Map.Entry<String, OperatorConfig> operatorEntry(String name, String symbol, Class<?> clazz, OperatorCategory category) {
-        return entry(name, new OperatorConfig(name, symbol, clazz, category, false));
+        return operatorEntry(name, symbol, clazz, category, false);
+    }
+
+    @FunctionalInterface
+    interface TempFileWriter {
+        void writeToTempDir(Path dir, String extension, String str) throws IOException;
+    }
+
+    private class DocsFileWriter implements TempFileWriter {
+        @Override
+        public void writeToTempDir(Path dir, String extension, String str) throws IOException {
+            Files.createDirectories(dir);
+            Path file = dir.resolve(name + "." + extension);
+            Files.writeString(file, str);
+            logger.info("Wrote to file: {}", file);
+        }
     }
 
     protected final String category;
     protected final String name;
+    protected final FunctionDefinition definition;
     protected final Logger logger;
     private final Supplier<Map<List<DataType>, DataType>> signatures;
+    private TempFileWriter tempFileWriter;
 
     private DocsV3Support(String category, String name, Class<?> testClass, Supplier<Map<List<DataType>, DataType>> signatures) {
+        this(category, name, null, testClass, signatures);
+    }
+
+    private DocsV3Support(
+        String category,
+        String name,
+        FunctionDefinition definition,
+        Class<?> testClass,
+        Supplier<Map<List<DataType>, DataType>> signatures
+    ) {
         this.category = category;
         this.name = name;
+        this.definition = definition == null ? definition(name) : definition;
         this.logger = LogManager.getLogger(testClass);
         this.signatures = signatures;
+        this.tempFileWriter = new DocsFileWriter();
+    }
+
+    /** Used in tests to capture output for asserting on the content */
+    void setTempFileWriter(TempFileWriter tempFileWriter) {
+        this.tempFileWriter = tempFileWriter;
     }
 
     String replaceLinks(String text) {
@@ -235,7 +287,7 @@ public abstract class DocsV3Support {
     private String replaceAsciidocLinks(String text) {
         Pattern pattern = Pattern.compile("<<([^>]*)>>");
         Matcher matcher = pattern.matcher(text);
-        StringBuffer result = new StringBuffer();
+        StringBuilder result = new StringBuilder();
         while (matcher.find()) {
             String match = matcher.group(1);
             matcher.appendReplacement(result, getLink(match));
@@ -245,10 +297,10 @@ public abstract class DocsV3Support {
     }
 
     private String replaceMacros(String text) {
-        Pattern pattern = Pattern.compile("\\{([^}]+)}(/[^\\[]+)\\[([^]]+)\\]");
+        Pattern pattern = Pattern.compile("\\{([^}]+)}(/[^\\[]+)\\[([^]]+)]");
 
         Matcher matcher = pattern.matcher(text);
-        StringBuffer result = new StringBuffer();
+        StringBuilder result = new StringBuilder();
         while (matcher.find()) {
             String macro = matcher.group(1);
             String path = matcher.group(2);
@@ -346,7 +398,7 @@ public abstract class DocsV3Support {
     void writeToTempImageDir(String str) throws IOException {
         // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("images").resolve(category);
-        writeToTempDir(dir, "svg", str);
+        tempFileWriter.writeToTempDir(dir, "svg", str);
     }
 
     void writeToTempSnippetsDir(String subdir, String str) throws IOException {
@@ -356,20 +408,13 @@ public abstract class DocsV3Support {
             .resolve("_snippets")
             .resolve(category)
             .resolve(subdir);
-        writeToTempDir(dir, "md", str);
+        tempFileWriter.writeToTempDir(dir, "md", str);
     }
 
     void writeToTempKibanaDir(String subdir, String extension, String str) throws IOException {
         // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("kibana").resolve(subdir).resolve(category);
-        writeToTempDir(dir, extension, str);
-    }
-
-    private void writeToTempDir(Path dir, String extension, String str) throws IOException {
-        Files.createDirectories(dir);
-        Path file = dir.resolve(name + "." + extension);
-        Files.writeString(file, str);
-        logger.info("Wrote to file: {}", file);
+        tempFileWriter.writeToTempDir(dir, extension, str);
     }
 
     protected abstract void renderSignature() throws IOException;
@@ -381,20 +426,37 @@ public abstract class DocsV3Support {
             super("functions", name, testClass, () -> AbstractFunctionTestCase.signatures(testClass));
         }
 
+        FunctionDocsSupport(
+            String name,
+            Class<?> testClass,
+            FunctionDefinition definition,
+            Supplier<Map<List<DataType>, DataType>> signatures
+        ) {
+            super("functions", name, definition, testClass, signatures);
+        }
+
         @Override
         protected void renderSignature() throws IOException {
             String rendered = buildFunctionSignatureSvg();
             if (rendered == null) {
-                logger.info("Skipping rendering signature because the function isn't registered");
+                logger.info("Skipping rendering signature because the function '{}' isn't registered", name);
             } else {
-                logger.info("Writing function signature");
+                logger.info("Writing function signature: {}", name);
                 writeToTempImageDir(rendered);
             }
         }
 
         @Override
         protected void renderDocs() throws IOException {
-            FunctionDefinition definition = definition(name);
+            if (definition == null) {
+                logger.info("Skipping rendering docs because the function '{}' isn't registered", name);
+            } else {
+                logger.info("Rendering function docs: {}", name);
+                renderDocs(definition);
+            }
+        }
+
+        private void renderDocs(FunctionDefinition definition) throws IOException {
             EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
             if (name.equals("case")) {
                 /*
@@ -460,25 +522,19 @@ public abstract class DocsV3Support {
         }
 
         private String makePreviewText(boolean preview, FunctionAppliesTo[] functionAppliesTos) {
-            StringBuilder previewDescription = new StringBuilder();
-            for (FunctionAppliesTo appliesTo : functionAppliesTos) {
-                if (appliesTo.description().isEmpty() == false) {
-                    previewDescription.append(appliesTo.description()).append("\n");
-                }
-                preview = preview || appliesTo.lifeCycle() == FunctionAppliesToLifecycle.PREVIEW;
-            }
             String appliesToTextWithAT = appliesToText(functionAppliesTos);
             String appliesToText = appliesToTextWithoutAppliesTo(functionAppliesTos);
             StringBuilder previewText = new StringBuilder();
             if (preview) {
                 // We have a preview flag, use the WARNING callout
-                previewText.append(makeCallout("warning", appliesToText + "\n" + PREVIEW_CALLOUT + "\n" + previewDescription + "\n"));
-            } else if (previewDescription.isEmpty() == false) {
-                // We have extra descriptive text, nest inside a NOTE for emphasis
-                previewText.append(makeCallout("note", appliesToText + "\n" + previewDescription));
-            } else if (appliesToTextWithAT.isEmpty() == false) {
+                previewText.append(makeCallout("warning", "\n" + PREVIEW_CALLOUT + "\n")).append("\n");
+            }
+            if (appliesToTextWithAT.isEmpty() == false) {
                 // No additional text, just use the plan applies_to syntax
                 previewText.append(appliesToTextWithAT);
+            } else if (appliesToText.isEmpty() == false) {
+                // We have extra descriptive text, nest inside a NOTE for emphasis
+                previewText.append(makeCallout("note", appliesToText));
             }
             return previewText.toString();
         }
@@ -488,11 +544,16 @@ public abstract class DocsV3Support {
             if (functionAppliesTos.length > 0) {
                 appliesToText.append("```{applies_to}\n");
                 for (FunctionAppliesTo appliesTo : functionAppliesTos) {
-                    appliesToText.append("product: ")
-                        .append(appliesTo.lifeCycle().name())
-                        .append(" ")
-                        .append(appliesTo.version())
-                        .append("\n");
+                    if (appliesTo.description().isEmpty() == false) {
+                        // If any of the appliesTo has descriptive text, we need to format things differently
+                        return "";
+                    }
+                    appliesToText.append("product: ");
+                    appendLifeCycleAndVersion(appliesToText, appliesTo);
+                    appliesToText.append("\n");
+                    if (appliesTo.serverless() && appliesTo.lifeCycle().serverlessLifecycle() == GA) {
+                        appliesToText.append("serverless: ").append(GA).append("\n");
+                    }
                 }
                 appliesToText.append("```\n");
             }
@@ -505,10 +566,24 @@ public abstract class DocsV3Support {
                 appliesToText.append("\n");
                 for (FunctionAppliesTo appliesTo : functionAppliesTos) {
                     appliesToText.append("###### ");
-                    appliesToText.append(appliesTo.lifeCycle().name()).append(" ").append(appliesTo.version()).append("\n");
+                    if (appliesTo.serverless() && appliesTo.lifeCycle().serverlessLifecycle() == GA) {
+                        appliesToText.append("Serverless: ").append(GA).append(", Elastic Stack: ");
+                    }
+                    appendLifeCycleAndVersion(appliesToText, appliesTo);
+                    appliesToText.append("\n");
+                    if (appliesTo.description().isEmpty() == false) {
+                        appliesToText.append(appliesTo.description()).append("\n\n");
+                    }
                 }
             }
             return appliesToText.toString();
+        }
+
+        private void appendLifeCycleAndVersion(StringBuilder appliesToText, FunctionAppliesTo appliesTo) {
+            appliesToText.append(appliesTo.lifeCycle().name());
+            if (appliesTo.version().isEmpty() == false) {
+                appliesToText.append(" ").append(appliesTo.version());
+            }
         }
 
         private void renderFullLayout(
@@ -559,6 +634,7 @@ public abstract class DocsV3Support {
         }
     }
 
+    /** Operator specific docs generating, since it is currently quite different from the function docs generating */
     public static class OperatorsDocsSupport extends DocsV3Support {
         private final OperatorConfig op;
 
@@ -713,7 +789,6 @@ public abstract class DocsV3Support {
     }
 
     protected String buildFunctionSignatureSvg() throws IOException {
-        FunctionDefinition definition = definition(name);
         return (definition != null) ? RailRoadDiagram.functionSignature(definition) : null;
     }
 
@@ -750,21 +825,7 @@ public abstract class DocsV3Support {
             if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
-            StringBuilder b = new StringBuilder("| ");
-            for (int i = 0; i < sig.getKey().size(); i++) {
-                DataType argType = sig.getKey().get(i);
-                EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
-                if (argSignature.mapArg()) {
-                    b.append("named parameters");
-                } else {
-                    b.append(argType.esNameIfPossible());
-                }
-                b.append(" | ");
-            }
-            b.append("| ".repeat(argNames.size() - sig.getKey().size()));
-            b.append(sig.getValue().esNameIfPossible());
-            b.append(" |");
-            table.add(b.toString());
+            table.add(getTypeRow(args, sig, argNames));
         }
         Collections.sort(table);
         if (table.isEmpty()) {
@@ -775,9 +836,31 @@ public abstract class DocsV3Support {
         String rendered = DOCS_WARNING + """
             **Supported types**
 
-            """ + header + "\n" + separator + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n\n";
+            """ + header + "\n" + separator + "\n" + String.join("\n", table) + "\n\n";
         logger.info("Writing function types for [{}]:\n{}", name, rendered);
         writeToTempSnippetsDir("types", rendered);
+    }
+
+    private static String getTypeRow(
+        List<EsqlFunctionRegistry.ArgSignature> args,
+        Map.Entry<List<DataType>, DataType> sig,
+        List<String> argNames
+    ) {
+        StringBuilder b = new StringBuilder("| ");
+        for (int i = 0; i < sig.getKey().size(); i++) {
+            DataType argType = sig.getKey().get(i);
+            EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
+            if (argSignature.mapArg()) {
+                b.append("named parameters");
+            } else {
+                b.append(argType.esNameIfPossible());
+            }
+            b.append(" | ");
+        }
+        b.append("| ".repeat(argNames.size() - sig.getKey().size()));
+        b.append(sig.getValue().esNameIfPossible());
+        b.append(" |");
+        return b.toString();
     }
 
     void renderDescription(String description, String detailedDescription, String note) throws IOException {
@@ -813,14 +896,14 @@ public abstract class DocsV3Support {
             builder.append("**Examples**\n\n");
         }
         for (Example example : info.examples()) {
-            if (example.description().length() > 0) {
+            if (example.description().isEmpty() == false) {
                 builder.append(replaceLinks(example.description().trim()));
                 builder.append("\n\n");
             }
             String exampleQuery = loadExampleQuery(example);
             String exampleResult = loadExampleResult(example);
             builder.append(exampleQuery).append("\n").append(exampleResult).append("\n");
-            if (example.explanation().length() > 0) {
+            if (example.explanation().isEmpty() == false) {
                 builder.append("\n");
                 builder.append(replaceLinks(example.explanation().trim()));
                 builder.append("\n\n");
@@ -954,12 +1037,12 @@ public abstract class DocsV3Support {
     }
 
     private String removeAsciidocLinks(String asciidoc) {
-        return asciidoc.replaceAll("[^ ]+\\[([^\\]]+)\\]", "$1");
+        return asciidoc.replaceAll("[^ ]+\\[([^]]+)]", "$1");
     }
 
     private List<Map.Entry<List<DataType>, DataType>> sortedSignatures() {
         List<Map.Entry<List<DataType>, DataType>> sortedSignatures = new ArrayList<>(signatures.get().entrySet());
-        Collections.sort(sortedSignatures, (lhs, rhs) -> {
+        sortedSignatures.sort((lhs, rhs) -> {
             int maxlen = Math.max(lhs.getKey().size(), rhs.getKey().size());
             for (int i = 0; i < maxlen; i++) {
                 if (lhs.getKey().size() <= i) {
@@ -990,7 +1073,7 @@ public abstract class DocsV3Support {
         return true;
     }
 
-    private HashMap<String, Map<String, String>> examples = new HashMap<>();
+    private final HashMap<String, Map<String, String>> examples = new HashMap<>();
 
     protected String loadExampleQuery(Example example) throws IOException {
         return "```esql\n" + loadExample(example.file(), example.tag()) + "\n```\n";
@@ -1040,7 +1123,7 @@ public abstract class DocsV3Support {
                         currentLines = null;
                         currentTag = null;
                     }
-                } else if (currentTag != null) {
+                } else if (currentTag != null && currentLines != null) {
                     currentLines.add(line); // Collect lines within the block
                 }
             }
@@ -1050,7 +1133,7 @@ public abstract class DocsV3Support {
 
     protected String reformatExample(String tag, List<String> lines) {
         if (tag.endsWith("-result")) {
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
             for (String line : lines) {
                 sb.append(renderTableLine(line, sb.isEmpty()));
             }
@@ -1070,7 +1153,7 @@ public abstract class DocsV3Support {
     }
 
     private String renderTableLine(String[] columns) {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append("| ");
         for (int i = 0; i < columns.length; i++) {
             if (i > 0) {
@@ -1083,7 +1166,7 @@ public abstract class DocsV3Support {
     }
 
     private String renderTableSpacerLine(int columns) {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append("| ");
         for (int i = 0; i < columns; i++) {
             if (i > 0) {

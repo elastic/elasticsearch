@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
@@ -22,14 +21,12 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-
 public class InferenceService {
 
     private final Client client;
 
     public InferenceService(Client client) {
-        this.client = new OriginSettingClient(client, ML_ORIGIN);
+        this.client = client;
     }
 
     public ThreadContext getThreadContext() {

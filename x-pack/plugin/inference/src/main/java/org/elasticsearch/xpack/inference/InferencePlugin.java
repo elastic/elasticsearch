@@ -340,6 +340,7 @@ public class InferencePlugin extends Plugin
 
         var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), serviceRegistry, modelRegistry, getLicenseState());
         actionFilter.setInferenceBytesCircuitBreaker(inferenceBytesBreaker.get());
+        actionFilter.setIndexingPressure(services.indexingPressure());
         shardBulkInferenceActionFilter.set(actionFilter);
 
         services.clusterService()

@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
@@ -112,6 +113,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private volatile long batchSizeInBytes;
 
     private final SetOnce<CircuitBreaker> inferenceBytesCircuitBreaker = new SetOnce<>();
+    private final SetOnce<IndexingPressure> indexingPressure = new SetOnce<>();
 
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
@@ -133,6 +135,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
     public void setInferenceBytesCircuitBreaker(CircuitBreaker circuitBreaker) {
         this.inferenceBytesCircuitBreaker.set(circuitBreaker);
+    }
+
+    public void setIndexingPressure(IndexingPressure indexingPressure) {
+        this.indexingPressure.set(indexingPressure);
     }
 
     @Override

@@ -332,7 +332,9 @@ final class CefParser {
             }
             processHeaders(headers, event);
             processExtensions(cefString, extensionStart, event);
-            event.addCefMapping("extensions", event.getExtensions());
+            if (event.getExtensions().isEmpty() == false) {
+                event.addCefMapping("extensions", event.getExtensions());
+            }
             return event;
         } else {
             throw new IllegalArgumentException("Invalid CEF format");

@@ -40,13 +40,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Cannot use field \\[.*\\] with unsupported type \\[.*_range\\]",
         "Unbounded sort not supported yet",
         "The field names are too complex to process", // field_caps problem
+        "argument of \\[count.*\\] must be \\[any type except counter types\\]", // TODO refine the generation of count()
+
         // warnings
         "Field '.*' shadowed by field at line .*",
         "evaluation of \\[.*\\] failed, treating result as null", // TODO investigate?
+
         // Awaiting fixes
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
-        //
+        "only supports KEYWORD or TEXT values, found expression", // https://github.com/elastic/elasticsearch/issues/126017
+        "token recognition error at: '``", // https://github.com/elastic/elasticsearch/issues/125870
+        "Unknown column \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126026
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 
@@ -136,6 +141,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
             CSV_DATASET_MAP.entrySet()
                 .stream()
                 .filter(x -> x.getValue().requiresInferenceEndpoint() == false)
+                .filter(x -> "partial_mapping_excluded_source_sample_data".equals(x.getKey()) == false) // TODO double-check
                 .map(Map.Entry::getKey)
                 .toList()
         );

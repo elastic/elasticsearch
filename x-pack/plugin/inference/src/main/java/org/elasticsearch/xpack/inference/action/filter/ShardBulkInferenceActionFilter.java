@@ -26,7 +26,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -112,7 +111,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final XPackLicenseState licenseState;
     private volatile long batchSizeInBytes;
 
-    private final SetOnce<CircuitBreaker> inferenceBytesCircuitBreaker = new SetOnce<>();
     private final SetOnce<IndexingPressure> indexingPressure = new SetOnce<>();
 
     public ShardBulkInferenceActionFilter(
@@ -131,10 +129,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
     private void setBatchSize(ByteSizeValue newBatchSize) {
         batchSizeInBytes = newBatchSize.getBytes();
-    }
-
-    public void setInferenceBytesCircuitBreaker(CircuitBreaker circuitBreaker) {
-        this.inferenceBytesCircuitBreaker.set(circuitBreaker);
     }
 
     public void setIndexingPressure(IndexingPressure indexingPressure) {

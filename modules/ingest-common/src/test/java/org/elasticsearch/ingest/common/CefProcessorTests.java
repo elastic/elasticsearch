@@ -34,7 +34,6 @@ public class CefProcessorTests extends ESTestCase {
         super.setUp();
     }
 
-    @SuppressWarnings("unchecked")
     public void testExecute() {
         Map<String, Object> source = new HashMap<>();
         source.put(

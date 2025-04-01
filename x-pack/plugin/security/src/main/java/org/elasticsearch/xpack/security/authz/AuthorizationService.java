@@ -503,12 +503,12 @@ public class AuthorizationService {
                                 indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
                             ),
                             e -> {
-                                auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
                                 if (e instanceof IndexNotFoundException
                                     || e instanceof InvalidIndexNameException
                                     || e instanceof IllegalArgumentException) {
                                     listener.onFailure(e);
                                 } else {
+                                    auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
                                     listener.onFailure(actionDenied(authentication, authzInfo, action, request, e));
                                 }
                             }

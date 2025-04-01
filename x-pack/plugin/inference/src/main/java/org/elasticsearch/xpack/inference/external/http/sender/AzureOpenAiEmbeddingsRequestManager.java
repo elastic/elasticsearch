@@ -14,11 +14,11 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.azureopenai.AzureOpenAiResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiResponseHandler;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 
 import java.util.List;

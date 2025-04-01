@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
+import java.util.Objects;
+
 public class TableInfo {
 
     private final IndexPattern id;
@@ -19,5 +21,24 @@ public class TableInfo {
 
     public IndexPattern id() {
         return id;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        TableInfo other = (TableInfo) obj;
+        return Objects.equals(id, other.id);
     }
 }

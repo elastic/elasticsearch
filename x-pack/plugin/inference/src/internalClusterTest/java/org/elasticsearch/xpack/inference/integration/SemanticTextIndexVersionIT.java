@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -129,7 +128,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 version.id(),
                 client().admin()
                     .indices()
-                    .prepareGetSettings(TimeValue.THIRTY_SECONDS, indexName)
+                    .prepareGetSettings(indexName)
                     .get()
                     .getIndexToSettings()
                     .get(indexName)

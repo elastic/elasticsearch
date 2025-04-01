@@ -32,7 +32,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlPartitioningIT extends ESRestTestCase {

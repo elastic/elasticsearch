@@ -349,19 +349,22 @@ class RequestExecutorService implements RequestExecutor {
         var endpoint = rateLimitEndpointHandlers.computeIfAbsent(serviceName, serviceNameKey -> new ConcurrentHashMap<>())
             .computeIfAbsent(taskType, taskTypeKey -> new ConcurrentHashMap<>())
             .computeIfAbsent(requestManager.rateLimitGrouping(), (groupingKey -> {
+                AtomicInteger divisor = Optional.ofNullable(rateLimitDivisors.get(serviceName))
+                    .map(taskMap -> taskMap.get(taskType))
+                    .orElse(new AtomicInteger(1));
                 var endpointHandler = new RateLimitingEndpointHandler(
                     Integer.toString(requestManager.rateLimitGrouping().hashCode()),
                     queueCreator,
                     settings,
                     requestSender,
                     clock,
-                    requestManager.rateLimitSettings(), // Assuming settings might be specific to the request/service
+                    requestManager.rateLimitSettings(),
                     this::isShutdown,
                     rateLimiterCreator,
-                    rateLimitDivisors.get(serviceName).get(taskType).get()
+                    divisor.get()
                 );
-                endpointHandler.init(); // Initialize the new handler
-                return endpointHandler; // Return the newly created and initialized handler
+                endpointHandler.init();
+                return endpointHandler;
             }));
 
         endpoint.enqueue(task);

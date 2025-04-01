@@ -302,9 +302,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121672
-- class: org.elasticsearch.integration.DataStreamLifecycleServiceRuntimeSecurityIT
-  method: testRolloverLifecycleAndForceMergeAuthorized
-  issue: https://github.com/elastic/elasticsearch/issues/124978
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test10Install
   issue: https://github.com/elastic/elasticsearch/issues/124957

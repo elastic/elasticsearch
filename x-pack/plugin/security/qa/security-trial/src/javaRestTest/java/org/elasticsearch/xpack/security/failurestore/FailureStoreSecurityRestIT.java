@@ -1801,7 +1801,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
 
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1"), 403);
-        expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"), 403);
+        // delete API does not allow selectors
+        expectThrows(
+            () -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"),
+            400,
+            "Index component selectors are not supported in this context but found selector in expression [test1::failures]"
+        );
 
         // manage user can delete data stream
         deleteDataStream(MANAGE_ACCESS, "test1");
@@ -2253,6 +2258,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private static void expectThrows(ThrowingRunnable runnable, int statusCode) {
         var ex = expectThrows(ResponseException.class, runnable);
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
+    }
+
+    private static void expectThrows(ThrowingRunnable runnable, int statusCode, String errorMessage) {
+        var ex = expectThrows(ResponseException.class, runnable);
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
+        assertThat(ex.getMessage(), containsString(errorMessage));
     }
 
     private void expectThrows(String user, Search search, int statusCode) {

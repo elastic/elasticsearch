@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -503,7 +504,9 @@ public class AuthorizationService {
                             ),
                             e -> {
                                 auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-                                if (e instanceof IndexNotFoundException) {
+                                if (e instanceof IndexNotFoundException
+                                    || e instanceof InvalidIndexNameException
+                                    || e instanceof IllegalArgumentException) {
                                     listener.onFailure(e);
                                 } else {
                                     listener.onFailure(actionDenied(authentication, authzInfo, action, request, e));

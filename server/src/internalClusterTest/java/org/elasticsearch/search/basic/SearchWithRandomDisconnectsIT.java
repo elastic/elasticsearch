@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search.basic;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -30,6 +31,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
 public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
     public void testSearchWithRandomDisconnects() throws InterruptedException, ExecutionException {
@@ -42,9 +44,7 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
             .build();
         for (String indexName : indexNames) {
-            try {
-                createIndex(indexName, indexSettings);
-            } catch (ResourceAlreadyExistsException e) {}
+            createIndex(indexName, indexSettings);
         }
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (String indexName : indexNames) {

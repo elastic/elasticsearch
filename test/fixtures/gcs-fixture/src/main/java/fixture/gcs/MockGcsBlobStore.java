@@ -114,16 +114,14 @@ public class MockGcsBlobStore {
                 throw failAndThrow("Attempted to update a non-existent resumable: " + uid);
             }
 
-            if (contentRange.hasRange() == false) {
-                // Content-Range: */... is a status check https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
+            ResumableUpload valueToReturn = existing;
+
+            // Handle the request, a range indicates a chunk of data was submitted
+            if (contentRange.hasRange()) {
                 if (existing.completed) {
-                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), calculateRangeHeader(blobs.get(existing.path))));
-                } else {
-                    final HttpHeaderParser.Range range = calculateRangeHeader(existing);
-                    updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, range));
+                    throw failAndThrow("Attempted to write more to a completed resumable upload");
                 }
-                return existing;
-            } else {
+
                 if (contentRange.start() > contentRange.end()) {
                     throw failAndThrow("Invalid content range " + contentRange);
                 }
@@ -143,16 +141,20 @@ public class MockGcsBlobStore {
                     existing.contents,
                     requestBody.slice(offset, requestBody.length())
                 );
-                // We just received the last chunk, update the blob and remove the resumable upload from the map
-                if (contentRange.hasSize() && updatedContent.length() == contentRange.size()) {
-                    updateBlob(existing.path(), existing.ifGenerationMatch, updatedContent);
-                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), null));
-                    return existing.update(BytesArray.EMPTY, true);
-                }
-                final ResumableUpload updated = existing.update(updatedContent, false);
-                updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, calculateRangeHeader(updated)));
-                return updated;
+                valueToReturn = existing.update(updatedContent, false);
             }
+
+            // Next we determine the response
+            if (valueToReturn.completed) {
+                updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), calculateRangeHeader(valueToReturn)));
+            } else if (contentRange.hasSize() && contentRange.size() == valueToReturn.contents.length()) {
+                valueToReturn = existing.update(valueToReturn.contents, true);
+                updateBlob(valueToReturn.path(), valueToReturn.ifGenerationMatch(), valueToReturn.contents);
+                updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), calculateRangeHeader(valueToReturn)));
+            } else {
+                updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, calculateRangeHeader(valueToReturn)));
+            }
+            return valueToReturn;
         });
         assert updateResponse.get() != null : "Should always produce an update response";
         return updateResponse.get();

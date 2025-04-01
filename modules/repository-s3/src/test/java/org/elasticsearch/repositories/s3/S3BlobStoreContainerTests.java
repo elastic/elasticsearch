@@ -12,11 +12,11 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.metrics.MetricCollection;
 import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.AbortMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
@@ -51,8 +51,6 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomP
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -315,12 +313,19 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
 
         final S3Client client = mock(S3Client.class);
-        final SdkHttpClient httpClient = mock(ApacheHttpClient.class);
+        final SdkHttpClient httpClient = mock(SdkHttpClient.class);
         final AmazonS3Reference clientReference = new AmazonS3Reference(client, httpClient);
-        doAnswer(invocation -> {
-            clientReference.incRef();
+        when(blobStore.clientReference()).then(invocation -> {
+            clientReference.mustIncRef();
             return clientReference;
-        }).when(blobStore).clientReference();
+        });
+        when(blobStore.getMetricPublisher(any(), any())).thenReturn(new MetricPublisher() {
+            @Override
+            public void publish(MetricCollection metricCollection) {}
+
+            @Override
+            public void close() {}
+        });
 
         final String uploadId = randomAlphaOfLength(25);
 
@@ -360,7 +365,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         }
 
         final ArgumentCaptor<AbortMultipartUploadRequest> argumentCaptor = ArgumentCaptor.forClass(AbortMultipartUploadRequest.class);
-        doNothing().when(client).abortMultipartUpload(argumentCaptor.capture());
+        when(client.abortMultipartUpload(argumentCaptor.capture())).thenReturn(AbortMultipartUploadResponse.builder().build());
 
         final IOException e = expectThrows(IOException.class, () -> {
             final S3BlobContainer blobContainer = new S3BlobContainer(BlobPath.EMPTY, blobStore);
@@ -368,7 +373,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         });
 
         assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
-        assertThat(e.getCause(), instanceOf(S3Exception.class)); // TODO NOMERGE is there a more fine grained error class?
+        assertThat(e.getCause(), instanceOf(S3Exception.class));
         assertEquals(exceptions.get(stage).getMessage(), e.getCause().getMessage());
 
         if (stage == 0) {

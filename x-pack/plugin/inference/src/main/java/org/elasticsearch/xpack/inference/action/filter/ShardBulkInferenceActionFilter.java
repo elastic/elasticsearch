@@ -174,7 +174,26 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         final ProjectMetadata project = clusterService.state().getMetadata().getProject();
         var index = project.index(bulkShardRequest.index());
         boolean useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(index.getSettings()) == false;
-        new AsyncBulkShardInferenceAction(useLegacyFormat, fieldInferenceMap, bulkShardRequest, onCompletion).run();
+
+        try (CoordinatingIndexingPressureWrapper coordinatingWrapper = startCoordinatingOperations()) {
+            new AsyncBulkShardInferenceAction(
+                useLegacyFormat,
+                fieldInferenceMap,
+                bulkShardRequest,
+                onCompletion,
+                coordinatingWrapper.coordinating()
+            ).run();
+        }
+    }
+
+    private CoordinatingIndexingPressureWrapper startCoordinatingOperations() {
+        IndexingPressure.Coordinating coordinating = null;
+        IndexingPressure localIndexingPressure = indexingPressure.get();
+        if (localIndexingPressure != null) {
+            coordinating = localIndexingPressure.createCoordinatingOperation(false);
+        }
+
+        return new CoordinatingIndexingPressureWrapper(coordinating);
     }
 
     private record InferenceProvider(InferenceService service, Model model) {}
@@ -242,6 +261,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final BulkShardRequest bulkShardRequest;
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
+        private final IndexingPressure.Coordinating coordinatingIndexingPressure;
 
         private long noInferenceRequestMemoryUsageInBytes = 0;  // Memory used by requests that update source but don't perform inference
         private long estimatedInferenceRequestMemoryUsageInBytes = 0;  // Estimated memory used by requests that perform inference
@@ -251,22 +271,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             boolean useLegacyFormat,
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
             BulkShardRequest bulkShardRequest,
-            Runnable onCompletion
+            Runnable onCompletion,
+            @Nullable IndexingPressure.Coordinating coordinatingIndexingPressure
         ) {
             this.useLegacyFormat = useLegacyFormat;
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
-            this.onCompletion = () -> {
-                // TODO: Can we assume that onCompletion _always_ runs, regardless of what errors occur?
-                // Won't run if estimateMemoryUsage throws, which is the only scenario where it's ok to not run it.
-                CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
-                if (circuitBreaker != null && actualMemoryUsageInBytes > 0) {
-                    circuitBreaker.addWithoutBreaking(-actualMemoryUsageInBytes);
-                }
-
-                onCompletion.run();
-            };
+            this.onCompletion = onCompletion;
+            this.coordinatingIndexingPressure = coordinatingIndexingPressure;
         }
 
         @Override
@@ -899,6 +912,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         @Override
         public Iterator<Chunk> chunksAsByteReference(XContent xcontent) {
             return Collections.emptyIterator();
+        }
+    }
+
+    private record CoordinatingIndexingPressureWrapper(@Nullable IndexingPressure.Coordinating coordinating) implements Releasable {
+        @Override
+        public void close() {
+            if (coordinating != null) {
+                coordinating.close();
+            }
         }
     }
 }

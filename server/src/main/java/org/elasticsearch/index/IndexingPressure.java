@@ -157,9 +157,13 @@ public class IndexingPressure {
     }
 
     public Coordinating markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
-        Coordinating coordinating = new Coordinating(forceExecution);
+        Coordinating coordinating = createCoordinatingOperation(forceExecution);
         coordinating.increment(operations, bytes);
         return coordinating;
+    }
+
+    public Coordinating createCoordinatingOperation(boolean forceExecution) {
+        return new Coordinating(forceExecution);
     }
 
     public class Incremental implements Releasable {

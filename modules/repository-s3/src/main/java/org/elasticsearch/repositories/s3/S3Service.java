@@ -377,18 +377,13 @@ class S3Service implements Closeable {
             this.delegate = delegate;
         }
 
-        // exposed for tests
-        AwsCredentialsProvider getDelegate() {
-            return delegate;
-        }
-
         AwsCredentialsProvider getCredentialsProvider() {
             return delegate;
         }
 
         @Override
         public AwsCredentials resolveCredentials() {
-            return null;
+            return delegate.resolveCredentials();
         }
 
         @Override

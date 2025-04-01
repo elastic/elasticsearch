@@ -131,6 +131,7 @@ def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
 tasks.named('test').configure {
   // this is tested explicitly in separate test tasks
   exclude '**/RepositoryCredentialsTests.class'
+  systemProperty 'aws.region', 'es-test-region' // TODO NOMERGE
 }
 
 boolean useFixture = false

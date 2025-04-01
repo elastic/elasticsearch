@@ -15,7 +15,6 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -45,10 +44,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
 public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
 
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
@@ -111,7 +110,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                         """,
                     ROLE_ARN,
                     ROLE_NAME,
-                    ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"))
+                    ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"))
                 ).getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
@@ -186,6 +185,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "HTTP server is used for testing")
+    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testPickUpNewWebIdentityTokenWhenItsChanged() throws Exception {
         DelegatingConsumer webIdentityTokenCheck = new DelegatingConsumer(s -> assertEquals("YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl", s));
 
@@ -216,8 +216,9 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                 }
             });
             Files.writeString(environment.configDir().resolve("repository-s3/aws-web-identity-token-file"), newWebIdentityToken);
-
-            safeAwait(latch);
+            do {
+                assertCredentials(awsCredentialsProvider.resolveCredentials());
+            } while (latch.await(500, TimeUnit.MILLISECONDS) == false);
             assertCredentials(awsCredentialsProvider.resolveCredentials());
         } finally {
             webIdentityTokenCredentialsProvider.close();

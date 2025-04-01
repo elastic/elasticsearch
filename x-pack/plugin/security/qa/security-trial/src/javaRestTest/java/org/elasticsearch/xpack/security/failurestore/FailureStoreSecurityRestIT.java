@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -878,62 +879,56 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
     public void testRoleWithSelectorInIndexPattern() throws Exception {
         setupDataStream();
-
         createUser("user", PASSWORD, "role");
-        upsertRole("""
+        expectThrowsSelectorsNotAllowed(
+            () -> upsertRole(
+                Strings.format("""
+                    {
+                      "cluster": ["all"],
+                      "indices": [
+                        {
+                          "names": ["%s"],
+                          "privileges": ["%s"]
+                        }
+                      ]
+                    }""", randomFrom("*::failures", "test1::failures", "test1::data", "*::data"), randomFrom("read", "read_failure_store")),
+                "role",
+                false
+            )
+        );
+
+        AssertionError bulkFailedError = expectThrows(
+            AssertionError.class,
+            () -> upsertRole(
+                Strings.format("""
+                    {
+                      "cluster": ["all"],
+                      "indices": [
+                        {
+                          "names": ["%s"],
+                          "privileges": ["%s"]
+                        }
+                      ]
+                    }""", randomFrom("*::failures", "test1::failures", "test1::data", "*::data"), randomFrom("read", "read_failure_store")),
+                "role",
+                true
+            )
+        );
+        assertThat(bulkFailedError.getMessage(), containsString("selectors [::] are not allowed in the index name expression"));
+
+        expectThrowsSelectorsNotAllowed(() -> createApiKey("user", Strings.format("""
             {
-              "cluster": ["all"],
-              "indices": [
-                {
-                  "names": ["*::failures"],
-                  "privileges": ["read"]
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [
+                        {
+                            "names": ["%s"],
+                            "privileges": ["%s"]
+                        }
+                    ]
                 }
-              ]
-            }""", "role");
-        createAndStoreApiKey("user", null);
+            }""", randomFrom("*::failures", "test1::failures", "test1::data", "*::data"), randomFrom("read", "read_failure_store"))));
 
-        expectThrows("user", new Search("test1::failures"), 403);
-        expectSearch("user", new Search("*::failures"));
-
-        upsertRole("""
-            {
-              "cluster": ["all"],
-              "indices": [
-                {
-                  "names": ["test1::failures"],
-                  "privileges": ["read"]
-                }
-              ]
-            }""", "role");
-
-        expectThrows("user", new Search("test1::failures"), 403);
-        expectSearch("user", new Search("*::failures"));
-
-        upsertRole("""
-            {
-              "cluster": ["all"],
-              "indices": [
-                {
-                  "names": ["*::failures"],
-                  "privileges": ["read_failure_store"]
-                }
-              ]
-            }""", "role");
-        expectThrows("user", new Search("test1::failures"), 403);
-        expectSearch("user", new Search("*::failures"));
-
-        upsertRole("""
-            {
-              "cluster": ["all"],
-              "indices": [
-                {
-                  "names": ["test1::failures"],
-                  "privileges": ["read_failure_store"]
-                }
-              ]
-            }""", "role");
-        expectThrows("user", new Search("test1::failures"), 403);
-        expectSearch("user", new Search("*::failures"));
     }
 
     public void testFailureStoreAccess() throws Exception {
@@ -2058,8 +2053,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             Map.of(dataIndexName, Set.of("@timestamp", "age"))
         );
 
-        // FLS sort of applies to failure store
-        // TODO this will change with FLS handling
+        // FLS applies to failure store
         assertSearchResponseContainsExpectedIndicesAndFields(
             performRequest(user, new Search("test1::failures").toSearchRequest()),
             Map.of(failureIndexName, Set.of("@timestamp"))
@@ -2080,11 +2074,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                         "names": ["test*"],
                         "privileges": ["read_failure_store"],
                         "field_security": {
-                            "grant": ["@timestamp", "age"]
+                            "grant": ["error.type", "error.message"]
                         }
                      }
                  ]
-             }""", randomFrom("test*", "test1")), role);
+             }""", "test1"), role);
 
         // FLS applies to regular data stream
         assertSearchResponseContainsExpectedIndicesAndFields(
@@ -2092,11 +2086,43 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             Map.of(dataIndexName, Set.of("@timestamp", "age"))
         );
 
-        // FLS sort of applies to failure store
-        // TODO this will change with FLS handling
+        // FLS applies to failure store
         assertSearchResponseContainsExpectedIndicesAndFields(
             performRequest(user, new Search("test1::failures").toSearchRequest()),
-            Map.of(failureIndexName, Set.of("@timestamp"))
+            Map.of(failureIndexName, Set.of("error.type", "error.message"))
+        );
+
+        upsertRole(Strings.format("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "field_security": {
+                            "grant": ["@timestamp", "age"]
+                        }
+                     },
+                     {
+                        "names": ["test*"],
+                        "privileges": ["read_failure_store"],
+                        "field_security": {
+                            "grant": ["error.type", "error.message"]
+                        }
+                     }
+                 ]
+             }""", "test*"), role);
+
+        // FLS applies to regular data stream
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search(randomFrom("test1", "test1::data")).toSearchRequest()),
+            Map.of(dataIndexName, Set.of("@timestamp", "age"))
+        );
+
+        // FLS applies to failure store
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search("test1::failures").toSearchRequest()),
+            Map.of(failureIndexName, Set.of("@timestamp", "error.type", "error.message"))
         );
 
         upsertRole("""
@@ -2122,10 +2148,56 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             performRequest(user, new Search(randomFrom("test1", "test1::data")).toSearchRequest()),
             Map.of(dataIndexName, Set.of("@timestamp", "age", "name", "email"))
         );
-
         assertSearchResponseContainsExpectedIndicesAndFields(
             performRequest(user, new Search("test1::failures").toSearchRequest()),
-            Map.of(failureIndexName, Set.of("@timestamp", "document", "error"))
+            Map.of(
+                failureIndexName,
+                Set.of(
+                    "@timestamp",
+                    "document.id",
+                    "document.index",
+                    "document.source.@timestamp",
+                    "document.source.age",
+                    "document.source.email",
+                    "document.source.name",
+                    "error.message",
+                    "error.stack_trace",
+                    "error.type"
+                )
+            )
+        );
+
+        // check that direct read access to backing indices is working
+        upsertRole(Strings.format("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "field_security": {
+                            "grant": ["@timestamp", "age"]
+                        }
+                     },
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "field_security": {
+                            "grant": ["@timestamp", "document.source.name"]
+                        }
+                     }
+                 ]
+             }""", dataIndexName, failureIndexName), role);
+
+        // FLS applies to backing data index
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search(randomFrom(dataIndexName, ".ds-*")).toSearchRequest()),
+            Map.of(dataIndexName, Set.of("@timestamp", "age"))
+        );
+        // and backing failure index
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search(randomFrom(failureIndexName, ".fs-*")).toSearchRequest()),
+            Map.of(failureIndexName, Set.of("@timestamp", "document.source.name"))
         );
 
         // DLS
@@ -2177,6 +2249,21 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
              }""", role);
         // DLS does not apply because there is a section without DLS
         expectSearch(user, new Search(randomFrom("test1", "test1::data")), dataIndexDocId);
+
+        // DLS is applicable to backing failure store when granted read directly
+        upsertRole(Strings.format("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "query":{"term":{"document.source.name":{"value":"jack"}}}
+                     }
+                 ]
+             }""", failureIndexName), role);
+        expectSearch(user, new Search(randomFrom(".fs-*", failureIndexName)));
+
     }
 
     private static void expectThrows(ThrowingRunnable runnable, int statusCode) {
@@ -2419,7 +2506,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     protected String createAndStoreApiKey(String username, @Nullable String roleDescriptors) throws IOException {
         assertThat("API key already registered for user: " + username, apiKeys.containsKey(username), is(false));
         apiKeys.put(username, createApiKey(username, roleDescriptors));
-        return createApiKey(username, roleDescriptors);
+        return apiKeys.get(username);
     }
 
     private String createApiKey(String username, String roleDescriptors) throws IOException {
@@ -2444,22 +2531,35 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return (String) responseAsMap.get("encoded");
     }
 
-    protected void upsertRole(String roleDescriptor, String roleName) throws IOException {
-        Request createRoleRequest = roleRequest(roleDescriptor, roleName);
-        Response createRoleResponse = adminClient().performRequest(createRoleRequest);
-        assertOK(createRoleResponse);
+    protected Response upsertRole(String roleDescriptor, String roleName) throws IOException {
+        return upsertRole(roleDescriptor, roleName, randomBoolean());
     }
 
-    protected Request roleRequest(String roleDescriptor, String roleName) {
+    protected Response upsertRole(String roleDescriptor, String roleName, boolean bulk) throws IOException {
+        Request createRoleRequest = roleRequest(roleDescriptor, roleName, bulk);
+        Response createRoleResponse = adminClient().performRequest(createRoleRequest);
+        assertOK(createRoleResponse);
+        if (bulk) {
+            Map<String, Object> flattenedResponse = Maps.flatten(responseAsMap(createRoleResponse), true, true);
+            if (flattenedResponse.containsKey("errors.count") && (int) flattenedResponse.get("errors.count") > 0) {
+                throw new AssertionError(
+                    "Failed to create role [" + roleName + "], reason: " + flattenedResponse.get("errors.details." + roleName + ".reason")
+                );
+            }
+        }
+        return createRoleResponse;
+    }
+
+    protected Request roleRequest(String roleDescriptor, String roleName, boolean bulk) {
         Request createRoleRequest;
-        if (randomBoolean()) {
-            createRoleRequest = new Request(randomFrom(HttpPut.METHOD_NAME, HttpPost.METHOD_NAME), "/_security/role/" + roleName);
-            createRoleRequest.setJsonEntity(roleDescriptor);
-        } else {
+        if (bulk) {
             createRoleRequest = new Request(HttpPost.METHOD_NAME, "/_security/role");
             createRoleRequest.setJsonEntity(org.elasticsearch.core.Strings.format("""
                 {"roles": {"%s": %s}}
                 """, roleName, roleDescriptor));
+        } else {
+            createRoleRequest = new Request(randomFrom(HttpPut.METHOD_NAME, HttpPost.METHOD_NAME), "/_security/role/" + roleName);
+            createRoleRequest.setJsonEntity(roleDescriptor);
         }
         return createRoleRequest;
     }
@@ -2478,7 +2578,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 assertThat(searchResult.keySet(), equalTo(expectedIndicesAndFields.keySet()));
                 for (String index : expectedIndicesAndFields.keySet()) {
                     Set<String> expectedFields = expectedIndicesAndFields.get(index);
-                    assertThat(searchResult.get(index).keySet(), equalTo(expectedFields));
+                    assertThat(Maps.flatten(searchResult.get(index), false, true).keySet(), equalTo(expectedFields));
                 }
             } finally {
                 response.decRef();
@@ -2521,5 +2621,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         req.setJsonEntity(requestBody);
         Response response = performRequestWithApiKey(apiKey, req);
         assertThat(responseAsMap(response), equalTo(mapFromJson(expectedResponse)));
+    }
+
+    private static void expectThrowsSelectorsNotAllowed(ThrowingRunnable runnable) {
+        ResponseException exception = expectThrows(ResponseException.class, runnable);
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(exception.getMessage(), containsString("selectors [::] are not allowed in the index name expression"));
     }
 }

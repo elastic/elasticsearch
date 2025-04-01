@@ -50,7 +50,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -435,13 +434,17 @@ public final class IndexPrivilege extends Privilege {
             || false == actions.isEmpty() : "at least one of the privilege sets or actions must be non-empty";
 
         if (false == allSelectorAccessPrivileges.isEmpty()) {
-            assert failuresSelectorAccessPrivileges.isEmpty() && dataSelectorAccessPrivileges.isEmpty()
-                : "data and failure access must be empty when all access is present";
+            assert failuresSelectorAccessPrivileges.isEmpty()
+                && dataSelectorAccessPrivileges.isEmpty()
+                && dataAndFailuresSelectorAccessPrivileges.isEmpty() : "data and failure access must be empty when all access is present";
             return Set.of(union(allSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.ALL));
         }
 
         // linked hash set to preserve order across selectors
-        final Set<IndexPrivilege> combined = new LinkedHashSet<>();
+        final Set<IndexPrivilege> combined = Sets.newLinkedHashSetWithExpectedSize(
+            dataAndFailuresSelectorAccessPrivileges.size() + failuresSelectorAccessPrivileges.size() + dataSelectorAccessPrivileges.size()
+                + actions.size()
+        );
         if (false == dataSelectorAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
             combined.add(union(dataSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.DATA));
         }

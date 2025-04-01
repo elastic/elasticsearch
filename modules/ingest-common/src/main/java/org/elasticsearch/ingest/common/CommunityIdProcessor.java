@@ -23,12 +23,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 
@@ -416,22 +416,19 @@ public final class CommunityIdProcessor extends AbstractProcessor {
 
             private final int transportNumber;
 
-            private static final Map<String, Type> TRANSPORT_NAMES;
-
-            static {
-                TRANSPORT_NAMES = new HashMap<>();
-                TRANSPORT_NAMES.put("icmp", Icmp);
-                TRANSPORT_NAMES.put("igmp", Igmp);
-                TRANSPORT_NAMES.put("tcp", Tcp);
-                TRANSPORT_NAMES.put("udp", Udp);
-                TRANSPORT_NAMES.put("gre", Gre);
-                TRANSPORT_NAMES.put("ipv6-icmp", IcmpIpV6);
-                TRANSPORT_NAMES.put("icmpv6", IcmpIpV6);
-                TRANSPORT_NAMES.put("eigrp", Eigrp);
-                TRANSPORT_NAMES.put("ospf", Ospf);
-                TRANSPORT_NAMES.put("pim", Pim);
-                TRANSPORT_NAMES.put("sctp", Sctp);
-            }
+            private static final Map<String, Type> TRANSPORT_NAMES = Map.ofEntries(
+                entry("icmp", Icmp),
+                entry("igmp", Igmp),
+                entry("tcp", Tcp),
+                entry("udp", Udp),
+                entry("gre", Gre),
+                entry("ipv6-icmp", IcmpIpV6),
+                entry("icmpv6", IcmpIpV6),
+                entry("eigrp", Eigrp),
+                entry("ospf", Ospf),
+                entry("pim", Pim),
+                entry("sctp", Sctp)
+            );
 
             Type(int transportNumber) {
                 this.transportNumber = transportNumber;
@@ -536,34 +533,31 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         V6HomeAddressDiscoveryRequest(144),
         V6HomeAddressDiscoveryResponse(145);
 
-        private static final Map<Integer, Integer> ICMP_V4_CODE_EQUIVALENTS;
-        private static final Map<Integer, Integer> ICMP_V6_CODE_EQUIVALENTS;
+        private static final Map<Integer, Integer> ICMP_V4_CODE_EQUIVALENTS = Map.ofEntries(
+            entry(EchoRequest.getType(), EchoReply.getType()),
+            entry(EchoReply.getType(), EchoRequest.getType()),
+            entry(TimestampRequest.getType(), TimestampReply.getType()),
+            entry(TimestampReply.getType(), TimestampRequest.getType()),
+            entry(InfoRequest.getType(), InfoReply.getType()),
+            entry(RouterSolicitation.getType(), RouterAdvertisement.getType()),
+            entry(RouterAdvertisement.getType(), RouterSolicitation.getType()),
+            entry(AddressMaskRequest.getType(), AddressMaskReply.getType()),
+            entry(AddressMaskReply.getType(), AddressMaskRequest.getType())
+        );
 
-        static {
-            ICMP_V4_CODE_EQUIVALENTS = new HashMap<>();
-            ICMP_V4_CODE_EQUIVALENTS.put(EchoRequest.getType(), EchoReply.getType());
-            ICMP_V4_CODE_EQUIVALENTS.put(EchoReply.getType(), EchoRequest.getType());
-            ICMP_V4_CODE_EQUIVALENTS.put(TimestampRequest.getType(), TimestampReply.getType());
-            ICMP_V4_CODE_EQUIVALENTS.put(TimestampReply.getType(), TimestampRequest.getType());
-            ICMP_V4_CODE_EQUIVALENTS.put(InfoRequest.getType(), InfoReply.getType());
-            ICMP_V4_CODE_EQUIVALENTS.put(RouterSolicitation.getType(), RouterAdvertisement.getType());
-            ICMP_V4_CODE_EQUIVALENTS.put(RouterAdvertisement.getType(), RouterSolicitation.getType());
-            ICMP_V4_CODE_EQUIVALENTS.put(AddressMaskRequest.getType(), AddressMaskReply.getType());
-            ICMP_V4_CODE_EQUIVALENTS.put(AddressMaskReply.getType(), AddressMaskRequest.getType());
-
-            ICMP_V6_CODE_EQUIVALENTS = new HashMap<>();
-            ICMP_V6_CODE_EQUIVALENTS.put(V6EchoRequest.getType(), V6EchoReply.getType());
-            ICMP_V6_CODE_EQUIVALENTS.put(V6EchoReply.getType(), V6EchoRequest.getType());
-            ICMP_V6_CODE_EQUIVALENTS.put(V6RouterSolicitation.getType(), V6RouterAdvertisement.getType());
-            ICMP_V6_CODE_EQUIVALENTS.put(V6RouterAdvertisement.getType(), V6RouterSolicitation.getType());
-            ICMP_V6_CODE_EQUIVALENTS.put(V6NeighborAdvertisement.getType(), V6NeighborSolicitation.getType());
-            ICMP_V6_CODE_EQUIVALENTS.put(V6NeighborSolicitation.getType(), V6NeighborAdvertisement.getType());
-            ICMP_V6_CODE_EQUIVALENTS.put(V6MLDv1MulticastListenerQueryMessage.getType(), V6MLDv1MulticastListenerReportMessage.getType());
-            ICMP_V6_CODE_EQUIVALENTS.put(V6WhoAreYouRequest.getType(), V6WhoAreYouReply.getType());
-            ICMP_V6_CODE_EQUIVALENTS.put(V6WhoAreYouReply.getType(), V6WhoAreYouRequest.getType());
-            ICMP_V6_CODE_EQUIVALENTS.put(V6HomeAddressDiscoveryRequest.getType(), V6HomeAddressDiscoveryResponse.getType());
-            ICMP_V6_CODE_EQUIVALENTS.put(V6HomeAddressDiscoveryResponse.getType(), V6HomeAddressDiscoveryRequest.getType());
-        }
+        private static final Map<Integer, Integer> ICMP_V6_CODE_EQUIVALENTS = Map.ofEntries(
+            entry(V6EchoRequest.getType(), V6EchoReply.getType()),
+            entry(V6EchoReply.getType(), V6EchoRequest.getType()),
+            entry(V6RouterSolicitation.getType(), V6RouterAdvertisement.getType()),
+            entry(V6RouterAdvertisement.getType(), V6RouterSolicitation.getType()),
+            entry(V6NeighborAdvertisement.getType(), V6NeighborSolicitation.getType()),
+            entry(V6NeighborSolicitation.getType(), V6NeighborAdvertisement.getType()),
+            entry(V6MLDv1MulticastListenerQueryMessage.getType(), V6MLDv1MulticastListenerReportMessage.getType()),
+            entry(V6WhoAreYouRequest.getType(), V6WhoAreYouReply.getType()),
+            entry(V6WhoAreYouReply.getType(), V6WhoAreYouRequest.getType()),
+            entry(V6HomeAddressDiscoveryRequest.getType(), V6HomeAddressDiscoveryResponse.getType()),
+            entry(V6HomeAddressDiscoveryResponse.getType(), V6HomeAddressDiscoveryRequest.getType())
+        );
 
         private final int type;
 

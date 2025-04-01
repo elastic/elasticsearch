@@ -37,6 +37,10 @@ public class InferenceResolution {
         return resolvedInferences.values();
     }
 
+    public boolean hasError() {
+        return errors.isEmpty() == false;
+    }
+
     public String getError(String inferenceId) {
         final String error = errors.get(inferenceId);
         if (error != null) {

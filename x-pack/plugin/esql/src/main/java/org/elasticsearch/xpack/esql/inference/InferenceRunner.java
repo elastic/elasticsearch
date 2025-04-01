@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
@@ -18,14 +19,13 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
-public class InferenceService {
+public class InferenceRunner {
 
     private final Client client;
 
-    public InferenceService(Client client) {
+    public InferenceRunner(Client client) {
         this.client = client;
     }
 
@@ -33,19 +33,24 @@ public class InferenceService {
         return client.threadPool().getThreadContext();
     }
 
-    public void resolveInferences(List<InferencePlan> plans, ActionListener<InferenceResolution> listener) {
+    public void resolveInferenceIds(List<InferencePlan> plans, ActionListener<InferenceResolution> listener) {
+        resolveInferenceIds(plans.stream().map(InferenceRunner::planInferenceId).collect(Collectors.toSet()), listener);
 
-        if (plans.isEmpty()) {
+    }
+
+    private void resolveInferenceIds(Set<String> inferenceIds, ActionListener<InferenceResolution> listener) {
+
+        if (inferenceIds.isEmpty()) {
             listener.onResponse(InferenceResolution.EMPTY);
             return;
         }
 
-        Set<String> inferenceIds = plans.stream()
-            .map(p -> p.inferenceId().fold(FoldContext.small()).toString())
-            .collect(Collectors.toSet());
+        final InferenceResolution.Builder inferenceResolutionBuilder = InferenceResolution.builder();
 
-        CountDownLatch countDownLatch = new CountDownLatch(inferenceIds.size());
-        InferenceResolution.Builder inferenceResolutionBuilder = InferenceResolution.builder();
+        final CountDownActionListener countdownListener = new CountDownActionListener(
+            inferenceIds.size(),
+            ActionListener.wrap(_r -> listener.onResponse(inferenceResolutionBuilder.build()), listener::onFailure)
+        );
 
         for (var inferenceId : inferenceIds) {
             client.execute(
@@ -54,21 +59,17 @@ public class InferenceService {
                 ActionListener.wrap(r -> {
                     ResolvedInference resolvedInference = new ResolvedInference(inferenceId, r.getEndpoints().getFirst().getTaskType());
                     inferenceResolutionBuilder.withResolvedInference(resolvedInference);
-                    countDownLatch.countDown();
+                    countdownListener.onResponse(null);
                 }, e -> {
                     inferenceResolutionBuilder.withError(inferenceId, e.getMessage());
-                    countDownLatch.countDown();
+                    countdownListener.onResponse(null);
                 })
             );
         }
+    }
 
-        try {
-            countDownLatch.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        listener.onResponse(inferenceResolutionBuilder.build());
+    private static String planInferenceId(InferencePlan plan) {
+        return plan.inferenceId().fold(FoldContext.small()).toString();
     }
 
     public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {

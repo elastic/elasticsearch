@@ -32,7 +32,7 @@ public class RerankOperator extends AsyncOperator<Page> {
     private static final int MAX_INFERENCE_WORKER = 10;
 
     public record Factory(
-        InferenceService inferenceService,
+        InferenceRunner inferenceRunner,
         String inferenceId,
         String queryText,
         ExpressionEvaluator.Factory rowEncoderFactory,
@@ -48,7 +48,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         public Operator get(DriverContext driverContext) {
             return new RerankOperator(
                 driverContext,
-                inferenceService,
+                inferenceRunner,
                 inferenceId,
                 queryText,
                 rowEncoderFactory().get(driverContext),
@@ -57,7 +57,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         }
     }
 
-    private final InferenceService inferenceService;
+    private final InferenceRunner inferenceRunner;
     private final BlockFactory blockFactory;
     private final String inferenceId;
     private final String queryText;
@@ -66,18 +66,18 @@ public class RerankOperator extends AsyncOperator<Page> {
 
     public RerankOperator(
         DriverContext driverContext,
-        InferenceService inferenceService,
+        InferenceRunner inferenceRunner,
         String inferenceId,
         String queryText,
         ExpressionEvaluator rowEncoder,
         int scoreChannel
     ) {
-        super(driverContext, inferenceService.getThreadContext(), MAX_INFERENCE_WORKER);
+        super(driverContext, inferenceRunner.getThreadContext(), MAX_INFERENCE_WORKER);
 
-        assert inferenceService.getThreadContext() != null;
+        assert inferenceRunner.getThreadContext() != null;
 
         this.blockFactory = driverContext.blockFactory();
-        this.inferenceService = inferenceService;
+        this.inferenceRunner = inferenceRunner;
         this.inferenceId = inferenceId;
         this.queryText = queryText;
         this.rowEncoder = rowEncoder;
@@ -90,7 +90,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         final ActionListener<Page> outputListener = ActionListener.runAfter(listener, () -> { releasePageOnAnyThread(inputPage); });
 
         try {
-            inferenceService.doInference(
+            inferenceRunner.doInference(
                 buildInferenceRequest(inputPage),
                 ActionListener.wrap(
                     inferenceResponse -> outputListener.onResponse(buildOutput(inputPage, inferenceResponse)),

@@ -89,13 +89,13 @@ public class RerankOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple() {
-        InferenceService inferenceService = mockedSimpleInferenceService();
-        return new RerankOperator.Factory(inferenceService, SIMPLE_INFERENCE_ID, SIMPLE_QUERY, rowEncoderFactory, scoreChannel);
+        InferenceRunner inferenceRunner = mockedSimpleInferenceRunner();
+        return new RerankOperator.Factory(inferenceRunner, SIMPLE_INFERENCE_ID, SIMPLE_QUERY, rowEncoderFactory, scoreChannel);
     }
 
-    private InferenceService mockedSimpleInferenceService() {
-        InferenceService inferenceService = mock(InferenceService.class);
-        when(inferenceService.getThreadContext()).thenReturn(threadPool.getThreadContext());
+    private InferenceRunner mockedSimpleInferenceRunner() {
+        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
+        when(inferenceRunner.getThreadContext()).thenReturn(threadPool.getThreadContext());
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) invocation.getArgument(
@@ -108,9 +108,9 @@ public class RerankOperatorTests extends OperatorTestCase {
             );
             listener.onResponse(inferenceResponse);
             return null;
-        }).when(inferenceService).doInference(any(), any());
+        }).when(inferenceRunner).doInference(any(), any());
 
-        return inferenceService;
+        return inferenceRunner;
     }
 
     private RankedDocsResults mockedRankedDocResults(InferenceAction.Request request) {

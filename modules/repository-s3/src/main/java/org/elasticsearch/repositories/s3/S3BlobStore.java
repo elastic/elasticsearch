@@ -566,7 +566,11 @@ class S3BlobStore implements BlobStore {
             );
         }
 
-        private static final Predicate<String> IS_PUT_MULTIPART_OPERATION = Set.of("CreateMultipartUpload", "UploadPart")::contains;
+        private static final Predicate<String> IS_PUT_MULTIPART_OPERATION = Set.of(
+            "CreateMultipartUpload",
+            "UploadPart",
+            "CompleteMultipartUpload"
+        )::contains;
 
         boolean assertConsistentOperationName(MetricCollection metricCollection) {
             final var operationNameMetrics = metricCollection.metricValues(CoreMetric.OPERATION_NAME);

@@ -323,7 +323,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(exception.getCause().getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
     }
 
-    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testWriteLargeBlob() throws Exception {
         final boolean useTimeout = rarely();
         final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
@@ -425,7 +424,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(countDownComplete.isCountedDown(), is(true));
     }
 
-    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testWriteLargeBlobStreaming() throws Exception {
         final boolean useTimeout = rarely();
         final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;

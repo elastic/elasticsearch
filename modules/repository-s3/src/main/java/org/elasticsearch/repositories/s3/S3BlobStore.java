@@ -576,11 +576,13 @@ class S3BlobStore implements BlobStore {
             "CompleteMultipartUpload"
         )::contains;
 
+        private static final Predicate<String> IS_LIST_OPERATION = Set.of("ListObjects", "ListObjectsV2", "ListMultipartUploads")::contains;
+
         boolean assertConsistentOperationName(MetricCollection metricCollection) {
             final var operationNameMetrics = metricCollection.metricValues(CoreMetric.OPERATION_NAME);
             assert operationNameMetrics.size() == 1 : operationNameMetrics;
             final Predicate<String> expectedOperationPredicate = switch (this) {
-                case LIST_OBJECTS -> "ListObjectsV2"::equals;
+                case LIST_OBJECTS -> IS_LIST_OPERATION;
                 case PUT_MULTIPART_OBJECT -> IS_PUT_MULTIPART_OPERATION;
                 case ABORT_MULTIPART_OBJECT -> "AbortMultipartUpload"::equals;
                 default -> key::equals;

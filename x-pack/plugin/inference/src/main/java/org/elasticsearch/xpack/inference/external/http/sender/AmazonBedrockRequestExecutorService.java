@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockExecuteOnlyRequestSender;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockExecuteOnlyRequestSender;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;

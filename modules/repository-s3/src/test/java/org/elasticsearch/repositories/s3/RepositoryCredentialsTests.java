@@ -16,7 +16,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +49,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
 @SuppressForbidden(reason = "test requires to set a System property to allow insecure settings when running in IDE")
 public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
@@ -102,12 +100,14 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         assertThat(repositories.repository(repositoryName), instanceOf(S3Repository.class));
 
         final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
-        final S3Client client = repository.createBlobStore().clientReference().client();
-        assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
+        try (var clientReference = repository.createBlobStore().clientReference()) {
+            final S3Client client = clientReference.client();
+            assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
-        final AwsCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.resolveCredentials();
-        assertThat(credentials.accessKeyId(), is("insecure_aws_key"));
-        assertThat(credentials.secretAccessKey(), is("insecure_aws_secret"));
+            final AwsCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.resolveCredentials();
+            assertThat(credentials.accessKeyId(), is("insecure_aws_key"));
+            assertThat(credentials.secretAccessKey(), is("insecure_aws_secret"));
+        }
 
         assertCriticalWarnings(
             "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release. "

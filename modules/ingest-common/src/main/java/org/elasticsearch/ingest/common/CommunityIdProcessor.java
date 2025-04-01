@@ -164,7 +164,6 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         Object icmpCode,
         int seed
     ) {
-
         Flow flow = buildFlow(
             sourceIpAddrString,
             destIpAddrString,

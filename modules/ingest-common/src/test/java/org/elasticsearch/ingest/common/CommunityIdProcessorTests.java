@@ -351,7 +351,6 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     private void testCommunityIdProcessor(Map<String, Object> source, int seed, String expectedHash, boolean ignoreMissing)
         throws Exception {
-
         var processor = new CommunityIdProcessor(
             null,
             null,

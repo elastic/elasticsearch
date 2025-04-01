@@ -491,7 +491,7 @@ final class CefParser {
         return NetworkAddress.format(address);
     }
 
-    static String insertMACSeparators(String v) {
+    private static String insertMACSeparators(String v) {
         // Check that the length is correct for a MAC address without separators.
         // And check that there isn't already a separator in the string.
         if ((v.length() != EUI48_HEX_LENGTH && v.length() != EUI64_HEX_LENGTH)

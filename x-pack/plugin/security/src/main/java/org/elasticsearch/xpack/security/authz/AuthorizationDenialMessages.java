@@ -130,7 +130,7 @@ public interface AuthorizationDenialMessages {
                         message = message
                             + " for data access, or by ["
                             + collectionToCommaDelimitedString(privilegesForFailuresOnly)
-                            + "] for access with the [failures] selector";
+                            + "] for access with the [::failures] selector";
                     }
                 }
             }

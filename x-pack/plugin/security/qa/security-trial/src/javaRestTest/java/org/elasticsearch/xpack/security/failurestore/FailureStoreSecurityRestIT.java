@@ -1290,7 +1290,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                             request,
                             containsString(
                                 "this action is granted by the index privileges [read,all] for data access, "
-                                    + "or by [read_failure_store] for access with the [failures] selector"
+                                    + "or by [read_failure_store] for access with the [::failures] selector"
                             )
                         );
                         break;
@@ -2272,7 +2272,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     private void expectThrowsUnauthorized(String user, Search search, Matcher<String> errorMatcher) {
-        ResponseException ex = expectThrows(ResponseException.class, () -> performRequest(user, search.toSearchRequest()));
+        ResponseException ex = expectThrows(ResponseException.class, () -> performRequestMaybeUsingApiKey(user, search.toSearchRequest()));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(ex.getMessage(), errorMatcher);
     }

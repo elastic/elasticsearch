@@ -255,7 +255,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
                 denialMessages.actionDenied(authentication, null, action, request, null),
                 endsWith(
                     "this action is granted by the index privileges [read,all] for data access, "
-                        + "or by [read_failure_store] for access with the [failures] selector"
+                        + "or by [read_failure_store] for access with the [::failures] selector"
                 )
             );
         }

@@ -60,8 +60,8 @@ public final class CefProcessor extends AbstractProcessor {
         }
         ZoneId timezone = getTimezone(document);
         try (CEFEvent event = new CefParser(timezone, removeEmptyValue).process(line)) {
-            document.setFieldValue(targetField, event.getCefMappings());
             event.getRootMappings().forEach(document::setFieldValue);
+            event.getCefMappings().forEach((k, v) -> document.setFieldValue(targetField + "." + k, v));
         }
         return document;
     }

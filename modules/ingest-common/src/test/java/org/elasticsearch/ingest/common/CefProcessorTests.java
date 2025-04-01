@@ -53,10 +53,10 @@ public class CefProcessorTests extends ESTestCase {
                         "cef",
                         Map.ofEntries(
                             entry("version", "0"),
-                            entry("device.vendor", "Elastic"),
-                            entry("device.product", "Vaporware"),
-                            entry("device.version", "1.0.0-alpha"),
-                            entry("device.event_class_id", "18"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "Elastic", "product", "Vaporware", "version", "1.0.0-alpha", "event_class_id", "18")
+                            ),
                             entry("name", "Web request"),
                             entry("severity", "low")
                         )
@@ -108,10 +108,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("26"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
         // ECS fields
@@ -134,10 +135,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("26"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
     }
@@ -153,10 +155,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo(""));
-        assertThat(cef.get("device.product"), equalTo(""));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo(""));
+        assertThat(device.get("product"), equalTo(""));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
         // ECS fields
@@ -176,11 +179,12 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("device.product"), equalTo("threat|->manager"));
         assertThat(cef.get("version"), equalTo("26"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("product"), equalTo("threat|->manager"));
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -200,10 +204,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("26"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threat=manager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threat=manager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -223,10 +228,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("26"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -245,10 +251,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -268,10 +275,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -289,10 +297,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -311,10 +320,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -334,10 +344,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -358,10 +369,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("FooBar"));
-        assertThat(cef.get("device.product"), equalTo("Web Gateway"));
-        assertThat(cef.get("device.version"), equalTo("1.2.3.45.67"));
-        assertThat(cef.get("device.event_class_id"), equalTo("200"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("FooBar"));
+        assertThat(device.get("product"), equalTo("Web Gateway"));
+        assertThat(device.get("version"), equalTo("1.2.3.45.67"));
+        assertThat(device.get("event_class_id"), equalTo("200"));
         assertThat(cef.get("name"), equalTo("Success"));
         assertThat(cef.get("severity"), equalTo("2"));
 
@@ -393,10 +405,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("vendor"));
-        assertThat(cef.get("device.product"), equalTo("product"));
-        assertThat(cef.get("device.version"), equalTo("version"));
-        assertThat(cef.get("device.event_class_id"), equalTo("event_id"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("vendor"));
+        assertThat(device.get("product"), equalTo("product"));
+        assertThat(device.get("version"), equalTo("version"));
+        assertThat(device.get("event_class_id"), equalTo("event_id"));
         assertThat(cef.get("name"), equalTo("name"));
         assertThat(cef.get("severity"), equalTo("Very-High"));
 
@@ -419,10 +432,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("message is padded"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -443,10 +457,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("message is padded"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -467,10 +482,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("message is padded"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -490,10 +506,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("message has tabs"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -514,10 +531,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security\\compliance"));
-        assertThat(cef.get("device.product"), equalTo("threat|->manager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security\\compliance"));
+        assertThat(device.get("product"), equalTo("threat|->manager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("message contains escapes"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -541,8 +559,9 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("SentinelOne"));
-        assertThat(cef.get("device.product"), equalTo("Mgmt"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("SentinelOne"));
+        assertThat(device.get("product"), equalTo("Mgmt"));
 
         assertThat(document.getFieldValue("cef.extensions.activityID", String.class), equalTo("1111111111111111111"));
         assertThat(document.getFieldValue("cef.extensions.activityType", String.class), equalTo("3505"));
@@ -567,10 +586,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("26"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threat=manager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threat=manager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
@@ -592,10 +612,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("26"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
         assertThat(document.getFieldValue("cef.extensions.Some-Key", String.class), equalTo("123456"));
@@ -647,10 +668,11 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = document.getFieldValue("cef", Map.class);
         assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("security"));
-        assertThat(cef.get("device.product"), equalTo("threatmanager"));
-        assertThat(cef.get("device.version"), equalTo("1.0"));
-        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        Map<String, Object> device = (Map<String, Object>) cef.get("device");
+        assertThat(device.get("vendor"), equalTo("security"));
+        assertThat(device.get("product"), equalTo("threatmanager"));
+        assertThat(device.get("version"), equalTo("1.0"));
+        assertThat(device.get("event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 

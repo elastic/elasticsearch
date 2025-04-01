@@ -46,46 +46,46 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device.vendor", "Elastic"),
-                    entry("device.product", "Vaporware"),
-                    entry("device.version", "1.0.0-alpha"),
-                    entry("device.event_class_id", "18"),
-                    entry("name", "Web request"),
-                    entry("severity", "low")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry("device.vendor", "Elastic"),
+                            entry("device.product", "Vaporware"),
+                            entry("device.version", "1.0.0-alpha"),
+                            entry("device.event_class_id", "18"),
+                            entry("name", "Web request"),
+                            entry("severity", "low")
+                        )
+                    ),
+                    entry("observer", Map.of("product", "Vaporware", "vendor", "Elastic", "version", "1.0.0-alpha")),
+                    entry("event", Map.of("id", "3457", "code", "18")),
+                    entry(
+                        "source",
+                        Map.ofEntries(
+                            entry("ip", "89.160.20.156"),
+                            entry("port", 33876),
+                            entry("geo", Map.of("location", Map.of("lon", -77.511, "lat", 38.915))),
+                            entry("service", Map.of("name", "httpd"))
+                        )
+                    ),
+                    entry("destination", Map.of("ip", "192.168.10.1", "port", 443)),
+                    entry("http", Map.of("request", Map.of("method", "POST", "referrer", "https://www.google.com"))),
+                    entry("network", Map.of("transport", "TCP")),
+                    entry("url", Map.of("original", "https://www.example.com/cart")),
+                    entry(
+                        "message",
+                        "CEF:0|Elastic|Vaporware|1.0.0-alpha|18|Web request|low|eventId=3457 requestMethod=POST "
+                            + "slat=38.915 slong=-77.511 proto=TCP sourceServiceName=httpd requestContext=https://www.google.com "
+                            + "src=89.160.20.156 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart"
+                    )
                 )
-            ),
-            entry("observer", Map.ofEntries(entry("product", "Vaporware"), entry("vendor", "Elastic"), entry("version", "1.0.0-alpha"))),
-            entry("event", Map.ofEntries(entry("id", "3457"), entry("code", "18"))),
-            entry(
-                "source",
-                Map.ofEntries(
-                    entry("ip", "89.160.20.156"),
-                    entry("port", 33876),
-                    entry("geo", Map.ofEntries(entry("location", Map.ofEntries(entry("lon", -77.511), entry("lat", 38.915))))),
-                    entry("service", Map.ofEntries(entry("name", "httpd")))
-                )
-            ),
-            entry("destination", Map.ofEntries(entry("ip", "192.168.10.1"), entry("port", 443))),
-            entry(
-                "http",
-                Map.ofEntries(entry("request", Map.ofEntries(entry("method", "POST"), entry("referrer", "https://www.google.com"))))
-            ),
-            entry("network", Map.ofEntries(entry("transport", "TCP"))),
-            entry("url", Map.ofEntries(entry("original", "https://www.example.com/cart"))),
-            entry(
-                "message",
-                "CEF:0|Elastic|Vaporware|1.0.0-alpha|18|Web request|low|eventId=3457 requestMethod=POST "
-                    + "slat=38.915 slong=-77.511 proto=TCP sourceServiceName=httpd requestContext=https://www.google.com "
-                    + "src=89.160.20.156 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart"
             )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testInvalidCefFormat() {

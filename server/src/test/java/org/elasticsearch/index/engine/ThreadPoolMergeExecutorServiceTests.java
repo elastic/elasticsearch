@@ -281,8 +281,11 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     doAnswer(mock -> {
                         currentlyRunningMergeTasksSet.add(mergeTask);
                         // wait to be signalled before completing
-                        runMergeSemaphore.acquire();
-                        currentlyRunningMergeTasksSet.remove(mergeTask);
+                        try {
+                            runMergeSemaphore.acquire();
+                        } finally {
+                            currentlyRunningMergeTasksSet.remove(mergeTask);
+                        }
                         return null;
                     }).when(mergeTask).run();
                     doAnswer(mock -> {

@@ -252,7 +252,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
         final var part3 = randomAlphaOfLength(30);
         final var uploadPart3Response = handleRequest(handler, "PUT", sessionURI, part3, contentRangeHeader(100, 129, 130));
-        assertEquals(new TestHttpResponse(RestStatus.OK, TestHttpExchange.EMPTY_HEADERS), uploadPart3Response);
+        assertEquals(new TestHttpResponse(RestStatus.OK, rangeHeader(0, 129)), uploadPart3Response);
 
         // status check
         assertEquals(

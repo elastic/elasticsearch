@@ -21,7 +21,6 @@ public class InternalElasticsearchDistributionTypes {
     public static final ElasticsearchDistributionType DOCKER_IRONBANK = new DockerIronBankElasticsearchDistributionType();
     public static final ElasticsearchDistributionType DOCKER_CLOUD_ESS = new DockerCloudEssElasticsearchDistributionType();
     public static final ElasticsearchDistributionType DOCKER_WOLFI = new DockerWolfiElasticsearchDistributionType();
-    public static final ElasticsearchDistributionType DOCKER_FIPS = new DockerFipsElasticsearchDistributionType();
 
     public static List<ElasticsearchDistributionType> ALL_INTERNAL = List.of(
         DEB,
@@ -30,7 +29,6 @@ public class InternalElasticsearchDistributionTypes {
         DOCKER_UBI,
         DOCKER_IRONBANK,
         DOCKER_CLOUD_ESS,
-        DOCKER_WOLFI,
-        DOCKER_FIPS
+        DOCKER_WOLFI
     );
 }

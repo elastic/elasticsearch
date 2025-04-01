@@ -39,6 +39,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE = new NodeFeature(
         "mapper.unknown_field_mapping_update_error_message"
     );
+    static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -64,6 +65,7 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_SKIPPER,
             RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
             DateFieldMapper.INVALID_DATE_FIX,
+            NPE_ON_DIMS_UPDATE_FIX,
             RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING
         );
     }

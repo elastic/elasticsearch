@@ -109,6 +109,7 @@ public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize
                 shardStats.getShardRouting().id(),
                 indexingShardStats.getWriteLoad(),
                 indexingShardStats.getRecentWriteLoad(),
+                indexingShardStats.getPeakWriteLoad(),
                 indexingShardStats.getTotalActiveTimeInMillis()
             );
             totalSizeInBytes += commonStats.getDocs().getTotalSizeInBytes();

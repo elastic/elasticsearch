@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -30,16 +28,14 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
-public class AlibabaCloudSearchCompletionAction implements ExecutableAction {
-    private static final Logger logger = LogManager.getLogger(AlibabaCloudSearchCompletionAction.class);
-
+final class AlibabaCloudSearchCompletionAction implements ExecutableAction {
     private final AlibabaCloudSearchAccount account;
     private final AlibabaCloudSearchCompletionModel model;
     private final String failedToSendRequestErrorMessage;
     private final Sender sender;
     private final AlibabaCloudSearchCompletionRequestManager requestCreator;
 
-    public AlibabaCloudSearchCompletionAction(Sender sender, AlibabaCloudSearchCompletionModel model, ServiceComponents serviceComponents) {
+    AlibabaCloudSearchCompletionAction(Sender sender, AlibabaCloudSearchCompletionModel model, ServiceComponents serviceComponents) {
         this.model = Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
         this.account = new AlibabaCloudSearchAccount(this.model.getSecretSettings().apiKey());

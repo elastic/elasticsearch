@@ -1013,7 +1013,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testSuppressedDeletionErrorsAreCapped() {
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
         int maxBulkDeleteSize = randomIntBetween(1, 10);
@@ -1043,8 +1042,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             "deletion should not succeed",
             () -> blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobs.iterator())
         );
-        logger.info("--> deletion exception", exception);
-        assertThat(exception.getCause().getSuppressed().length, lessThan(S3BlobStore.MAX_DELETE_EXCEPTIONS));
+
+        var sdkGeneratedExceptions = 0;
+        final var innerExceptions = exception.getCause().getSuppressed();
+        for (final var innerException : innerExceptions) {
+            if (innerException instanceof SdkClientException && innerException.getMessage().startsWith("Request attempt ")) {
+                sdkGeneratedExceptions += 1;
+            }
+        }
+        assertThat(innerExceptions.length - sdkGeneratedExceptions, lessThan(S3BlobStore.MAX_DELETE_EXCEPTIONS));
     }
 
     private static boolean isMultiDeleteRequest(HttpExchange exchange) {

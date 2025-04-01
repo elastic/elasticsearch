@@ -258,7 +258,7 @@ public class IndexingPressure {
             this.forceExecution = forceExecution;
         }
 
-        private void increment(int operations, long bytes) {
+        public void increment(int operations, long bytes) {
             assert closed.get() == false;
             long combinedBytes = currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
             long replicaWriteBytes = currentReplicaBytes.get();

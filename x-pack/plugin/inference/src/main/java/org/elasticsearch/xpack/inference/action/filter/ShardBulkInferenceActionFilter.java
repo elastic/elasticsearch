@@ -27,11 +27,11 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -263,9 +263,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
         private final IndexingPressure.Coordinating coordinatingIndexingPressure;
 
-        private long noInferenceRequestMemoryUsageInBytes = 0;  // Memory used by requests that update source but don't perform inference
         private long estimatedInferenceRequestMemoryUsageInBytes = 0;  // Estimated memory used by requests that perform inference
-        private long actualMemoryUsageInBytes = 0;
 
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
@@ -289,18 +287,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
 
         private void estimateMemoryUsage() {
-            CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
-            if (circuitBreaker == null) {
+            if (coordinatingIndexingPressure == null) {
                 return;
             }
 
             for (BulkItemRequest item : bulkShardRequest.items()) {
-                boolean isUpdateRequest = false;
                 final IndexRequest indexRequest;
                 if (item.request() instanceof IndexRequest ir) {
                     indexRequest = ir;
                 } else if (item.request() instanceof UpdateRequest updateRequest) {
-                    isUpdateRequest = true;
                     if (updateRequest.script() != null) {
                         // Skip script updates, we will error out on those later
                         continue;
@@ -315,7 +310,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 // TODO: Don't know how to avoid getting the doc map here, we need it to determine if the doc has any inference fields in it
                 // and if so, what they are
                 long estimatedEmbeddingBytes = 0;
-                boolean noInferenceSourceUpdate = false;
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
                 for (InferenceFieldMetadata inferenceFieldMetadata : fieldInferenceMap.values()) {
                     String inferenceId = inferenceFieldMetadata.getInferenceId();
@@ -326,13 +320,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
 
                     for (String sourceField : inferenceFieldMetadata.getSourceFields()) {
-                        var valueObj = XContentMapValues.extractValue(sourceField, docMap, EXPLICIT_NULL);
-                        if (useLegacyFormat == false && isUpdateRequest && valueObj == EXPLICIT_NULL) {
-                            // This is an update request that will clear inference results, which means that a copy of the request source
-                            // will be generated
-                            noInferenceSourceUpdate = true;
-                            continue;
-                        } else if (valueObj == null || valueObj == EXPLICIT_NULL) {
+                        var valueObj = XContentMapValues.extractValue(sourceField, docMap);
+                        if (valueObj == null) {
                             continue;
                         }
 
@@ -345,10 +334,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
 
                         for (String v : values) {
-                            if (v.isBlank()) {
-                                // We update source to insert an empty chunk list on blank input
-                                noInferenceSourceUpdate = true;
-                            } else {
+                            if (v.isBlank() == false) {
                                 if (minimalServiceSettings == null) {
                                     minimalServiceSettings = getMinimalServiceSettings(inferenceId, inferenceFieldMetadata.getName());
                                 }
@@ -368,39 +354,25 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 };
                             }
                         }
-                    }
-                }
+                    } // sourceField loop
+                } // inferenceFieldMetadata loop
 
                 // TODO: Verify that ramBytesUsed is what to use here
-                long estimatedMemoryUsage = 0;
-                long newEstimatedInferenceRequestMemoryUsageInBytes = estimatedInferenceRequestMemoryUsageInBytes;
-                long newNoInferenceRequestMemoryUsageInBytes = noInferenceRequestMemoryUsageInBytes;
                 if (estimatedEmbeddingBytes > 0) {
-                    estimatedMemoryUsage = estimatedEmbeddingBytes + indexRequest.source().ramBytesUsed();
-                    newEstimatedInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
-                } else if (noInferenceSourceUpdate) {
-                    estimatedMemoryUsage = indexRequest.source().ramBytesUsed();
-                    newNoInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
-                }
+                    long estimatedMemoryUsage = estimatedEmbeddingBytes + indexRequest.source().ramBytesUsed();
+                    estimatedInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
 
-                if (estimatedMemoryUsage > 0) {
                     try {
-                        circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedMemoryUsage, indexRequest.id());
-                    } catch (CircuitBreakingException e) {
-                        circuitBreaker.addWithoutBreaking(
-                            -(estimatedInferenceRequestMemoryUsageInBytes + noInferenceRequestMemoryUsageInBytes)
-                        );
+                        // TODO: How to track operation count? I see two options:
+                        // - One operation per item in the bulk request
+                        // - One operation per inference request
+                        // Currently using the former
+                        coordinatingIndexingPressure.increment(1, estimatedMemoryUsage);
+                    } catch (EsRejectedExecutionException e) {
                         throw new InferenceException("Insufficient memory available to perform inference on bulk request", e);
                     }
-
-                    // Bytes are added to the circuit breaker only if it doesn't trip, so increase cumulative estimated bytes only once
-                    // we're sure there's space in the breaker for the additional bytes.
-                    estimatedInferenceRequestMemoryUsageInBytes = newEstimatedInferenceRequestMemoryUsageInBytes;
-                    noInferenceRequestMemoryUsageInBytes = newNoInferenceRequestMemoryUsageInBytes;
                 }
-            }
-
-            actualMemoryUsageInBytes = estimatedInferenceRequestMemoryUsageInBytes + noInferenceRequestMemoryUsageInBytes;
+            } // BulkItemRequest loop
         }
 
         private MinimalServiceSettings getMinimalServiceSettings(String inferenceId, String field) {
@@ -819,9 +791,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             FieldInferenceResponseAccumulator accumulator
         ) {
             boolean success = true;
-
-            CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
-            if (circuitBreaker == null) {
+            if (coordinatingIndexingPressure == null) {
                 return success;
             }
 
@@ -842,21 +812,22 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 // around the embeddings (in the legacy format), but it's a close approximation.
                 long bytesUsed = chunkBytes + indexRequest.source().ramBytesUsed();
                 if (bytesUsed <= estimatedInferenceRequestMemoryUsageInBytes) {
+                    // We've pre-allocated the estimated bytes. Discount against them until the estimate is exhausted.
                     estimatedInferenceRequestMemoryUsageInBytes -= bytesUsed;
                 } else {
+                    // Determine the extent to which we've exceeded the estimate
                     long bytesOverEstimate = bytesUsed - estimatedInferenceRequestMemoryUsageInBytes;
                     estimatedInferenceRequestMemoryUsageInBytes = 0;
 
-                    // TODO: When is the request's ID calculated if not provided? Is it safe to use it as a label?
-                    circuitBreaker.addEstimateBytesAndMaybeBreak(bytesOverEstimate, indexRequest.id());
-
-                    // Bytes are added to the circuit breaker only if it doesn't trip, so increase actualMemoryUsageInBytes only once we're
-                    // sure there's space in the breaker for the additional bytes.
-                    actualMemoryUsageInBytes += bytesOverEstimate;
+                    // Don't increment the operation count because we already determined that when computing the estimate. We call increment
+                    // here to account for additional memory required by an operation we have already counted in the estimate.
+                    coordinatingIndexingPressure.increment(0, bytesOverEstimate);
                 }
-            } catch (CircuitBreakingException e) {
+            } catch (EsRejectedExecutionException e) {
                 success = false;
-                accumulator.addFailure(new InferenceException("Circuit breaker exception for inference on field [{}]", e, request.field));
+                accumulator.addFailure(
+                    new InferenceException("Insufficient memory available to perform inference on field [{}]", e, request.field)
+                );
             } catch (Exception e) {
                 success = false;
                 accumulator.addFailure(

@@ -342,15 +342,15 @@ public class CommunityIdProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("field [ip] not present as part of path [source.ip]"));
     }
 
-    private void testProcessor(Map<String, Object> source, String expectedHash) {
+    private static void testProcessor(Map<String, Object> source, String expectedHash) {
         testProcessor(source, 0, expectedHash);
     }
 
-    private void testProcessor(Map<String, Object> source, int seed, String expectedHash) {
+    private static void testProcessor(Map<String, Object> source, int seed, String expectedHash) {
         testProcessor(source, seed, expectedHash, false);
     }
 
-    private void testProcessor(Map<String, Object> source, int seed, String expectedHash, boolean ignoreMissing) {
+    private static void testProcessor(Map<String, Object> source, int seed, String expectedHash, boolean ignoreMissing) {
         var processor = new CommunityIdProcessor(
             null,
             null,

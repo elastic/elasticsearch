@@ -120,6 +120,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
+    private Set<String> configuredClusters;
 
     public EsqlSession(
         String sessionId,
@@ -344,7 +345,7 @@ public class EsqlSession {
             return plan;
         };
         // Capture configured remotes list to ensure consistency throughout the session
-        executionInfo.setConfiguredClusters(Set.copyOf(indicesExpressionGrouper.getConfiguredClusters()));
+        configuredClusters = Set.copyOf(indicesExpressionGrouper.getConfiguredClusters());
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
@@ -357,10 +358,10 @@ public class EsqlSession {
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
 
-        EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, verifier.licenseState());
+        EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, configuredClusters, verifier.licenseState());
 
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
-            executionInfo.getConfiguredClusters(),
+            configuredClusters,
             indices.stream()
                 .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().indexPattern())))
                 .toArray(String[]::new)
@@ -445,7 +446,7 @@ public class EsqlSession {
             IndexPattern table = tableInfo.id();
 
             Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
-                executionInfo.getConfiguredClusters(),
+                configuredClusters,
                 IndicesOptions.DEFAULT,
                 table.indexPattern()
             );

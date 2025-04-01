@@ -77,7 +77,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private transient TimeValue planningTookTime;  // time elapsed since start of query to calling ComputeService.execute
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
-    private transient Set<String> configuredClusters; // Set of configured remote clusters
 
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
         this(Predicates.always(), includeCCSMetadata);  // default all clusters to skip_unavailable=true
@@ -353,14 +352,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public boolean isStopped() {
         return isStopped;
-    }
-
-    public Set<String> getConfiguredClusters() {
-        return configuredClusters;
-    }
-
-    public void setConfiguredClusters(Set<String> configuredClusters) {
-        this.configuredClusters = configuredClusters;
     }
 
     /**

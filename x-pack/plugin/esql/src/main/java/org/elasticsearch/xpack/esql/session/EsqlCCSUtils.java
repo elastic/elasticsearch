@@ -278,16 +278,13 @@ public class EsqlCCSUtils {
         EsqlExecutionInfo executionInfo,
         List<TableInfo> indices,
         IndicesExpressionGrouper indicesGrouper,
+        Set<String> configuredClusters,
         XPackLicenseState licenseState
     ) {
         for (TableInfo tableInfo : indices) {
             Map<String, OriginalIndices> groupedIndices;
             try {
-                groupedIndices = indicesGrouper.groupIndices(
-                    executionInfo.getConfiguredClusters(),
-                    IndicesOptions.DEFAULT,
-                    tableInfo.id().indexPattern()
-                );
+                groupedIndices = indicesGrouper.groupIndices(configuredClusters, IndicesOptions.DEFAULT, tableInfo.id().indexPattern());
             } catch (NoSuchRemoteClusterException e) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
                     throw e;

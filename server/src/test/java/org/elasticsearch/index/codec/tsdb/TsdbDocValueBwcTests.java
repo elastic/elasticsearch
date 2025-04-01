@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -30,7 +31,9 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -41,12 +44,13 @@ import java.util.Map;
 public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
-        Codec oldCodec = TestUtil.alwaysDocValuesFormat(new ES87TSDBVersionZeroDocValuesFormat());
-        Codec newCodec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
+        Codec oldCodec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
+        Codec newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
         testMixedIndex(oldCodec, newCodec);
     }
 
-    void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException {
+    void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException,
+        ClassNotFoundException {
         String timestampField = "@timestamp";
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
@@ -98,7 +102,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
             // Check documents before force merge:
             try (var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(hostnameField, timestampField, newCodec))) {
                 try (var reader = DirectoryReader.open(iw)) {
-                    assertDocValuesFormatVersion(reader, 0);
+                    assertOldDocValuesFormatVersion(reader);
 
                     var hostNameDV = MultiDocValues.getSortedValues(reader, hostnameField);
                     assertNotNull(hostNameDV);
@@ -158,7 +162,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 try (var reader = DirectoryReader.open(iw)) {
                     assertEquals(1, reader.leaves().size());
                     assertEquals(numDocs, reader.maxDoc());
-                    assertDocValuesFormatVersion(reader, 1);
+                    assertNewDocValuesFormatVersion(reader);
                     var leaf = reader.leaves().get(0).reader();
                     var hostNameDV = leaf.getSortedDocValues(hostnameField);
                     assertNotNull(hostNameDV);
@@ -230,15 +234,32 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     // A hacky way to figure out whether doc values format is written in what version. Need to use reflection, because
     // PerFieldDocValuesFormat hides the doc values formats it wraps.
-    private static void assertDocValuesFormatVersion(DirectoryReader reader, int expectedVersion) throws NoSuchFieldException,
-        IllegalAccessException {
+    private static void assertOldDocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException,
+        IOException {
         for (var leafReaderContext : reader.leaves()) {
             var leaf = (SegmentReader) leafReaderContext.reader();
             var dvReader = leaf.getDocValuesReader();
             var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
             Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
-            var tsdbDvReader = (ES87TSDBDocValuesProducer) formats.get("ES87TSDB_0");
-            assertEquals(expectedVersion, tsdbDvReader.version);
+            var tsdbDvReader = (DocValuesProducer) formats.get("ES87TSDB_0");
+            tsdbDvReader.checkIntegrity();
+            assertThat(tsdbDvReader, Matchers.instanceOf(ES87TSDBDocValuesProducer.class));
+        }
+    }
+
+    private static void assertNewDocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException,
+        IOException, ClassNotFoundException {
+        for (var leafReaderContext : reader.leaves()) {
+            var leaf = (SegmentReader) leafReaderContext.reader();
+            var dvReader = leaf.getDocValuesReader();
+            var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
+            Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
+            var tsdbDvReader = (DocValuesProducer) formats.get("ES819TSDB_0");
+            tsdbDvReader.checkIntegrity();
+            assertThat(
+                tsdbDvReader,
+                Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
+            );
         }
     }
 

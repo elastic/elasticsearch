@@ -24,6 +24,7 @@ import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -48,7 +49,9 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             baselineConfig.setMergePolicy(mergePolicy);
             baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
             var contenderConf = newIndexWriterConfig();
-            contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat()));
+            contenderConf.setCodec(
+                TestUtil.alwaysDocValuesFormat(rarely() ? new ES87TSDBDocValuesFormat() : new ES819TSDBDocValuesFormat())
+            );
             contenderConf.setMergePolicy(mergePolicy);
 
             try (

@@ -27,20 +27,13 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final String DATA_EXTENSION = "dvd";
     static final String META_CODEC = "ES87TSDBDocValuesMetadata";
     static final String META_EXTENSION = "dvm";
+    static final int VERSION_START = 0;
+    static final int VERSION_CURRENT = VERSION_START;
     static final byte NUMERIC = 0;
     static final byte BINARY = 1;
     static final byte SORTED = 2;
     static final byte SORTED_SET = 3;
     static final byte SORTED_NUMERIC = 4;
-
-    // Version constants:
-    static final int VERSION_START = 0;
-    // Second versions has two changes:
-    // 1) Moved numDocsWithField metadata statistic from SortedNumericEntry to NumericEntry and
-    // 2) Moved docsWithFieldOffset, docsWithFieldLength, jumpTableEntryCount, denseRankPower metadata properties in the format to be after
-    // values metadata.
-    static final int VERSION_TWO = 1;
-    static final int VERSION_CURRENT = VERSION_TWO;
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -82,7 +75,7 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         }
     }
 
-    final int skipIndexIntervalSize;
+    private final int skipIndexIntervalSize;
 
     /** Default constructor. */
     public ES87TSDBDocValuesFormat() {

@@ -125,8 +125,26 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             numValues += count;
         }
 
+        if (numDocsWithValue == 0) { // meta[-2, 0]: No documents with values
+            meta.writeLong(-2); // docsWithFieldOffset
+            meta.writeLong(0L); // docsWithFieldLength
+            meta.writeShort((short) -1); // jumpTableEntryCount
+            meta.writeByte((byte) -1); // denseRankPower
+        } else if (numDocsWithValue == maxDoc) { // meta[-1, 0]: All documents have values
+            meta.writeLong(-1); // docsWithFieldOffset
+            meta.writeLong(0L); // docsWithFieldLength
+            meta.writeShort((short) -1); // jumpTableEntryCount
+            meta.writeByte((byte) -1); // denseRankPower
+        } else { // meta[data.offset, data.length]: IndexedDISI structure for documents with values
+            long offset = data.getFilePointer();
+            meta.writeLong(offset); // docsWithFieldOffset
+            values = valuesProducer.getSortedNumeric(field);
+            final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+            meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
+            meta.writeShort(jumpTableEntryCount);
+            meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+        }
         meta.writeLong(numValues);
-        meta.writeInt(numDocsWithValue);
 
         if (numValues > 0) {
             // Special case for maxOrd of 1, signal -1 that no blocks will be written
@@ -186,26 +204,6 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
             meta.writeLong(valuesDataOffset);
             meta.writeLong(valuesDataLength);
-        }
-
-        if (numDocsWithValue == 0) { // meta[-2, 0]: No documents with values
-            meta.writeLong(-2); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else if (numDocsWithValue == maxDoc) { // meta[-1, 0]: All documents have values
-            meta.writeLong(-1); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else { // meta[data.offset, data.length]: IndexedDISI structure for documents with values
-            long offset = data.getFilePointer();
-            meta.writeLong(offset); // docsWithFieldOffset
-            values = valuesProducer.getSortedNumeric(field);
-            final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-            meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
-            meta.writeShort(jumpTableEntryCount);
-            meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
         }
 
         return new long[] { numDocsWithValue, numValues };
@@ -497,6 +495,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         long numValues = stats[1];
         assert numValues >= numDocsWithField;
 
+        meta.writeInt(numDocsWithField);
         if (numValues > numDocsWithField) {
             long start = data.getFilePointer();
             meta.writeLong(start);

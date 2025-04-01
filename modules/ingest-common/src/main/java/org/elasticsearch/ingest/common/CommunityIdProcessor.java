@@ -335,7 +335,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     }
 
     /**
-     * Represents flow data per https://github.com/corelight/community-id-spec
+     * Represents flow data per the <a href="https://github.com/corelight/community-id-spec">Community ID</a> spec.
      */
     public static final class Flow {
 
@@ -357,7 +357,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
 
         /**
          * @return true iff the source address/port is numerically less than the destination address/port as described
-         * at https://github.com/corelight/community-id-spec
+         * in the <a href="https://github.com/corelight/community-id-spec">Community ID</a> spec.
          */
         boolean isOrdered() {
             int result = new BigInteger(1, source.getAddress()).compareTo(new BigInteger(1, destination.getAddress()));

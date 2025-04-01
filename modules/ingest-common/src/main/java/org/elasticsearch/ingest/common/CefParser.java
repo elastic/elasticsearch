@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
 import java.net.InetAddress;
@@ -373,6 +374,7 @@ final class CefParser {
             removeEmptyValue(parsedExtensions);
         }
         // Translate extensions to possible ECS fields
+        final Map<String, Object> extensions = Maps.newHashMapWithExpectedSize(parsedExtensions.size());
         for (Map.Entry<String, String> entry : parsedExtensions.entrySet()) {
             ExtensionMapping mapping = EXTENSION_MAPPINGS.get(entry.getKey());
             if (mapping != null) {
@@ -382,16 +384,16 @@ final class CefParser {
                     event.addRootMapping(ecsKey, convertValueToType(entry.getValue(), mapping.dataType()));
                 } else {
                     // Add the extension to the CEF mappings if it doesn't have an ECS translation
-                    event.addExtension(mapping.key(), convertValueToType(entry.getValue(), mapping.dataType()));
+                    extensions.put(mapping.key(), convertValueToType(entry.getValue(), mapping.dataType()));
                 }
             } else {
                 // Add the extension if the key is not in the mapping
-                event.addExtension(entry.getKey(), entry.getValue());
+                extensions.put(entry.getKey(), entry.getValue());
             }
         }
         // Bang the extensions into the cef mappings
-        if (event.getExtensions().isEmpty() == false) {
-            event.addCefMapping("extensions", event.getExtensions());
+        if (extensions.isEmpty() == false) {
+            event.addCefMapping("extensions", extensions);
         }
     }
 
@@ -534,7 +536,6 @@ final class CefParser {
     public static class CEFEvent {
         private final Map<String, Object> rootMappings = new HashMap<>();
         private final Map<String, Object> cefMappings = new HashMap<>();
-        private final Map<String, Object> extensions = new HashMap<>();
 
         public void addRootMapping(String key, Object value) {
             this.rootMappings.put(key, value);
@@ -544,20 +545,12 @@ final class CefParser {
             this.cefMappings.put(key, value);
         }
 
-        public void addExtension(String key, Object value) {
-            this.extensions.put(key, value);
-        }
-
         public Map<String, Object> getRootMappings() {
             return Collections.unmodifiableMap(rootMappings);
         }
 
         public Map<String, Object> getCefMappings() {
             return Collections.unmodifiableMap(cefMappings);
-        }
-
-        Map<String, Object> getExtensions() {
-            return Collections.unmodifiableMap(extensions);
         }
     }
 

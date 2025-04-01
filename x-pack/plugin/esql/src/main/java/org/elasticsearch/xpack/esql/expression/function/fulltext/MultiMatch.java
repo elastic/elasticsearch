@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -146,9 +147,9 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
             TODO.
             TODO.""",
-        // examples = {
-        // @Example(file = "match-function", tag = "match-with-field"),
-        // @Example(file = "match-function", tag = "match-with-named-function-params") },
+        examples = {
+            @Example(file = "multi-match-function", tag = "multi-match-with-field"),
+            @Example(file = "multi-match-function", tag = "multi-match-with-named-function-params") },
         appliesTo = {
             @FunctionAppliesTo(
                 lifeCycle = FunctionAppliesToLifecycle.COMING,
@@ -176,8 +177,79 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
                     type = "float",
                     valueHint = { "2.5" },
                     description = "Floating point number used to decrease or increase the relevance scores of the query."
-                ) },
-            description = "description",
+                ),
+                @MapParam.MapParamEntry(
+                    name = "analyzer",
+                    type = "keyword",
+                    valueHint = { "standard" },
+                    description = "Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer"
+                        + " mapped for the field. If no analyzer is mapped, the index’s default analyzer is used."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "auto_generate_synonyms_phrase_query",
+                    type = "boolean",
+                    valueHint = { "true", "false" },
+                    description = "If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "fuzziness",
+                    type = "keyword",
+                    valueHint = { "AUTO", "1", "2" },
+                    description = "Maximum edit distance allowed for matching."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "fuzzy_transpositions",
+                    type = "boolean",
+                    valueHint = { "true", "false" },
+                    description = "If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). "
+                        + "Defaults to true."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "lenient",
+                    type = "boolean",
+                    valueHint = { "true", "false" },
+                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned. "
+                        + "Defaults to false."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "max_expansions",
+                    type = "integer",
+                    valueHint = { "50" },
+                    description = "Maximum number of terms to which the query will expand. Defaults to 50."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "minimum_should_match",
+                    type = "integer",
+                    valueHint = { "2" },
+                    description = "Minimum number of clauses that must match for a document to be returned."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "operator",
+                    type = "keyword",
+                    valueHint = { "AND", "OR" },
+                    description = "Boolean logic used to interpret text in the query value. Defaults to OR."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "prefix_length",
+                    type = "integer",
+                    valueHint = { "1" },
+                    description = "Number of beginning characters left unchanged for fuzzy matching. Defaults to 0."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "tie_breaker",
+                    type = "float",
+                    valueHint = { "0" },
+                    description = "Controls how score is blended together between field groups. Defaults to 0 (best score from each group)."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "type",
+                    type = "object",
+                    valueHint = { "'best_fields'" },
+                    description = "Controls internal execution strategy. Defaults to 'best_fields'."
+                ), },
+            description = "(Optional) Additional options for MultiMatch, "
+                + "passed as <<esql-function-named-params,function named parameters>>.\"\n"
+                + " See <<query-dsl-multi-match-query,multi-match query>> for more information.",
             optional = true
         ) Expression options
     ) {

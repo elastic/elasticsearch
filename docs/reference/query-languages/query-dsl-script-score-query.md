@@ -370,7 +370,6 @@ PUT my-index-000001/_doc/2
 
 POST my-index-000001/_refresh
 ```
-% TESTSETUP
 
 #### Cosine similarity [vector-functions-cosine]
 

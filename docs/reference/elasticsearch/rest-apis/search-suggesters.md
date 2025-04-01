@@ -222,7 +222,6 @@ POST test/_doc?refresh=true
 POST test/_doc?refresh=true
 {"title": "nobel prize"}
 ```
-% TESTSETUP
 
 Once you have the analyzers and mappings set up you can use the `phrase` suggester in the same spot you'd use the `term` suggester:
 
@@ -867,7 +866,6 @@ PUT place_path_category
   }
 }
 ```
-% TESTSETUP
 
 1. Defines a `category` context named *place_type* where the categories must be sent with the suggestions.
 2. Defines a `geo` context named *location* where the categories must be sent with the suggestions.

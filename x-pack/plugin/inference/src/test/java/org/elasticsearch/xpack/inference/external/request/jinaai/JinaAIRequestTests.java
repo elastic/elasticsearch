@@ -12,7 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.jinaai.JinaAIAccount;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIAccount;
 
 import java.net.URI;
 

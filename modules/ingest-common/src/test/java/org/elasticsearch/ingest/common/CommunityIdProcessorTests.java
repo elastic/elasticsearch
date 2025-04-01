@@ -271,7 +271,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
         event.put("icmp", icmp);
         testCommunityIdProcessor(event, "1:KF3iG9XD24nhlSy4r1TcYIr5mfE=");
 
-        icmp = new HashMap<String, Object>();
+        icmp = new HashMap<>();
         icmp.put("type", "3");
         icmp.put("code", "3");
         event.put("icmp", icmp);

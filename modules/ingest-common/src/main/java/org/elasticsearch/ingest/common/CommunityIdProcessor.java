@@ -255,6 +255,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     /**
      * Converts an integer in the range of an unsigned 16-bit integer to a big-endian byte pair
      */
+    // visible for testing
     static byte[] toUint16(int num) {
         if (num < 0 || num > 65535) {
             throw new IllegalStateException("number [" + num + "] must be a value between 0 and 65535");
@@ -265,7 +266,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     /**
      * Attempts to coerce an object to an integer
      */
-    static int parseIntFromObjectOrString(Object o, String fieldName) {
+    private static int parseIntFromObjectOrString(Object o, String fieldName) {
         if (o == null) {
             return 0;
         } else if (o instanceof Number number) {
@@ -336,7 +337,11 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     /**
      * Represents flow data per the <a href="https://github.com/corelight/community-id-spec">Community ID</a> spec.
      */
-    public static final class Flow {
+    private static final class Flow {
+
+        private Flow() {
+            // this is only constructable from inside this file
+        }
 
         private static final List<Transport.Type> TRANSPORTS_WITH_PORTS = List.of(
             Transport.Type.Tcp,
@@ -442,12 +447,12 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         private final Type type;
         private final int transportNumber;
 
-        Transport(int transportNumber, Type type) { // Change constructor to public
+        private Transport(int transportNumber, Type type) {
             this.transportNumber = transportNumber;
             this.type = type;
         }
 
-        Transport(Type type) { // Change constructor to public
+        private Transport(Type type) {
             this.transportNumber = type.getTransportNumber();
             this.type = type;
         }
@@ -460,7 +465,8 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             return transportNumber;
         }
 
-        public static Transport fromNumber(int transportNumber) {
+        // visible for testing
+        static Transport fromNumber(int transportNumber) {
             if (transportNumber < 0 || transportNumber >= 255) {
                 // transport numbers range https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
                 throw new IllegalArgumentException("invalid transport protocol number [" + transportNumber + "]");
@@ -483,7 +489,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             return new Transport(transportNumber, type);
         }
 
-        public static Transport fromObject(Object o) {
+        private static Transport fromObject(Object o) {
             if (o instanceof Number number) {
                 return fromNumber(number.intValue());
             } else if (o instanceof String protocolStr) {
@@ -599,7 +605,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             };
         }
 
-        public static Integer codeEquivalent(int icmpType, boolean isIpV6) {
+        private static Integer codeEquivalent(int icmpType, boolean isIpV6) {
             return isIpV6 ? ICMP_V6_CODE_EQUIVALENTS.get(icmpType) : ICMP_V4_CODE_EQUIVALENTS.get(icmpType);
         }
     }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
@@ -368,7 +369,12 @@ public class CommunityIdProcessorTests extends ESTestCase {
         );
 
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);
-        IngestDocument output = processor.execute(input);
+        IngestDocument output;
+        try {
+            output = processor.execute(input);
+        } catch (Exception e) {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
 
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class, ignoreMissing);
         assertThat(hash, equalTo(expectedHash));

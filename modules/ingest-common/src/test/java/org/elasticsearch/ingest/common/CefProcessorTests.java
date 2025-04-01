@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Map.entry;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CefProcessorTests extends ESTestCase {
@@ -46,26 +47,45 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        assertThat(cef.get("device.vendor"), equalTo("Elastic"));
-        assertThat(cef.get("device.product"), equalTo("Vaporware"));
-        assertThat(cef.get("device.version"), equalTo("1.0.0-alpha"));
-        assertThat(cef.get("device.event_class_id"), equalTo("18"));
-        assertThat(cef.get("name"), equalTo("Web request"));
-        assertThat(cef.get("severity"), equalTo("low"));
-        // ECS fields
-        assertThat(document.getFieldValue("event.id", String.class), equalTo("3457"));
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("89.160.20.156"));
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(33876));
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("192.168.10.1"));
-        assertThat(document.getFieldValue("destination.port", Integer.class), equalTo(443));
-        assertThat(document.getFieldValue("http.request.method", String.class), equalTo("POST"));
-        assertThat(document.getFieldValue("source.geo.location.lat", Double.class), equalTo(38.915));
-        assertThat(document.getFieldValue("source.geo.location.lon", Double.class), equalTo(-77.511));
-        assertThat(document.getFieldValue("network.transport", String.class), equalTo("TCP"));
-        assertThat(document.getFieldValue("source.service.name", String.class), equalTo("httpd"));
-        assertThat(document.getFieldValue("url.original", String.class), equalTo("https://www.example.com/cart"));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device.vendor", "Elastic"),
+                    entry("device.product", "Vaporware"),
+                    entry("device.version", "1.0.0-alpha"),
+                    entry("device.event_class_id", "18"),
+                    entry("name", "Web request"),
+                    entry("severity", "low")
+                )
+            ),
+            entry("observer", Map.ofEntries(entry("product", "Vaporware"), entry("vendor", "Elastic"), entry("version", "1.0.0-alpha"))),
+            entry("event", Map.ofEntries(entry("id", "3457"), entry("code", "18"))),
+            entry(
+                "source",
+                Map.ofEntries(
+                    entry("ip", "89.160.20.156"),
+                    entry("port", 33876),
+                    entry("geo", Map.ofEntries(entry("location", Map.ofEntries(entry("lon", -77.511), entry("lat", 38.915))))),
+                    entry("service", Map.ofEntries(entry("name", "httpd")))
+                )
+            ),
+            entry("destination", Map.ofEntries(entry("ip", "192.168.10.1"), entry("port", 443))),
+            entry(
+                "http",
+                Map.ofEntries(entry("request", Map.ofEntries(entry("method", "POST"), entry("referrer", "https://www.google.com"))))
+            ),
+            entry("network", Map.ofEntries(entry("transport", "TCP"))),
+            entry("url", Map.ofEntries(entry("original", "https://www.example.com/cart"))),
+            entry(
+                "message",
+                "CEF:0|Elastic|Vaporware|1.0.0-alpha|18|Web request|low|eventId=3457 requestMethod=POST "
+                    + "slat=38.915 slong=-77.511 proto=TCP sourceServiceName=httpd requestContext=https://www.google.com "
+                    + "src=89.160.20.156 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart"
+            )
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testInvalidCefFormat() {

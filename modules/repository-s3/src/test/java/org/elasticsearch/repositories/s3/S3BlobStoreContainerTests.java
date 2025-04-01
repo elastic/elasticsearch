@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -207,16 +208,16 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final S3Client client = configureMockClient(blobStore);
 
-        final ArgumentCaptor<CreateMultipartUploadRequest> createMultipartUploadRequestArgCaptor = ArgumentCaptor.forClass(
+        final var uploadId = randomIdentifier();
+        final ArgumentCaptor<CreateMultipartUploadRequest> createMultipartUploadRequestCaptor = ArgumentCaptor.forClass(
             CreateMultipartUploadRequest.class
         );
-        final CreateMultipartUploadResponse multipartUploadResponse = CreateMultipartUploadResponse.builder()
-            .uploadId(randomAlphaOfLength(10))
-            .build();
-        when(client.createMultipartUpload(createMultipartUploadRequestArgCaptor.capture())).thenReturn(multipartUploadResponse);
+        when(client.createMultipartUpload(createMultipartUploadRequestCaptor.capture())).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+        );
 
-        final ArgumentCaptor<UploadPartRequest> uploadArgCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
-        final ArgumentCaptor<RequestBody> argumentCaptorBody = ArgumentCaptor.forClass(RequestBody.class); // TODO NOMERGE: test anything?
+        final ArgumentCaptor<UploadPartRequest> uploadPartRequestCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
+        final ArgumentCaptor<RequestBody> uploadPartBodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
 
         final List<String> expectedEtags = new ArrayList<>();
         final long partSize = Math.min(bufferSize, blobSize);
@@ -226,21 +227,25 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             totalBytes += partSize;
         } while (totalBytes < blobSize);
 
-        when(client.uploadPart(uploadArgCaptor.capture(), argumentCaptorBody.capture())).thenAnswer(invocationOnMock -> {
+        when(client.uploadPart(uploadPartRequestCaptor.capture(), uploadPartBodyCaptor.capture())).thenAnswer(invocationOnMock -> {
             final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
-            final UploadPartResponse.Builder response = UploadPartResponse.builder();
-            response.eTag(expectedEtags.get(request.partNumber() - 1));
-            return response;
+            final UploadPartResponse.Builder responseBuilder = UploadPartResponse.builder();
+            responseBuilder.eTag(expectedEtags.get(request.partNumber() - 1));
+            return responseBuilder.build();
         });
 
-        final ArgumentCaptor<CompleteMultipartUploadRequest> compArgCaptor = ArgumentCaptor.forClass(CompleteMultipartUploadRequest.class);
-        when(client.completeMultipartUpload(compArgCaptor.capture())).thenReturn(CompleteMultipartUploadResponse.builder().build());
+        final ArgumentCaptor<CompleteMultipartUploadRequest> completeMultipartUploadRequestCaptor = ArgumentCaptor.forClass(
+            CompleteMultipartUploadRequest.class
+        );
+        when(client.completeMultipartUpload(completeMultipartUploadRequestCaptor.capture())).thenReturn(
+            CompleteMultipartUploadResponse.builder().build()
+        );
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[0]);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
         blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
 
-        final CreateMultipartUploadRequest initRequest = createMultipartUploadRequestArgCaptor.getValue();
+        final CreateMultipartUploadRequest initRequest = createMultipartUploadRequestCaptor.getValue();
         assertEquals(bucketName, initRequest.bucket());
         assertEquals(blobPath.buildAsString() + blobName, initRequest.key());
         assertEquals(storageClass, initRequest.storageClass());
@@ -254,35 +259,37 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final Tuple<Long, Long> numberOfParts = S3BlobContainer.numberOfMultiparts(blobSize, bufferSize);
 
-        final List<UploadPartRequest> uploadRequests = uploadArgCaptor.getAllValues();
-        assertEquals(numberOfParts.v1().intValue(), uploadRequests.size());
+        final List<UploadPartRequest> uploadPartRequests = uploadPartRequestCaptor.getAllValues();
+        assertEquals(numberOfParts.v1().intValue(), uploadPartRequests.size());
 
-        for (int i = 0; i < uploadRequests.size(); i++) {
-            final UploadPartRequest uploadRequest = uploadRequests.get(i);
+        final List<RequestBody> uploadPartBodies = uploadPartBodyCaptor.getAllValues();
+        assertEquals(numberOfParts.v1().intValue(), uploadPartBodies.size());
+
+        for (int i = 0; i < uploadPartRequests.size(); i++) {
+            final UploadPartRequest uploadRequest = uploadPartRequests.get(i);
 
             assertEquals(bucketName, uploadRequest.bucket());
             assertEquals(blobPath.buildAsString() + blobName, uploadRequest.key());
-            // TODO NOMERGE: revisit, did I do this right? Not obvious uploadRequest's ID should be multipartUploadResponse's, revisit.
-            assertEquals(multipartUploadResponse.uploadId(), uploadRequest.uploadId());
+            assertEquals(uploadId, uploadRequest.uploadId());
             assertEquals(i + 1, uploadRequest.partNumber().intValue());
-            // TODO NOMERGE: no more input stream access in the request object -- understand test and verify this is OK
-            // assertEquals(inputStream, uploadRequest.getInputStream());
 
-            if (i == (uploadRequests.size() - 1)) {
-                assertTrue(uploadRequest.sdkPartType() == SdkPartType.LAST);
-                // TODO NOMERGE: investigate numberOfMultiparts and what the values represent, to find an equivalent
-                // assertEquals(numberOfParts.v2().longValue(), uploadRequest.getPartSize());
-            } else {
-                assertFalse(uploadRequest.sdkPartType() == SdkPartType.LAST);
-                // TODO NOMERGE: investigate numberOfMultiparts and what the values represent, to find an equivalent
-                // assertEquals(bufferSize, uploadRequest.getPartSize());
-            }
+            assertEquals(
+                uploadRequest.sdkPartType() + " at " + i + " of " + uploadPartRequests.size(),
+                uploadRequest.sdkPartType() == SdkPartType.LAST,
+                i == uploadPartRequests.size() - 1
+            );
+
+            assertEquals(
+                "part " + i,
+                uploadRequest.sdkPartType() == SdkPartType.LAST ? Optional.of(numberOfParts.v2()) : Optional.of(bufferSize),
+                uploadPartBodies.get(i).optionalContentLength()
+            );
         }
 
-        final CompleteMultipartUploadRequest compRequest = compArgCaptor.getValue();
+        final CompleteMultipartUploadRequest compRequest = completeMultipartUploadRequestCaptor.getValue();
         assertEquals(bucketName, compRequest.bucket());
         assertEquals(blobPath.buildAsString() + blobName, compRequest.key());
-        assertEquals(multipartUploadResponse.uploadId(), compRequest.uploadId());
+        assertEquals(uploadId, compRequest.uploadId());
 
         final List<String> actualETags = compRequest.multipartUpload()
             .parts()

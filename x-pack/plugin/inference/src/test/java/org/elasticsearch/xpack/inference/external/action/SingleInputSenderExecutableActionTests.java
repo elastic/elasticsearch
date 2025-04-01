@@ -64,7 +64,7 @@ public class SingleInputSenderExecutableActionTests extends ESTestCase {
 
     public void testMoreThanOneInput() {
         var badInput = mock(EmbeddingsInput.class);
-        var input = List.of(new ChunkInferenceInput("one", null), new ChunkInferenceInput("two", null));
+        var input = List.of(new ChunkInferenceInput("one"), new ChunkInferenceInput("two"));
         when(badInput.getInputs()).thenReturn(input);
         when(badInput.inputSize()).thenReturn(input.size());
         var actualException = new AtomicReference<Exception>();

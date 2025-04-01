@@ -274,13 +274,14 @@ setup:
             fields:
               inference_field:
                 type: "semantic"
-                number_of_fragments: 2
+                number_of_fragments: 3
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_4" }
-  - length: { hits.hits.0.highlight.inference_field: 2 }
+  - length: { hits.hits.0.highlight.inference_field: 3 }
   - match: { hits.hits.0.highlight.inference_field.0: "Elasticsearch is an open source, distributed, RESTful, search engine which" }
   - match: { hits.hits.0.highlight.inference_field.1: " which is built on top of Lucene internally and enjoys" }
+  - match: { hits.hits.0.highlight.inference_field.2: " enjoys all the features it provides." }
 
 ---
 "We respect multiple semantic_text fields with different chunking configurations":

@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -370,12 +369,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 useLegacyFormat,
                 SEMANTIC_TEXT_FIELD,
                 null,
-                new SemanticTextField.InferenceResult(
-                    INFERENCE_ID,
-                    modelSettings,
-                    SemanticTextFieldTests.generateRandomChunkingSettings(),
-                    Map.of(SEMANTIC_TEXT_FIELD, List.of())
-                ),
+                new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, null, Map.of(SEMANTIC_TEXT_FIELD, List.of())),
                 XContentType.JSON
             );
 

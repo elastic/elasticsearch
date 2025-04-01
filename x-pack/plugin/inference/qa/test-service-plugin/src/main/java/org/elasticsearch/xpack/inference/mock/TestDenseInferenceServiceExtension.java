@@ -180,16 +180,14 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             var results = new ArrayList<ChunkedInference>();
             for (ChunkInferenceInput input : inputs) {
                 List<ChunkedInput> chunkedInput = chunkInputs(input);
-                List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>(
-                    chunkedInput.stream()
-                        .map(
-                            c -> new TextEmbeddingFloatResults.Chunk(
-                                makeResults(List.of(c.input()), serviceSettings).embeddings().get(0),
-                                new ChunkedInference.TextOffset(c.startOffset(), c.endOffset())
-                            )
+                List<TextEmbeddingFloatResults.Chunk> chunks = chunkedInput.stream()
+                    .map(
+                        c -> new TextEmbeddingFloatResults.Chunk(
+                            makeResults(List.of(c.input()), serviceSettings).embeddings().get(0),
+                            new ChunkedInference.TextOffset(c.startOffset(), c.endOffset())
                         )
-                        .toList()
-                );
+                    )
+                    .toList();
                 ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
                 results.add(chunkedInferenceEmbedding);
             }

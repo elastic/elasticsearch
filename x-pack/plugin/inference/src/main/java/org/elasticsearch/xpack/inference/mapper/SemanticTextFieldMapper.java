@@ -317,13 +317,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
          * @return A mapper with the copied settings applied
          */
         private SemanticTextFieldMapper copySettings(SemanticTextFieldMapper mapper, MapperMergeContext mapperMergeContext) {
-            SemanticTextFieldMapper returnedMapper;
-            Builder builder = from(mapper);
+            SemanticTextFieldMapper returnedMapper = mapper;
             if (mapper.fieldType().getModelSettings() == null) {
+                Builder builder = from(mapper);
                 builder.setModelSettings(modelSettings.getValue());
+                returnedMapper = builder.build(mapperMergeContext.getMapperBuilderContext());
             }
-            builder.setChunkingSettings(mapper.fieldType().getChunkingSettings());
-            return builder.build(mapperMergeContext.getMapperBuilderContext());
+
+            return returnedMapper;
         }
     }
 

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle.State;
-import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -480,13 +479,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
             .build();
         ilmService.clusterChanged(new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE));
-    }
-
-    public void testTriggeredDifferentJob() {
-        Mockito.reset(clusterService);
-        SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event("foo", randomLong(), randomLong());
-        indexLifecycleService.triggered(schedulerEvent);
-        Mockito.verifyNoMoreInteractions(indicesClient, clusterService);
     }
 
     public void testParsingOriginationDateBeforeIndexCreation() {

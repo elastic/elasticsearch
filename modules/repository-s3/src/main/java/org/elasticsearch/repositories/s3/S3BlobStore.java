@@ -255,7 +255,7 @@ class S3BlobStore implements BlobStore {
                 case PUT_OBJECT, COPY_OBJECT -> {
                     return request.getHttpMethod().name().equals("PUT");
                 }
-                case PUT_MULTIPART_OBJECT -> {
+                case PUT_MULTIPART_OBJECT, COPY_MULTIPART_OBJECT -> {
                     return request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
                 }
                 case DELETE_OBJECTS -> {
@@ -553,7 +553,8 @@ class S3BlobStore implements BlobStore {
         PUT_MULTIPART_OBJECT("PutMultipartObject"),
         DELETE_OBJECTS("DeleteObjects"),
         ABORT_MULTIPART_OBJECT("AbortMultipartObject"),
-        COPY_OBJECT("CopyObject");
+        COPY_OBJECT("CopyObject"),
+        COPY_MULTIPART_OBJECT("CopyMultipartObject");
 
         private final String key;
 

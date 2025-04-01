@@ -567,6 +567,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @param version        channel version of the request
      * @param nodeId         id of the current node
      * @param shardId        id of the shard being searched
+     * @param taskId         id of the task being executed
      * @param threadPool     with context where to write the new header
      * @return the wrapped action listener
      */
@@ -575,6 +576,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         TransportVersion version,
         String nodeId,
         ShardId shardId,
+        long taskId,
         ThreadPool threadPool
     ) {
         boolean header = true;
@@ -584,10 +586,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (header == false) {
             return listener.delegateResponse((l, e) -> {
                 org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
-                    "[%s]%s: failed to execute search request",
+                    "[%s]%s: failed to execute search request for task [%d]",
                     nodeId,
-                    shardId
+                    shardId,
+                    taskId
                 );
+                // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse
                 if (ExceptionsHelper.status(e).getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
                     logger.debug(messageSupplier, e);
                 } else {
@@ -609,6 +613,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             request.getChannelVersion(),
             clusterService.localNode().getId(),
             request.shardId(),
+            task.getId(),
             threadPool
         );
         final IndexShard shard = getShard(request);
@@ -659,6 +664,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 request.getChannelVersion(),
                 clusterService.localNode().getId(),
                 request.shardId(),
+                task.getId(),
                 threadPool
             ).delegateFailure((l, orig) -> {
                 // check if we can shortcut the query phase entirely.
@@ -865,6 +871,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             shardSearchRequest.getChannelVersion(),
             clusterService.localNode().getId(),
             shardSearchRequest.shardId(),
+            task.getId(),
             threadPool
         );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
@@ -921,6 +928,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             version,
             clusterService.localNode().getId(),
             readerContext.indexShard().shardId(),
+            task.getId(),
             threadPool
         );
         final Releasable markAsUsed;
@@ -977,6 +985,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             version,
             clusterService.localNode().getId(),
             shardSearchRequest.shardId(),
+            task.getId(),
             threadPool
         );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));

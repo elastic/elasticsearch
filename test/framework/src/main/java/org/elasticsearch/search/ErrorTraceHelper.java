@@ -71,14 +71,19 @@ public enum ErrorTraceHelper {
             mockLog.addExpectation(
                 new MockLog.PatternAndExceptionSeenEventExpectation(
                     format(
-                        "\"[%s][%s][%d]: failed to execute search request\" and an exception logged",
+                        "\"[%s][%s][%d]: failed to execute search request for task [\\d+]\" and an exception logged",
                         nodesDisjunction,
                         errorTriggeringIndex,
                         shard
                     ),
                     SearchService.class.getCanonicalName(),
                     Level.DEBUG,
-                    format("\\[%s\\]\\[%s\\]\\[%d\\]: failed to execute search request", nodesDisjunction, errorTriggeringIndex, shard),
+                    format(
+                        "\\[%s\\]\\[%s\\]\\[%d\\]: failed to execute search request for task \\[\\d+\\]",
+                        nodesDisjunction,
+                        errorTriggeringIndex,
+                        shard
+                    ),
                     QueryShardException.class,
                     "failed to create query: For input string: \"foo\""
                 )
@@ -99,7 +104,12 @@ public enum ErrorTraceHelper {
             for (int shard = 0; shard < numShards; shard++) {
                 mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
-                        "\"[%s][%s][%d]: failed to execute search request\" and an exception logged",
+                        format(
+                            "\"[%s][%s][%d]: failed to execute search request\" and an exception logged",
+                            getNodeId(nodeName),
+                            errorTriggeringIndex,
+                            shard
+                        ),
                         SearchService.class.getCanonicalName(),
                         Level.DEBUG,
                         format("[%s][%s][%d]: failed to execute search request", getNodeId(nodeName), errorTriggeringIndex, shard)

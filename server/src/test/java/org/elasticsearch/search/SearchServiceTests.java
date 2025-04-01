@@ -151,7 +151,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         e.fillInStackTrace();
         assertThat(e.getStackTrace().length, is(not(0)));
         listener.onFailure(e);
-        listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), "node", shardId, threadPool);
+        listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), "node", shardId, 123L, threadPool);
         isWrapped.set(true);
         listener.onFailure(e);
     }
@@ -160,16 +160,17 @@ public class SearchServiceTests extends IndexShardTestCase {
         final String nodeId = "node";
         final String index = "index";
         ShardId shardId = new ShardId(index, index, 0);
+        final long taskId = 123L;
 
         try (var mockLog = MockLog.capture(SearchService.class)) {
             Configurator.setLevel(SearchService.class, Level.DEBUG);
             final String exceptionMessage = "test exception message";
             mockLog.addExpectation(
                 new MockLog.ExceptionSeenEventExpectation(
-                    format("\"[%s]%s: failed to execute search request\" and an exception logged", nodeId, shardId),
+                    format("\"[%s]%s: failed to execute search request for task [%d]\" and an exception logged", nodeId, shardId, taskId),
                     SearchService.class.getCanonicalName(),
                     Level.DEBUG, // We will throw a 400-level exception, so it should only be logged at the debug level
-                    format("[%s]%s: failed to execute search request", nodeId, shardId),
+                    format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId),
                     IllegalArgumentException.class,
                     exceptionMessage
                 )
@@ -188,7 +189,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                 }
             };
             IllegalArgumentException e = new IllegalArgumentException(exceptionMessage); // 400-level exception
-            listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, threadPool);
+            listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
             listener.onFailure(e);
         }
     }
@@ -197,15 +198,16 @@ public class SearchServiceTests extends IndexShardTestCase {
         final String nodeId = "node";
         final String index = "index";
         ShardId shardId = new ShardId(index, index, 0);
+        final long taskId = 123L;
 
         try (var mockLog = MockLog.capture(SearchService.class)) {
             final String exceptionMessage = "test exception message";
             mockLog.addExpectation(
                 new MockLog.ExceptionSeenEventExpectation(
-                    format("\"[%s]%s: failed to execute search request\" and an exception logged", nodeId, shardId),
+                    format("\"[%s]%s: failed to execute search request for task [%d]\" and an exception logged", nodeId, shardId, taskId),
                     SearchService.class.getCanonicalName(),
                     Level.WARN, // We will throw a 500-level exception, so it should be logged at the warn level
-                    format("[%s]%s: failed to execute search request", nodeId, shardId),
+                    format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId),
                     IllegalStateException.class,
                     exceptionMessage
                 )
@@ -224,7 +226,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                 }
             };
             IllegalStateException e = new IllegalStateException(exceptionMessage); // 500-level exception
-            listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, threadPool);
+            listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
             listener.onFailure(e);
         }
     }

@@ -78,7 +78,10 @@ public class S3HttpHandler implements HttpHandler {
         this.bucketAndBasePath = bucket + (Strings.hasText(basePath) ? "/" + basePath : "");
     }
 
-    private static final Set<String> NO_REQUEST_BODY_METHODS = Set.of("GET", "HEAD", "DELETE");
+    /**
+     * Requests using these HTTP methods never have a request body (this is checked in the handler).
+     */
+    private static final Set<String> METHODS_HAVING_NO_REQUEST_BODY = Set.of("GET", "HEAD", "DELETE");
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
@@ -86,7 +89,7 @@ public class S3HttpHandler implements HttpHandler {
         // https://docs.aws.amazon.com/AmazonS3/latest/userguide/LogFormat.html#LogFormatCustom
         final S3Request request = parseRequest(exchange);
 
-        if (NO_REQUEST_BODY_METHODS.contains(request.method())) {
+        if (METHODS_HAVING_NO_REQUEST_BODY.contains(request.method())) {
             int read = exchange.getRequestBody().read();
             assert read == -1 : "Request body should have been empty but saw [" + read + "]";
         }
@@ -569,7 +572,7 @@ public class S3HttpHandler implements HttpHandler {
         }
 
         public boolean isHeadObjectRequest() {
-            return "HEAD".equals(method) && path.startsWith("/" + S3HttpHandler.this.bucketAndBasePath + "/");
+            return "HEAD".equals(method) && isUnderBucketRootAndBasePath();
         }
 
         public boolean isListMultipartUploadsRequest() {

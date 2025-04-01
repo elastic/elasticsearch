@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,7 +21,9 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SampleExec extends UnaryExec {
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+
+public class SampleExec extends UnaryExec implements PostPhysicalOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "SampleExec",
@@ -95,5 +99,16 @@ public class SampleExec extends UnaryExec {
         var other = (SampleExec) obj;
 
         return Objects.equals(child(), other.child()) && Objects.equals(probability, other.probability) && Objects.equals(seed, other.seed);
+    }
+
+    @Override
+    public void postPhysicalOptimizationVerification(Failures failures) {
+        // It's currently impossible in ES|QL to handle all data in deterministic order, therefore
+        // a fixed random seed in the sample operator doesn't work as intended and is disallowed.
+        // TODO: fix this.
+        if (seed != null) {
+            // TODO: what should the error message here be? This doesn't seem right.
+            failures.add(fail(seed, "Seed not supported when sampling can't be pushed down to Lucene"));
+        }
     }
 }

@@ -7839,7 +7839,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *                  query[{"bool":{"filter":[{"sampling":{"probability":0.1,"seed":234,"hash":0}}],"boost":1.0}}]
      *                  [_doc{f}#24], limit[1000], sort[] estimatedRowSize[332]
      */
-    public void testRandomSamplePushDown() {
+    public void testSamplePushDown() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
         var plan = physicalPlan("""
             FROM test
             | SAMPLE +0.1 -234
@@ -7858,6 +7860,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(randomSampling.probability(), equalTo(0.1));
         assertThat(randomSampling.seed(), equalTo(-234));
         assertThat(randomSampling.hash(), equalTo(0));
+    }
+
+    public void testSample_seedNotSupportedInOperator() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        optimizedPlan(physicalPlan("FROM test | SAMPLE 0.1"));
+        optimizedPlan(physicalPlan("FROM test | SAMPLE 0.1 42"));
+        optimizedPlan(physicalPlan("FROM test | MV_EXPAND first_name | SAMPLE 0.1"));
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> optimizedPlan(physicalPlan("FROM test | MV_EXPAND first_name | SAMPLE 0.1 42"))
+        );
+        assertThat(e.getMessage(), equalTo("Found 1 problem\nline 1:47: Seed not supported when sampling can't be pushed down to Lucene"));
     }
 
     @SuppressWarnings("SameParameterValue")
@@ -8043,7 +8059,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
-        // System.out.println(physical);
+        // System.out.println("Physical\n" + physical);
         if (assertSerialization) {
             assertSerialization(physical);
         }

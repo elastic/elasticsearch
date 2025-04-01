@@ -35,6 +35,7 @@ public class ChunkingSettingsBuilder {
         return switch (chunkingStrategy) {
             case WORD -> WordBoundaryChunkingSettings.fromMap(settings);
             case SENTENCE -> SentenceBoundaryChunkingSettings.fromMap(settings);
+            case RECURSIVE -> RecursiveChunkingSettings.fromMap(settings);
         };
     }
 }

@@ -33,8 +33,6 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.compute.lucene.LuceneOperator.weightFunction;
-
 /**
  * Creates a source operator that takes advantage of the natural sorting of segments in a tsdb index.
  * <p>

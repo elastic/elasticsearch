@@ -135,9 +135,7 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
             true,
             constructHealthInfo(
                 new DataStreamLifecycleHealthInfo(
-                    List.of(
-                        new DslErrorInfo(index1, 1L, 100, projectId1),
-                        new DslErrorInfo(index2, 3L, 100, projectId2)),
+                    List.of(new DslErrorInfo(index1, 1L, 100, projectId1), new DslErrorInfo(index2, 3L, 100, projectId2)),
                     15
                 )
             )

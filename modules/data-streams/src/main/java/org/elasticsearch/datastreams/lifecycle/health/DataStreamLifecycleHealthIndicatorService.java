@@ -114,8 +114,11 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean verbose, DataStreamLifecycleHealthInfo dataStreamLifecycleHealthInfo,
-                                                        boolean supportsMultipleProjects) {
+    private static HealthIndicatorDetails createDetails(
+        boolean verbose,
+        DataStreamLifecycleHealthInfo dataStreamLifecycleHealthInfo,
+        boolean supportsMultipleProjects
+    ) {
         if (verbose == false) {
             return HealthIndicatorDetails.EMPTY;
         }

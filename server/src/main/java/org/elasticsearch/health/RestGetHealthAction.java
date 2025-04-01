@@ -65,9 +65,9 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Sets.union(Set.of(
-            CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY,
-            CAPABILITY_MULTI_PROJECT_DATA_STREAM_LIFECYCLE),
-            super.supportedCapabilities());
+        return Sets.union(
+            Set.of(CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY, CAPABILITY_MULTI_PROJECT_DATA_STREAM_LIFECYCLE),
+            super.supportedCapabilities()
+        );
     }
 }

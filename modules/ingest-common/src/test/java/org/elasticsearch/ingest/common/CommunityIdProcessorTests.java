@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class CommunityIdProcessorTests extends ESTestCase {
 
     // NOTE: all test methods beginning with "testBeats" are intended to duplicate the unit tests for the Beats
-    // community_id processor (see Github link below) to ensure that this processor produces the same values. To
+    // community_id processor (see GitHub link below) to ensure that this processor produces the same values. To
     // the extent possible, these tests should be kept in sync.
     //
     // https://github.com/elastic/beats/blob/master/libbeat/processors/communityid/communityid_test.go

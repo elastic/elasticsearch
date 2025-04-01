@@ -29,12 +29,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
@@ -82,6 +81,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
@@ -605,8 +605,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCircuitBreakerTripsOnEstimatedInferenceBytes() {
-        final CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(1));
+    public void testIndexingPressureTripsOnEstimatedInferenceBytes() {
+        final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
+            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "1b").build()
+        );
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -614,7 +616,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             useLegacyFormat,
             true
         );
-        filter.setInferenceBytesCircuitBreaker(circuitBreaker);
+        filter.setIndexingPressure(indexingPressure);
 
         ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
             fail("Downstream elements of the action filter chain should not execute");
@@ -641,8 +643,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString("Insufficient memory available to perform inference on bulk request"));
         assertThat(exception.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
-        assertThat(exception.getCause(), instanceOf(CircuitBreakingException.class));
-        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+        assertThat(exception.getCause(), instanceOf(EsRejectedExecutionException.class));
+
+        IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+        assertThat(coordinatingIndexingPressure, notNullValue());
+        verify(coordinatingIndexingPressure).close();
     }
 
     @SuppressWarnings("unchecked")

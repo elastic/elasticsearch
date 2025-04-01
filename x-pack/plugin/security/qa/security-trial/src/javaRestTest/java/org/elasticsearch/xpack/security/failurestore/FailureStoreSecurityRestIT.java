@@ -33,6 +33,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -1132,6 +1133,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
                         expectThrows(user, request, 403);
+                        // also check authz message
+                        expectThrowsUnauthorized(
+                            user,
+                            request,
+                            containsString("this action is granted by the index privileges [read,all]")
+                        );
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1317,6 +1324,15 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectThrows(user, request, 403);
+                        // also check authz message
+                        expectThrowsUnauthorized(
+                            user,
+                            request,
+                            containsString(
+                                "this action is granted by the index privileges [read,all] for data access, "
+                                    + "or by [read_failure_store] for access with the [::failures] selector"
+                            )
+                        );
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
@@ -2327,6 +2343,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private static void expectThrows(ThrowingRunnable runnable, int statusCode) {
         var ex = expectThrows(ResponseException.class, runnable);
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
+    }
+
+    private void expectThrowsUnauthorized(String user, Search search, Matcher<String> errorMatcher) {
+        ResponseException ex = expectThrows(ResponseException.class, () -> performRequestMaybeUsingApiKey(user, search.toSearchRequest()));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(ex.getMessage(), errorMatcher);
     }
 
     private void expectThrows(String user, Search search, int statusCode) {

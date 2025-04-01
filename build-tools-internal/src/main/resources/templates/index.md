@@ -3,8 +3,6 @@ navigation_title: "Elasticsearch"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-release-notes.html
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-release-notes.html
-  - https://www.elastic.co/guide/en/elasticsearch/reference/master/release-notes-${unqualifiedVersion}.html
-  - https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-${version.major}.${version.minor}.html
 ---
 
 # Elasticsearch release notes [elasticsearch-release-notes]
@@ -22,9 +20,16 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 % ### Fixes [elasticsearch-next-fixes]
 % *
-
+<%
+for(bundle in changelogBundles) {
+    def version = bundle.version
+    def versionWithoutSeparator = bundle.versionWithoutSeparator
+    def changelogsByTypeByArea = bundle.changelogsByTypeByArea
+    def notableHighlights = bundle.notableHighlights
+    def nonNotableHighlights = bundle.nonNotableHighlights
+    def unqualifiedVersion = bundle.unqualifiedVersion
+%>
 ## ${unqualifiedVersion} [elasticsearch-${versionWithoutSeparator}-release-notes]
-**Release date:** April 01, 2025
 <%
 if (!notableHighlights.isEmpty() || !nonNotableHighlights.isEmpty()) {
     print "\n### Highlights [elasticsearch-${versionWithoutSeparator}-highlights]\n"
@@ -62,4 +67,5 @@ for (changeType in ['features-enhancements', 'fixes', 'regression']) {
     }
 }
 }
-print "\n\n"
+print "\n"
+}

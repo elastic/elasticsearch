@@ -15,6 +15,8 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +34,17 @@ import static java.util.stream.Collectors.toList;
  * type of change, then by team area.
  */
 public class ReleaseNotesGenerator {
+
+    private record ChangelogsBundleWrapper(
+        QualifiedVersion version,
+        ChangelogBundle bundle,
+        Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea,
+        QualifiedVersion unqualifiedVersion,
+        String versionWithoutSeparator,
+        List<ChangelogEntry.Highlight> notableHighlights,
+        List<ChangelogEntry.Highlight> nonNotableHighlights
+    ) {}
+
     /**
      * These mappings translate change types into the headings as they should appear in the release notes.
      */
@@ -56,35 +69,67 @@ public class ReleaseNotesGenerator {
      */
     private static final List<String> FEATURE_ENHANCEMENT_TYPES = List.of("feature", "new-aggregation", "enhancement", "upgrade");
 
-    static void update(File templateFile, File outputFile, QualifiedVersion version, Set<ChangelogEntry> changelogs) throws IOException {
+    static void update(File templateFile, File outputFile, List<ChangelogBundle> bundles) throws IOException {
         final String templateString = Files.readString(templateFile.toPath());
 
         try (FileWriter output = new FileWriter(outputFile)) {
-            output.write(generateFile(templateString, version, changelogs));
+            output.write(generateFile(templateString, bundles));
         }
     }
 
     @VisibleForTesting
-    static String generateFile(String template, QualifiedVersion version, Set<ChangelogEntry> changelogs) throws IOException {
-        final var changelogsByTypeByArea = buildChangelogBreakdown(changelogs);
+    static String generateFile(String template, List<ChangelogBundle> bundles) throws IOException {
+        var bundlesWrapped = new ArrayList<ChangelogsBundleWrapper>();
 
-        final Map<Boolean, List<ChangelogEntry.Highlight>> groupedHighlights = changelogs.stream()
-            .map(ChangelogEntry::getHighlight)
-            .filter(Objects::nonNull)
-            .sorted(comparingInt(ChangelogEntry.Highlight::getPr))
-            .collect(groupingBy(ChangelogEntry.Highlight::isNotable, toList()));
+        for (var bundle : bundles) {
+            var changelogs = bundle.changelogs();
+            final var changelogsByTypeByArea = buildChangelogBreakdown(changelogs);
 
-        final List<ChangelogEntry.Highlight> notableHighlights = groupedHighlights.getOrDefault(true, List.of());
-        final List<ChangelogEntry.Highlight> nonNotableHighlights = groupedHighlights.getOrDefault(false, List.of());
+            final Map<Boolean, List<ChangelogEntry.Highlight>> groupedHighlights = changelogs.stream()
+                .map(ChangelogEntry::getHighlight)
+                .filter(Objects::nonNull)
+                .sorted(comparingInt(ChangelogEntry.Highlight::getPr))
+                .collect(groupingBy(ChangelogEntry.Highlight::isNotable, toList()));
+
+            final var notableHighlights = groupedHighlights.getOrDefault(true, List.of());
+            final var nonNotableHighlights = groupedHighlights.getOrDefault(false, List.of());
+
+            final var version = QualifiedVersion.of(bundle.version());
+            final var versionWithoutSeparator = version.withoutQualifier().toString().replaceAll("\\.", "");
+
+            final var wrapped = new ChangelogsBundleWrapper(
+                version,
+                bundle,
+                changelogsByTypeByArea,
+                version.withoutQualifier(),
+                versionWithoutSeparator,
+                notableHighlights,
+                nonNotableHighlights
+            );
+
+            bundlesWrapped.add(wrapped);
+        }
+
+        // final var changelogsByTypeByArea = buildChangelogBreakdown(changelogs);
+        //
+        // final Map<Boolean, List<ChangelogEntry.Highlight>> groupedHighlights = changelogs.stream()
+        // .map(ChangelogEntry::getHighlight)
+        // .filter(Objects::nonNull)
+        // .sorted(comparingInt(ChangelogEntry.Highlight::getPr))
+        // .collect(groupingBy(ChangelogEntry.Highlight::isNotable, toList()));
+        //
+        // final List<ChangelogEntry.Highlight> notableHighlights = groupedHighlights.getOrDefault(true, List.of());
+        // final List<ChangelogEntry.Highlight> nonNotableHighlights = groupedHighlights.getOrDefault(false, List.of());
 
         final Map<String, Object> bindings = new HashMap<>();
-        bindings.put("version", version);
-        bindings.put("changelogsByTypeByArea", changelogsByTypeByArea);
+        // bindings.put("version", version);
+        // bindings.put("changelogsByTypeByArea", changelogsByTypeByArea);
         bindings.put("TYPE_LABELS", TYPE_LABELS);
-        bindings.put("unqualifiedVersion", version.withoutQualifier());
-        bindings.put("versionWithoutSeparator", version.withoutQualifier().toString().replaceAll("\\.", ""));
-        bindings.put("notableHighlights", notableHighlights);
-        bindings.put("nonNotableHighlights", nonNotableHighlights);
+        // bindings.put("unqualifiedVersion", version.withoutQualifier());
+        // bindings.put("versionWithoutSeparator", version.withoutQualifier().toString().replaceAll("\\.", ""));
+        // bindings.put("notableHighlights", notableHighlights);
+        // bindings.put("nonNotableHighlights", nonNotableHighlights);
+        bindings.put("changelogBundles", bundlesWrapped);
 
         return TemplateUtils.render(template, bindings);
     }
@@ -109,7 +154,7 @@ public class ReleaseNotesGenerator {
         return entry.getType();
     }
 
-    private static Map<String, Map<String, List<ChangelogEntry>>> buildChangelogBreakdown(Set<ChangelogEntry> changelogs) {
+    private static Map<String, Map<String, List<ChangelogEntry>>> buildChangelogBreakdown(Collection<ChangelogEntry> changelogs) {
         Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea = changelogs.stream()
             .collect(
                 groupingBy(

@@ -2,12 +2,13 @@
 
 ## `MULTI_MATCH` [esql-multi_match]
 :::{warning}
-###### COMING 9.1.0
-
 Do not use on production environments. This functionality is in technical preview and
 may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview
 are not subject to the support SLA of official GA features.
+:::
 
+:::{note}
+###### Serverless: GA, Elastic Stack: COMING 9.1.0
 Support for optional named parameters is only available from 9.1.0
 :::
 
@@ -29,4 +30,7 @@ Support for optional named parameters is only available from 9.1.0
 :::
 
 :::{include} ../functionNamedParams/multi_match.md
+:::
+
+:::{include} ../examples/multi_match.md
 :::

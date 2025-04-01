@@ -9,3 +9,10 @@ The multi_match query builds on the match query to allow multi-field queries.
 TODO.
 TODO.
 
+```esql
+FROM books
+| WHERE MULTI_MATCH("Faulkner", author, description, {"fuzziness": 1})
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+```

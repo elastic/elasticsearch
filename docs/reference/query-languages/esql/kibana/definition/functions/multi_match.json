@@ -21,9 +21,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -46,9 +46,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -71,9 +71,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -96,9 +96,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -121,9 +121,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -146,9 +146,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -171,9 +171,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -196,9 +196,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -221,9 +221,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -246,9 +246,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -271,9 +271,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -296,9 +296,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -321,9 +321,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -346,9 +346,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -371,9 +371,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -396,9 +396,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -421,9 +421,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -446,9 +446,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -471,9 +471,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -496,9 +496,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -521,9 +521,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -546,9 +546,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -571,9 +571,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -596,9 +596,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -621,9 +621,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -646,9 +646,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -671,9 +671,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -696,9 +696,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
@@ -721,14 +721,18 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}, {name='type', values=['best_fields'], description='Controls internal execution strategy. Defaults to 'best_fields'.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}",
           "optional" : true,
-          "description" : "description"
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
         }
       ],
       "variadic" : true,
       "returnType" : "boolean"
     }
+  ],
+  "examples" : [
+    "FROM books\n| WHERE MULTI_MATCH(\"Faulkner\", author, description, {\"fuzziness\": 1})\n| KEEP book_no, author\n| SORT book_no\n| LIMIT 5",
+    "FROM books\n| WHERE MULTI_MATCH(\"Hobbit Back Again\", title, description, {\"operator\": \"AND\"})\n| KEEP title;"
   ],
   "preview" : true,
   "snapshot_only" : false

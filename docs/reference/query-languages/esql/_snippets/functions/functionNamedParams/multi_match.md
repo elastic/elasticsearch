@@ -2,6 +2,39 @@
 
 **Supported function named parameters**
 
+`fuzziness`
+:   (keyword) Maximum edit distance allowed for matching.
+
+`auto_generate_synonyms_phrase_query`
+:   (boolean) If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.
+
+`analyzer`
+:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.
+
+`minimum_should_match`
+:   (integer) Minimum number of clauses that must match for a document to be returned.
+
 `boost`
 :   (float) Floating point number used to decrease or increase the relevance scores of the query.
+
+`fuzzy_transpositions`
+:   (boolean) If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.
+
+`tie_breaker`
+:   (float) Controls how score is blended together between field groups. Defaults to 0 (best score from each group).
+
+`prefix_length`
+:   (integer) Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.
+
+`type`
+:   (object) Controls internal execution strategy. Defaults to 'best_fields'.
+
+`lenient`
+:   (boolean) If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.
+
+`operator`
+:   (keyword) Boolean logic used to interpret text in the query value. Defaults to OR.
+
+`max_expansions`
+:   (integer) Maximum number of terms to which the query will expand. Defaults to 50.
 

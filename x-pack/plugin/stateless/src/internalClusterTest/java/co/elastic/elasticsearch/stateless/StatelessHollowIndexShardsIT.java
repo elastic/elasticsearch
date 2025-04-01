@@ -943,11 +943,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
 
         final var docsIdsGenerator = new AtomicLong();
         final Supplier<String> docIdSupplier = () -> Long.toHexString(docsIdsGenerator.getAndIncrement());
-        var bulkResponse = indexDocs(indexName, between(16, 128), docIdSupplier);
+        var bulkResponse = indexDocs(indexName, between(64, 128), docIdSupplier); // need enough docs for ingesting into all shards
         var docsIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).collect(Collectors.toCollection(HashSet::new));
 
         flush(indexName);
-        bulkResponse = indexDocs(indexName, between(16, 128), docIdSupplier);
+        bulkResponse = indexDocs(indexName, between(64, 128), docIdSupplier); // need enough docs for ingesting into all shards
         Arrays.stream(bulkResponse.getItems()).forEach(item -> docsIds.add(item.getId()));
         var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
         for (int i = 0; i < numberOfShards; i++) {
@@ -989,7 +989,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                     // Index docs
                     case Index -> () -> {
                         try {
-                            indexDocs(indexName, randomIntBetween(16, 64));
+                            indexDocs(indexName, randomIntBetween(64, 128)); // need enough ops to ensure unhollowing all shards
                         } finally {
                             ingestLatch.countDown();
                         }

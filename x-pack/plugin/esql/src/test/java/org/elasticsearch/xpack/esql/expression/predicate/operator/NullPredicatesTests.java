@@ -83,7 +83,7 @@ public class NullPredicatesTests extends ESTestCase {
         @FunctionInfo(
             operator = "predicates",
             returnType = {},
-            description = "For NULL comparison use the `IS NULL` and `IS NOT NULL` predicates:",
+            description = "For NULL comparison use the `IS NULL` and `IS NOT NULL` predicates.",
             examples = { @Example(file = "null", tag = "is-null"), @Example(file = "null", tag = "is-not-null") }
         )
         public TestNullPredicates(
@@ -151,7 +151,7 @@ public class NullPredicatesTests extends ESTestCase {
         @FunctionInfo(
             operator = "predicates",
             returnType = {},
-            description = "Use `IS NOT NULL` to filter data based on whether the field exists or not:",
+            description = "Use `IS NOT NULL` to filter data based on whether the field exists or not.",
             examples = { @Example(file = "null", tag = "is-not-null") }
         )
         public TestIsNotNullPredicate(

@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "predicates",
   "name" : "is_not_null",
-  "description" : "Use `IS NOT NULL` to filter data based on whether the field exists or not:",
+  "description" : "Use `IS NOT NULL` to filter data based on whether the field exists or not.",
   "signatures" : [
     {
       "params" : [

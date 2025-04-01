@@ -226,7 +226,7 @@ public class ClusterModule extends AbstractModule {
             RepositoryCleanupInProgress::readDiffFrom
         );
         // Metadata
-        registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
+        registerProjectCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
         registerProjectCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
         registerProjectCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
         registerProjectCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
@@ -283,7 +283,7 @@ public class ClusterModule extends AbstractModule {
         // Metadata
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ClusterCustom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(RepositoriesMetadata.TYPE),
                 RepositoriesMetadata::fromXContent
             )

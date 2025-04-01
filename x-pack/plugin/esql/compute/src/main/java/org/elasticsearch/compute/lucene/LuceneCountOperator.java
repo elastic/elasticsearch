@@ -49,7 +49,7 @@ public class LuceneCountOperator extends LuceneOperator {
             int taskConcurrency,
             int limit
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, ScoreMode.COMPLETE_NO_SCORES);
+            super(contexts, weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES), dataPartitioning, taskConcurrency, limit, false);
         }
 
         @Override

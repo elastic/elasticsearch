@@ -482,10 +482,13 @@ public final class IndexPrivilege extends Privilege {
      * @see Privilege#sortByAccessLevel
      */
     public static Collection<String> findPrivilegesThatGrant(String action) {
+        return findPrivilegesThatGrant(action, p -> p.getSelectorPredicate().test(IndexComponentSelector.DATA));
+    }
+
+    public static Collection<String> findPrivilegesThatGrant(String action, Predicate<IndexPrivilege> preCondition) {
         return VALUES.entrySet()
             .stream()
-            // Only include privileges that grant data access; failures access is handled separately in authorization failure messages
-            .filter(e -> e.getValue().selectorPredicate.test(IndexComponentSelector.DATA))
+            .filter(e -> preCondition.test(e.getValue()))
             .filter(e -> e.getValue().predicate.test(action))
             .map(Map.Entry::getKey)
             .toList();

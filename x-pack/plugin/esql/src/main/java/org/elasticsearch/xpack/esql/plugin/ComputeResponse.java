@@ -19,7 +19,7 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.TransportVersions.ESQL_VALUES_LOADED;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
 
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
@@ -58,7 +58,7 @@ final class ComputeResponse extends TransportResponse {
     }
 
     ComputeResponse(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED)) {
+        if (in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
             completionInfo = new DriverCompletionInfo(in);
         } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
@@ -92,7 +92,7 @@ final class ComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED)) {
+        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
             completionInfo.writeTo(out);
         } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(true);

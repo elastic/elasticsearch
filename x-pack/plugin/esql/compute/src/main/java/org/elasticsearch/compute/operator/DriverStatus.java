@@ -151,8 +151,13 @@ public record DriverStatus(
      * The number of documents found by this driver.
      */
     public long documentsFound() {
-        long documentsFound = completedOperators.stream().mapToLong(OperatorStatus::documentsFound).sum();
-        documentsFound += activeOperators.stream().mapToLong(OperatorStatus::documentsFound).sum();
+        long documentsFound = 0;
+        for (OperatorStatus s : completedOperators) {
+            documentsFound += s.documentsFound();
+        }
+        for (OperatorStatus s : activeOperators) {
+            documentsFound += s.documentsFound();
+        }
         return documentsFound;
     }
 
@@ -160,8 +165,13 @@ public record DriverStatus(
      * The number of values loaded by this operator.
      */
     public long valuesLoaded() {
-        long valuesLoaded = completedOperators.stream().mapToLong(OperatorStatus::valuesLoaded).sum();
-        valuesLoaded += activeOperators.stream().mapToLong(OperatorStatus::valuesLoaded).sum();
+        long valuesLoaded = 0;
+        for (OperatorStatus s : completedOperators) {
+            valuesLoaded += s.valuesLoaded();
+        }
+        for (OperatorStatus s : activeOperators) {
+            valuesLoaded += s.valuesLoaded();
+        }
         return valuesLoaded;
     }
 

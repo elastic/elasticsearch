@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.TransportVersions.ESQL_VALUES_LOADED;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
 
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
     implements
@@ -119,8 +119,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
-        long documentsFound = in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED) ? in.readVLong() : 0;
-        long valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED) ? in.readVLong() : 0;
+        long documentsFound = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
+        long valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::new);
         }
@@ -152,7 +152,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         out.writeCollection(columns);
         out.writeCollection(pages);
-        if (out.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED)) {
+        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
             out.writeVLong(documentsFound);
             out.writeVLong(valuesLoaded);
         }

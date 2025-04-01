@@ -188,7 +188,7 @@ basic with documents_found:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [documents_found]
+          capabilities: [documents_found_and_values_loaded]
       reason: "checks for documents_found and values_loaded"
 
   - do:
@@ -228,7 +228,7 @@ FROM EVAL SORT LIMIT with documents_found:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [documents_found]
+          capabilities: [documents_found_and_values_loaded]
       reason: "checks for documents_found and values_loaded"
 
   - do:

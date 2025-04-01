@@ -17,7 +17,7 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.TransportVersions.ESQL_VALUES_LOADED;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
 
 /**
  * The compute result of {@link DataNodeRequest}
@@ -32,7 +32,7 @@ final class DataNodeComputeResponse extends TransportResponse {
     }
 
     DataNodeComputeResponse(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED)) {
+        if (in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
             this.completionInfo = new DriverCompletionInfo(in);
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;
@@ -48,7 +48,7 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED)) {
+        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
             completionInfo.writeTo(out);
             out.writeMap(shardLevelFailures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
             return;

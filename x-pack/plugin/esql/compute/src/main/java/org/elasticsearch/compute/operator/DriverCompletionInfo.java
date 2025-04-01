@@ -20,7 +20,10 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Information returned when one of more {@link Driver}s is completed.
  * @param documentsFound The number of documents found by all lucene queries performed by these drivers.
- * @param valuesLoaded The number of values loaded from lucene for all drivers.
+ * @param valuesLoaded The number of values loaded from lucene for all drivers. This is
+ *                     <strong>roughly</strong> the number of documents times the number of
+ *                     fields per document. Except {@code null} values don't count.
+ *                     And multivalued fields count as many times as there are values.
  * @param collectedProfiles {@link DriverProfile}s from each driver. These are fairly cheap to build but
  *                          not free so this will be empty if the {@code profile} option was not set in
  *                          the request.

@@ -47,7 +47,7 @@ import java.util.TreeMap;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.ESQL_VALUES_LOADED;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -582,18 +582,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         Status(StreamInput in) throws IOException {
             super(in);
             readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
-            if (in.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED)) {
-                valuesLoaded = in.readVLong();
-            } else {
-                valuesLoaded = 0;
-            }
+            valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeMap(readersBuilt, StreamOutput::writeVInt);
-            if (out.getTransportVersion().onOrAfter(ESQL_VALUES_LOADED)) {
+            if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
                 out.writeVLong(valuesLoaded);
             }
         }

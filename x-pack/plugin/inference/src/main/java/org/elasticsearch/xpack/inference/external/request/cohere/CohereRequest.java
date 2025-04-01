@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.external.request.cohere;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 

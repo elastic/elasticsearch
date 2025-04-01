@@ -122,16 +122,6 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
         return embeddings.stream().map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING, embedding.asDoubleArray(), false)).toList();
     }
 
-    @Override
-    @SuppressWarnings("deprecation")
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        var legacyEmbedding = new LegacyTextEmbeddingResults(
-            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.values)).toList()
-        );
-
-        return List.of(legacyEmbedding);
-    }
-
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(TEXT_EMBEDDING, embeddings);

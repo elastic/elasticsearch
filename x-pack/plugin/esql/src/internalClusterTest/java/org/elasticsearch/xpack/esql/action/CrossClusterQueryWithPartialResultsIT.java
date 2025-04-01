@@ -106,7 +106,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         {
             request.allowPartialResults(false);
             Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
-            error = EsqlTestUtils.unwrapIfWrappedInRemoteComputeException(error);
+            error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
 
             assertThat(error, instanceOf(IllegalStateException.class));
             assertThat(error.getMessage(), containsString("Accessing failing field"));
@@ -194,7 +194,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             {
                 request.allowPartialResults(false);
                 Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
-                error = EsqlTestUtils.unwrapIfWrappedInRemoteComputeException(error);
+                error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
                 var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
                 assertNotNull(unwrapped);
                 assertThat(unwrapped.getMessage(), equalTo(simulatedFailure.getMessage()));
@@ -242,7 +242,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             {
                 request.allowPartialResults(false);
                 Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
-                error = EsqlTestUtils.unwrapIfWrappedInRemoteComputeException(error);
+                error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
                 EsqlTestUtils.assertEsqlFailure(error);
                 var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
                 assertNotNull(unwrapped);

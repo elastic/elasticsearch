@@ -345,8 +345,8 @@ public class ComputeService {
                             /*
                              * At various points, when collecting failures before sending a response, we manually check
                              * if an ex is a transport error and if it is, we unwrap it. Because we're wrapping an ex
-                             * in RemoteComputeException, the checks fail and unwrapping does not happen. We offload
-                             * the unwrapping to here.
+                             * in RemoteException, the checks fail and unwrapping does not happen. We offload the
+                             * unwrapping to here.
                              *
                              * Note: The other error we explicitly check for is TaskCancelledException which is never
                              * wrapped.

@@ -164,7 +164,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
-        error = EsqlTestUtils.unwrapIfWrappedInRemoteComputeException(error);
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
         assertThat(error.getMessage(), containsString("proxy timeout"));
     }
 
@@ -286,7 +286,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         }
 
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
-        error = EsqlTestUtils.unwrapIfWrappedInRemoteComputeException(error);
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
         assertThat(error, instanceOf(TaskCancelledException.class));
     }
 }

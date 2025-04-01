@@ -861,12 +861,12 @@ public final class EsqlTestUtils {
     }
 
     /**
-     * Errors from remotes are wrapped in RemoteComputeException while the ones from the local cluster
+     * Errors from remotes are wrapped in RemoteException while the ones from the local cluster
      * aren't. This utility method is useful for unwrapping in such cases.
      * @param e Exception to unwrap.
-     * @return Cause of RemoteComputeException, else the error itself.
+     * @return Cause of RemoteException, else the error itself.
      */
-    public static Exception unwrapIfWrappedInRemoteComputeException(Exception e) {
+    public static Exception unwrapIfWrappedInRemoteException(Exception e) {
         if (e instanceof RemoteException rce) {
             return (Exception) rce.getCause();
         } else {

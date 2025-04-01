@@ -817,7 +817,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         String q = Strings.format("FROM %s,cluster-a:%s*", localIndex, remote1Index);
 
         Exception error = expectThrows(Exception.class, () -> runQuery(q, false));
-        error = EsqlTestUtils.unwrapIfWrappedInRemoteComputeException(error);
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
 
         assertThat(error, instanceOf(IllegalStateException.class));
         assertThat(error.getMessage(), containsString("Accessing failing field"));

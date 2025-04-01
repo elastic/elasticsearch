@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlGetQueryResponse;
 
 public class EsqlGetQueryAction extends ActionType<EsqlGetQueryResponse> {
     public static final EsqlGetQueryAction INSTANCE = new EsqlGetQueryAction();
-    public static final String NAME = "cluster:monitor/xpack/esql/get_queries";
+    public static final String NAME = "cluster:monitor/xpack/esql/get_query";
 
     private EsqlGetQueryAction() {
         super(NAME);

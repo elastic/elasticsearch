@@ -209,7 +209,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     ) {
 
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
-        final var httpClient = S3Service.buildHttpClient(clientSettings);
+        final var httpClient = S3Service.buildHttpClient(clientSettings, null);
         final ClientOverrideConfiguration configuration = S3Service.buildConfiguration(clientSettings, false);
 
         // TODO NOMERGE

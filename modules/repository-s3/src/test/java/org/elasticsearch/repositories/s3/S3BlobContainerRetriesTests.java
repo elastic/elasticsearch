@@ -17,6 +17,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -66,8 +67,10 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.security.MessageDigest;
@@ -112,12 +115,26 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     private static final int MAX_NUMBER_SNAPSHOT_DELETE_RETRIES = 10;
     private S3Service service;
-    // private AtomicBoolean shouldErrorOnDns; // TODO NOMERGE do we need to cover this too?
+    private volatile boolean shouldErrorOnDns;
     private RecordingMeterRegistry recordingMeterRegistry;
 
     @Before
     public void setUp() throws Exception {
-        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class));
+        shouldErrorOnDns = false;
+        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class)) {
+            private InetAddress[] resolveHost(String host) throws UnknownHostException {
+                assertEquals("127.0.0.1", host);
+                if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {
+                    throw new UnknownHostException(host);
+                }
+                return new InetAddress[] { InetAddress.getLoopbackAddress() };
+            }
+
+            @Override
+            DnsResolver getCustomDnsResolver() {
+                return this::resolveHost;
+            }
+        };
         recordingMeterRegistry = new RecordingMeterRegistry();
         super.setUp();
     }
@@ -658,7 +675,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         final byte[] bytes = randomBlobContent(512);
 
-        // shouldErrorOnDns.set(true); // TODO NOMERGE do we need to cover this too?
+        shouldErrorOnDns = true;
         final AtomicInteger failures = new AtomicInteger();
         @SuppressForbidden(reason = "use a http server")
         class FlakyReadHandler implements HttpHandler {

@@ -33,6 +33,7 @@ import software.amazon.awssdk.services.sts.auth.StsWebIdentityTokenFileCredentia
 import software.amazon.awssdk.utils.SdkAutoCloseable;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -157,7 +159,7 @@ class S3Service implements Closeable {
                 return existing;
             }
             // TODO NOMERGE: consider alternative methods of retaining an httpClient reference for an explicit close() call.
-            SdkHttpClient httpClient = buildHttpClient(clientSettings);
+            SdkHttpClient httpClient = buildHttpClient(clientSettings, getCustomDnsResolver());
             Releasable toRelease = httpClient::close;
             try {
                 final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings, httpClient), httpClient);
@@ -240,13 +242,23 @@ class S3Service implements Closeable {
         return s3clientBuilder;
     }
 
-    static SdkHttpClient buildHttpClient(S3ClientSettings clientSettings) {
+    @Nullable // in production, but exposed for tests to override
+    DnsResolver getCustomDnsResolver() {
+        return null;
+    }
+
+    static SdkHttpClient buildHttpClient(S3ClientSettings clientSettings, @Nullable /* to use default resolver */ DnsResolver dnsResolver) {
         ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
 
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
         httpClientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
 
         applyProxyConfiguration(clientSettings, httpClientBuilder);
+
+        if (dnsResolver != null) {
+            httpClientBuilder.dnsResolver(dnsResolver);
+        }
+
         return httpClientBuilder.build();
     }
 

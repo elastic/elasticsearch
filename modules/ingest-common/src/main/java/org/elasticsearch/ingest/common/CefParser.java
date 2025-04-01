@@ -379,13 +379,13 @@ final class CefParser {
         for (Map.Entry<String, String> entry : extensions.entrySet()) {
             ExtensionMapping mapping = EXTENSION_MAPPINGS.get(entry.getKey());
             if (mapping != null) {
-                String ecsKey = mapping.getEcsKey();
+                String ecsKey = mapping.ecsKey();
                 if (ecsKey != null) {
                     // Add the ECS translation to the root of document
-                    event.addRootMapping(ecsKey, convertValueToType(entry.getValue(), mapping.getDataType()));
+                    event.addRootMapping(ecsKey, convertValueToType(entry.getValue(), mapping.dataType()));
                 } else {
                     // Add the extension to the CEF mappings if it doesn't have an ECS translation
-                    event.addExtension(mapping.getKey(), convertValueToType(entry.getValue(), mapping.getDataType()));
+                    event.addExtension(mapping.key(), convertValueToType(entry.getValue(), mapping.dataType()));
                 }
             } else {
                 // Add the extension if the key is not in the mapping
@@ -560,28 +560,5 @@ final class CefParser {
         }
     }
 
-    public static class ExtensionMapping {
-        private final String key;
-        private final DataType dataType;
-        @Nullable
-        private final String ecsKey;
-
-        ExtensionMapping(String key, DataType dataType, String ecsKey) {
-            this.key = key;
-            this.dataType = dataType;
-            this.ecsKey = ecsKey;
-        }
-
-        public String getKey() {
-            return key;
-        }
-
-        public DataType getDataType() {
-            return dataType;
-        }
-
-        public String getEcsKey() {
-            return ecsKey;
-        }
-    }
+    private record ExtensionMapping(String key, DataType dataType, @Nullable String ecsKey) {}
 }

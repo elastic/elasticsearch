@@ -1983,12 +1983,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             183,
             TransportVersions.V_8_16_0
         ),
-        REMOTE_COMPUTE_EXCEPTION(
-            RemoteException.class,
-            RemoteException::new,
-            184,
-            TransportVersions.REMOTE_COMPUTE_EXCEPTION
-        );
+        REMOTE_COMPUTE_EXCEPTION(RemoteException.class, RemoteException::new, 184, TransportVersions.REMOTE_COMPUTE_EXCEPTION);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

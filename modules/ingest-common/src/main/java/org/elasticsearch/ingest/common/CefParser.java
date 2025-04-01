@@ -26,7 +26,6 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -533,9 +532,9 @@ final class CefParser {
         return desanitized;
     }
 
-    public static class CEFEvent {
-        private final Map<String, Object> rootMappings = new HashMap<>();
-        private final Map<String, Object> cefMappings = new HashMap<>();
+    public static class CEFEvent implements AutoCloseable {
+        private Map<String, Object> rootMappings = new HashMap<>();
+        private Map<String, Object> cefMappings = new HashMap<>();
 
         public void addRootMapping(String key, Object value) {
             this.rootMappings.put(key, value);
@@ -546,11 +545,21 @@ final class CefParser {
         }
 
         public Map<String, Object> getRootMappings() {
-            return Collections.unmodifiableMap(rootMappings);
+            return Objects.requireNonNull(rootMappings);
         }
 
         public Map<String, Object> getCefMappings() {
-            return Collections.unmodifiableMap(cefMappings);
+            return Objects.requireNonNull(cefMappings);
+        }
+
+        /**
+         * Nulls out the maps of the event so that future calls to methods of this class will fail with a
+         * {@link NullPointerException}.
+         */
+        @Override
+        public void close() {
+            this.rootMappings = null;
+            this.cefMappings = null;
         }
     }
 

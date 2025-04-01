@@ -59,10 +59,10 @@ public final class CefProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
         ZoneId timezone = getTimezone(document);
-        CEFEvent event = new CefParser(timezone, removeEmptyValue).process(line);
-        // Update ingestDocument with the CEF mappings
-        document.setFieldValue(targetField, event.getCefMappings());
-        event.getRootMappings().forEach(document::setFieldValue);
+        try (CEFEvent event = new CefParser(timezone, removeEmptyValue).process(line)) {
+            document.setFieldValue(targetField, event.getCefMappings());
+            event.getRootMappings().forEach(document::setFieldValue);
+        }
         return document;
     }
 

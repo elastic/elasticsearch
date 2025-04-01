@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -19,6 +20,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -26,6 +28,10 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests for the {@link LuceneSourceOperator.Factory#autoStrategy} method. It picks
+ * the strategy based on complex rules around the query.
+ */
 public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
     @ParametersFactory(argumentFormatting = "%s -> %s")
     public static Iterable<Object[]> parameters() {
@@ -70,6 +76,31 @@ public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
                     ),
                     BooleanClause.Occur.MUST
                 ).add(new BoostQuery(new ConstantScoreQuery(new MatchAllDocsQuery()), 0.0F), BooleanClause.Occur.MUST).build(),
+                LuceneSliceQueue.PartitioningStrategy.SEGMENT },
+
+            new Object[] {
+                new BooleanQuery.Builder() // formatter
+                    .add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST)
+                    .add(new TermQuery(new Term("a", "a")), BooleanClause.Occur.SHOULD)
+                    .build(),
+                LuceneSliceQueue.PartitioningStrategy.SEGMENT },
+            new Object[] {
+                new BooleanQuery.Builder() // formatter
+                    .add(new TermQuery(new Term("a", "a")), BooleanClause.Occur.SHOULD)
+                    .add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT)
+                    .build(),
+                LuceneSliceQueue.PartitioningStrategy.SHARD },
+            new Object[] {
+                new BooleanQuery.Builder() // formatter
+                    .add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term("a", "a")), BooleanClause.Occur.SHOULD)
+                    .build(),
+                LuceneSliceQueue.PartitioningStrategy.SEGMENT },
+            new Object[] {
+                new BooleanQuery.Builder() // formatter
+                    .add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term("a", "a")), BooleanClause.Occur.SHOULD)
+                    .build(),
                 LuceneSliceQueue.PartitioningStrategy.SEGMENT }
         );
     }

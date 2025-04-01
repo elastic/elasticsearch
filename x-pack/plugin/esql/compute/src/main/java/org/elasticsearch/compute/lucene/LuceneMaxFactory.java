@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.compute.lucene.LuceneOperator.weightFunction;
-
 /**
  * Factory that generates an operator that finds the max value of a field using the {@link LuceneMinMaxOperator}.
  */

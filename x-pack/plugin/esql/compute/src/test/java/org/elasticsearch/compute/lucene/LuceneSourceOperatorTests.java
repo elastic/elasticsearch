@@ -123,8 +123,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
                 + "dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), "
                 + "maxPageSize = \\d+, "
                 + "limit = 100, "
-                + "needsScore = (true|false)"
-                + "scoreMode = (COMPLETE|COMPLETE_NO_SCORES)]"
+                + "needsScore = (true|false)]"
         );
     }
 

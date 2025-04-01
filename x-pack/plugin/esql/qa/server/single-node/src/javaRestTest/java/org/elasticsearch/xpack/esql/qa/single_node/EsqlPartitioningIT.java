@@ -28,9 +28,11 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlPartitioningIT extends ESRestTestCase {
@@ -50,20 +52,28 @@ public class EsqlPartitioningIT extends ESRestTestCase {
 
     record Case(String suffix, String idxPartition) {}
 
-    @ParametersFactory(argumentFormatting = "%2$s -> %3$s")
+    @ParametersFactory(argumentFormatting = "[%1$s] %3$s -> %4$s")
     public static Iterable<Object[]> parameters() {
         List<Object[]> params = new ArrayList<>();
-        for (String index : new String[] { "idx", "small_idx" }) {
-            for (Case c : new Case[] {
-                new Case("", "SHARD"),
-                new Case("| SORT @timestamp ASC", "SHARD"),
-                new Case("| WHERE ABS(a) == 1", "DOC"),
-                new Case("| WHERE a == 1", "SHARD"),
-                new Case("| STATS SUM(a)", "DOC"),
-                new Case("| MV_EXPAND a | STATS SUM(a)", "DOC"),
-                new Case("| WHERE a == 1 | STATS SUM(a)", "SEGMENT"),
-                new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "SEGMENT"), }) {
-                params.add(new Object[] { index, "FROM " + index + " " + c.suffix, expectedPartition(index, c.idxPartition) });
+        for (String defaultDataPartitioning : new String[] { null, "shard", "segment", "doc", "auto" }) {
+            for (String index : new String[] { "idx", "small_idx" }) {
+                for (Case c : new Case[] {
+                    new Case("", "SHARD"),
+                    new Case("| SORT @timestamp ASC", "SHARD"),
+                    new Case("| WHERE ABS(a) == 1", "DOC"),
+                    new Case("| WHERE a == 1", "SHARD"),
+                    new Case("| STATS SUM(a)", "DOC"),
+                    new Case("| MV_EXPAND a | STATS SUM(a)", "DOC"),
+                    new Case("| WHERE a == 1 | STATS SUM(a)", "SEGMENT"),
+                    new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "SEGMENT"), }) {
+                    params.add(
+                        new Object[] {
+                            defaultDataPartitioning,
+                            index,
+                            "FROM " + index + " " + c.suffix,
+                            expectedPartition(defaultDataPartitioning, index, c.idxPartition) }
+                    );
+                }
             }
         }
         return params;
@@ -72,11 +82,13 @@ public class EsqlPartitioningIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
 
+    private final String defaultDataPartitioning;
     private final String index;
     private final String query;
     private final Matcher<String> expectedPartition;
 
-    public EsqlPartitioningIT(String index, String query, Matcher<String> expectedPartition) {
+    public EsqlPartitioningIT(String defaultDataPartitioning, String index, String query, Matcher<String> expectedPartition) {
+        this.defaultDataPartitioning = defaultDataPartitioning;
         this.index = index;
         this.query = query;
         this.expectedPartition = expectedPartition;
@@ -88,10 +100,34 @@ public class EsqlPartitioningIT extends ESRestTestCase {
             case "small_idx" -> SMALL_IDX_DOCS;
             default -> throw new IllegalArgumentException("unknown index [" + index + "]");
         });
-        assertThat(partitionForQuery(query), expectedPartition);
+        setDefaultDataPartitioning(defaultDataPartitioning);
+        try {
+            assertThat(partitionForQuery(query), expectedPartition);
+        } finally {
+            setDefaultDataPartitioning(null);
+        }
     }
 
-    private static Matcher<String> expectedPartition(String index, String idxPartition) {
+    private void setDefaultDataPartitioning(String defaultDataPartitioning) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        builder.startObject("transient");
+        builder.field("esql.default_data_partitioning", defaultDataPartitioning);
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder.endObject()));
+        int code = client().performRequest(request).getStatusLine().getStatusCode();
+        assertThat(code, equalTo(200));
+    }
+
+    private static Matcher<String> expectedPartition(String defaultDataPartitioning, String index, String idxPartition) {
+        return switch (defaultDataPartitioning) {
+            case null -> expectedAutoPartition(index, idxPartition);
+            case "auto" -> expectedAutoPartition(index, idxPartition);
+            default -> equalTo(defaultDataPartitioning.toUpperCase(Locale.ROOT));
+        };
+    }
+
+    private static Matcher<String> expectedAutoPartition(String index, String idxPartition) {
         return equalTo(switch (index) {
             case "idx" -> idxPartition;
             case "small_idx" -> "SHARD";
@@ -102,6 +138,7 @@ public class EsqlPartitioningIT extends ESRestTestCase {
     private String partitionForQuery(String query) throws IOException {
         Request request = new Request("POST", "_query");
         request.addParameter("pretty", "");
+        request.addParameter("error_trace", "");
         XContentBuilder b = JsonXContent.contentBuilder().startObject();
         b.field("query", query);
         b.field("profile", true);

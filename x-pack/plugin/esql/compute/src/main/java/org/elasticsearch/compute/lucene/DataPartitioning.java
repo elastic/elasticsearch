@@ -11,7 +11,7 @@ import org.elasticsearch.compute.operator.Driver;
 
 /**
  * How we partition the data across {@link Driver}s. Each request forks into
- * {@code min(cpus, partition_count)} threads on the data node. More partitions
+ * {@code min(1.5 * cpus, partition_count)} threads on the data node. More partitions
  * allow us to bring more threads to bear on CPU intensive data node side tasks.
  */
 public enum DataPartitioning {

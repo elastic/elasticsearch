@@ -80,8 +80,11 @@ public final class LuceneSliceQueue {
         for (ShardContext ctx : contexts) {
             Query query = queryFunction.apply(ctx);
             /*
-             * Rewrite the query on the local segment so things like fully
-             * overlapping range queries become match all.
+             * Rewrite the query on the local index so things like fully
+             * overlapping range queries become match all. It's important
+             * to do this before picking the partitioning strategy so we
+             * can pick more aggressive strategies when the query rewrites
+             * into MatchAll.
              */
             try {
                 query = query.rewrite(ctx.searcher());
@@ -239,7 +242,7 @@ public final class LuceneSliceQueue {
         var searcher = ctx.searcher();
         try {
             Query actualQuery = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
-            return searcher.createWeight(searcher.rewrite(actualQuery), scoreMode, 1);
+            return searcher.createWeight(actualQuery, scoreMode, 1);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

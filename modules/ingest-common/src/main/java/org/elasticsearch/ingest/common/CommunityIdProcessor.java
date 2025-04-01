@@ -400,7 +400,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
     }
 
-    static class Transport {
+    static final class Transport {
         public enum Type {
             Unknown(-1),
             Icmp(1),
@@ -442,8 +442,8 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             }
         }
 
-        private Type type;
-        private int transportNumber;
+        private final Type type;
+        private final int transportNumber;
 
         Transport(int transportNumber, Type type) { // Change constructor to public
             this.transportNumber = transportNumber;

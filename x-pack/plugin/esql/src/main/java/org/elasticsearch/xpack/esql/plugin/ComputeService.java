@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.RemoteComputeException;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -352,11 +352,9 @@ public class ComputeService {
                              * wrapped.
                              */
                             if (ex instanceof TransportException te) {
-                                l.onFailure(
-                                    new RemoteComputeException(cluster.clusterAlias(), FailureCollector.unwrapTransportException(te))
-                                );
+                                l.onFailure(new RemoteException(cluster.clusterAlias(), FailureCollector.unwrapTransportException(te)));
                             } else {
-                                l.onFailure(new RemoteComputeException(cluster.clusterAlias(), ex));
+                                l.onFailure(new RemoteException(cluster.clusterAlias(), ex));
                             }
                         })
                     );

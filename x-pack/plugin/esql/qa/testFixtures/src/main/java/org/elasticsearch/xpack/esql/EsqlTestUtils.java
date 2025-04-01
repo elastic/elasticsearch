@@ -11,7 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.RemoteComputeException;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -867,7 +867,7 @@ public final class EsqlTestUtils {
      * @return Cause of RemoteComputeException, else the error itself.
      */
     public static Exception unwrapIfWrappedInRemoteComputeException(Exception e) {
-        if (e instanceof RemoteComputeException rce) {
+        if (e instanceof RemoteException rce) {
             return (Exception) rce.getCause();
         } else {
             return e;

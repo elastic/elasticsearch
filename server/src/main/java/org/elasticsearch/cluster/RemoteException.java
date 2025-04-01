@@ -21,18 +21,18 @@ import java.util.Objects;
  * Represents an error that occurred on a remote node.
  * It allows capturing some context such as the cluster alias that encountered the error.
  */
-public class RemoteComputeException extends ElasticsearchException {
+public class RemoteException extends ElasticsearchException {
 
     /**
      * @param clusterAlias Name of the cluster.
      * @param cause Error that was encountered.
      */
-    public RemoteComputeException(String clusterAlias, Throwable cause) {
+    public RemoteException(String clusterAlias, Throwable cause) {
         super("Remote [" + clusterAlias + "] encountered an error", cause);
         Objects.requireNonNull(cause);
     }
 
-    public RemoteComputeException(StreamInput in) throws IOException {
+    public RemoteException(StreamInput in) throws IOException {
         super(in);
     }
 

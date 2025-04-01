@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.cluster.RemoteComputeException;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -34,8 +34,8 @@ public class EsqlRemoteErrorWrapIT extends AbstractCrossClusterTestCase {
             );
         }
 
-        RemoteComputeException wrappedError = expectThrows(
-            RemoteComputeException.class,
+        RemoteException wrappedError = expectThrows(
+            RemoteException.class,
             () -> runQuery("FROM " + REMOTE_CLUSTER_1 + ":*," + REMOTE_CLUSTER_2 + ":* | LIMIT 100", false)
         );
         assertThat(wrappedError.getMessage(), is("Remote [cluster-a] encountered an error"));

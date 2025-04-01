@@ -1136,11 +1136,11 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         assertThat(
             error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
-            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used with the metrics command")
+            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used with the TS command")
         );
         assertThat(
             error("FROM tests | STATS rate(network.bytes_in)", tsdb),
-            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used with the metrics command")
+            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used with the TS command")
         );
         assertThat(
             error("FROM tests | EVAL r = rate(network.bytes_in)", tsdb),
@@ -1151,26 +1151,22 @@ public class VerifierTests extends ESTestCase {
     public void testRateNotEnclosedInAggregate() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         assertThat(
-            error("METRICS tests | STATS rate(network.bytes_in)", tsdb),
-            equalTo(
-                "1:23: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command and inside another aggregate"
-            )
+            error("TS tests | STATS rate(network.bytes_in)", tsdb),
+            equalTo("1:18: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")
         );
         assertThat(
-            error("METRICS tests | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
-            equalTo(
-                "1:52: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command and inside another aggregate"
-            )
+            error("TS tests | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
+            equalTo("1:47: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")
         );
-        assertThat(error("METRICS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:27: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+        assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:22: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
              [max(avg(rate(network.bytes_in)))]
-            line 1:31: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command\
+            line 1:26: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command\
              and inside another aggregate"""));
-        assertThat(error("METRICS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:27: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+        assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:22: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
              [max(avg(rate(network.bytes_in)))]
-            line 1:31: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command\
+            line 1:26: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command\
              and inside another aggregate"""));
     }
 

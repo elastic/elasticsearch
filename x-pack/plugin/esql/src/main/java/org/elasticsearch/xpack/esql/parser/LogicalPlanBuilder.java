@@ -285,7 +285,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
-        final IndexMode indexMode = commandName.equals("METRICS") ? IndexMode.TIME_SERIES : IndexMode.STANDARD;
+        final IndexMode indexMode = commandName.equals("TS") ? IndexMode.TIME_SERIES : IndexMode.STANDARD;
         return new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
     }
 
@@ -514,11 +514,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public LogicalPlan visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx) {
+    public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
         if (Build.current().isSnapshot() == false) {
-            throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
+            throw new IllegalArgumentException("TS command currently requires a snapshot build");
         }
-        return visitRelation(source(ctx), "METRICS", ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), "TS", ctx.indexPatternAndMetadataFields());
     }
 
     @Override

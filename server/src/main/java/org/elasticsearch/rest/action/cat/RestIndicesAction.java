@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -125,7 +124,6 @@ public class RestIndicesAction extends AbstractCatAction {
                     .prepareGetSettings(masterNodeTimeout, indices)
                     .setIndicesOptions(indicesOptions)
                     .setMasterNodeTimeout(masterNodeTimeout)
-                    .setNames(IndexSettings.INDEX_SEARCH_THROTTLED.getKey())
                     .execute(listeners.acquire(indexSettingsRef::set));
 
                 // The other requests just provide additional detail, and wildcards may be resolved differently depending on the type of
@@ -488,8 +486,6 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("memory.total", "sibling:pri;alias:tm,memoryTotal;default:false;text-align:right;desc:total used memory");
         table.addCell("pri.memory.total", "default:false;text-align:right;desc:total user memory");
 
-        table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
-
         table.addCell(
             "bulk.total_operations",
             "sibling:pri;alias:bto,bulkTotalOperation;default:false;text-align:right;desc:number of bulk shard ops"
@@ -568,7 +564,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
             final IndexMetadata.State indexState = indexMetadata.getState();
             final IndexStats indexStats = indicesStats.get(indexName);
-            final boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(settings);
 
             final IndexRoutingTable indexRoutingTable = clusterState.routingTable(project.id()).index(indexName);
             final ClusterHealthStatus indexHealthStatus = indexRoutingTable == null
@@ -802,8 +797,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getTotalMemory());
             table.addCell(primaryStats.getTotalMemory());
-
-            table.addCell(searchThrottled);
 
             table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getTotalOperations());
             table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getTotalOperations());

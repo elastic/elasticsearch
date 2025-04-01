@@ -21,7 +21,6 @@ public final class ScrollQuerySearchResult extends SearchPhaseResult {
     private final QuerySearchResult result;
 
     public ScrollQuerySearchResult(StreamInput in) throws IOException {
-        super(in);
         SearchShardTarget shardTarget = new SearchShardTarget(in);
         // This was created with refCount = 1, doesn't need to be incRef'd
         result = new QuerySearchResult(in);

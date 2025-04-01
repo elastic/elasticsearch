@@ -70,7 +70,6 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
     }
 
     GetIndexResponse(StreamInput in) throws IOException {
-        super(in);
         this.indices = in.readStringArray();
         mappings = in.readImmutableOpenMap(StreamInput::readString, in.getTransportVersion().before(TransportVersions.V_8_0_0) ? i -> {
             int numMappings = i.readVInt();

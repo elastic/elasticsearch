@@ -286,6 +286,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
+    public List<QuerySpec<?>> getQueries() {
+        List<QuerySpec<?>> querySpecs = new ArrayList<>(super.getQueries());
+        filterPlugins(SearchPlugin.class).stream().flatMap(p -> p.getQueries().stream()).forEach(querySpecs::add);
+        return querySpecs;
+    }
+
+    @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(super.getNamedXContent());
         for (Plugin p : plugins) {

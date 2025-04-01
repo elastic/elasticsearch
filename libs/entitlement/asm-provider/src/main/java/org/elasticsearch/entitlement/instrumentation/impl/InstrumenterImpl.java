@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
@@ -24,9 +25,12 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.RecordComponentVisitor;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.util.CheckClassAdapter;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -63,6 +67,7 @@ public class InstrumenterImpl implements Instrumenter {
     }
 
     public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
+
         Type checkerClassType = Type.getType(checkerClass);
         String handleClass = checkerClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
@@ -82,13 +87,54 @@ public class InstrumenterImpl implements Instrumenter {
         return new ClassFileInfo(fileName, originalBytecodes);
     }
 
+    private enum VerificationPhase {
+        BEFORE_INSTRUMENTATION,
+        AFTER_INSTRUMENTATION
+    }
+
+    private static String verify(byte[] classfileBuffer) {
+        ClassReader reader = new ClassReader(classfileBuffer);
+        StringWriter stringWriter = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(stringWriter);
+        CheckClassAdapter.verify(reader, false, printWriter);
+        return stringWriter.toString();
+    }
+
+    private static void verifyAndLog(byte[] classfileBuffer, String className, VerificationPhase phase) {
+        try {
+            String result = verify(classfileBuffer);
+            if (result.isEmpty() == false) {
+                logger.error(Strings.format("Bytecode verification (%s) for class [%s] failed: %s", phase, className, result));
+            } else {
+                logger.info("Bytecode verification ({}) for class [{}] passed", phase, className);
+            }
+        } catch (ClassCircularityError e) {
+            // Apparently, verification during instrumentation is challenging for class resolution and loading
+            // Treat this not as an error, but as "inconclusive"
+            logger.warn(Strings.format("Cannot perform bytecode verification (%s) for class [%s]", phase, className), e);
+        } catch (IllegalArgumentException e) {
+            // The ASM CheckClassAdapter in some cases throws this instead of printing the error
+            logger.error(Strings.format("Bytecode verification (%s) for class [%s] failed", phase, className), e);
+        }
+    }
+
     @Override
-    public byte[] instrumentClass(String className, byte[] classfileBuffer) {
+    public byte[] instrumentClass(String className, byte[] classfileBuffer, boolean verify) {
+        if (verify) {
+            verifyAndLog(classfileBuffer, className, VerificationPhase.BEFORE_INSTRUMENTATION);
+        }
+
         ClassReader reader = new ClassReader(classfileBuffer);
         ClassWriter writer = new ClassWriter(reader, COMPUTE_FRAMES | COMPUTE_MAXS);
         ClassVisitor visitor = new EntitlementClassVisitor(Opcodes.ASM9, writer, className);
         reader.accept(visitor, 0);
-        return writer.toByteArray();
+        var outBytes = writer.toByteArray();
+
+        if (verify) {
+            verifyAndLog(outBytes, className, VerificationPhase.AFTER_INSTRUMENTATION);
+        }
+
+        return outBytes;
     }
 
     class EntitlementClassVisitor extends ClassVisitor {

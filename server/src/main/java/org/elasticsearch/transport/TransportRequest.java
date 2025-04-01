@@ -11,12 +11,18 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 
 public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
+
+    @Nullable // set by the transport service on inbound messages; unset on outbound messages
+    private InetSocketAddress remoteAddress;
+
     /**
      * Parent of this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "no parent".
      */
@@ -31,6 +37,15 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
 
     public TransportRequest(StreamInput in) throws IOException {
         parentTaskId = TaskId.readFromStream(in);
+    }
+
+    public void remoteAddress(InetSocketAddress remoteAddress) {
+        this.remoteAddress = remoteAddress;
+    }
+
+    @Nullable // set by the transport service on inbound messages; unset on outbound messages
+    public InetSocketAddress remoteAddress() {
+        return remoteAddress;
     }
 
     /**

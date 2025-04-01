@@ -132,6 +132,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
+   * @param ctx the parse tree
+   */
+  void enterIndexPatternAndMetadataFields(EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
+   * @param ctx the parse tree
+   */
+  void exitIndexPatternAndMetadataFields(EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    */
@@ -152,6 +172,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitClusterString(EsqlBaseParser.ClusterStringContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#selectorString}.
+   * @param ctx the parse tree
+   */
+  void enterSelectorString(EsqlBaseParser.SelectorStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#selectorString}.
+   * @param ctx the parse tree
+   */
+  void exitSelectorString(EsqlBaseParser.SelectorStringContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    */
@@ -171,16 +201,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitMetadata(EsqlBaseParser.MetadataContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
-   * @param ctx the parse tree
-   */
-  void enterMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
-   * @param ctx the parse tree
-   */
-  void exitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree
@@ -295,6 +315,30 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code inputDoubleParams}
+   * labeled alternative in {@link EsqlBaseParser#doubleParameter}.
+   * @param ctx the parse tree
+   */
+  void enterInputDoubleParams(EsqlBaseParser.InputDoubleParamsContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code inputDoubleParams}
+   * labeled alternative in {@link EsqlBaseParser#doubleParameter}.
+   * @param ctx the parse tree
+   */
+  void exitInputDoubleParams(EsqlBaseParser.InputDoubleParamsContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code inputNamedOrPositionalDoubleParams}
+   * labeled alternative in {@link EsqlBaseParser#doubleParameter}.
+   * @param ctx the parse tree
+   */
+  void enterInputNamedOrPositionalDoubleParams(EsqlBaseParser.InputNamedOrPositionalDoubleParamsContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code inputNamedOrPositionalDoubleParams}
+   * labeled alternative in {@link EsqlBaseParser#doubleParameter}.
+   * @param ctx the parse tree
+   */
+  void exitInputNamedOrPositionalDoubleParams(EsqlBaseParser.InputNamedOrPositionalDoubleParamsContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#identifierOrParameter}.
    * @param ctx the parse tree

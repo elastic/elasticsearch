@@ -65,8 +65,8 @@ public class SingleValueQuery extends Query {
     }
 
     @Override
-    public Builder asBuilder() {
-        return new Builder(next.asBuilder(), field, next.source());
+    protected Builder asBuilder() {
+        return new Builder(next.toQueryBuilder(), field, next.source());
     }
 
     @Override

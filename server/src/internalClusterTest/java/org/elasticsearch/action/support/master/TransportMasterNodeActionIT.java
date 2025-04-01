@@ -214,7 +214,6 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
      */
     private static String ensureSufficientMasterEligibleNodes() {
         final var votingConfigSizeListener = ClusterServiceUtils.addTemporaryStateListener(
-            internalCluster().getAnyMasterNodeInstance(ClusterService.class),
             cs -> 5 <= cs.coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()
         );
 

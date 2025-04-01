@@ -29,7 +29,6 @@ public class ClusterStateResponse extends ActionResponse {
     private final boolean waitForTimedOut;
 
     public ClusterStateResponse(StreamInput in) throws IOException {
-        super(in);
         clusterName = new ClusterName(in);
         clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
         waitForTimedOut = in.readBoolean();

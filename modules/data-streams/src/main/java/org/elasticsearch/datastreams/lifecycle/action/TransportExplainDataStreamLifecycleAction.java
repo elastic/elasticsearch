@@ -112,8 +112,8 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 idxMetadata.getCreationDate(),
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
                 generationDate,
-                parentDataStream.getLifecycle(),
-                errorStore.getError(index)
+                parentDataStream.getDataLifecycleForIndex(idxMetadata.getIndex()),
+                errorStore.getError(state.projectId(), index)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
         }

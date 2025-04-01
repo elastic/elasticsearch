@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import joptsimple.internal.Strings;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -19,6 +17,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -127,7 +127,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
     public abstract static class AbstractEvaluator implements EvalOperator.ExpressionEvaluator {
 
-        private static final Log logger = LogFactory.getLog(AbstractEvaluator.class);
+        private static final Logger logger = LogManager.getLogger(AbstractEvaluator.class);
 
         protected final DriverContext driverContext;
         private final Warnings warnings;

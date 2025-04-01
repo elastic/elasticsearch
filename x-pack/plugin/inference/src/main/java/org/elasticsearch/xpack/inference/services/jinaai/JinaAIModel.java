@@ -9,15 +9,14 @@ package org.elasticsearch.xpack.inference.services.jinaai;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.jinaai.JinaAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
@@ -62,7 +61,7 @@ public abstract class JinaAIModel extends Model {
         return rateLimitServiceSettings;
     }
 
-    public abstract ExecutableAction accept(JinaAIActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(JinaAIActionVisitor creator, Map<String, Object> taskSettings);
 
     public abstract URI uri();
 }

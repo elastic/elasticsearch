@@ -1104,6 +1104,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             applierState = initialState;
             clusterApplier.setInitialState(initialState);
         }
+        clusterFormationFailureHelper.setLoggingEnabled(true);
     }
 
     public DiscoveryStats stats() {
@@ -1126,6 +1127,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     protected void doStop() {
         configuredHostsResolver.stop();
         joinValidationService.stop();
+        clusterFormationFailureHelper.setLoggingEnabled(false);
     }
 
     @Override

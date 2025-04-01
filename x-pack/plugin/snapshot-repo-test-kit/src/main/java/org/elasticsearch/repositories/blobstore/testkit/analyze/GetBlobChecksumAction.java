@@ -301,7 +301,6 @@ class GetBlobChecksumAction extends HandledTransportAction<GetBlobChecksumAction
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             this.bytesRead = in.readVLong();
             this.checksum = in.readLong();
             this.firstByteNanos = in.readVLong();

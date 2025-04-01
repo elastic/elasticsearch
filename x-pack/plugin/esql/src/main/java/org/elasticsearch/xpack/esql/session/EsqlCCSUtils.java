@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -219,29 +218,8 @@ public class EsqlCCSUtils {
                     fatalErrorMessage += "; " + error;
                 }
             } else {
-                // no matching indices and no concrete index requested - just skip it, no error
-                EsqlExecutionInfo.Cluster.Status status;
-                ShardSearchFailure failure;
-                if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    // never mark local cluster as SKIPPED
-                    status = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-                    failure = null;
-                } else {
-                    status = EsqlExecutionInfo.Cluster.Status.SKIPPED;
-                    failure = new ShardSearchFailure(new VerificationException("Unknown index [" + indexExpression + "]"));
-                }
-                executionInfo.swapCluster(c, (k, v) -> {
-                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
-                        .setTook(new TimeValue(0))
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0);
-                    if (failure != null) {
-                        builder.setFailures(List.of(failure));
-                    }
-                    return builder.build();
-                });
+                // no matching indices and no concrete index requested - just mark it as done, no error
+                markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
             }
         }
         if (fatalErrorMessage != null) {
@@ -269,8 +247,8 @@ public class EsqlCCSUtils {
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINESTATS is made CCS compatible
+        execInfo.markEndPlanning();
         if (execInfo.isCrossClusterSearch()) {
-            execInfo.markEndPlanning();
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
                 if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {

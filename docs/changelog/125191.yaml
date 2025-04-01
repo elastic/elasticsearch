@@ -1,0 +1,5 @@
+pr: 125191
+summary: Fix sorting when `aggregate_metric_double` present
+area: ES|QL
+type: enhancement
+issues: []

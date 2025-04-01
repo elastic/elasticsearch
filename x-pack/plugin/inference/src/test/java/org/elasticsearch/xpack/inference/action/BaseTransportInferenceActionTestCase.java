@@ -291,7 +291,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     }
 
     public void testMetricsAfterStreamInferSuccess() {
-        mockStreamResponse(Flow.Subscriber::onComplete);
+        mockStreamResponse(Flow.Subscriber::onComplete).subscribe(mock());
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(taskType.toString()));
@@ -306,10 +306,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     public void testMetricsAfterStreamInferFailure() {
         var expectedException = new IllegalStateException("hello");
         var expectedError = expectedException.getClass().getSimpleName();
-        mockStreamResponse(subscriber -> {
-            subscriber.subscribe(mock());
-            subscriber.onError(expectedException);
-        });
+        mockStreamResponse(subscriber -> subscriber.onError(expectedException)).subscribe(mock());
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(taskType.toString()));
@@ -388,7 +385,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         assertThat(threadContext.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
     }
 
-    protected Flow.Publisher<InferenceServiceResults.Result> mockStreamResponse(Consumer<Flow.Processor<?, ?>> action) {
+    protected Flow.Publisher<InferenceServiceResults.Result> mockStreamResponse(Consumer<Flow.Subscriber<?>> action) {
         mockService(true, Set.of(), listener -> {
             Flow.Processor<ChunkedToXContent, ChunkedToXContent> taskProcessor = mock();
             doAnswer(innerAns -> {
@@ -426,9 +423,9 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(service.canStream(any())).thenReturn(stream);
         when(service.supportedStreamingTasks()).thenReturn(supportedStreamingTasks);
         doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(7));
+            listenerAction.accept(ans.getArgument(9));
             return null;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;

@@ -85,14 +85,28 @@ field
     ;
 
 fromCommand
-    : FROM indexPattern (COMMA indexPattern)* metadata?
+    : FROM indexPatternAndMetadataFields
+    ;
+
+metricsCommand
+    : DEV_METRICS indexPatternAndMetadataFields
+    ;
+
+indexPatternAndMetadataFields:
+    indexPattern (COMMA indexPattern)* metadata?
     ;
 
 indexPattern
     : (clusterString COLON)? indexString
+    | {this.isDevVersion()}? indexString (CAST_OP selectorString)?
     ;
 
 clusterString
+    : UNQUOTED_SOURCE
+    | QUOTED_STRING
+    ;
+
+selectorString
     : UNQUOTED_SOURCE
     | QUOTED_STRING
     ;
@@ -104,10 +118,6 @@ indexString
 
 metadata
     : METADATA UNQUOTED_SOURCE (COMMA UNQUOTED_SOURCE)*
-    ;
-
-metricsCommand
-    : DEV_METRICS indexPattern (COMMA indexPattern)* aggregates=aggFields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -146,6 +156,7 @@ identifier
 identifierPattern
     : ID_PATTERN
     | parameter
+    | doubleParameter
     ;
 
 parameter
@@ -153,9 +164,15 @@ parameter
     | NAMED_OR_POSITIONAL_PARAM    #inputNamedOrPositionalParam
     ;
 
+doubleParameter
+    : DOUBLE_PARAMS                        #inputDoubleParams
+    | NAMED_OR_POSITIONAL_DOUBLE_PARAMS    #inputNamedOrPositionalDoubleParams
+    ;
+
 identifierOrParameter
     : identifier
     | parameter
+    | doubleParameter
     ;
 
 limitCommand

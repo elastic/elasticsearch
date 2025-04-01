@@ -1207,7 +1207,6 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             coordinatingNodeId = in.readString();
             coordinatingNodeName = in.readString();
             repositoryName = in.readString();

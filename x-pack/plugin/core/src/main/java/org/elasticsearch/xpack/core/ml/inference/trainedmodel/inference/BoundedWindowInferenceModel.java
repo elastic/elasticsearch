@@ -24,13 +24,9 @@ public class BoundedWindowInferenceModel implements BoundedInferenceModel {
     private final double adjustmentValue;
 
     public BoundedWindowInferenceModel(BoundedInferenceModel model) {
-        this(model, model.getMinPredictedValue(), model.getMaxPredictedValue());
-    }
-
-    public BoundedWindowInferenceModel(BoundedInferenceModel model, double minPredictedValue, double maxPredictedValue) {
         this.model = model;
-        this.minPredictedValue = minPredictedValue;
-        this.maxPredictedValue = maxPredictedValue;
+        this.minPredictedValue = model.getMinPredictedValue();
+        this.maxPredictedValue = model.getMaxPredictedValue();
 
         if (this.minPredictedValue < DEFAULT_MIN_PREDICTED_VALUE) {
             this.adjustmentValue = DEFAULT_MIN_PREDICTED_VALUE - this.minPredictedValue;

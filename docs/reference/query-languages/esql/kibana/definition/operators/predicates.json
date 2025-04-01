@@ -187,7 +187,7 @@
     }
   ],
   "examples" : [
-    "FROM employees\n| WHERE birth_date IS NULL\n| KEEP first_name, last_name\n| SORT first_name\n| LIMIT 3",
+    "FROM employees\n| WHERE birth_date IS NULL",
     "FROM employees\n| WHERE is_rehired IS NOT NULL\n| STATS COUNT(emp_no)"
   ],
   "preview" : false,

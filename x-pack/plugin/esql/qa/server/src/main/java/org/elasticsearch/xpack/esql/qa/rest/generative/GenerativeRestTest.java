@@ -66,9 +66,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("source mapping tests are muted", supportsSourceFieldMapping());
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client(), true, true);
+            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping());
         }
     }
 

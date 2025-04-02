@@ -110,7 +110,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                         """,
                     ROLE_ARN,
                     ROLE_NAME,
-                    ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"))
+                    ZonedDateTime.now(Clock.systemUTC()).plusSeconds(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"))
                 ).getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
@@ -185,7 +185,6 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "HTTP server is used for testing")
-    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testPickUpNewWebIdentityTokenWhenItsChanged() throws Exception {
         DelegatingConsumer webIdentityTokenCheck = new DelegatingConsumer(s -> assertEquals("YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl", s));
 

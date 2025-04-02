@@ -142,15 +142,13 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         // test get-lifecycle behavior when IndexLifecycleMetadata is null
         GetLifecycleAction.Response getUninitializedLifecycleResponse = client().execute(
             GetLifecycleAction.INSTANCE,
-            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         assertThat(getUninitializedLifecycleResponse.getPolicies().size(), equalTo(0));
         ExecutionException exception = expectThrows(
             ExecutionException.class,
-            () -> client().execute(
-                GetLifecycleAction.INSTANCE,
-                new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "non-existent-policy")
-            ).get()
+            () -> client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT, "non-existent-policy"))
+                .get()
         );
         assertThat(exception.getMessage(), containsString("Lifecycle policy not found: [non-existent-policy]"));
 
@@ -163,7 +161,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         // assert version and modified_date
         GetLifecycleAction.Response getLifecycleResponse = client().execute(
             GetLifecycleAction.INSTANCE,
-            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
@@ -208,7 +206,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         GetLifecycleAction.Response getLifecycleResponse = client().execute(
             GetLifecycleAction.INSTANCE,
-            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
@@ -219,10 +217,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
-        getLifecycleResponse = client().execute(
-            GetLifecycleAction.INSTANCE,
-            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-        ).get();
+        getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT)).get();
         assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
         responseItem = getLifecycleResponse.getPolicies().get(0);
         assertThat(responseItem.getLifecyclePolicy(), equalTo(policy));
@@ -237,10 +232,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
-        getLifecycleResponse = client().execute(
-            GetLifecycleAction.INSTANCE,
-            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-        ).get();
+        getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT)).get();
         assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
         responseItem = getLifecycleResponse.getPolicies().get(0);
         assertThat(responseItem.getLifecyclePolicy(), equalTo(policy));
@@ -258,7 +250,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         GetLifecycleAction.Response getLifecycleResponse = client().execute(
             GetLifecycleAction.INSTANCE,
-            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
@@ -333,7 +325,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         GetLifecycleAction.Response getLifecycleResponse = client().execute(
             GetLifecycleAction.INSTANCE,
-            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
@@ -466,7 +458,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         // assert version and modified_date
         GetLifecycleAction.Response getLifecycleResponse = client().execute(
             GetLifecycleAction.INSTANCE,
-            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            new GetLifecycleAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);

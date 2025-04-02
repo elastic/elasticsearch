@@ -87,8 +87,10 @@ public class ThreadPoolMergeExecutorService {
     private ThreadPoolMergeExecutorService(ThreadPool threadPool) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
-        this.concurrentMergesFloorLimitForThrottling = maxConcurrentMerges * 2;
-        this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 4;
+        // the intent here is to throttle down whenever we submit a task and no other task is running
+        this.concurrentMergesFloorLimitForThrottling = 2;
+        this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
+        assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
     }
 
     boolean submitMergeTask(MergeTask mergeTask) {
@@ -230,10 +232,10 @@ public class ThreadPoolMergeExecutorService {
             );
         } else if (currentlySubmittedIOThrottledMergeTasks > concurrentMergesCeilLimitForThrottling
             && currentTargetIORateBytesPerSec < MAX_IO_RATE.getBytes()) {
-                // increase target IO rate by 10% (capped)
+                // increase target IO rate by 20% (capped)
                 newTargetIORateBytesPerSec = Math.min(
                     MAX_IO_RATE.getBytes(),
-                    currentTargetIORateBytesPerSec + currentTargetIORateBytesPerSec / 10L
+                    currentTargetIORateBytesPerSec + currentTargetIORateBytesPerSec / 5L
                 );
             } else {
                 newTargetIORateBytesPerSec = currentTargetIORateBytesPerSec;
@@ -294,15 +296,5 @@ public class ThreadPoolMergeExecutorService {
     // exposed for tests
     int getMaxConcurrentMerges() {
         return maxConcurrentMerges;
-    }
-
-    // exposed for tests
-    int getConcurrentMergesFloorLimitForThrottling() {
-        return concurrentMergesFloorLimitForThrottling;
-    }
-
-    // exposed for tests
-    int getConcurrentMergesCeilLimitForThrottling() {
-        return concurrentMergesCeilLimitForThrottling;
     }
 }

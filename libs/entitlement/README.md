@@ -3,51 +3,77 @@
 This module implements mechanisms to grant and check permissions under the _Entitlements_ system.
 
 The entitlements system provides an alternative to the legacy Java Security Manager;
-Elasticsearch makes heavy use of the Java Security Manager to minimize the risk of security vulnerabilities impacting Elasticsearch. The Java Security Manager has been [deprecated for removal since Java 17](https://openjdk.org/jeps/411) (Sept 2021) and is getting [removed in JDK 24](https://openjdk.org/jeps/486) (March 2025). Without an alternative, the removal of the Java Security Manager would leave users more vulnerable to future security vulnerabilities.
+Elasticsearch (ES) has always made heavy use of the Java Security Manager to minimize the risk of security vulnerabilities impact. The Java Security Manager has been [deprecated for removal since Java 17](https://openjdk.org/jeps/411) (Sept 2021) and has been [removed in JDK 24](https://openjdk.org/jeps/486) (March 2025). Without an alternative, the removal of the Java Security Manager would have left Elasticsearch users more susceptible to future security vulnerabilities.
 
-The goal of _Entitlements_  is not to write a full-fledged custom Security Manager, but to preserve the current level of protection against threats: Elasticsearch used the Java Security Manager to limit the ability to perform certain security-sensitive actions to well defined portions of its code (e.g. to limit the potential fallout from remote code execution (RCE) vulnerabilities). Entitlements will ensure that we maintain a comparable level of protection.
+I would shorten this to not mention the security manager at all. The goal of entitlements
+
+The goal of _entitlements_ is to protect certain sensitive operations on resources, and the JVM itself, from unexpected and unwanted access, e.g. to limit the scope of potential remote code execution (RCE) vulnerabilities.
 
 In practice, an entitlement allows code to call a well-defined set of corresponding JDK methods; without the entitlement code calling into those JDK methods is blocked and gets a `NotEntitledException`.
 
 ## Structure
 
-All the code implementing Entitlements can be found under this folder. The `agent` module instruments sensitive JDK class library methods using a `InstrumentationService`. The current implementation of the instrumentation service uses ASM and is located under `asm-provider`.
-The `agent` injects into JDK methods additional calls to methods in the main module, via a `bridge` to overcome Class Loader and module layer issues. The main module implements Entitlement checking, mainly in the `PolicyManager` class; it also contains the implementation of the data objects used to define Entitlements (`Policy`, `Scope` and all classes implementing the `Entitlement` interface) as well as the logic for handling them (`PolicyParser`, `PolicyUtils`).
+All the code implementing Entitlements can be found under this directory. The `agent` module instruments sensitive JDK class library methods using a `InstrumentationService`. The current implementation of the instrumentation service uses ASM and is located under `asm-provider`.
+
+The agent instruments JDK methods to start with a call to check entitlements. The entitlement checker is defined in the `bridge`, which is patched into `java.base` at runtime because it must exist in the platform classloader.
+
+The entitlement checker is implemented in the entitlement lib, which the `bridge` grabs reflectively. `PolicyManager` is where most checks are actually done. The entitlement lib also contains the implementation of the data objects used to define Entitlements (`Policy`, `Scope` and all classes implementing the `Entitlement` interface) as well as the logic for handling them (`PolicyParser`, `PolicyUtils`).
 
 ![Alt text](./entitlements-loading.svg)
 
 ## Policies
 
-Policies are defined by the `Policy` class, which holds a list of `Scope`s.
-
-The Entitlement model is _scope_-based: the subset of code to which we grant the ability to perform a security-sensitive action is called a _scope_ and implemented by the `Scope` class.
-Currently, scope granularity is at the Java module level; in other words, an _entitlement scope_ corresponds to a Java module.
-An _entitlement_ granted to a scope allows its code to perform the security-sensitive action associated with that entitlement. For example, the ability to read a file from the filesystem is limited to scopes that have the `files` entitlement for that particular file.
-
-### How to add a plugin/module/server policy
-
-A policy can be defined directly in code, or via a YAML policy file which is then parsed by `PolicyParser`.
+A `Policy` is associated with a single `component` (i.e. Elasticsearch module/plugin or server) and represents the entitlements allowed for a particular `Scope` (i.e. Java module).
 
 Entitlements are divided into 3 categories:
-- externally available (can be uses in a YAML file)
-  - available to plugins
-  - available only to Elasticsearch internal modules
-- not externally available (can be used only to specify entitlements for modules in the server layer)
+- available everywhere (Elasticsearch module/plugin or server)
+- available only to Elasticsearch modules
+- not externally available: can be used only to specify entitlements for modules in the server layer.
+
+In order to help developers adding the correct entitlements to a policy, the name of the component, the scope name (Java module) and the name of the missing entitlement are specified in the `NotEntitledException` message:
+```
+NotEntitledException: component [(server)], module [org.apache.lucene.misc], class [class org.apache.lucene.misc.store.DirectIODirectory], entitlement [read_store_attributes]
+```
+
+### How to add an Elasticsearch module/plugin policy
+
+A policy is defined in an `entitlements-policy.yaml` file within an Elasticsearch module/plugin under `src/main/plugin-metadata`. Policy files contain lists of entitlements that should be allowed, grouped by Java module name, which acts as the policy scope. For example, the `transport-netty4` Elasticsearch module's policy file contains an entitlement to accept `inbound_network` connections, limited to the `io.netty.transport` and `io.netty.common` Java modules.
+
+Elasticsearch modules/plugins that are not yet modularized (i.e. do not have `module-info.java`) will need to use single `ALL-UNNAMED` scope. For example, the `reindex` Elasticsearch module's policy file contains a single `ALL-UNNAMED` scope, with an entitlement to perform `outbound_network`; all code in `reindex` will be able to connect to the network. It is not possible to use the `ALL-UNNAMED` scope for modularized modules/plugins.
 
 How to add an Entitlements plugin policy is described in the official Elasticsearch docs on how to [create a classic plugin](https://www.elastic.co/guide/en/elasticsearch/plugins/current/creating-classic-plugins.html). The list of entitlements available to plugins is also described there.
 
-For Elasticsearch modules, the process is the same. In addition to the entitlements available for plugins, internal Elasticsearch modules can specify the additional entitlements:
+For Elasticsearch modules, the process is the same. In addition to the entitlements available for plugins, Elasticsearch modules can specify the additional entitlements:
 
 #### `create_class_loader`
-Allows code to set create a Java ClassLoader.
+Allows code to construct a Java ClassLoader.
 
 #### `write_all_system_properties`
 This entitlement is similar to `write_system_properties`, but it's not necessary to specify the property names that code in the scope can write: all properties can be written by code with this entitlement.
 
 #### `inbound_network`
-This entitlement is currently available to plugins too; however, we plan to make it internally available only as soon as we can. It will remain available to internal Elasticsearch modules.
+This entitlement is currently available to plugins too; however, we plan to make it internally available only as soon as we can. It will remain available to Elasticsearch modules.
 
-Entitlements for modules in the server layer are grouped in a "server policy"; this policy is built using Java code in `EntitlementsInitialization`. As such, it can use entitlements that are not externally available, namely `ReadStoreAttributesEntitlement` and `ExitVMEntitlement`.
+### How to add a server layer entitlement
+
+Entitlements for modules in the server layer are grouped in a "server policy"; this policy is builtin into Elasticsearch, expressed in Java code in `EntitlementInitialization` (see `EntitlementInitialization#createPolicyManager`). As such, it can use entitlements that are not externally available, namely `ReadStoreAttributesEntitlement` and `ExitVMEntitlement`.
+
+In order to add an entitlement, first look if the scope is already present in the server policy. If it's not present, add one. If it is, add an instance of the correct entitlement class to the list of entitlements for that scope.
+There is a direct mapping between the entitlement name and the Entitlement class: the name is written in snake case (e.g. `example_name`), the corresponding class has the same name but in Pascal Case with the addition of a `Entitlement` suffix (e.g. `ExampleNameEntitlement`).
+
+For example, to fix the `NotEntitledException` from the example above:
+```java
+new Scope(
+   "org.apache.lucene.misc",
+    List.of(
+       new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))),
+       new ReadStoreAttributesEntitlement() // <- add this new entitlement
+    )
+)
+```
+
+
+### Always denied
 
 Finally, there are some actions that are always denied; these actions do not have an associated entitlement, they are blocked with no option to allow them via a policy. Examples are: spawning a new process, manipulating files via file descriptors, starting a HTTP server, changing the locale, timezone, in/out/err streams, the default exception handler, etc.
 
@@ -73,15 +99,7 @@ Double-check with Core/Infra before embarking on this, because it's a nontrivial
 
 Suppressing the warning involves adding a setting to the `log4j2.properties` files; you can follow [this PR](https://github.com/elastic/elasticsearch/pull/124883) as an example. Use a consistent naming convention, e.g. `logger.entitlements_<plugin_name>.name`. Avoid using extra dots, use `_` instead.
 
-Each component has its own `log4j2.properties` file.
-- Plugins: the file is placed in the plugin’s `config/<plugin-name>` directory. Ensure that its `build.gradle` file contains the logic to bundle the file in the plugin config:
-```groovy
-esplugin.bundleSpec.from('config/<plugin-name>') {
-  into 'config'
-}
-```
-- Modules + X-pack: place the file in `src/main/config`. The build process will take care of bundling the file.
-
+Each component has its own `log4j2.properties` file. Place the file in `src/main/config`: the build process will take care of bundling the file.
 
 #### Patching a policy via system properties
 
@@ -108,7 +126,12 @@ policy:
           mode: read
 ```
 
-The versioned policy needs to be base64 encoded. For example, to pass the above policy to a test cluster via gradle run:
+The versioned policy needs to be base64 encoded, e.g. by placing the policy in a file like `plugin-patch.yaml` and the `base64` command line tool which is included in many OSes:
+```shell
+base64 -i plugin-patch.yaml
+```
+The base64 string will then need to be passed via the command line to ES.
+For example, to pass the above policy to a test cluster via gradle run:
 ```shell
 ./gradlew run --debug-jvm -Dtests.jvm.argline="-Des.entitlements.policy.repository-gcs=dmVyc2lvbnM6CiAgLSA5LjEuMApwb2xpY3k6CiAgQUxMLVVOTkFNRUQ6CiAgICAtIHNldF9odHRwc19jb25uZWN0aW9uX3Byb3BlcnRpZXMKICAgIC0gb3V0Ym91bmRfbmV0d29yawogICAgLSBmaWxlczoKICAgICAgLSByZWxhdGl2ZV9wYXRoOiAiLmNvbmZpZy9nY2xvdWQiCiAgICAgICAgcmVsYXRpdmVfdG86IGhvbWUKICAgICAgICBtb2RlOiByZWFkCg=="
 ```
@@ -143,9 +166,9 @@ If you try to add an invalid policy (syntax error, wrong scope, etc.) the patch 
 java.lang.IllegalStateException: Invalid module name in policy: layer [server] does not have module [java.xml]; available modules [...]; policy path [<patch>]
 ```
 
-IMPORTANT: this patching mechanism is intended to be used **only** for emergencies; once a missing entitlement is identified, the fix needs to be applied to the codebase, by raising a PR or submitting a bug via Github so that the embedded policies can be fixed.
+IMPORTANT: this patching mechanism is intended to be used **only** for emergencies; once a missing entitlement is identified, the fix needs to be applied to the codebase, by raising a PR or submitting a bug via Github so that the bundled policies can be fixed.
 
-### How to migrate a from a Java Security Policy to an entitlement policy
+### How to migrate a from a Java Security Manager Policy to an entitlement policy
 
 Translating Java Security Permissions to Entitlements is usually not too difficult;
 - many permissions are not used anymore. The Entitlement system is targeting sensitive actions we identified as crucial to our code; any other permission is not checked anymore. Also, we do not have  any entitlement related to reflection or access checks: Elasticsearch runs modularized, and we leverage and trust the Java module mechanism to enforce access and visibility.
@@ -165,7 +188,7 @@ Examples of permissions that do not have an Entitlement equivalent:
 - some permissions need more investigation:
   - `java.lang.RuntimePermission "setFactory"`: most of the methods that used to be guarded by this permission are always denied; some are always granted. The only equivalent in the entitlement system is `set_https_connection_properties`, for methods like `HttpsURLConnection.setSSLSocketFactory` that can be used to change a HTTPS connection properties after the connection object has been created.
 
-Note however that there is a key difference in the policy check model between Security Manager and Entitlements. This means that translating a Security Manager policy to an Entitlement policy may not be a 1-1 mapping from Permissions to Entitlements.  Security Manager used to do a full-stack check, interrupted by `doPrivileged` blocks; Entitlements does check the "first untrusted frame". This means that some Permissions that needed to be granted with Security Manager may not need the equivalent entitlement; conversely, code that used `doPrivileged` under the Security Manager model might have not needed a Permission, but might need an Entitlement now to run correctly.
+Note however that there is a key difference in the policy check model between Security Manager and Entitlements. This means that translating a Security Manager policy to an Entitlement policy may not be a 1-1 mapping from Permissions to Entitlements.  Security Manager used to do a full-stack check, truncated by `doPrivileged` blocks; Entitlements check the "first untrusted frame". This means that some Permissions that needed to be granted with Security Manager may not need the equivalent entitlement; conversely, code that used `doPrivileged` under the Security Manager model might have not needed a Permission, but might need an Entitlement now to run correctly.
 
 Finally, a word on scopes: the Security Manager model used either general grants, or granted some permission to a specific codebase, e.g. `grant codeBase "${codebase.netty-transport}"`.
 In Entitlements, there is no option for a general grant: you must identify to which module a particular entitlement needs to be granted (except for non-modular plugins, for which everything falls under `ALL-UNNAMED`). If the Security Manager policy specified a codebase, it's usually easy to find the correct module, otherwise it might be tricky and require deeper investigation.

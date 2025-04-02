@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -92,10 +93,10 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
-        assertThat(
-            perFieldMapperCodec.getPostingsFormatForField("another_field"),
-            instanceOf(timeSeries ? ES812PostingsFormat.class : Lucene101PostingsFormat.class)
-        );
+
+        Class<? extends PostingsFormat> expectedPostingsFormat = PerFieldFormatSupplier.USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
+            && timeSeries == false ? Lucene101PostingsFormat.class : ES812PostingsFormat.class;
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(expectedPostingsFormat));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled() throws IOException {
@@ -109,7 +110,10 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene101PostingsFormat.class));
+        Class<? extends PostingsFormat> expectedPostingsFormat = PerFieldFormatSupplier.USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
+            ? Lucene101PostingsFormat.class
+            : ES812PostingsFormat.class;
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(expectedPostingsFormat));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {

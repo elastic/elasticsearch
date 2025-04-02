@@ -42,10 +42,14 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
         // Fields from lookup indices don't need to be present on the node, and our search stats don't include them, anyway. Ignore them.
-        // TODO: this prevents this rule from working when the main index is a lookup index. Unfortunately, this rule can get applied
-        // without knowing that we're in a join's right hand side in PlannerUtils.localPlan, which applies the optimizer to fragments.
         AttributeSet lookupFields = new AttributeSet();
         plan.forEachUp(EsRelation.class, esRelation -> {
+            // Looking only for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index
+            // is used in the FROM command, it will not be marked with LOOKUP mode there - but STANDARD.
+            // It seems like we could instead just look for JOINs and walk down their right hand side to find lookup fields - but this does
+            // not work as this rule also gets called just on the right hand side of a JOIN, which means that we don't always know that
+            // we're inside the right (or left) branch of a JOIN node. (See PlannerUtils.localPlan - this looks for FragmentExecs and
+            // performs local logical optimization of the fragments; the right hand side of a LookupJoinExec can be a FragmentExec.)
             if (esRelation.indexMode() == IndexMode.LOOKUP) {
                 lookupFields.addAll(esRelation.output());
             }
@@ -79,6 +83,12 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                     // save the first field as null (per datatype)
                     if (nullAlias == null) {
                         // Keep the same id so downstream query plans don't need updating
+                        // NOTE: THIS IS BRITTLE AND CAN LEAD TO BUGS.
+                        // In case some optimizer rule or so inserts a plan node that requires the field BEFORE the Eval that we're adding
+                        // on top of the EsRelation, this can trigger a field extraction in the physical optimizer phase, causing wrong
+                        // layouts due to a duplicate name id.
+                        // If someone reaches here AGAIN when debugging e.g. ClassCastExceptions NPEs from wrong layouts, we should probably
+                        // give up on this approach and instead insert EvalExecs in InsertFieldExtraction.
                         Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), f.id());
                         nullLiterals.put(dt, alias);
                         projection = alias.toAttribute();

@@ -12,14 +12,20 @@ package org.elasticsearch.search.rank.rerank;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The {@code ReRankingRankFeaturePhaseRankShardContext} is handles the {@code SearchHits} generated from the {@code RankFeatureShardPhase}
@@ -40,9 +46,18 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
             RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
             for (int i = 0; i < hits.getHits().length; i++) {
                 rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                DocumentField docField = hits.getHits()[i].field(field);
+                SearchHit hit = hits.getHits()[i];
+                DocumentField docField = hit.field(field);
                 if (docField != null) {
                     rankFeatureDocs[i].featureData(docField.getValue().toString());
+                }
+                Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+                if (highlightFields != null) {
+                    HighlightField highlightField = highlightFields.get(field);
+                    if (highlightField != null) {
+                        List<String> snippets = new ArrayList<>(Arrays.stream(highlightField.fragments()).map(Text::toString).toList());
+                        rankFeatureDocs[i].snippets(snippets);
+                    }
                 }
             }
             return new RankFeatureShardResult(rankFeatureDocs);

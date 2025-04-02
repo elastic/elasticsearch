@@ -14,6 +14,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.search.rank.feature.Snippets;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTask
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -44,9 +44,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         String inferenceId,
         String inferenceText,
         Float minScore,
-        boolean failuresAllowed
+        boolean failuresAllowed,
+        Snippets snippets
     ) {
-        super(size, from, rankWindowSize, failuresAllowed);
+        super(size, from, rankWindowSize, failuresAllowed, snippets);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
@@ -64,7 +65,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             // Ensure we get exactly as many scores as the number of docs we passed, otherwise we may return incorrect results
             List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
 
-            if (rankedDocs.size() != featureDocs.length) {
+            if (snippets == null && rankedDocs.size() != featureDocs.length) {
                 l.onFailure(
                     new IllegalStateException(
                         "Reranker input document count and returned score count mismatch: ["
@@ -111,8 +112,17 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             if (featureDocs.length == 0) {
                 inferenceListener.onResponse(new InferenceAction.Response(new RankedDocsResults(List.of())));
             } else {
-                List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
-                InferenceAction.Request inferenceRequest = generateRequest(featureData);
+                List<String> featureData = new ArrayList<>();
+                List<String> snippets = new ArrayList<>();
+                for (RankFeatureDoc featureDoc : featureDocs) {
+                    featureData.add(featureDoc.featureData);
+                    if (featureDoc.snippets != null) {
+                        snippets.addAll(featureDoc.snippets);
+                    }
+                }
+                InferenceAction.Request inferenceRequest = snippets.isEmpty() == false
+                    ? generateRequest(snippets)
+                    : generateRequest(featureData);
                 try {
                     client.execute(InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
                 } finally {

@@ -57,12 +57,18 @@ public final class RankFeatureShardPhase {
                 new FetchFieldsContext(Collections.singletonList(new FieldAndFormat(rankFeaturePhaseRankShardContext.getField(), null)))
             );
             try {
-                SearchHighlightContext searchHighlightContext = new HighlightBuilder().field(field)
-                    .numOfFragments(1) // TODO set num fragments
-                    .preTags("")
-                    .postTags("")
-                    .build(searchContext.getSearchExecutionContext());
-                searchContext.highlight(searchHighlightContext);
+                Snippets snippets = request.snippets();
+                if (snippets != null) {
+                    HighlightBuilder highlightBuilder = new HighlightBuilder().field(field).preTags("").postTags("");
+                    if (snippets.numFragments() != null) {
+                        highlightBuilder.numOfFragments(snippets.numFragments());
+                    }
+                    if (snippets.maxSize() != null) {
+                        highlightBuilder.fragmentSize(snippets.maxSize());
+                    }
+                    SearchHighlightContext searchHighlightContext = highlightBuilder.build(searchContext.getSearchExecutionContext());
+                    searchContext.highlight(searchHighlightContext);
+                }
             } catch (IOException e) {
                 throw new RuntimeException("Failed to create highlight context", e);
             }

@@ -23,6 +23,7 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.search.rank.feature.Snippets;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -54,6 +55,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String field;
     private final Float minScore;
     private final boolean failuresAllowed;
+    private final Snippets snippets;
 
     public TextSimilarityRankBuilder(
         String field,
@@ -61,7 +63,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         String inferenceText,
         int rankWindowSize,
         Float minScore,
-        boolean failuresAllowed
+        boolean failuresAllowed,
+        Snippets snippets
     ) {
         super(rankWindowSize);
         this.inferenceId = inferenceId;
@@ -69,6 +72,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.field = field;
         this.minScore = minScore;
         this.failuresAllowed = failuresAllowed;
+        this.snippets = snippets;
     }
 
     public TextSimilarityRankBuilder(StreamInput in) throws IOException {
@@ -82,6 +86,11 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             this.failuresAllowed = in.readBoolean();
         } else {
             this.failuresAllowed = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
+            this.snippets = in.readOptionalWriteable(Snippets::new);
+        } else {
+            this.snippets = null;
         }
     }
 
@@ -105,6 +114,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         if (out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
             out.writeBoolean(failuresAllowed);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
+            out.writeOptionalWriteable(snippets);
+        }
     }
 
     @Override
@@ -119,6 +131,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         }
         if (failuresAllowed) {
             builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), true);
+        }
+        if (snippets != null) {
+
         }
     }
 
@@ -179,7 +194,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceId,
             inferenceText,
             minScore,
-            failuresAllowed
+            failuresAllowed,
+            snippets
         );
     }
 

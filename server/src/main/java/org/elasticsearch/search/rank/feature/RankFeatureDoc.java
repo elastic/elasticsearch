@@ -10,12 +10,14 @@
 package org.elasticsearch.search.rank.feature;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -27,6 +29,7 @@ public class RankFeatureDoc extends RankDoc {
 
     // TODO: update to support more than 1 fields; and not restrict to string data
     public String featureData;
+    public List<String> snippets;
 
     public RankFeatureDoc(int doc, float score, int shardIndex) {
         super(doc, score, shardIndex);
@@ -35,6 +38,9 @@ public class RankFeatureDoc extends RankDoc {
     public RankFeatureDoc(StreamInput in) throws IOException {
         super(in);
         featureData = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
+            snippets = in.readOptionalStringCollectionAsList();
+        }
     }
 
     @Override
@@ -46,20 +52,27 @@ public class RankFeatureDoc extends RankDoc {
         this.featureData = featureData;
     }
 
+    public void snippets(List<String> snippets) {
+        this.snippets = snippets;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalString(featureData);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
+            out.writeOptionalStringCollection(snippets);
+        }
     }
 
     @Override
     protected boolean doEquals(RankDoc rd) {
         RankFeatureDoc other = (RankFeatureDoc) rd;
-        return Objects.equals(this.featureData, other.featureData);
+        return Objects.equals(this.featureData, other.featureData) && Objects.equals(this.snippets, other.snippets);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hashCode(featureData);
+        return Objects.hash(featureData, snippets);
     }
 
     @Override
@@ -70,5 +83,6 @@ public class RankFeatureDoc extends RankDoc {
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("featureData", featureData);
+        builder.array("snippets", snippets);
     }
 }

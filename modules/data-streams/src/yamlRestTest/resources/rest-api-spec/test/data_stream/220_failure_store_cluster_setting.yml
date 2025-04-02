@@ -75,6 +75,11 @@ teardown:
 
   - do:
       indices.delete_data_stream:
+        name: default-fs-no-match
+        ignore: 404
+
+  - do:
+      indices.delete_data_stream:
         name: disabled-fs-matching
         ignore: 404
 
@@ -180,7 +185,7 @@ teardown:
   # Now create the data stream to ensure it has the expected configuration
   - do:
       indices.create_data_stream:
-        name: default-fs-matching
+        name: disabled-fs-matching
 
   # Assert that failure_store is disabled
   - do:
@@ -188,9 +193,9 @@ teardown:
         name: "disabled-fs-matching"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: disabled-fs-matching }
-  - is_false: data_streams.0.options.failure_store.enabled
+  - match: { data_streams.0.failure_store.enabled: false }
 
-  # Assert that failure store is effectively enabled
+  # Assert that failure store is effectively disabled
   - do:
       indices.get_data_stream:
         name: "disabled-fs-matching"
@@ -209,9 +214,9 @@ teardown:
         name: "disabled-fs-matching"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: disabled-fs-matching }
-  - is_false: data_streams.0.options.failure_store.enabled
+  - match: { data_streams.0.failure_store.enabled: false }
 
-  # Assert that failure store is effectively enabled
+  # Assert that failure store is effectively disabled
   - do:
       indices.get_data_stream:
         name: "disabled-fs-matching"
@@ -220,6 +225,69 @@ teardown:
   - do:
       index:
         index:  disabled-fs-matching
+        refresh: true
+        pipeline: 'failing_pipeline'
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+      catch: '/pipeline go boom/'
+
+---
+"Do not redirect ingest failure when auto-creating data stream to failure store when it doesn't match the setting":
+
+  - do:
+      index:
+        index:  default-fs-no-match
+        refresh: true
+        pipeline: 'failing_pipeline'
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+      catch: '/pipeline go boom/'
+
+  # Now create the data stream to ensure it has the expected configuration
+  - do:
+      indices.create_data_stream:
+        name: default-fs-no-match
+
+  # Assert that failure_store is not configured
+  - do:
+      indices.get_data_stream_options:
+        name: "default-fs-no-match"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: default-fs-no-match }
+  - is_false: data_streams.0.options.failure_store
+
+  # Assert that failure store is effectively disabled
+  - do:
+      indices.get_data_stream:
+        name: "default-fs-no-match"
+  - match: { data_streams.0.name: default-fs-no-match }
+  - match: { data_streams.0.failure_store.enabled: false }
+
+---
+"Do not redirect ingest failure into pre-existing data stream to failure store when it doesn't match the setting":
+  - do:
+      indices.create_data_stream:
+        name: default-fs-no-match
+
+  # Assert that failure_store is not configured
+  - do:
+      indices.get_data_stream_options:
+        name: "default-fs-no-match"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: default-fs-no-match }
+  - is_false: data_streams.0.options.failure_store
+
+  # Assert that failure store is effectively disabled
+  - do:
+      indices.get_data_stream:
+        name: "default-fs-no-match"
+  - match: { data_streams.0.name: default-fs-no-match }
+  - match: { data_streams.0.failure_store.enabled: false }
+  - do:
+      index:
+        index:  default-fs-no-match
         refresh: true
         pipeline: 'failing_pipeline'
         body:
@@ -275,6 +343,32 @@ teardown:
   - do:
       index:
         index:  disabled-fs-matching
+        refresh: true
+        body:
+          '@timestamp': 'not a timestamp'
+          foo: bar
+      catch: '/failed to parse field/'
+
+---
+"Do not redirect mapping failure when auto-creating data stream to failure store when it doesn't match the setting":
+  - do:
+      index:
+        index:  default-fs-no-match
+        refresh: true
+        body:
+          '@timestamp': 'not a timestamp'
+          foo: bar
+      catch: '/failed to parse field/'
+
+---
+"Do not redirect mapping failure into pre-existing data stream to failure store when it doesn't match the setting":
+  - do:
+      indices.create_data_stream:
+        name: default-fs-no-match
+
+  - do:
+      index:
+        index:  default-fs-no-match
         refresh: true
         body:
           '@timestamp': 'not a timestamp'

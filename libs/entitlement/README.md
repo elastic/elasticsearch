@@ -3,9 +3,7 @@
 This module implements mechanisms to grant and check permissions under the _Entitlements_ system.
 
 The entitlements system provides an alternative to the legacy Java Security Manager;
-Elasticsearch (ES) has always made heavy use of the Java Security Manager to minimize the risk of security vulnerabilities impact. The Java Security Manager has been [deprecated for removal since Java 17](https://openjdk.org/jeps/411) (Sept 2021) and has been [removed in JDK 24](https://openjdk.org/jeps/486) (March 2025). Without an alternative, the removal of the Java Security Manager would have left Elasticsearch users more susceptible to future security vulnerabilities.
-
-I would shorten this to not mention the security manager at all. The goal of entitlements
+Elasticsearch (ES) has previously made heavy use of the Java Security Manager to minimize the risk of security vulnerabilities impact. The Java Security Manager has been [deprecated for removal since Java 17](https://openjdk.org/jeps/411) (Sept 2021) and has been [removed in JDK 24](https://openjdk.org/jeps/486) (March 2025). Without an alternative, the removal of the Java Security Manager would have left Elasticsearch users more susceptible to future security vulnerabilities.
 
 The goal of _entitlements_ is to protect certain sensitive operations on resources, and the JVM itself, from unexpected and unwanted access, e.g. to limit the scope of potential remote code execution (RCE) vulnerabilities.
 

@@ -377,7 +377,12 @@ public class FsBlobContainerTests extends ESTestCase {
         }
     }
 
-    public void testCopy() throws IOException {
+    public void testCopy() throws Exception {
+        // without this, on CI the test sometimes fails with
+        // java.nio.file.ProviderMismatchException: mismatch, expected: class org.elasticsearch.common.blobstore.fs.FsBlobContainerTests$1,
+        // got: class org.elasticsearch.common.blobstore.fs.FsBlobContainerTests$MockFileSystemProvider
+        // and I haven't figured out why yet.
+        restoreFileSystem();
         final var path = PathUtils.get(createTempDir().toString());
         final var store = new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false);
         final var sourcePath = BlobPath.EMPTY.add("source");

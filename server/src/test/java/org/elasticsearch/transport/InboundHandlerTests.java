@@ -171,18 +171,19 @@ public class InboundHandlerTests extends ESTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
-            threadPool.getThreadContext(),
-            new TestRequest(requestValue),
-            TransportVersion.current(),
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        BytesReference fullRequestBytes = OutboundHandler.serialize(
             action,
             requestId,
             false,
-            null
+            TransportVersion.current(),
+            false,
+            null,
+            new TestRequest(requestValue),
+            threadPool.getThreadContext(),
+            new RecyclerBytesStreamOutput(recycler)
         );
 
-        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(
             fullRequestBytes.length() - 6,

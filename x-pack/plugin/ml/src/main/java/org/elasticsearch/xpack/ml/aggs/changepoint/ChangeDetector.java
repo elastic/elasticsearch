@@ -15,7 +15,7 @@ import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
 
 import java.util.Arrays;
 import java.util.Random;

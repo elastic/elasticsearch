@@ -16,8 +16,8 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
 import org.elasticsearch.xpack.ml.aggs.DoubleArray;
-import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,7 +33,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
+import static org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
 
 public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
 

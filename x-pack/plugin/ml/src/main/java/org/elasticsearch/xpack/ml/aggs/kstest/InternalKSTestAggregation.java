@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.invalidPathException;
+import static org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper.invalidPathException;
 
 public class InternalKSTestAggregation extends InternalAggregation {
 

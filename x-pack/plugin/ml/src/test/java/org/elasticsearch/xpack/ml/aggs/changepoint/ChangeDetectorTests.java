@@ -12,7 +12,7 @@ import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.RandomGeneratorFactory;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.DoubleStream;

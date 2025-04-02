@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 import org.apache.commons.math3.exception.NotStrictlyPositiveException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
 
 /**
  * Detects whether a series of values has a change point, by running both

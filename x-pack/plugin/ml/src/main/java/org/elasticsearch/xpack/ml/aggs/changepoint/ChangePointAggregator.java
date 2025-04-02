@@ -12,13 +12,13 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
-import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
 
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractBucket;
-import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
+import static org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper.extractBucket;
+import static org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
 
 public class ChangePointAggregator extends SiblingPipelineAggregator {
 

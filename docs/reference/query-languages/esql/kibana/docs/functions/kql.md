@@ -8,7 +8,4 @@ Performs a KQL query. Returns true if the provided KQL query string matches the 
 ```esql
 FROM books
 | WHERE KQL("author: Faulkner")
-| KEEP book_no, author
-| SORT book_no
-| LIMIT 5
 ```

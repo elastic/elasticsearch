@@ -120,6 +120,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
+    private Set<String> configuredClusters;
 
     public EsqlSession(
         String sessionId,
@@ -343,6 +344,8 @@ public class EsqlSession {
             plan.setAnalyzed();
             return plan;
         };
+        // Capture configured remotes list to ensure consistency throughout the session
+        configuredClusters = Set.copyOf(indicesExpressionGrouper.getConfiguredClusters());
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
@@ -355,9 +358,10 @@ public class EsqlSession {
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
 
-        EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, verifier.licenseState());
+        EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, configuredClusters, verifier.licenseState());
 
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
+            configuredClusters,
             indices.stream()
                 .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().indexPattern())))
                 .toArray(String[]::new)
@@ -378,7 +382,7 @@ public class EsqlSession {
             // invalid index resolution to updateExecutionInfo
             if (result.indices.isValid()) {
                 // CCS indices and skip_unavailable cluster values can stop the analysis right here
-                if (analyzeCCSIndices(executionInfo, targetClusters, unresolvedPolicies, result, logicalPlanListener, l)) return;
+                if (allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
             }
             // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
             l.onResponse(result);
@@ -442,6 +446,7 @@ public class EsqlSession {
             IndexPattern table = tableInfo.id();
 
             Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
+                configuredClusters,
                 IndicesOptions.DEFAULT,
                 table.indexPattern()
             );
@@ -501,13 +506,14 @@ public class EsqlSession {
         }
     }
 
-    private boolean analyzeCCSIndices(
+    /**
+     * Check if there are any clusters to search.
+     * @return true if there are no clusters to search, false otherwise
+     */
+    private boolean allCCSClustersSkipped(
         EsqlExecutionInfo executionInfo,
-        Set<String> targetClusters,
-        Set<EnrichPolicyResolver.UnresolvedPolicy> unresolvedPolicies,
         PreAnalysisResult result,
-        ActionListener<LogicalPlan> logicalPlanListener,
-        ActionListener<PreAnalysisResult> l
+        ActionListener<LogicalPlan> logicalPlanListener
     ) {
         IndexResolution indexResolution = result.indices;
         EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
@@ -520,22 +526,6 @@ public class EsqlSession {
             return true;
         }
 
-        Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
-            indexResolution.get().concreteIndices().toArray(String[]::new)
-        ).keySet();
-        // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
-        // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
-        // TODO: add a test for this
-        if (targetClusters.containsAll(newClusters) == false
-            // do not bother with a re-resolution if only remotes were requested and all were offline
-            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isPresent()) {
-            enrichPolicyResolver.resolvePolicies(
-                newClusters,
-                unresolvedPolicies,
-                l.map(enrichResolution -> result.withEnrichResolution(enrichResolution))
-            );
-            return true;
-        }
         return false;
     }
 

@@ -394,7 +394,7 @@ public class CefProcessorTests extends ESTestCase {
             entry("observer", Map.of("product", "Web Gateway", "vendor", "FooBar", "version", "1.2.3.45.67")),
             entry("@timestamp", ZonedDateTime.parse("2018-09-07T14:50:39Z")),
             entry("destination", Map.of("ip", "1.1.1.1", "domain", "foo.example.com")),
-            entry("source", Map.ofEntries(entry("ip", "2.2.2.2"), entry("user", Map.of("name", "redacted")))),
+            entry("source", Map.of("ip", "2.2.2.2", "user", Map.of("name", "redacted"))),
             entry("http", Map.of("request", Map.of("method", "POST"))),
             entry("url", Map.of("original", "'https://foo.example.com/bar/bingo/1'")),
             entry("user_agent", Map.of("original", "'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='")),

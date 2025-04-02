@@ -1,0 +1,10 @@
+pr: 126073
+summary: Add fallback in ILM to run cluster state steps periodically
+area: ILM+SLM
+type: enhancement
+issues:
+ - 125683
+ - 126053
+ - 125911
+ - 125867
+ - 125789

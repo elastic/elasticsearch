@@ -20,7 +20,7 @@
           "parts":{
             "name":{
               "type":"list",
-              "description":"A comma-separated list of data streams of which the data stream lifecycle will be deleted; use `*` to get all data streams"
+              "description":"A comma-separated list of data streams of which the data stream options will be deleted; use `*` to get all data streams"
             }
           }
         }

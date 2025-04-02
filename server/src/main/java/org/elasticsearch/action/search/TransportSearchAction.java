@@ -1991,7 +1991,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         /**
          * Extract telemetry data from the search response.
-         * @param searchResponse The final response from the search.
          */
         private void extractCCSTelemetry(SearchResponse searchResponse) {
             usageBuilder.took(searchResponse.getTookInMillis());

@@ -20,8 +20,11 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Supplier;
+
+
 
 /**
  * The source of a document.  Note that, while objects returned from {@link #source()}
@@ -119,6 +122,7 @@ public interface Source {
                 if (asMap == null) {
                     parseBytes();
                 }
+                asMap = MapFlattener.flattenMap(asMap);
                 return asMap;
             }
 
@@ -138,6 +142,68 @@ public interface Source {
             }
         };
     }
+
+    class MapFlattener {
+        public static Map<String, Object> flattenMap(Map<String, Object> input) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            flattenHelper("", input, result);
+            applyCustomRules(result);
+            return result;
+        }
+
+        private static void flattenHelper(String prefix, Map<String, Object> current, Map<String, Object> result) {
+            for (Map.Entry<String, Object> entry : current.entrySet()) {
+                String newKey = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+                Object value = entry.getValue();
+
+                if (value instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> nestedMap = (Map<String, Object>) value;
+                    flattenHelper(newKey, nestedMap, result);
+                } else {
+                    result.put(newKey, value); // Store all values
+                }
+            }
+        }
+
+        private static void applyCustomRules(Map<String, Object> result) {
+            Map<String, Object> additionalEntries = new LinkedHashMap<>();
+
+            for (Map.Entry<String, Object> entry : new LinkedHashMap<>(result).entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+
+                if (key.startsWith("resource.attributes.")) {
+                    String newKey = key.substring("resource.attributes.".length());
+                    if (result.containsKey(newKey) == false) {
+                        additionalEntries.put(newKey, value);
+                    }
+                }
+                if (key.startsWith("attributes.")) {
+                    String newKey = key.substring("attributes.".length());
+                    if (result.containsKey(newKey) == false) {
+                        additionalEntries.put(newKey, value);
+                    }
+                }
+            }
+
+            if (result.containsKey("body.text") && result.containsKey("message") == false) {
+                additionalEntries.put("message", result.get("body.text"));
+            }
+            if (result.containsKey("severity_text") && result.containsKey("log.level") == false) {
+                additionalEntries.put("log.level", result.get("severity_text"));
+            }
+            if (result.containsKey("span_id") && result.containsKey("span.id") == false) {
+                additionalEntries.put("span.id", result.get("span_id"));
+            }
+            if (result.containsKey("trace_id") && result.containsKey("trace.id") == false) {
+                additionalEntries.put("trace.id", result.get("trace_id"));
+            }
+
+            result.putAll(additionalEntries);
+        }
+    }
+
 
     /**
      * Build a Source from a Map representation.
@@ -174,10 +240,11 @@ public interface Source {
             }
 
             private static BytesReference mapToBytes(Map<String, Object> value, XContentType xContentType) {
+                Map<String, Object> flattenedValue = MapFlattener.flattenMap(value);
                 BytesStreamOutput streamOutput = new BytesStreamOutput(1024);
                 try {
                     XContentBuilder builder = new XContentBuilder(xContentType.xContent(), streamOutput);
-                    builder.value(value);
+                    builder.value(flattenedValue);
                     return BytesReference.bytes(builder);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);

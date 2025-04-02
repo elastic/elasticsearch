@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -873,7 +874,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             }
         }
         if (source != null) {
-            XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
+            // don't write source as raw, but turn into map which will apply the MapFlattener
+            // this is most likely Very Bad for performance, but it will do for a POC
+            builder.field(SourceFieldMapper.NAME, getSourceAsMap());
+            // XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
         if (documentFields.isEmpty() == false &&
         // ignore fields all together if they are all empty

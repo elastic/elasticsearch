@@ -48,7 +48,7 @@ public class ChangeDetector {
     ChangeType detect(double minBucketsPValue) {
         // This was obtained by simulating the test power for a fixed size effect as a
         // function of the bucket value count.
-        double pValueThreshold = minBucketsPValue * Math.exp(-0.04 * (values.length - 2 * (ChangePointDetector.MINIMUM_BUCKETS + 1)));
+        double pValueThreshold = minBucketsPValue * Math.exp(-0.04 * (values.length - 2 * (ChangePointDetectorImpl.MINIMUM_BUCKETS + 1)));
         return testForChange(pValueThreshold).changeType(bucketValues, slope(values));
     }
 
@@ -136,7 +136,7 @@ public class ChangeDetector {
     }
 
     private int[] computeCandidateChangePoints(double[] values) {
-        int minValues = Math.max((int) (0.1 * values.length + 0.5), ChangePointDetector.MINIMUM_BUCKETS);
+        int minValues = Math.max((int) (0.1 * values.length + 0.5), ChangePointDetectorImpl.MINIMUM_BUCKETS);
         if (values.length - 2 * minValues <= MAXIMUM_CANDIDATE_CHANGE_POINTS) {
             return IntStream.range(minValues, values.length - minValues).toArray();
         } else {

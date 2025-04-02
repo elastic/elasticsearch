@@ -11,6 +11,7 @@ import org.apache.commons.math3.exception.NotStrictlyPositiveException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangeType;
 
 /**
@@ -18,9 +19,9 @@ import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangeType;
  * ChangeDetector and SpikeAndDipDetector on it. This is the main entrypoint
  * of change point detection.
  */
-public class ChangePointDetector {
+public class ChangePointDetectorImpl implements ChangePointDetector {
 
-    private static final Logger logger = LogManager.getLogger(ChangePointDetector.class);
+    private static final Logger logger = LogManager.getLogger(ChangePointDetectorImpl.class);
 
     static final double P_VALUE_THRESHOLD = 0.01;
     static final int MINIMUM_BUCKETS = 10;
@@ -28,7 +29,8 @@ public class ChangePointDetector {
     /**
      * Returns the ChangeType of a series of values.
      */
-    public static ChangeType getChangeType(MlAggsHelper.DoubleBucketValues bucketValues) {
+    @Override
+    public ChangeType getChangeType(MlAggsHelper.DoubleBucketValues bucketValues) {
         if (bucketValues.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
             return new ChangeType.Indeterminable(
                 "not enough buckets to calculate change_point. Requires at least ["

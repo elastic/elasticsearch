@@ -22,6 +22,6 @@ public class ChangePointAggregationBuilderTests extends BasePipelineAggregationT
 
     @Override
     protected ChangePointAggregationBuilder createTestAggregatorFactory() {
-        return new ChangePointAggregationBuilder(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        return new ChangePointAggregationBuilder(new ChangePointDetectorImpl(), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 }

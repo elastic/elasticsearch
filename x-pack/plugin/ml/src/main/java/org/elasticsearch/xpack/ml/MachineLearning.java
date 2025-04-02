@@ -60,6 +60,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -184,6 +185,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
@@ -297,6 +299,7 @@ import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetectorImpl;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.changepoint.InternalChangePointAggregation;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
@@ -776,7 +779,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
-
+    private final SetOnce<ChangePointDetector> changePointDetector =  new SetOnce<>(new ChangePointDetectorImpl());
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
@@ -1354,7 +1357,8 @@ public class MachineLearning extends Plugin
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
-            mlMetrics
+            mlMetrics,
+            new PluginComponentBinding<>(ChangePointDetector.class, changePointDetector.get())
         );
     }
 
@@ -1765,8 +1769,11 @@ public class MachineLearning extends Plugin
             ).addResultReader(InternalKSTestAggregation::new),
             new SearchPlugin.PipelineAggregationSpec(
                 ChangePointAggregationBuilder.NAME,
-                ChangePointAggregationBuilder::new,
-                checkAggLicense(ChangePointAggregationBuilder.PARSER, CHANGE_POINT_AGG_FEATURE)
+                in -> new ChangePointAggregationBuilder(changePointDetector.get(), in),
+                checkAggLicense(
+                    (p, c) -> ChangePointAggregationBuilder.fromXContent(p, c, changePointDetector.get()),
+                    CHANGE_POINT_AGG_FEATURE
+                )
             ).addResultReader(InternalChangePointAggregation::new)
         );
     }

@@ -52,6 +52,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -2383,5 +2384,34 @@ public abstract class Engine implements Closeable {
 
     public long getLastUnsafeSegmentGenerationForGets() {
         throw new UnsupportedOperationException("Doesn't support getting the latest segment generation");
+    }
+
+    protected static <R extends ReferenceManager<ElasticsearchDirectoryReader>> R wrapForAssertions(R referenceManager, EngineConfig engineConfig) {
+        if (Assertions.ENABLED) {
+            referenceManager.addListener(new AssertRefreshListenerHoldsEngineReadLock(engineConfig.getEngineLock()));
+        }
+        return referenceManager;
+    }
+
+    /**
+     * RefreshListener that asserts that the engine read lock is held by the thread refreshing the reference.
+     */
+    private static class AssertRefreshListenerHoldsEngineReadLock implements ReferenceManager.RefreshListener {
+
+        private final EngineReadWriteLock engineLock;
+
+        private AssertRefreshListenerHoldsEngineReadLock(EngineReadWriteLock engineLock) {
+            this.engineLock = Objects.requireNonNull(engineLock);
+        }
+
+        @Override
+        public void beforeRefresh() throws IOException {
+            assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) throws IOException {
+            assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
+        }
     }
 }

@@ -18,12 +18,14 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -98,24 +100,7 @@ public class TSDBDocValuesMergeBenchmark {
     }
 
     private IndexWriter createIndex(final Directory directory, final boolean optimizedMergeEnabled) throws IOException {
-
-        final IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
-        // NOTE: index sort config matching LogsDB's sort order
-        config.setIndexSort(
-            new Sort(
-                new SortField(HOSTNAME_FIELD, SortField.Type.STRING, false),
-                new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
-            )
-        );
-        ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(4096, optimizedMergeEnabled);
-        config.setCodec(new Lucene101Codec() {
-
-            @Override
-            public DocValuesFormat getDocValuesFormatForField(String field) {
-                return docValuesFormat;
-            }
-        });
-
+        final var iwc = createIndexWriterConfig(optimizedMergeEnabled);
         long counter1 = 0;
         long counter2 = 10_000_000;
         long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
@@ -124,7 +109,7 @@ public class TSDBDocValuesMergeBenchmark {
         String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
 
         final Random random = new Random(seed);
-        IndexWriter indexWriter = new IndexWriter(directory, config);
+        IndexWriter indexWriter = new IndexWriter(directory, iwc);
         for (int i = 0; i < nDocs; i++) {
             final Document doc = new Document();
 
@@ -177,5 +162,27 @@ public class TSDBDocValuesMergeBenchmark {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    private static IndexWriterConfig createIndexWriterConfig(boolean optimizedMergeEnabled) {
+        var config = new IndexWriterConfig(new StandardAnalyzer());
+        // NOTE: index sort config matching LogsDB's sort order
+        config.setIndexSort(
+            new Sort(
+                new SortField(HOSTNAME_FIELD, SortField.Type.STRING, false),
+                new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
+            )
+        );
+        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        var docValuesFormat = new ES819TSDBDocValuesFormat(4096, optimizedMergeEnabled);
+        config.setCodec(new Lucene101Codec() {
+
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return docValuesFormat;
+            }
+        });
+        return config;
     }
 }

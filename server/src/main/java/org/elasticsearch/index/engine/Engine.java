@@ -1559,7 +1559,7 @@ public abstract class Engine implements Closeable {
             Closeable onClose
         ) {
             // pass in an executor so we can shortcut and avoid looping through all segments
-            super(reader, Runnable::run);
+            super(reader, source.equals(CAN_MATCH_SEARCH_SOURCE) ? Runnable::run : null);
             setSimilarity(similarity);
             setQueryCache(queryCache);
             setQueryCachingPolicy(queryCachingPolicy);
@@ -1571,6 +1571,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+            assert source.equals(CAN_MATCH_SEARCH_SOURCE);
             return EMPTY_SLICES;
         }
 
@@ -1601,18 +1602,15 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) {
-            throw new UnsupportedOperationException("search not supported by this Engine.Searcher");
+        protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
+            assert source.equals(CAN_MATCH_SEARCH_SOURCE) == false;
+            super.searchLeaf(ctx, minDocId, maxDocId, weight, collector);
         }
 
         @Override
         public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
-            throw new UnsupportedOperationException("search not supported by this Engine.Searcher");
-        }
-
-        @Override
-        protected Explanation explain(Weight weight, int doc) throws IOException {
-            throw new UnsupportedOperationException("explain not supported by this Engine.Searcher");
+            assert source.equals(CAN_MATCH_SEARCH_SOURCE) == false;
+            return super.search(query, collectorManager);
         }
     }
 

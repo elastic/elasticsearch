@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -841,5 +842,19 @@ public final class EsqlTestUtils {
         assertNull("cancellation exceptions must be ignored", cancellationFailure);
         ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof RemoteTransportException)
             .ifPresent(transportFailure -> assertNull("remote transport exception must be unwrapped", transportFailure.getCause()));
+    }
+
+    /**
+     * Errors from remotes are wrapped in RemoteException while the ones from the local cluster
+     * aren't. This utility method is useful for unwrapping in such cases.
+     * @param e Exception to unwrap.
+     * @return Cause of RemoteException, else the error itself.
+     */
+    public static Exception unwrapIfWrappedInRemoteException(Exception e) {
+        if (e instanceof RemoteException rce) {
+            return (Exception) rce.getCause();
+        } else {
+            return e;
+        }
     }
 }

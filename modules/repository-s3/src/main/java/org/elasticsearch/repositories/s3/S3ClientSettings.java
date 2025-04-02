@@ -153,6 +153,8 @@ final class S3ClientSettings {
             Defaults.THROTTLE_RETRIES,
             Property.NodeScope,
             // TODO NOMERGE why deprecated?
+            // -dianna: V2 retry strategies appear to use throttling by default for a category of exceptions. We could add new settings to
+            // configure the exponential delay, such as throttleBaseDelay and throttleMaxDelay
             Property.Deprecated
         )
     );

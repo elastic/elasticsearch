@@ -57,6 +57,7 @@ import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
+import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
 
 public class PolicyManager {
     /**
@@ -571,7 +572,7 @@ public class PolicyManager {
         var exception = new NotEntitledException(message);
         // Don't emit a log for muted classes, e.g. classes containing self tests
         if (mutedClasses.contains(callerClass) == false) {
-            entitlements.logger().warn("Not entitled:", exception);
+            entitlements.logger().warn("Not entitled: {}", message, exception);
         }
         throw exception;
     }
@@ -712,8 +713,6 @@ public class PolicyManager {
 
     /**
      * Given a stream of {@link StackFrame}s, identify the one whose entitlements should be checked.
-     *
-     * @throws NullPointerException if the requesting module is {@code null}
      */
     Optional<StackFrame> findRequestingFrame(Stream<StackFrame> frames) {
         return frames.filter(f -> f.getDeclaringClass().getModule() != entitlementsModule) // ignore entitlements library
@@ -730,6 +729,10 @@ public class PolicyManager {
         }
         if (requestingClass == null) {
             generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
+            return true;
+        }
+        if (requestingClass == NO_CLASS) {
+            generalLogger.debug("Entitlement trivially allowed from outermost frame");
             return true;
         }
         if (SYSTEM_LAYER_MODULES.contains(requestingClass.getModule())) {

@@ -25,7 +25,6 @@ import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
 import software.amazon.awssdk.identity.spi.ResolveIdentityRequest;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.retries.api.BackoffStrategy;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
@@ -274,12 +273,6 @@ class S3Service implements Closeable {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
 
         clientOverrideConfiguration.retryStrategy(builder -> {
-            // TODO NOMERGE: consider new throttling ClientSettings?
-            // The original ClientSettings.throttleRetries controls whether to do exponential backoff. V2 appears to always use it,
-            // categorizing exceptions as non-throttling retry and throttling retry. We can configure throttling backoff.
-            // (https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/retry-strategy.html)
-            // builder.throttlingBackoffStrategy(
-            // BackoffStrategy.exponentialDelay(clientSettings.throttleBaseDelay, clientSettings.throttleMaxDelay));
             builder.maxAttempts(clientSettings.maxRetries + 1 /* first attempt is not a retry */);
             // TODO NOMERGE: revisit this, does it still make sense to specially retry?
             // -- dct: yes, in serverless we sometimes get 403s during because of delays in propagating updated credentials

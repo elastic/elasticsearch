@@ -141,7 +141,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 .endObject();
 
             final Request request = new Request("PUT", "_cluster/settings");
-            ///
             request.setJsonEntity(Strings.toString(builder));
             final Response response = client().performRequest(request);
 

@@ -195,8 +195,8 @@ public final class CountDistinctFloatGroupingAggregatorFunction implements Group
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = CountDistinctFloatAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = CountDistinctFloatAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

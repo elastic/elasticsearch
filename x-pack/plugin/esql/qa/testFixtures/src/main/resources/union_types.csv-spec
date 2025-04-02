@@ -1982,3 +1982,45 @@ c:long | mo:date_nanos
 22     | 1986-01-01T00:00:00.000Z
 22     | 1985-01-01T00:00:00.000Z
 ;
+
+
+MultiTypedEnrichOnNumericField
+required_capability: enrich_load
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+from employees, employees_incompatible
+| enrich languages_policy on languages
+| keep emp_no, language_name
+| sort emp_no
+| limit 6
+;
+
+emp_no:long |language_name:keyword
+10001       | French
+10001       | French
+10002       | null
+10002       | null
+10003       | German
+10003       | German
+;
+
+MultiTypedEnrichOnNumericFieldWithEval
+required_capability: enrich_load
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+from employees, employees_incompatible
+| eval languages = languages + 1
+| enrich languages_policy on languages
+| keep emp_no, language_name
+| sort emp_no
+| limit 6
+;
+
+emp_no:long |language_name:keyword
+10001       | Spanish
+10001       | Spanish
+10002       | null
+10002       | null
+10003       | null
+10003       | null
+;

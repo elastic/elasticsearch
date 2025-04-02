@@ -76,13 +76,11 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -91,7 +89,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -1065,7 +1062,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final DataType dataType = resolved.dataType();
                     String matchType = enrich.policy().getType();
                     DataType[] allowed = allowedEnrichTypes(matchType);
-                    if (Arrays.asList(allowed).contains(dataType) == false) {
+                    if (Arrays.asList(allowed).contains(dataType) == false && multiTypedField(resolved) == null) { // leave multi-typed
+                                                                                                                   // fields to
+                                                                                                                   // ImplicitCasting to
+                                                                                                                   // deal with
                         String suffix = "only ["
                             + Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", "))
                             + "] allowed for type ["
@@ -1269,10 +1269,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (p instanceof OrderBy
                     || p instanceof EsqlProject
                     || p instanceof Aggregate
-                    || p instanceof RegexExtract
                     || p instanceof MvExpand
                     || p instanceof Eval
-                    || p instanceof LookupJoin) {
+                    || p instanceof LookupJoin
+                    || p instanceof Enrich) {
                     return castInvalidMappedFieldInLogicalPlan(p, false);
                 }
                 return p;
@@ -1317,10 +1317,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     case EsqlProject project -> project.projections();
                     case OrderBy ob -> ob.order();
                     case Aggregate agg -> agg.groupings();
-                    case RegexExtract re -> List.of(re.input());
                     case MvExpand me -> List.of(me.target());
-                    case Eval e -> e.fields();
+                    case Eval eval -> eval.fields();
                     case LookupJoin lj -> lj.config().leftFields();
+                    case Enrich enrich -> List.of(enrich.matchField());
                     // The other types of plans are unexpected
                     default -> throw new EsqlIllegalArgumentException("unexpected logical plan: " + plan);
                 };
@@ -1355,32 +1355,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         }
                         return agg.with(evalForInvalidMappedField(agg.source(), agg.child(), aliases), newProjections, newAggs);
                     }
-                    case Dissect d -> {
-                        return new Dissect(
-                            plan.source(),
-                            evalForInvalidMappedField(d.source(), d.child(), aliases),
-                            newProjections.get(0),
-                            d.parser(),
-                            d.extractedFields()
-                        );
-                    }
-                    case Grok g -> {
-                        return new Grok(
-                            plan.source(),
-                            evalForInvalidMappedField(g.source(), g.child(), aliases),
-                            newProjections.get(0),
-                            g.parser(),
-                            g.extractedFields()
-                        );
-                    }
                     case MvExpand mve -> {
                         NamedExpression newTarget = Expressions.attribute(newProjections.get(0));
                         return new MvExpand(
-                            plan.source(),
+                            mve.source(),
                             evalForInvalidMappedField(mve.source(), mve.child(), aliases),
                             newTarget,
-                            new ReferenceAttribute(newTarget.source(), newTarget.name(), newTarget.dataType(), newTarget.nullable(),
-                                mve.expanded().id(), false)
+                            newTarget.toAttribute()
                         );
                     }
                     case Eval ev -> {
@@ -1398,6 +1379,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             evalForInvalidMappedField(lj.source(), lj.left(), aliases),
                             lj.right(),
                             newJoinConfig
+                        );
+                    }
+                    case Enrich enrich -> {
+                        NamedExpression newMatchField = Expressions.attribute(newProjections.get(0));
+                        return new Enrich(
+                            enrich.source(),
+                            evalForInvalidMappedField(enrich.source(), enrich.child(), aliases),
+                            enrich.mode(),
+                            enrich.policyName(),
+                            // Let resolveEnrich check whether the data type is supported, e.g. Enrich does not support data_nanos
+                            new UnresolvedAttribute(newMatchField.source(), newMatchField.name()),
+                            enrich.policy(),
+                            enrich.concreteIndices(),
+                            enrich.enrichFields()
                         );
                     }
                     // The other types of plans are unexpected
@@ -1462,13 +1457,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Expression e = Alias.unwrap(exp);
                 e = e instanceof Order o ? o.child() : e;
                 String alias = exp instanceof Alias a ? a.name() : null;
-                if (e.resolved()
-                    && e.dataType() == UNSUPPORTED
-                    && e instanceof FieldAttribute fa
-                    && fa.field() instanceof InvalidMappedField imf) {
+                InvalidMappedField multiTypedField = multiTypedField(e);
+                if (multiTypedField != null) {
                     // This is an invalid mapped field, find a common data type and cast to it.
                     DataType targetType = null;
-                    for (DataType type : imf.types()) {
+                    for (DataType type : multiTypedField.types()) {
                         if (targetType == null) { // Initialize the target type to the first type.
                             targetType = type;
                         } else {
@@ -1480,9 +1473,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         }
                     }
                     if (targetType != null && isRepresentable(targetType) && (isMillisOrNanos(targetType) || targetType.isNumeric())) {
-                        alias = alias != null ? alias : fa.name();
-                        Source source = fa.source();
-                        Expression newChild = castInvalidMappedField(targetType, fa);
+                        alias = alias != null ? alias : multiTypedField.getName();
+                        Source source = e.source();
+                        Expression newChild = castInvalidMappedField(targetType, e);
                         Alias newAlias = new Alias(source, alias, newChild);
                         newAliases.add(newAlias);
                         if (createNewChildPlan) {
@@ -1525,7 +1518,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Do implicit casting for data, date_nanos and numeric types only
          */
-        private static Expression castInvalidMappedField(DataType targetType, FieldAttribute fa) {
+        private static Expression castInvalidMappedField(DataType targetType, Expression fa) {
             Source source = fa.source();
             return switch (targetType) {
                 case INTEGER -> new ToInteger(source, fa);
@@ -1955,5 +1948,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
         }
+    }
+
+    private static InvalidMappedField multiTypedField(Expression e) {
+        Expression exp = Alias.unwrap(e);
+        if (exp.resolved()
+            && exp.dataType() == UNSUPPORTED
+            && exp instanceof FieldAttribute fa
+            && fa.field() instanceof InvalidMappedField imf) {
+            return imf;
+        }
+        return null;
     }
 }

@@ -526,8 +526,8 @@ public class WildcardFieldMapper extends FieldMapper {
         private static Query createUnionQuery(RegExp r) {
             // Create an OR of clauses
             List<Query> queries = new ArrayList<>();
-            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CHAR_CLASS, queries);
-            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CHAR_CLASS, queries);
+            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
+            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
             return formQuery(queries);
         }
 

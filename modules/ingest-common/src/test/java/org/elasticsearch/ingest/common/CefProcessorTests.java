@@ -983,19 +983,19 @@ public class CefProcessorTests extends ESTestCase {
 
     public void toIP_invalidIPAddress() {
         CefParser parser = new CefParser(ZoneId.of("UTC"), true);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> { parser.toIP("invalid_ip"); });
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> parser.toIP("invalid_ip"));
         assertEquals("Invalid IP address format", exception.getMessage());
     }
 
     public void toIP_emptyString() {
         CefParser parser = new CefParser(ZoneId.of("UTC"), true);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> { parser.toIP(""); });
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> parser.toIP(""));
         assertEquals("Invalid IP address format", exception.getMessage());
     }
 
     public void toIP_nullString() {
         CefParser parser = new CefParser(ZoneId.of("UTC"), true);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> { parser.toIP(null); });
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> parser.toIP(null));
         assertEquals("Invalid IP address format", exception.getMessage());
     }
 }

@@ -144,7 +144,7 @@ Extracts a single line of CSV data from a text field.
 <<date-processor, `date` processor>>::
 Extracts and converts date fields.
 
-<<dot-expand-processor, `dot_expand`>> processor::
+<<dot-expand-processor, `dot_expand` processor>>::
 Expands a field with dots into an object field.
 
 <<htmlstrip-processor, `html_strip` processor>>::

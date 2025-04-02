@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.script.field.IPAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,12 +20,15 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.parseIP;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ToIPTests extends AbstractScalarFunctionTestCase {
     public ToIPTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -61,6 +65,19 @@ public class ToIPTests extends AbstractScalarFunctionTestCase {
             bytesRef -> parseIP(((BytesRef) bytesRef).utf8ToString()),
             emptyList()
         );
+        suppliers.add(new TestCaseSupplier("<ip> with leading 0s", List.of(DataType.KEYWORD), () -> {
+            BytesRef withLeadingZeros = new BytesRef(randomIpWithLeadingZeros());
+            System.err.println(withLeadingZeros.utf8ToString());
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(withLeadingZeros, DataType.KEYWORD, "ip")),
+                stringEvaluator,
+                DataType.IP,
+                nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning(
+                    "Line 1:1: java.lang.IllegalArgumentException: '" + withLeadingZeros.utf8ToString() + "' is not an IP string literal."
+                );
+        }));
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
@@ -83,5 +100,14 @@ public class ToIPTests extends AbstractScalarFunctionTestCase {
                 DataType.TEXT
             )
         );
+    }
+
+    private static String randomIpWithLeadingZeros() {
+        byte[] address = randomValueOtherThanMany(
+            // < 0 is really >= 128 in the encoding.
+            (byte[] a) -> a[0] < 0 && a[1] < 0 && a[2] < 0 && a[3] < 0,
+            () -> randomIp(true).getAddress()
+        );
+        return String.format("%03d.%03d.%03d.%03d", address[0] & 0xff, address[1] & 0xff, address[2] & 0xff, address[3] & 0xff);
     }
 }

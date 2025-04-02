@@ -251,8 +251,10 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
 
     private void waitForRateLimitingAssignments(InferenceServiceNodeLocalRateLimitCalculator calculator) throws Exception {
         assertBusy(() -> {
-            var assignment = calculator
-                .getRateLimitAssignment(TestSparseInferenceServiceExtension.TestInferenceService.NAME, TaskType.SPARSE_EMBEDDING);
+            var assignment = calculator.getRateLimitAssignment(
+                TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+                TaskType.SPARSE_EMBEDDING
+            );
             assertNotNull(assignment);
             assertFalse(assignment.responsibleNodes().isEmpty());
         }, RATE_LIMIT_ASSIGNMENT_MAX_WAIT_TIME_IN_SECONDS, TimeUnit.SECONDS);

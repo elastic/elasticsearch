@@ -401,6 +401,9 @@ tests:
 - class: org.elasticsearch.search.sort.GeoDistanceIT
   method: testDistanceSortingWithUnmappedField
   issue: https://github.com/elastic/elasticsearch/issues/126118
+- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
+  method: testBlockLoader {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/126121
 
 # Examples:
 #

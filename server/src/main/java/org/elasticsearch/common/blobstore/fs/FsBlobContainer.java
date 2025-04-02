@@ -350,13 +350,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void copyBlob(
-        OperationPurpose purpose,
-        BlobContainer sourceBlobContainer,
-        String sourceBlobName,
-        String blobName,
-        long blobSize
-    ) throws IOException {
+    public void copyBlob(OperationPurpose purpose, BlobContainer sourceBlobContainer, String sourceBlobName, String blobName, long blobSize)
+        throws IOException {
         if (sourceBlobContainer instanceof FsBlobContainer == false) {
             throw new IllegalArgumentException("source blob container must be a FsBlobContainer");
         }

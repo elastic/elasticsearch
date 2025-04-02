@@ -4,7 +4,7 @@
 <titleabbrev>Set security user</titleabbrev>
 ++++
 
-Sets user-related details (such as `username`,  `roles`, `email`, `full_name`,
+Sets user-related details (such as `username`, `roles`, `email`, `full_name`,
 `metadata`, `api_key`, `realm` and `authentication_type`) from the current
 authenticated user.
 The `api_key` property exists only if the user authenticates with an

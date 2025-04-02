@@ -14,7 +14,6 @@ import com.amazonaws.http.AmazonHttpClient;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
 import com.amazonaws.services.s3.model.MultipartUpload;
-import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -693,16 +692,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             super(delegate, Arrays.stream(S3BlobStore.Operation.values()).map(S3BlobStore.Operation::getKey).toArray(String[]::new));
         }
 
+        private S3HttpHandler.S3Request parseRequest(HttpExchange exchange) {
+            return new S3HttpHandler("bucket").parseRequest(exchange);
+        }
+
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            final S3HttpHandler.RequestComponents requestComponents = S3HttpHandler.parseRequestComponents(
-                S3HttpHandler.getRawRequestString(exchange)
-            );
-            if (false == requestComponents.request().startsWith("HEAD ")) {
-                assertThat(requestComponents.customQueryParameters(), hasKey(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE));
+            final S3HttpHandler.S3Request s3Request = parseRequest(exchange);
+            if ("HEAD".equals(s3Request.method())) {
+                assertTrue(s3Request.hasQueryParamOnce(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE));
             }
-            final String request = requestComponents.request();
-            if (shouldFailCompleteMultipartUploadRequest.get() && Regex.simpleMatch("POST /*/*?uploadId=*", request)) {
+            if (shouldFailCompleteMultipartUploadRequest.get() && s3Request.isCompleteMultipartUploadRequest()) {
                 try (exchange) {
                     drainInputStream(exchange.getRequestBody());
                     exchange.sendResponseHeaders(
@@ -716,71 +716,65 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        public void maybeTrack(final String rawRequest, Headers requestHeaders) {
-            final S3HttpHandler.RequestComponents requestComponents = S3HttpHandler.parseRequestComponents(rawRequest);
-            final String request = requestComponents.request();
-            final OperationPurpose purpose = OperationPurpose.parse(
-                requestComponents.customQueryParameters().get(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE).get(0)
-            );
-            if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
+        public void maybeTrack(HttpExchange exchange) {
+            final S3HttpHandler.S3Request request = parseRequest(exchange);
+            final OperationPurpose purpose = OperationPurpose.parse(request.getQueryParamOnce(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE));
+            if (request.isListObjectsRequest()) {
                 trackRequest("ListObjects");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.LIST_OBJECTS, purpose), k -> new AtomicLong())
                     .incrementAndGet();
-            } else if (Regex.simpleMatch("GET /*/?uploads&*", request)) {
+            } else if (request.isListMultipartUploadsRequest()) {
                 // TODO track ListMultipartUploads requests
                 logger.info("--> ListMultipartUploads not tracked [{}] with parsed purpose [{}]", request, purpose.getKey());
-            } else if (Regex.simpleMatch("GET /*/*", request)) {
+            } else if (request.isGetObjectRequest()) {
                 trackRequest("GetObject");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.GET_OBJECT, purpose), k -> new AtomicLong())
                     .incrementAndGet();
-            } else if (Regex.simpleMatch("PUT /*/*", request)
-                && requestComponents.customQueryParameters().containsKey(S3BlobStore.CUSTOM_QUERY_PARAMETER_COPY_SOURCE)) {
+            } else if (isMultiPartUpload(request)) {
+                trackRequest("PutMultipartObject");
+                metricsCount.computeIfAbsent(
+                    new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_MULTIPART_OBJECT, purpose),
+                    k -> new AtomicLong()
+                ).incrementAndGet();
+            } else if (request.isPutObjectRequest()) {
+                if (exchange.getRequestHeaders().containsKey(S3BlobStore.CUSTOM_QUERY_PARAMETER_COPY_SOURCE)) {
                     trackRequest("CopyObject");
                     metricsCount.computeIfAbsent(
                         new S3BlobStore.StatsKey(S3BlobStore.Operation.COPY_OBJECT, purpose),
                         k -> new AtomicLong()
                     ).incrementAndGet();
-                } else if (isMultiPartUpload(request)) {
-                    trackRequest("PutMultipartObject");
-                    metricsCount.computeIfAbsent(
-                        new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_MULTIPART_OBJECT, purpose),
-                        k -> new AtomicLong()
-                    ).incrementAndGet();
-                } else if (Regex.simpleMatch("PUT /*/*", request)) {
+                } else {
                     trackRequest("PutObject");
                     metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.PUT_OBJECT, purpose), k -> new AtomicLong())
                         .incrementAndGet();
-                } else if (Regex.simpleMatch("POST /*/?delete", request)) {
-                    trackRequest("DeleteObjects");
-                    metricsCount.computeIfAbsent(
-                        new S3BlobStore.StatsKey(S3BlobStore.Operation.DELETE_OBJECTS, purpose),
-                        k -> new AtomicLong()
-                    ).incrementAndGet();
-                } else if (Regex.simpleMatch("DELETE /*/*?uploadId=*", request)) {
-                    trackRequest("AbortMultipartObject");
-                    metricsCount.computeIfAbsent(
-                        new S3BlobStore.StatsKey(S3BlobStore.Operation.ABORT_MULTIPART_OBJECT, purpose),
-                        k -> new AtomicLong()
-                    ).incrementAndGet();
-                } else if (Regex.simpleMatch("HEAD /*/*", request)) {
-                    trackRequest("HeadObject");
-                    metricsCount.computeIfAbsent(
-                        new S3BlobStore.StatsKey(S3BlobStore.Operation.HEAD_OBJECT, purpose),
-                        k -> new AtomicLong()
-                    ).incrementAndGet();
-                } else {
-                    logger.info("--> rawRequest not tracked [{}] with parsed purpose [{}]", request, purpose.getKey());
                 }
+            } else if (request.isMultiObjectDeleteRequest()) {
+                trackRequest("DeleteObjects");
+                metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.DELETE_OBJECTS, purpose), k -> new AtomicLong())
+                    .incrementAndGet();
+            } else if (request.isAbortMultipartUploadRequest()) {
+                trackRequest("AbortMultipartObject");
+                metricsCount.computeIfAbsent(
+                    new S3BlobStore.StatsKey(S3BlobStore.Operation.ABORT_MULTIPART_OBJECT, purpose),
+                    k -> new AtomicLong()
+                ).incrementAndGet();
+            } else if (request.isHeadObjectRequest()) {
+                trackRequest("HeadObject");
+                metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.HEAD_OBJECT, purpose), k -> new AtomicLong())
+                    .incrementAndGet();
+            } else {
+                logger.info("--> rawRequest not tracked [{}] with parsed purpose [{}]", request, purpose.getKey());
+            }
         }
 
         Map<S3BlobStore.StatsKey, AtomicLong> getMetricsCount() {
             return metricsCount;
         }
 
-        private boolean isMultiPartUpload(String request) {
-            return Regex.simpleMatch("POST /*/*?uploads", request)
-                || Regex.simpleMatch("POST /*/*?*uploadId=*", request)
-                || Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
+        private boolean isMultiPartUpload(S3HttpHandler.S3Request s3Request) {
+            return s3Request.isInitiateMultipartUploadRequest()
+                || s3Request.isUploadPartRequest()
+                || s3Request.isCompleteMultipartUploadRequest();
         }
     }
 }

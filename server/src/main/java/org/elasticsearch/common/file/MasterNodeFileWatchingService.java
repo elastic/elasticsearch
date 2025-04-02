@@ -20,7 +20,6 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.gateway.GatewayService;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
@@ -43,7 +42,7 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
         // We start the file watcher when we know we are master from a cluster state change notification.
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
-        this.active = Files.exists(watchedFileDir().getParent());
+        this.active = filesExists(watchedFileDir().getParent());
         if (active == false) {
             // we don't have a config directory, we can't possibly launch the file settings service
             return;
@@ -92,10 +91,10 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
     @FixForMultiProject // do we want to re-process everything all at once?
     private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
         if (shouldRefreshFileState(clusterState)) {
-            try (Stream<Path> files = Files.list(watchedFileDir())) {
+            try (Stream<Path> files = filesList(watchedFileDir())) {
                 FileTime time = FileTime.from(Instant.now());
                 for (var it = files.iterator(); it.hasNext();) {
-                    Files.setLastModifiedTime(it.next(), time);
+                    filesSetLastModifiedTime(it.next(), time);
                 }
             } catch (IOException e) {
                 logger.warn("encountered I/O error trying to update file settings timestamp", e);

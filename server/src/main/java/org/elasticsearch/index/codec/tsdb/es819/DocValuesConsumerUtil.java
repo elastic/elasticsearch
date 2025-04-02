@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb;
+package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BaseTermsEnum;
@@ -59,13 +59,13 @@ class DocValuesConsumerUtil {
         long sumNumValues = 0;
         int sumNumDocsWithField = 0;
 
-        // TODO bring back codec version check? (per field doc values producer sits between ES87TSDBDocValuesConsumer)
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
             switch (fieldInfo.getDocValuesType()) {
                 case NUMERIC -> {
                     var numeric = docValuesProducer.getNumeric(fieldInfo);
-                    if (numeric instanceof ES87TSDBDocValuesProducer.BaseNumericDocValues baseNumeric) {
+                    // (checking instance type as serves as a version check)
+                    if (numeric instanceof ES819TSDBDocValuesProducer.BaseNumericDocValues baseNumeric) {
                         var entry = baseNumeric.entry;
                         sumNumValues += entry.numValues;
                         sumNumDocsWithField += entry.numDocsWithField;
@@ -75,13 +75,13 @@ class DocValuesConsumerUtil {
                 }
                 case SORTED_NUMERIC -> {
                     var sortedNumeric = docValuesProducer.getSortedNumeric(fieldInfo);
-                    if (sortedNumeric instanceof ES87TSDBDocValuesProducer.BaseSortedNumericDocValues baseSortedNumericDocValues) {
+                    if (sortedNumeric instanceof ES819TSDBDocValuesProducer.BaseSortedNumericDocValues baseSortedNumericDocValues) {
                         var entry = baseSortedNumericDocValues.entry;
                         sumNumValues += entry.numValues;
                         sumNumDocsWithField += entry.numDocsWithField;
                     } else {
                         var singleton = DocValues.unwrapSingleton(sortedNumeric);
-                        if (singleton instanceof ES87TSDBDocValuesProducer.BaseNumericDocValues baseNumeric) {
+                        if (singleton instanceof ES819TSDBDocValuesProducer.BaseNumericDocValues baseNumeric) {
                             var entry = baseNumeric.entry;
                             sumNumValues += entry.numValues;
                             sumNumDocsWithField += entry.numDocsWithField;
@@ -92,7 +92,7 @@ class DocValuesConsumerUtil {
                 }
                 case SORTED -> {
                     var sorted = docValuesProducer.getSorted(fieldInfo);
-                    if (sorted instanceof ES87TSDBDocValuesProducer.BaseSortedDocValues baseSortedDocValues) {
+                    if (sorted instanceof ES819TSDBDocValuesProducer.BaseSortedDocValues baseSortedDocValues) {
                         var entry = baseSortedDocValues.entry;
                         sumNumValues += entry.ordsEntry.numValues;
                         sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
@@ -102,13 +102,13 @@ class DocValuesConsumerUtil {
                 }
                 case SORTED_SET -> {
                     var sortedSet = docValuesProducer.getSortedSet(fieldInfo);
-                    if (sortedSet instanceof ES87TSDBDocValuesProducer.BaseSortedSetDocValues baseSortedSet) {
+                    if (sortedSet instanceof ES819TSDBDocValuesProducer.BaseSortedSetDocValues baseSortedSet) {
                         var entry = baseSortedSet.entry;
                         sumNumValues += entry.ordsEntry.numValues;
                         sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
                     } else {
                         var singleton = DocValues.unwrapSingleton(sortedSet);
-                        if (singleton instanceof ES87TSDBDocValuesProducer.BaseSortedDocValues baseSorted) {
+                        if (singleton instanceof ES819TSDBDocValuesProducer.BaseSortedDocValues baseSorted) {
                             var entry = baseSorted.entry;
                             sumNumValues += entry.ordsEntry.numValues;
                             sumNumDocsWithField += entry.ordsEntry.numDocsWithField;

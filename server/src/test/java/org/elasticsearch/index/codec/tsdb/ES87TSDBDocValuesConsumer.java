@@ -16,9 +16,9 @@ import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
@@ -46,7 +46,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
@@ -56,13 +55,11 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     IndexOutput data, meta;
     final int maxDoc;
-    final boolean enableOptimizedMerge;
     private byte[] termsDictBuffer;
     private final int skipIndexIntervalSize;
 
     ES87TSDBDocValuesConsumer(
         SegmentWriteState state,
-        boolean enableOptimizedMerge,
         int skipIndexIntervalSize,
         String dataCodec,
         String dataExtension,
@@ -92,7 +89,6 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             );
             maxDoc = state.segmentInfo.maxDoc();
             this.skipIndexIntervalSize = skipIndexIntervalSize;
-            this.enableOptimizedMerge = enableOptimizedMerge;
             success = true;
         } finally {
             if (success == false) {
@@ -105,7 +101,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES87TSDBDocValuesFormat.NUMERIC);
-        var producer = new TsdbDocValuesProducer(valuesProducer) {
+        DocValuesProducer producer = new EmptyDocValuesProducer() {
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
                 return DocValues.singleton(valuesProducer.getNumeric(field));
@@ -118,21 +114,15 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         writeField(field, producer, -1);
     }
 
-    private long[] writeField(FieldInfo field, TsdbDocValuesProducer valuesProducer, long maxOrd) throws IOException {
+    private long[] writeField(FieldInfo field, DocValuesProducer valuesProducer, long maxOrd) throws IOException {
         int numDocsWithValue = 0;
         long numValues = 0;
 
-        SortedNumericDocValues values;
-        if (valuesProducer.mergeStats.supported()) {
-            numDocsWithValue = valuesProducer.mergeStats.sumNumDocsWithField();
-            numValues = valuesProducer.mergeStats.sumNumValues();
-        } else {
-            values = valuesProducer.getSortedNumeric(field);
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                numDocsWithValue++;
-                final int count = values.docValueCount();
-                numValues += count;
-            }
+        SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
+        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+            numDocsWithValue++;
+            final int count = values.docValueCount();
+            numValues += count;
         }
 
         if (numDocsWithValue == 0) { // meta[-2, 0]: No documents with values
@@ -155,7 +145,6 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
         }
         meta.writeLong(numValues);
-        meta.writeInt(numDocsWithValue);
 
         if (numValues > 0) {
             // Special case for maxOrd of 1, signal -1 that no blocks will be written
@@ -219,16 +208,6 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         }
 
         return new long[] { numDocsWithValue, numValues };
-    }
-
-    @Override
-    public void mergeNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
-        if (result.supported()) {
-            addNumericField(mergeFieldInfo, DocValuesConsumerUtil.mergeNumericProducer(result, mergeFieldInfo, mergeState));
-        } else {
-            super.mergeNumericField(mergeFieldInfo, mergeState);
-        }
     }
 
     @Override
@@ -306,18 +285,8 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         doAddSortedField(field, valuesProducer, false);
     }
 
-    @Override
-    public void mergeSortedField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
-        if (result.supported()) {
-            addSortedField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedProducer(result, mergeFieldInfo, mergeState));
-        } else {
-            super.mergeSortedField(mergeFieldInfo, mergeState);
-        }
-    }
-
     private void doAddSortedField(FieldInfo field, DocValuesProducer valuesProducer, boolean addTypeByte) throws IOException {
-        var producer = new TsdbDocValuesProducer(valuesProducer) {
+        DocValuesProducer producer = new EmptyDocValuesProducer() {
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
                 SortedDocValues sorted = valuesProducer.getSorted(field);
@@ -512,10 +481,10 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     public void addSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES87TSDBDocValuesFormat.SORTED_NUMERIC);
-        writeSortedNumericField(field, new TsdbDocValuesProducer(valuesProducer), -1);
+        writeSortedNumericField(field, valuesProducer, -1);
     }
 
-    private void writeSortedNumericField(FieldInfo field, TsdbDocValuesProducer valuesProducer, long maxOrd) throws IOException {
+    private void writeSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer, long maxOrd) throws IOException {
         if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, valuesProducer);
         }
@@ -527,6 +496,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         long numValues = stats[1];
         assert numValues >= numDocsWithField;
 
+        meta.writeInt(numDocsWithField);
         if (numValues > numDocsWithField) {
             long start = data.getFilePointer();
             meta.writeLong(start);
@@ -550,22 +520,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         }
     }
 
-    @Override
-    public void mergeSortedNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
-        if (result.supported()) {
-            addSortedNumericField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedNumericProducer(result, mergeFieldInfo, mergeState));
-        } else {
-            super.mergeSortedNumericField(mergeFieldInfo, mergeState);
-        }
-    }
-
-    private static boolean isSingleValued(FieldInfo field, TsdbDocValuesProducer producer) throws IOException {
-        if (producer.mergeStats.supported()) {
-            return producer.mergeStats.sumNumValues() == producer.mergeStats.sumNumDocsWithField();
-        }
-
-        var values = producer.getSortedSet(field);
+    private static boolean isSingleValued(SortedSetDocValues values) throws IOException {
         if (DocValues.unwrapSingleton(values) != null) {
             return true;
         }
@@ -582,22 +537,12 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     }
 
     @Override
-    public void mergeSortedSetField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
-        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
-        if (result.supported()) {
-            addSortedSetField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedSetProducer(result, mergeFieldInfo, mergeState));
-        } else {
-            super.mergeSortedSetField(mergeFieldInfo, mergeState);
-        }
-    }
-
-    @Override
     public void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(SORTED_SET);
 
-        if (isSingleValued(field, new TsdbDocValuesProducer(valuesProducer))) {
-            doAddSortedField(field, new TsdbDocValuesProducer(valuesProducer) {
+        if (isSingleValued(valuesProducer.getSortedSet(field))) {
+            doAddSortedField(field, new EmptyDocValuesProducer() {
                 @Override
                 public SortedDocValues getSorted(FieldInfo field) throws IOException {
                     return SortedSetSelector.wrap(valuesProducer.getSortedSet(field), SortedSetSelector.Type.MIN);
@@ -608,7 +553,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
         SortedSetDocValues values = valuesProducer.getSortedSet(field);
         long maxOrd = values.getValueCount();
-        writeSortedNumericField(field, new TsdbDocValuesProducer(valuesProducer) {
+        writeSortedNumericField(field, new EmptyDocValuesProducer() {
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
                 SortedSetDocValues values = valuesProducer.getSortedSet(field);

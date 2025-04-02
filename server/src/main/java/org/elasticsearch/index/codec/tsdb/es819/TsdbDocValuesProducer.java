@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb;
+package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.EmptyDocValuesProducer;

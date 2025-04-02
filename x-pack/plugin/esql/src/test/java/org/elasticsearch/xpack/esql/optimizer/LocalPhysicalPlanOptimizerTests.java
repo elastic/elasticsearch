@@ -1148,7 +1148,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             case KEYWORD -> randomAlphaOfLength(5);
             case IP -> NetworkAddress.format(randomIp(randomBoolean()));
             case TEXT -> randomAlphaOfLength(50);
-            case SEMANTIC_TEXT -> randomAlphaOfLength(5);
             case VERSION -> VersionUtils.randomVersion(random()).toString();
             default -> throw new IllegalArgumentException("Unexpected type: " + dataType);
         };

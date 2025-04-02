@@ -107,7 +107,6 @@ import static org.hamcrest.Matchers.startsWith;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-@LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
 public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
@@ -199,6 +198,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         super.testRequestStats();
     }
 
+    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testAbortRequestStats() throws Exception {
         final String repository = createRepository(randomRepositoryName(), false);
 

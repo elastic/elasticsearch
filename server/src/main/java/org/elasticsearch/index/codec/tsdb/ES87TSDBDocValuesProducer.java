@@ -50,15 +50,15 @@ import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_IN
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
 public class ES87TSDBDocValuesProducer extends DocValuesProducer {
-    private final IntObjectHashMap<NumericEntry> numerics;
+    final IntObjectHashMap<NumericEntry> numerics;
     private final IntObjectHashMap<BinaryEntry> binaries;
-    private final IntObjectHashMap<SortedEntry> sorted;
-    private final IntObjectHashMap<SortedSetEntry> sortedSets;
-    private final IntObjectHashMap<SortedNumericEntry> sortedNumerics;
+    final IntObjectHashMap<SortedEntry> sorted;
+    final IntObjectHashMap<SortedSetEntry> sortedSets;
+    final IntObjectHashMap<SortedNumericEntry> sortedNumerics;
     private final IntObjectHashMap<DocValuesSkipperEntry> skippers;
     private final IndexInput data;
     private final int maxDoc;
-    private final int version;
+    final int version;
     private final boolean merging;
 
     ES87TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
@@ -359,7 +359,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         };
     }
 
-    private abstract class BaseSortedDocValues extends SortedDocValues {
+    abstract class BaseSortedDocValues extends SortedDocValues {
 
         final SortedEntry entry;
         final TermsEnum termsEnum;
@@ -395,7 +395,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
+    abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
 
         final SortedSetEntry entry;
         final IndexInput data;
@@ -904,11 +904,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private static void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
-        entry.docsWithFieldOffset = meta.readLong();
-        entry.docsWithFieldLength = meta.readLong();
-        entry.jumpTableEntryCount = meta.readShort();
-        entry.denseRankPower = meta.readByte();
         entry.numValues = meta.readLong();
+        entry.numDocsWithField = meta.readInt();
         if (entry.numValues > 0) {
             final int indexBlockShift = meta.readInt();
             // Special case, -1 means there are no blocks, so no need to load the metadata for it
@@ -925,6 +922,10 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             entry.valuesOffset = meta.readLong();
             entry.valuesLength = meta.readLong();
         }
+        entry.docsWithFieldOffset = meta.readLong();
+        entry.docsWithFieldLength = meta.readLong();
+        entry.jumpTableEntryCount = meta.readShort();
+        entry.denseRankPower = meta.readByte();
     }
 
     private BinaryEntry readBinary(IndexInput meta) throws IOException {
@@ -959,7 +960,6 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     private static SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry) throws IOException {
         readNumeric(meta, entry);
-        entry.numDocsWithField = meta.readInt();
         if (entry.numDocsWithField != entry.numValues) {
             entry.addressesOffset = meta.readLong();
             final int blockShift = meta.readVInt();
@@ -1031,7 +1031,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             // Special case for maxOrd 1, no need to read blocks and use ordinal 0 as only value
             if (entry.docsWithFieldOffset == -1) {
                 // Special case when all docs have a value
-                return new NumericDocValues() {
+                return new BaseNumericDocValues(entry) {
 
                     private final int maxDoc = ES87TSDBDocValuesProducer.this.maxDoc;
                     private int doc = -1;
@@ -1080,7 +1080,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     entry.denseRankPower,
                     entry.numValues
                 );
-                return new NumericDocValues() {
+                return new BaseNumericDocValues(entry) {
 
                     @Override
                     public int advance(int target) throws IOException {
@@ -1125,7 +1125,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         if (entry.docsWithFieldOffset == -1) {
             // dense
-            return new NumericDocValues() {
+            return new BaseNumericDocValues(entry) {
 
                 private final int maxDoc = ES87TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
@@ -1192,7 +1192,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numValues
             );
-            return new NumericDocValues() {
+            return new BaseNumericDocValues(entry) {
 
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
@@ -1247,6 +1247,15 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    abstract static class BaseNumericDocValues extends NumericDocValues {
+
+        final NumericEntry entry;
+
+        BaseNumericDocValues(NumericEntry entry) {
+            this.entry = entry;
+        }
+    }
+
     private NumericValues getValues(NumericEntry entry, final long maxOrd) throws IOException {
         assert entry.numValues > 0;
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
@@ -1283,7 +1292,49 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd) throws IOException {
         if (entry.numValues == entry.numDocsWithField) {
-            return DocValues.singleton(getNumeric(entry, maxOrd));
+            var numeric = getNumeric(entry, maxOrd);
+            if (merging) {
+                return new BaseSortedNumericDocValues(entry) {
+
+                    @Override
+                    public long nextValue() throws IOException {
+                        return numeric.longValue();
+                    }
+
+                    @Override
+                    public int docValueCount() {
+                        return 1;
+                    }
+
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        return numeric.advanceExact(target);
+                    }
+
+                    @Override
+                    public int docID() {
+                        return numeric.docID();
+                    }
+
+                    @Override
+                    public int nextDoc() throws IOException {
+                        return numeric.nextDoc();
+                    }
+
+                    @Override
+                    public int advance(int target) throws IOException {
+                        return numeric.advance(target);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return numeric.cost();
+                    }
+                };
+            } else {
+                // Required otherwise search / compute engine can't otherwise optimize for when each document has exactly one value:
+                return DocValues.singleton(numeric);
+            }
         }
 
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
@@ -1293,7 +1344,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
         if (entry.docsWithFieldOffset == -1) {
             // dense
-            return new SortedNumericDocValues() {
+            return new BaseSortedNumericDocValues(entry) {
 
                 int doc = -1;
                 long start, end;
@@ -1354,7 +1405,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numDocsWithField
             );
-            return new SortedNumericDocValues() {
+            return new BaseSortedNumericDocValues(entry) {
 
                 boolean set;
                 long start, end;
@@ -1413,9 +1464,18 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    abstract static class BaseSortedNumericDocValues extends SortedNumericDocValues {
+
+        final SortedNumericEntry entry;
+
+        BaseSortedNumericDocValues(SortedNumericEntry entry) {
+            this.entry = entry;
+        }
+    }
+
     private record DocValuesSkipperEntry(long offset, long length, long minValue, long maxValue, int docCount, int maxDocId) {}
 
-    private static class NumericEntry {
+    static class NumericEntry {
         long docsWithFieldOffset;
         long docsWithFieldLength;
         short jumpTableEntryCount;
@@ -1426,6 +1486,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         DirectMonotonicReader.Meta indexMeta;
         long valuesOffset;
         long valuesLength;
+        int numDocsWithField;
     }
 
     private static class BinaryEntry {
@@ -1443,19 +1504,18 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         DirectMonotonicReader.Meta addressesMeta;
     }
 
-    private static class SortedNumericEntry extends NumericEntry {
-        int numDocsWithField;
+    static class SortedNumericEntry extends NumericEntry {
         DirectMonotonicReader.Meta addressesMeta;
         long addressesOffset;
         long addressesLength;
     }
 
-    private static class SortedEntry {
+    static class SortedEntry {
         NumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;
     }
 
-    private static class SortedSetEntry {
+    static class SortedSetEntry {
         SortedEntry singleValueEntry;
         SortedNumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;

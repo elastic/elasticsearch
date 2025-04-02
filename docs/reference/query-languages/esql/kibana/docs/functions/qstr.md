@@ -8,7 +8,4 @@ Performs a [query string query](https://www.elastic.co/docs/reference/elasticsea
 ```esql
 FROM books
 | WHERE QSTR("author: Faulkner")
-| KEEP book_no, author
-| SORT book_no
-| LIMIT 5
 ```

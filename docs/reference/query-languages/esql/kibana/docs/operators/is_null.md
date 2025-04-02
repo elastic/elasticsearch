@@ -8,7 +8,4 @@ Use `IS NULL` to filter data based on whether the field exists or not.
 ```esql
 FROM employees
 | WHERE birth_date IS NULL
-| KEEP first_name, last_name
-| SORT first_name
-| LIMIT 3
 ```

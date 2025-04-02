@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpHandler;
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
+import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.ListMultipartUploadsRequest;
 import software.amazon.awssdk.services.s3.model.MultipartUpload;
@@ -121,9 +122,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             region = "test-region";
         }
         if (region != null && randomBoolean()) {
-            signerOverride = randomFrom("AWS3SignerType", "AWS4SignerType");
+            signerOverride = randomFrom("SDKV2_AWS_V4_SIGNER_TYPE", "SDKV2_AWS_S3_V4_SIGNER_TYPE");
         } else if (randomBoolean()) {
-            signerOverride = "AWS3SignerType";
+            signerOverride = "SDKV2_AWS_S3_V4_SIGNER_TYPE";
         }
         shouldFailCompleteMultipartUploadRequest.set(false);
         super.setUp();
@@ -683,8 +684,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         @Override
         protected String requestUniqueId(final HttpExchange exchange) {
             // Amazon SDK client provides a unique ID per request
-            // TODO NOMERGE: make "x-amz-request-id" into a constant someplace.
-            return exchange.getRequestHeaders().getFirst("x-amz-request-id");
+            return exchange.getRequestHeaders().getFirst(ApplyTransactionIdStage.HEADER_SDK_TRANSACTION_ID);
         }
     }
 

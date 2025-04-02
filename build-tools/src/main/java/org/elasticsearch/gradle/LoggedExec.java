@@ -37,7 +37,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
@@ -182,11 +181,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 execSpec.setWorkingDir(getWorkingDir().get());
             }
             if (getStandardInput().isPresent()) {
-                try {
-                    execSpec.setStandardInput(new ByteArrayInputStream(getStandardInput().get().getBytes("UTF-8")));
-                } catch (UnsupportedEncodingException e) {
-                    throw new GradleException("Cannot set standard input", e);
-                }
+                execSpec.setStandardInput(new ByteArrayInputStream(getStandardInput().get().getBytes(StandardCharsets.UTF_8)));
             }
         });
         int exitValue = execResult.getExitValue();

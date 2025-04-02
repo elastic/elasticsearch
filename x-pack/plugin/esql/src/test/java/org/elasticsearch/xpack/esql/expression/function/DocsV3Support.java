@@ -1037,7 +1037,10 @@ public abstract class DocsV3Support {
     }
 
     private String removeAsciidocLinks(String asciidoc) {
-        return asciidoc.replaceAll("[^ ]+\\[([^]]+)]", "$1");
+        // Some docs have asciidoc links while others use the newer markdown, so we need to first replace asciidoc with markdown
+        String md = replaceLinks(asciidoc);
+        // Now replace the markdown with just the display text
+        return md.replaceAll("\\[(\\s*`?[^]]+?`?\\s*)]\\(([^()\\s]+(?:\\([^()]*\\)[^()]*)*)\\)", "$1");
     }
 
     private List<Map.Entry<List<DataType>, DataType>> sortedSignatures() {

@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
@@ -45,8 +46,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
@@ -73,7 +72,6 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -379,13 +377,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 }
             } else if (s3Request.isUploadPartRequest()) {
                 // upload part request
-                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                BytesReference bytes = Streams.readFully(md5);
+                BytesReference bytes = Streams.readFully(exchange.getRequestBody());
                 assertThat((long) bytes.length(), anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
                 assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
 
                 if (countDownUploads.decrementAndGet() % 2 == 0) {
-                    exchange.getResponseHeaders().add("ETag", md5.getBase16Md5Digest());
+                    exchange.getResponseHeaders().add("ETag", getBase16MD5Digest(bytes));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     exchange.close();
                     return;
@@ -477,12 +474,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 }
             } else if (s3Request.isUploadPartRequest()) {
                 // upload part request
-                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                BytesReference bytes = Streams.readFully(md5);
+                BytesReference bytes = Streams.readFully(exchange.getRequestBody());
 
                 if (counterUploads.incrementAndGet() % 2 == 0) {
                     bytesReceived.addAndGet(bytes.length());
-                    exchange.getResponseHeaders().add("ETag", md5.getBase16Md5Digest());
+                    exchange.getResponseHeaders().add("ETag", getBase16MD5Digest(bytes));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     exchange.close();
                     return;
@@ -1125,19 +1121,19 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         }
     }
 
-    public void testMd5DigestCalculatingInputStream() throws IOException {
-        // from Wikipedia
-        doMD5DigestCalculatingInputStreamTest("", "d41d8cd98f00b204e9800998ecf8427e");
-        doMD5DigestCalculatingInputStreamTest("The quick brown fox jumps over the lazy dog", "9e107d9d372bb6826bd81d3542a419d6");
-        doMD5DigestCalculatingInputStreamTest("The quick brown fox jumps over the lazy dog.", "e4d909c290d0fb1ca068ffaddf22cbd0");
+    private static String getBase16MD5Digest(BytesReference bytesReference) {
+        return MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5()));
     }
 
-    private static void doMD5DigestCalculatingInputStreamTest(String input, String expectedDigestString) throws IOException {
-        final var bytes = input.getBytes(StandardCharsets.UTF_8);
-        try (var s = new ByteArrayInputStream(bytes); var m = new MD5DigestCalculatingInputStream(s)) {
-            assertArrayEquals(bytes, m.readAllBytes());
-            assertEquals(expectedDigestString, m.getBase16Md5Digest());
-        }
+    public void testGetBase16MD5Digest() {
+        // from Wikipedia, see also org.elasticsearch.common.hash.MessageDigestsTests.testMd5
+        assertBase16MD5Digest("", "d41d8cd98f00b204e9800998ecf8427e");
+        assertBase16MD5Digest("The quick brown fox jumps over the lazy dog", "9e107d9d372bb6826bd81d3542a419d6");
+        assertBase16MD5Digest("The quick brown fox jumps over the lazy dog.", "e4d909c290d0fb1ca068ffaddf22cbd0");
+    }
+
+    private static void assertBase16MD5Digest(String input, String expectedDigestString) {
+        assertEquals(expectedDigestString, getBase16MD5Digest(new BytesArray(input)));
     }
 
     @Override
@@ -1287,47 +1283,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 assertThat(in, instanceOf(ByteArrayInputStream.class));
                 assertThat(((ByteArrayInputStream) in).available(), equalTo(0));
             }
-        }
-    }
-
-    private static final Logger logger = LogManager.getLogger(S3BlobContainerRetriesTests.class);
-
-    private static class MD5DigestCalculatingInputStream extends InputStream {
-
-        private final MessageDigest messageDigest = MessageDigests.md5();
-        private final InputStream delegate;
-
-        private MD5DigestCalculatingInputStream(InputStream delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public int read() throws IOException {
-            final var b = delegate.read();
-            if (b >= 0) {
-                messageDigest.update((byte) b);
-            }
-            return b;
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            final var readLen = delegate.read(b, off, len);
-            if (readLen > 0) {
-                messageDigest.update(b, off, readLen);
-            }
-            return readLen;
-        }
-
-        public String getBase16Md5Digest() {
-            final var digestBytes = messageDigest.digest();
-            final var stringChars = new char[digestBytes.length * 2];
-            for (int i = 0; i < digestBytes.length; i++) {
-                final var digestByte = digestBytes[i];
-                stringChars[2 * i] = Character.forDigit((digestByte >> 4) & 0xF, 16);
-                stringChars[2 * i + 1] = Character.forDigit(digestByte & 0xF, 16);
-            }
-            return new String(stringChars);
         }
     }
 }

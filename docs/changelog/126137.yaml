@@ -1,0 +1,5 @@
+pr: 126137
+summary: Acquire searcher in field caps only when needed
+area: Search
+type: bug
+issues: []

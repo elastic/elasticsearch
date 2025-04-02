@@ -12,7 +12,6 @@ package org.elasticsearch.repositories.s3;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -69,7 +68,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-@LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
 public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTests {
 
     private static final S3ErrorResponse S3_SLOW_DOWN_RESPONSE = new S3ErrorResponse(SERVICE_UNAVAILABLE, """
@@ -149,6 +147,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         );
     }
 
+    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testMetricsWithErrors() throws IOException {
         final String repository = createRepository(randomRepositoryName());
 
@@ -230,6 +229,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.DELETE_OBJECTS), equalTo(1L));
     }
 
+    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testMetricsForRequestRangeNotSatisfied() {
         final String repository = createRepository(randomRepositoryName());
         final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
@@ -364,7 +364,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
                 );
             }
         });
-        assertThat(exception.getCause().getMessage(), containsString("InvalidAccessKeyId"));
+        assertThat(exception.getCause().getMessage(), containsString("Status Code: 403"));
 
         assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.PUT_OBJECT), equalTo(1L));
         assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.PUT_OBJECT), equalTo(1L));

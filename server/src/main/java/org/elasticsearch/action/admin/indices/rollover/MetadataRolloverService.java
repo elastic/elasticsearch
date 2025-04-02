@@ -325,7 +325,12 @@ public class MetadataRolloverService {
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            templateV2 = lookupTemplateForDataStream(dataStreamName, metadata);
+            ComposableIndexTemplate effectiveIndexTemplate = dataStream.getEffectiveIndexTemplate();
+            if (effectiveIndexTemplate == null) {
+                templateV2 = lookupTemplateForDataStream(dataStreamName, metadata, true);
+            } else {
+                templateV2 = effectiveIndexTemplate;
+            }
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {

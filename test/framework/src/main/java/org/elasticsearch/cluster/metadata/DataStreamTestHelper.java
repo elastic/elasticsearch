@@ -355,6 +355,8 @@ public final class DataStreamTestHelper {
         return new DataStream(
             dataStreamName,
             generation,
+            null,
+            null,
             metadata,
             randomBoolean(),
             replicated,

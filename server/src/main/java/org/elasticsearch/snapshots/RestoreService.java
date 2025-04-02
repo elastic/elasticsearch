@@ -551,7 +551,9 @@ public final class RestoreService implements ClusterStateApplier {
         for (var entry : dataStreamsToRestore.entrySet()) {
             String name = entry.getKey();
             DataStream dataStream = entry.getValue();
-            if (dataStream.isSystem() == false && templatePatterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, name))) {
+            if (dataStream.isSystem() == false
+                && templatePatterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, name))
+                && dataStreamsToRestore.get(name).getEffectiveIndexTemplate() == null) {
                 String warningMessage = format(
                     "Snapshot [%s] contains data stream [%s] but custer does not have a matching index template. This will cause"
                         + " rollover to fail until a matching index template is created",

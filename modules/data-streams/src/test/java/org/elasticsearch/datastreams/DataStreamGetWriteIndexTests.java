@@ -318,7 +318,8 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             null,
             TimeValue.ZERO,
             TimeValue.ZERO,
-            false
+            false,
+            null
         );
         return createDataStreamService.createDataStream(request, state, ActionListener.noop(), false);
     }

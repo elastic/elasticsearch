@@ -10,12 +10,14 @@ package org.elasticsearch.datastreams.rest;
 
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,10 +39,19 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        ComposableIndexTemplate indexTemplate;
+        if (request.hasContent()) {
+            try (XContentParser parser = request.contentOrSourceParamParser()) {
+                indexTemplate = ComposableIndexTemplate.parse(parser);
+            }
+        } else {
+            indexTemplate = null;
+        }
         CreateDataStreamAction.Request putDataStreamRequest = new CreateDataStreamAction.Request(
             RestUtils.getMasterNodeTimeout(request),
             RestUtils.getAckTimeout(request),
-            request.param("name")
+            request.param("name"),
+            indexTemplate
         );
         return channel -> client.execute(CreateDataStreamAction.INSTANCE, putDataStreamRequest, new RestToXContentListener<>(channel));
     }

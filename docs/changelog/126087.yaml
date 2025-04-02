@@ -1,0 +1,5 @@
+pr: 126087
+summary: Upgrade to latest GCS SDK
+area: Snapshot/Restore
+type: enhancement
+issues: []

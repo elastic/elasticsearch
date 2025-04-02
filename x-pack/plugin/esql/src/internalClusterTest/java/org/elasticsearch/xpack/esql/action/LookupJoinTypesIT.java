@@ -11,49 +11,256 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
+/**
+ * This test suite tests the lookup join functionality in ESQL with various data types.
+ * For each pair of types being tested, it builds a main index called "index" containing a single document with as many fields as
+ * types being tested on the left of the pair, and then creates that many other lookup indexes, each with a single document containing
+ * exactly two fields: the field to join on, and a field to return.
+ * For example, if we are testing the pairs (double, double), (double, float), (float, double) and (float, float),
+ * we will create the following indexes:
+ * <dl>
+ *     <dt>index_double_double: containing</dt>
+ *     <dd>Index containing da single document with a field of type 'double' like: <pre>
+ *         {
+ *             "field_double": 1.0,  // this is mapped as type 'double'
+ *             "other": "value"
+ *         }
+ *     </pre></dd>
+ *     <dt>index_double_float</dt>
+ *     <dd>Index containing a single document with a field of type 'float' like: <pre>
+ *         {
+ *             "field_double": 1.0,  // this is mapped as type 'float'
+ *             "other": "value"
+ *         }
+ *     </pre></dd>
+ *     <dt>index_float_double</dt>
+ *     <dd>Index containing a single document with a field of type 'double' like: <pre>
+ *         {
+ *             "field_float": 1.0,  // this is mapped as type 'double'
+ *             "other": "value"
+ *         }
+ *     </pre></dd>
+ *     <dt>index_float_float</dt>
+ *     <dd>Index containing single document with a field of type 'float' like: <pre>
+ *         {
+ *             "field_float": 1.0,  // this is mapped as type 'float'
+ *             "other": "value"
+ *         }
+ *     </pre></dd>
+ *     <dt>index</dt>
+ *     <dd>Index containing document like: <pre>
+ *         {
+ *             "field_double": 1.0,
+ *             "field_float": 1.0
+ *         }
+ *     </pre></dd>
+ * </dl>
+ * Note that the lookup indexes have fields with a name that matches the type in the main index, and not the type actually used in the
+ * lookup index. Instead, the mapped type should be the type of the right-hand side of the pair being tested.
+ * Then we can run queries like:
+ * <pre>
+ *     FROM index | LOOKUP JOIN index_double_float ON field_double | KEEP other
+ * </pre>
+ * And assert that the result exists and is equal to "value".
+ */
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
 public class LookupJoinTypesIT extends ESIntegTestCase {
 
-    private static final Set<TestConfig> compatibleJoinTypes = new LinkedHashSet<>();
+    private static final Map<String, TestConfigs> testConfigurations = new HashMap<>();
     static {
-        addConfig(DataType.KEYWORD, DataType.KEYWORD, true);
-        addConfig(DataType.TEXT, DataType.KEYWORD, true);
-        addConfig(DataType.INTEGER, DataType.INTEGER, true);
-        addConfig(DataType.FLOAT, DataType.FLOAT, true);
-        addConfig(DataType.DOUBLE, DataType.DOUBLE, true);
-    }
-
-    private static void addConfig(DataType mainType, DataType lookupType, boolean passes) {
-        compatibleJoinTypes.add(new TestConfig(mainType, lookupType, passes));
-    }
-
-    record TestConfig(DataType mainType, DataType lookupType, boolean passes) {
-        private String indexName() {
-            return "index_" + mainType.esType() + "_" + lookupType.esType();
+        // Initialize the test configurations for string tests
+        {
+            TestConfigs configs = testConfigurations.computeIfAbsent("strings", k -> new TestConfigs(k, new LinkedHashSet<>()));
+            configs.addPasses(DataType.KEYWORD, DataType.KEYWORD);
+            configs.addPasses(DataType.TEXT, DataType.KEYWORD);
+            configs.addFailsText(DataType.KEYWORD, DataType.TEXT);
+            configs.addFailsText(DataType.TEXT, DataType.TEXT);
         }
 
-        private String fieldName() {
-            return "field_" + mainType.esType();
+        // Test integer types
+        {
+            TestConfigs configs = testConfigurations.computeIfAbsent("integers", k -> new TestConfigs(k, new LinkedHashSet<>()));
+            var integerTypes = List.of(DataType.BYTE, DataType.SHORT, DataType.INTEGER);
+            for (DataType mainType : integerTypes) {
+                for (DataType lookupType : integerTypes) {
+                    configs.addPasses(mainType, lookupType);
+                }
+                // Long is currently treated differently in the validation, but we could consider changing that
+                configs.addFails(mainType, DataType.LONG);
+                configs.addFails(DataType.LONG, mainType);
+            }
         }
 
-        private String mainProperty() {
-            return "\"" + fieldName() + "\": { \"type\" : \"" + mainType.esType() + "\" }";
+        // Test float and double
+        {
+            TestConfigs configs = testConfigurations.computeIfAbsent("floats", k -> new TestConfigs(k, new LinkedHashSet<>()));
+            var floatTypes = List.of(DataType.FLOAT, DataType.DOUBLE);
+            for (DataType mainType : floatTypes) {
+                for (DataType lookupType : floatTypes) {
+                    configs.addPasses(mainType, lookupType);
+                }
+            }
+        }
+
+        // TODO: Add tests for mixed groups (should mostly fail, but might be some implicit casting to consider)
+
+        // Make sure we have never added two configurations with the same index name
+        Set<String> knownTypes = new HashSet<>();
+        for (TestConfigs configs : testConfigurations.values()) {
+            for (TestConfig config : configs.configs()) {
+                if (knownTypes.contains(config.indexName())) {
+                    throw new IllegalArgumentException("Duplicate index name: " + config.indexName());
+                }
+                knownTypes.add(config.indexName());
+            }
+        }
+    }
+
+    private record TestConfigs(String group, Set<TestConfig> configs) {
+
+        private void addPasses(DataType mainType, DataType lookupType) {
+            configs.add(new TestConfigPasses(mainType, lookupType, true));
+        }
+
+        private void addEmptyResult(DataType mainType, DataType lookupType) {
+            configs.add(new TestConfigPasses(mainType, lookupType, false));
+        }
+
+        private void addFails(DataType mainType, DataType lookupType) {
+            String fieldName = "field_" + mainType.esType();
+            String errorMessage = String.format(
+                Locale.ROOT,
+                "JOIN left field [%s] of type [%s] is incompatible with right field [%s] of type [%s]",
+                fieldName,
+                mainType.widenSmallNumeric(),
+                fieldName,
+                lookupType.widenSmallNumeric()
+            );
+            configs.add(
+                new TestConfigFails<>(
+                    mainType,
+                    lookupType,
+                    VerificationException.class,
+                    e -> assertThat(e.getMessage(), containsString(errorMessage))
+                )
+            );
+        }
+
+        private void addFailsText(DataType mainType, DataType lookupType) {
+            String fieldName = "field_" + mainType.esType();
+            String errorMessage = String.format(Locale.ROOT, "JOIN with right field [%s] of type [TEXT] is not supported", fieldName);
+            configs.add(
+                new TestConfigFails<>(
+                    mainType,
+                    lookupType,
+                    VerificationException.class,
+                    e -> assertThat(e.getMessage(), containsString(errorMessage))
+                )
+            );
+        }
+
+        private <E extends Exception> void addFails(DataType mainType, DataType lookupType, Class<E> exception, Consumer<E> assertion) {
+            configs.add(new TestConfigFails<>(mainType, lookupType, exception, assertion));
+        }
+    }
+
+    interface TestConfig {
+        DataType mainType();
+
+        DataType lookupType();
+
+        default String indexName() {
+            return "index_" + mainType().esType() + "_" + lookupType().esType();
+        }
+
+        default String fieldName() {
+            return "field_" + mainType().esType();
+        }
+
+        default String mainPropertySpec() {
+            return "\"" + fieldName() + "\": { \"type\" : \"" + mainType().esType() + "\" }";
+        }
+
+        /** Make sure the left index has the expected fields and types */
+        default void validateMainIndex() {
+            validateIndex("index", fieldName(), sampleDataFor(mainType()));
+        }
+
+        /** Make sure the lookup index has the expected fields and types */
+        default void validateLookupIndex() {
+            validateIndex(indexName(), fieldName(), sampleDataFor(lookupType()));
+        }
+
+        void testQuery(String query);
+    }
+
+    private static void validateIndex(String indexName, String fieldName, Object expectedValue) {
+        String query = String.format(Locale.ROOT, "FROM %s | KEEP %s", indexName, fieldName);
+        try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+            ColumnInfo info = response.response().columns().getFirst();
+            assertThat("Expected index '" + indexName + "' to have column '" + fieldName + ": " + query, info.name(), is(fieldName));
+            Iterator<Object> results = response.response().column(0).iterator();
+            assertTrue("Expected at least one result for query: " + query, results.hasNext());
+            Object indexedResult = response.response().column(0).iterator().next();
+            assertThat("Expected valid result: " + query, indexedResult, is(expectedValue));
+        }
+    }
+
+    record TestConfigPasses(DataType mainType, DataType lookupType, boolean hasResults) implements TestConfig {
+        @Override
+        public void testQuery(String query) {
+            try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+                Iterator<Object> results = response.response().column(0).iterator();
+                assertTrue("Expected at least one result for query: " + query, results.hasNext());
+                Object indexedResult = response.response().column(0).iterator().next();
+                if (hasResults) {
+                    assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
+                } else {
+                    assertThat("Expected empty results for query: " + query, indexedResult, is(nullValue()));
+                }
+            }
+        }
+    }
+
+    record TestConfigFails<E extends Exception>(DataType mainType, DataType lookupType, Class<E> exception, Consumer<E> assertion)
+        implements
+            TestConfig {
+        @Override
+        public void testQuery(String query) {
+            E e = expectThrows(
+                exception(),
+                "Expected exception " + exception().getSimpleName() + " but no exception was thrown: " + query,
+                () -> {
+                    try (var ignored = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+                        // We use try-with-resources to ensure the request is closed if the exception is not thrown (less cluttered errors)
+                    }
+                }
+            );
+            assertion().accept(e);
         }
     }
 
@@ -61,78 +268,98 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         return List.of(EsqlPlugin.class);
     }
 
-    public void testLookupJoinTypes() {
-        initIndexes();
-        initData();
-        for (TestConfig config : compatibleJoinTypes) {
+    public void testLookupJoinStrings() {
+        testLookupJoinTypes("strings");
+    }
+
+    public void testLookupJoinIntegers() {
+        testLookupJoinTypes("integers");
+    }
+
+    public void testLookupJoinFloats() {
+        testLookupJoinTypes("floats");
+    }
+
+    private void testLookupJoinTypes(String group) {
+        initIndexes(group);
+        initData(group);
+        for (TestConfig config : testConfigurations.get(group).configs()) {
             String query = String.format(
                 Locale.ROOT,
                 "FROM index | LOOKUP JOIN %s ON %s | KEEP other",
                 config.indexName(),
                 config.fieldName()
             );
-            try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
-                Iterator<Object> results = response.response().column(0).iterator();
-                assertTrue("Expected at least one result for query: " + query, results.hasNext());
-                Object indexedResult = response.response().column(0).iterator().next();
-                assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
-            }
+            config.validateMainIndex();
+            config.validateLookupIndex();
+            config.testQuery(query);
         }
     }
 
-    private void initIndexes() {
+    private void initIndexes(String group) {
+        Set<TestConfig> configs = testConfigurations.get(group).configs;
         // The main index will have many fields, one of each type to use in later type specific joins
-        StringBuilder mainFields = new StringBuilder("{\n  \"properties\" : {\n");
-        mainFields.append(compatibleJoinTypes.stream().map(TestConfig::mainProperty).collect(Collectors.joining(",\n    ")));
-        mainFields.append("  }\n}\n");
-        assertAcked(prepareCreate("index").setMapping(mainFields.toString()));
+        String mainFields = "{\n  \"properties\" : {\n"
+            + configs.stream().map(TestConfig::mainPropertySpec).distinct().collect(Collectors.joining(",\n    "))
+            + "  }\n}\n";
+        assertAcked(prepareCreate("index").setMapping(mainFields));
 
         Settings.Builder settings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             .put("index.mode", "lookup");
-        compatibleJoinTypes.forEach(
+        configs.forEach(
             // Each lookup index will get a document with a field to join on, and a results field to get back
-            (c) -> { assertAcked(prepareCreate(c.indexName()).setSettings(settings.build()).setMapping(String.format(Locale.ROOT, """
-                {
-                  "properties" : {
-                   "%s": { "type" : "%s" },
-                   "other": { "type" : "keyword" }
-                  }
-                }
-                """, c.fieldName(), c.lookupType.esType()))); }
+            (c) -> assertAcked(
+                prepareCreate(c.indexName()).setSettings(settings.build())
+                    .setMapping(c.fieldName(), "type=" + c.lookupType().esType(), "other", "type=keyword")
+            )
         );
     }
 
-    private void initData() {
-        List<String> mainProperties = new ArrayList<>();
+    private void initData(String group) {
+        Set<TestConfig> configs = testConfigurations.get(group).configs;
         int docId = 0;
-        for (TestConfig config : compatibleJoinTypes) {
-            String value = sampleDataFor(config.lookupType());
+        for (TestConfig config : configs) {
             String doc = String.format(Locale.ROOT, """
                 {
-                  "%s": %s,
+                  %s,
                   "other": "value"
                 }
-                """, config.fieldName(), value);
-            mainProperties.add(String.format(Locale.ROOT, "\"%s\": %s", config.fieldName(), value));
+                """, lookupPropertyFor(config));
             index(config.indexName(), "" + (++docId), doc);
             refresh(config.indexName());
         }
+        List<String> mainProperties = configs.stream().map(this::mainPropertyFor).distinct().collect(Collectors.toList());
         index("index", "1", String.format(Locale.ROOT, """
             {
               %s
             }
-            """, String.join(",\n", mainProperties)));
+            """, String.join(",\n  ", mainProperties)));
         refresh("index");
     }
 
-    private String sampleDataFor(DataType type) {
+    private String lookupPropertyFor(TestConfig config) {
+        return String.format(Locale.ROOT, "\"%s\": %s", config.fieldName(), sampleDataTextFor(config.lookupType()));
+    }
+
+    private String mainPropertyFor(TestConfig config) {
+        return String.format(Locale.ROOT, "\"%s\": %s", config.fieldName(), sampleDataTextFor(config.mainType()));
+    }
+
+    private static String sampleDataTextFor(DataType type) {
         return switch (type) {
-            case KEYWORD -> "\"key\"";
-            case TEXT -> "\"key text\"";
-            case INTEGER -> "1";
-            case FLOAT, DOUBLE -> "1.0";
+            case KEYWORD, TEXT -> "\"" + sampleDataFor(type) + "\"";
+            default -> String.valueOf(sampleDataFor(type));
+        };
+    }
+
+    private static Object sampleDataFor(DataType type) {
+        return switch (type) {
+            case KEYWORD, TEXT -> "key";
+            case BYTE, SHORT, INTEGER -> 1;
+            case LONG -> 1L;
+            case FLOAT, DOUBLE -> 1.0;
             default -> throw new IllegalArgumentException("Unsupported type: " + type);
         };
     }

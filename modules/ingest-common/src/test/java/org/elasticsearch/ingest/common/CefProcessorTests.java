@@ -282,24 +282,7 @@ public class CefProcessorTests extends ESTestCase {
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
-        processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
-                Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10"),
-                    entry("extensions", Map.of("moo", "this\\|has an escaped pipe"))
-                )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("message", message)
-        );
-        assertThat(document.getSource(), equalTo(expectedMap));
+        expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
     }
 
     public void testPipeInMessage() {

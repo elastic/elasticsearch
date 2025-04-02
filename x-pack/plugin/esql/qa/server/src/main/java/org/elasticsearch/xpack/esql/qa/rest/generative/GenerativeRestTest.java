@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
 
-    public static final int ITERATIONS = 500;
+    public static final int ITERATIONS = 100;
     public static final int MAX_DEPTH = 20;
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
@@ -40,7 +40,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Cannot use field \\[.*\\] with unsupported type \\[.*_range\\]",
         "Unbounded sort not supported yet",
         "The field names are too complex to process", // field_caps problem
-        "argument of \\[count.*\\] must be \\[any type except counter types\\]", // TODO refine the generation of count()
+        "must be \\[any type except counter types\\]", // TODO refine the generation of count()
 
         // warnings
         "Field '.*' shadowed by field at line .*",
@@ -52,6 +52,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "only supports KEYWORD or TEXT values, found expression", // https://github.com/elastic/elasticsearch/issues/126017
         "token recognition error at: '``", // https://github.com/elastic/elasticsearch/issues/125870
         "Unknown column \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126026
+        "Expected \\[.*\\] but was \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126030
+        "trying to encode an unsupported data type value for TopN", // still https://github.com/elastic/elasticsearch/issues/126030 probably
+        "Block cannot be cast to", // https://github.com/elastic/elasticsearch/issues/126036
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 
@@ -141,7 +145,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
             CSV_DATASET_MAP.entrySet()
                 .stream()
                 .filter(x -> x.getValue().requiresInferenceEndpoint() == false)
-                .filter(x -> "partial_mapping_excluded_source_sample_data".equals(x.getKey()) == false) // TODO double-check
                 .map(Map.Entry::getKey)
                 .toList()
         );

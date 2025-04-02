@@ -162,7 +162,11 @@ public class EsqlQueryGenerator {
             if (randomBoolean()) {
                 result.append(randomAlphaOfLength(5));
             } else {
-                result.append(randomRawName(previousOutput));
+                String fieldName = randomRawName(previousOutput);
+                if (fieldName.isEmpty()) { // it's a bug, managed later, skipping for now
+                    randomAlphaOfLength(5);
+                }
+                result.append(fieldName);
             }
             result.append("}");
         }
@@ -186,7 +190,11 @@ public class EsqlQueryGenerator {
             if (randomBoolean()) {
                 result.append(randomAlphaOfLength(5));
             } else {
-                result.append(randomRawName(previousOutput));
+                String fieldName = randomRawName(previousOutput);
+                if (fieldName.isEmpty()) { // it's a bug, managed later, skipping for now
+                    fieldName = randomAlphaOfLength(5);
+                }
+                result.append(fieldName);
             }
             result.append("}");
         }
@@ -286,7 +294,7 @@ public class EsqlQueryGenerator {
         List<String> names = new ArrayList<>(previousOutput.stream().map(Column::name).collect(Collectors.toList()));
         for (int i = 0; i < n; i++) {
             var name = randomFrom(names);
-            if (nameToType.get(name).endsWith("_range")) {
+            if (name.equals("<all-fields-projected>") || nameToType.get(name).endsWith("_range")) {
                 // ranges are not fully supported yet
                 continue;
             }
@@ -299,10 +307,17 @@ public class EsqlQueryGenerator {
             } else {
                 newName = names.get(randomIntBetween(0, names.size() - 1));
             }
+            if (newName.equals("<all-fields-projected>")) { // it's a bug, managed as an error later
+                continue;
+            }
             nameToType.put(newName, nameToType.get(name));
             if (name.length() == 0 // https://github.com/elastic/elasticsearch/issues/125870, we'll manage it as an error later
                 || (randomBoolean() && name.startsWith("`") == false)) {
                 name = "`" + name + "`";
+            }
+            if (newName.length() == 0 // https://github.com/elastic/elasticsearch/issues/125870, we'll manage it as an error later
+                || (randomBoolean() && newName.startsWith("`") == false)) {
+                newName = "`" + newName + "`";
             }
             proj.add(name + " AS " + newName);
         }

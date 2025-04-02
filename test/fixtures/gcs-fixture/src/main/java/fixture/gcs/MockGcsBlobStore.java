@@ -189,13 +189,13 @@ public class MockGcsBlobStore {
 
             // Next we determine the response
             if (valueToReturn.completed) {
-                updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), valueToReturn.getRange()));
+                updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), valueToReturn.getRange(), valueToReturn.length()));
             } else if (contentRange.hasSize() && contentRange.size() == valueToReturn.contents.length()) {
                 updateBlob(valueToReturn.path(), valueToReturn.ifGenerationMatch(), valueToReturn.contents);
                 valueToReturn = valueToReturn.complete();
-                updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), valueToReturn.getRange()));
+                updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), valueToReturn.getRange(), valueToReturn.length()));
             } else {
-                updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, valueToReturn.getRange()));
+                updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, valueToReturn.getRange(), valueToReturn.length()));
             }
             return valueToReturn;
         });
@@ -203,7 +203,7 @@ public class MockGcsBlobStore {
         return updateResponse.get();
     }
 
-    record UpdateResponse(int statusCode, HttpHeaderParser.Range rangeHeader) {}
+    record UpdateResponse(int statusCode, HttpHeaderParser.Range rangeHeader, long storedContentLength) {}
 
     void deleteBlob(String path) {
         blobs.remove(path);

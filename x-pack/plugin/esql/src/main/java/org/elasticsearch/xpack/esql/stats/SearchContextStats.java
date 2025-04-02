@@ -80,11 +80,6 @@ public class SearchContextStats implements SearchStats {
         assert contexts != null && contexts.isEmpty() == false;
     }
 
-    public boolean exists(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.exists;
-    }
-
     private FieldStats makeFieldStats(String field) {
         var stat = new FieldStats();
         stat.config = makeFieldConfig(field);
@@ -123,19 +118,30 @@ public class SearchContextStats implements SearchStats {
         }
     }
 
+    private boolean fastNoCacheFieldExists(String field) {
+        for (SearchExecutionContext context : contexts) {
+            if (context.isFieldMapped(field)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean exists(String field) {
+        var stat = cache.get(field);
+        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field);
+    }
+
     public boolean isIndexed(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.indexed;
+        return cache.computeIfAbsent(field, this::makeFieldStats).config.indexed;
     }
 
     public boolean hasDocValues(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.hasDocValues;
+        return cache.computeIfAbsent(field, this::makeFieldStats).config.hasDocValues;
     }
 
     public boolean hasExactSubfield(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.hasExactSubfield;
+        return cache.computeIfAbsent(field, this::makeFieldStats).config.hasExactSubfield;
     }
 
     public long count() {
@@ -218,7 +224,7 @@ public class SearchContextStats implements SearchStats {
         var stat = cache.computeIfAbsent(field, this::makeFieldStats);
         if (stat.singleValue == null) {
             // there's no such field so no need to worry about multi-value fields
-            if (exists(field) == false) {
+            if (stat.config.exists == false) {
                 stat.singleValue = true;
             } else {
                 // fields are MV per default

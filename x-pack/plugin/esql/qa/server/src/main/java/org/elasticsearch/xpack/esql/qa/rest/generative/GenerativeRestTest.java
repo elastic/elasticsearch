@@ -29,8 +29,8 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
 
-    public static final int ITERATIONS = 50;
-    public static final int MAX_DEPTH = 10;
+    public static final int ITERATIONS = 100;
+    public static final int MAX_DEPTH = 20;
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
         "Reference \\[.*\\] is ambiguous",
@@ -38,14 +38,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "cannot sort on .*",
         "argument of \\[count_distinct\\(.*\\)\\] must",
         "Cannot use field \\[.*\\] with unsupported type \\[.*_range\\]",
+        "Unbounded sort not supported yet",
+        "The field names are too complex to process", // field_caps problem
+        "must be \\[any type except counter types\\]", // TODO refine the generation of count()
+
         // warnings
         "Field '.*' shadowed by field at line .*",
         "evaluation of \\[.*\\] failed, treating result as null", // TODO investigate?
+
         // Awaiting fixes
-        "estimated row size \\[0\\] wasn't set", // https://github.com/elastic/elasticsearch/issues/121739
-        "unknown physical plan node \\[OrderExec\\]", // https://github.com/elastic/elasticsearch/issues/120817
-        "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741
-        //
+        "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
+        "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
+        "only supports KEYWORD or TEXT values, found expression", // https://github.com/elastic/elasticsearch/issues/126017
+        "token recognition error at: '``", // https://github.com/elastic/elasticsearch/issues/125870
+        "Unknown column \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126026
+        "Expected \\[.*\\] but was \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126030
+        "trying to encode an unsupported data type value for TopN", // still https://github.com/elastic/elasticsearch/issues/126030 probably
+        "Block cannot be cast to", // https://github.com/elastic/elasticsearch/issues/126036
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 

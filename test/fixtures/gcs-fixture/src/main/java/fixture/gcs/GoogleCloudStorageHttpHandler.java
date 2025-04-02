@@ -150,6 +150,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                         response = blob.contents().slice(Math.toIntExact(range.start()), Math.toIntExact(lastIndex - range.start() + 1));
                         statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
                     }
+                    // I think it's enough to use the generation here, at least until
+                    // we implement "metageneration", at that point we must incorporate both
+                    // See: https://cloud.google.com/storage/docs/metadata#etags
+                    exchange.getResponseHeaders().add("ETag", String.valueOf(blob.generation()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(statusCode, response.length());
                     response.writeTo(exchange.getResponseBody());

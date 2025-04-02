@@ -242,12 +242,9 @@ public class S3HttpHandler implements HttpHandler {
                     list.append("<Size>").append(blob.getValue().length()).append("</Size>");
                     list.append("</Contents>");
                 }
-                if (commonPrefixes.isEmpty() == false) {
-                    list.append("<CommonPrefixes>");
-                    commonPrefixes.forEach(commonPrefix -> list.append("<Prefix>").append(commonPrefix).append("</Prefix>"));
-                    list.append("</CommonPrefixes>");
-
-                }
+                commonPrefixes.forEach(
+                    commonPrefix -> list.append("<CommonPrefixes><Prefix>").append(commonPrefix).append("</Prefix></CommonPrefixes>")
+                );
                 if (listType.equals("2")) {
                     // TODO test pagination here too
                     list.append("<IsTruncated>false</IsTruncated>");

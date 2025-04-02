@@ -80,13 +80,13 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
-        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
+        var aliasReplacedByBuilder = new AttributeMap<Attribute>();
         evalExec.fields().forEach(alias -> {
             if (alias.child() instanceof Attribute attr) {
                 aliasReplacedByBuilder.put(alias.toAttribute(), attr);
             }
         });
-        return aliasReplacedByBuilder.build();
+        return aliasReplacedByBuilder;
     }
 
     private static PhysicalPlan rewrite(

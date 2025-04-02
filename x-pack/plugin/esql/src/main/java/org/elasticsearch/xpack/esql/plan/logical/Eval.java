@@ -99,7 +99,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
     }
 
     private List<Alias> renameAliases(List<Alias> originalAttributes, List<String> newNames) {
-        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
+        var aliasReplacedBy = new AttributeMap<Attribute>();
         List<Alias> newFields = new ArrayList<>(originalAttributes.size());
         for (int i = 0; i < originalAttributes.size(); i++) {
             Alias field = originalAttributes.get(i);
@@ -109,10 +109,9 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
             } else {
                 Alias newField = new Alias(field.source(), newName, field.child(), new NameId(), field.synthetic());
                 newFields.add(newField);
-                aliasReplacedByBuilder.put(field.toAttribute(), newField.toAttribute());
+                aliasReplacedBy.put(field.toAttribute(), newField.toAttribute());
             }
         }
-        AttributeMap<Attribute> aliasReplacedBy = aliasReplacedByBuilder.build();
 
         // We need to also update any references to the old attributes in the new attributes; e.g.
         // EVAL x = 1, y = x + 1

@@ -49,11 +49,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         } else if (child instanceof Eval eval) {
             // Don't push if Filter (still) contains references to Eval's fields.
             // Account for simple aliases in the Eval, though - these shouldn't stop us.
-            AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+            var evalAliases = new AttributeMap<Expression>();
             for (Alias alias : eval.fields()) {
-                aliasesBuilder.put(alias.toAttribute(), alias.child());
+                evalAliases.put(alias.toAttribute(), alias.child());
             }
-            AttributeMap<Expression> evalAliases = aliasesBuilder.build();
 
             Function<Expression, Expression> resolveRenames = expr -> expr.transformDown(ReferenceAttribute.class, r -> {
                 Expression resolved = evalAliases.resolve(r, null);

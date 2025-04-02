@@ -375,32 +375,4 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
     public String toString() {
         return delegate.toString();
     }
-
-    public static <E> Builder<E> builder() {
-        return new Builder<>();
-    }
-
-    public static <E> Builder<E> builder(AttributeMap<E> map) {
-        return new Builder<E>().putAll(map);
-    }
-
-    public static class Builder<E> {
-        private AttributeMap<E> map = new AttributeMap<>();
-
-        private Builder() {}
-
-        public Builder<E> put(Attribute attr, E value) {
-            map.add(attr, value);
-            return this;
-        }
-
-        public Builder<E> putAll(AttributeMap<E> m) {
-            map.addAll(m);
-            return this;
-        }
-
-        public AttributeMap<E> build() {
-            return map;
-        }
-    }
 }

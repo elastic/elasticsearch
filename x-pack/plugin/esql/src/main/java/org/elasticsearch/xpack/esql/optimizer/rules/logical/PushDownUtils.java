@@ -199,9 +199,8 @@ class PushDownUtils {
     }
 
     private static UnaryPlan resolveRenamesFromProject(UnaryPlan plan, Project project) {
-        AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
-        project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
-        var aliases = aliasBuilder.build();
+        var aliases = new AttributeMap<Expression>();
+        project.forEachExpression(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
 
         return (UnaryPlan) plan.transformExpressionsOnly(ReferenceAttribute.class, r -> aliases.resolve(r, r));
     }

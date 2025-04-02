@@ -35,12 +35,11 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     private static AttributeMap<String> threeMap() {
-        AttributeMap.Builder<String> builder = AttributeMap.builder();
+        var builder = new AttributeMap<String>();
         builder.put(a("one"), "one");
         builder.put(a("two"), "two");
         builder.put(a("three"), "three");
-
-        return builder.build();
+        return builder;
     }
 
     public void testAttributeMapWithSameAliasesCanResolveAttributes() {
@@ -54,11 +53,10 @@ public class AttributeMapTests extends ESTestCase {
         assertTrue(param1.toAttribute().equals(param2.toAttribute()));
         assertFalse(param1.toAttribute().semanticEquals(param2.toAttribute()));
 
-        AttributeMap.Builder<Expression> mapBuilder = AttributeMap.builder();
+        var newAttributeMap = new AttributeMap<Expression>();
         for (Alias a : List.of(param1, param2)) {
-            mapBuilder.put(a.toAttribute(), a.child());
+            newAttributeMap.put(a.toAttribute(), a.child());
         }
-        AttributeMap<Expression> newAttributeMap = mapBuilder.build();
 
         assertTrue(newAttributeMap.containsKey(param1.toAttribute()));
         assertTrue(newAttributeMap.get(param1.toAttribute()) == param1.child());
@@ -67,18 +65,17 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testResolve() {
-        AttributeMap.Builder<Object> builder = AttributeMap.builder();
+        var map = new AttributeMap<Object>();
         Attribute one = a("one");
         Attribute two = fieldAttribute("two", DataType.INTEGER);
         Attribute three = fieldAttribute("three", DataType.INTEGER);
         Alias threeAlias = new Alias(Source.EMPTY, "three_alias", three);
         Alias threeAliasAlias = new Alias(Source.EMPTY, "three_alias_alias", threeAlias);
-        builder.put(one, of("one"));
-        builder.put(two, "two");
-        builder.put(three, of("three"));
-        builder.put(threeAlias.toAttribute(), threeAlias.child());
-        builder.put(threeAliasAlias.toAttribute(), threeAliasAlias.child());
-        AttributeMap<Object> map = builder.build();
+        map.put(one, of("one"));
+        map.put(two, "two");
+        map.put(three, of("three"));
+        map.put(threeAlias.toAttribute(), threeAlias.child());
+        map.put(threeAliasAlias.toAttribute(), threeAliasAlias.child());
 
         assertEquals(of("one"), map.resolve(one));
         assertEquals("two", map.resolve(two));
@@ -93,12 +90,11 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testResolveOneHopCycle() {
-        AttributeMap.Builder<Object> builder = AttributeMap.builder();
+        var map = new AttributeMap<Object>();
         Attribute a = fieldAttribute("a", DataType.INTEGER);
         Attribute b = fieldAttribute("b", DataType.INTEGER);
-        builder.put(a, a);
-        builder.put(b, a);
-        AttributeMap<Object> map = builder.build();
+        map.put(a, a);
+        map.put(b, a);
 
         assertEquals(a, map.resolve(a, "default"));
         assertEquals(a, map.resolve(b, "default"));
@@ -106,16 +102,15 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testResolveMultiHopCycle() {
-        AttributeMap.Builder<Object> builder = AttributeMap.builder();
+        var map = new AttributeMap<>();
         Attribute a = fieldAttribute("a", DataType.INTEGER);
         Attribute b = fieldAttribute("b", DataType.INTEGER);
         Attribute c = fieldAttribute("c", DataType.INTEGER);
         Attribute d = fieldAttribute("d", DataType.INTEGER);
-        builder.put(a, b);
-        builder.put(b, c);
-        builder.put(c, d);
-        builder.put(d, a);
-        AttributeMap<Object> map = builder.build();
+        map.put(a, b);
+        map.put(b, c);
+        map.put(c, d);
+        map.put(d, a);
 
         // note: multi hop cycles should not happen, unless we have a
         // bug in the code that populates the AttributeMaps
@@ -136,12 +131,11 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testBuilder() {
-        AttributeMap.Builder<String> builder = AttributeMap.builder();
-        builder.put(a("one"), "one");
-        builder.put(a("two"), "two");
-        builder.put(a("three"), "three");
+        var m = new AttributeMap<>();
+        m.put(a("one"), "one");
+        m.put(a("two"), "two");
+        m.put(a("three"), "three");
 
-        AttributeMap<String> m = builder.build();
         assertThat(m.size(), is(3));
         assertThat(m.isEmpty(), is(false));
 
@@ -247,7 +241,8 @@ public class AttributeMapTests extends ESTestCase {
 
     public void testCopy() {
         AttributeMap<String> m = threeMap();
-        AttributeMap<String> copy = AttributeMap.<String>builder().putAll(m).build();
+        AttributeMap<String> copy = new AttributeMap<>();
+        copy.putAll(m);
 
         assertThat(m, is(copy));
     }

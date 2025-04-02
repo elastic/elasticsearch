@@ -138,16 +138,15 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             List<Order> orders = topNExec.order();
             List<Alias> fields = evalExec.fields();
             LinkedHashMap<NameId, StDistance> distances = new LinkedHashMap<>();
-            AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
+            var aliasReplacedBy = new AttributeMap<Attribute>();
             fields.forEach(alias -> {
                 // TODO: can we support CARTESIAN also?
                 if (alias.child() instanceof StDistance distance && distance.crsType() == BinarySpatialFunction.SpatialCrsType.GEO) {
                     distances.put(alias.id(), distance);
                 } else if (alias.child() instanceof Attribute attr) {
-                    aliasReplacedByBuilder.put(alias.toAttribute(), attr.toAttribute());
+                    aliasReplacedBy.put(alias.toAttribute(), attr.toAttribute());
                 }
             });
-            AttributeMap<Attribute> aliasReplacedBy = aliasReplacedByBuilder.build();
 
             List<EsQueryExec.Sort> pushableSorts = new ArrayList<>();
             for (Order order : orders) {

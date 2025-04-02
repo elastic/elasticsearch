@@ -244,7 +244,7 @@ public class Mapper {
     }
 
     public static boolean isPipelineBreaker(LogicalPlan p) {
-        return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy || p instanceof Rerank;
+        return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy;
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

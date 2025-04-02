@@ -164,7 +164,7 @@ public class EsqlQueryGenerator {
             } else {
                 String fieldName = randomRawName(previousOutput);
                 if (fieldName.isEmpty()) { // it's a bug, managed later, skipping for now
-                    randomAlphaOfLength(5);
+                    fieldName = randomAlphaOfLength(5);
                 }
                 result.append(fieldName);
             }

@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -783,7 +784,7 @@ public final class EsqlTestUtils {
             case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
-            case TEXT, SEMANTIC_TEXT -> new BytesRef(randomAlphaOfLength(50));
+            case TEXT -> new BytesRef(randomAlphaOfLength(50));
             case VERSION -> randomVersion().toBytesRef();
             case GEO_POINT -> GEO.asWkb(GeometryTestUtils.randomPoint());
             case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
@@ -857,5 +858,19 @@ public final class EsqlTestUtils {
     public static <T> T singleValue(Collection<T> collection) {
         assertThat(collection, hasSize(1));
         return collection.iterator().next();
+    }
+
+    /**
+     * Errors from remotes are wrapped in RemoteException while the ones from the local cluster
+     * aren't. This utility method is useful for unwrapping in such cases.
+     * @param e Exception to unwrap.
+     * @return Cause of RemoteException, else the error itself.
+     */
+    public static Exception unwrapIfWrappedInRemoteException(Exception e) {
+        if (e instanceof RemoteException rce) {
+            return (Exception) rce.getCause();
+        } else {
+            return e;
+        }
     }
 }

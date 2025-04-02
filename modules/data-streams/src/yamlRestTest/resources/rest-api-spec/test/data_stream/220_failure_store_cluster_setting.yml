@@ -193,7 +193,7 @@ teardown:
         name: "disabled-fs-matching"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: disabled-fs-matching }
-  - match: { data_streams.0.failure_store.enabled: false }
+  - match: { data_streams.0.options.failure_store.enabled: false }
 
   # Assert that failure store is effectively disabled
   - do:
@@ -214,7 +214,7 @@ teardown:
         name: "disabled-fs-matching"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: disabled-fs-matching }
-  - match: { data_streams.0.failure_store.enabled: false }
+  - match: { data_streams.0.options.failure_store.enabled: false }
 
   # Assert that failure store is effectively disabled
   - do:

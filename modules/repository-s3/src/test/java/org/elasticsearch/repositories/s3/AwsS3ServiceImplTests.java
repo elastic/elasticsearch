@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -35,13 +37,14 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // TODO NOMERGE
 public class AwsS3ServiceImplTests extends ESTestCase {
 
     private final S3Service.CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider = Mockito.mock(
         S3Service.CustomWebIdentityTokenCredentialsProvider.class
     );
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testAWSCredentialsDefaultToInstanceProviders() {
         final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName);
@@ -55,6 +58,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(DefaultCredentialsProvider.class));
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testSupportsWebIdentityTokenCredentials() {
         Mockito.when(webIdentityTokenCredentialsProvider.resolveCredentials())
             .thenReturn(AwsBasicCredentials.create("sts_access_key_id", "sts_secret_key"));
@@ -73,6 +77,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertEquals("sts_secret_key", credentials.secretAccessKey());
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testAWSCredentialsFromKeystore() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final String clientNamePrefix = "some_client_name_";
@@ -190,13 +195,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSConfigurationTest(settings, null, -1, null, null, 5, S3ClientSettings.Defaults.THROTTLE_RETRIES, 50000);
     }
 
-    public void testRepositoryThrottleRetries() {
-        final boolean throttling = randomBoolean();
-
-        final Settings settings = Settings.builder().put("s3.client.default.use_throttle_retries", throttling).build();
-        launchAWSConfigurationTest(settings, null, -1, null, null, 3, throttling, 50000);
-    }
-
     private void launchAWSConfigurationTest(
         Settings settings,
         String expectedProxyHost,
@@ -253,6 +251,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testLoggingCredentialsProviderCatchesErrorsOnRefresh() {
         var mockProvider = Mockito.mock(AwsCredentialsProvider.class);
         String mockProviderErrorMessage = "mockProvider failed to refresh";

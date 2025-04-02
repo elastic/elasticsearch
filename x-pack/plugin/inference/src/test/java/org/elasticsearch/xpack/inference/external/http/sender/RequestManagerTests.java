@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 
 public class RequestManagerTests {
     public static RequestManager createMock() {
+        var mockRequestManager = mock(RequestManager.class);
         return createMock(mock(RequestSender.class));
     }
 
@@ -35,10 +36,7 @@ public class RequestManagerTests {
     }
 
     public static RequestManager createMock(RequestSender requestSender, String inferenceEntityId) {
-        var mockRequestSender = createMock(requestSender, inferenceEntityId, new RateLimitSettings(1));
-        when(mockRequestSender.service()).thenReturn("test-service");
-        when(mockRequestSender.taskType()).thenReturn(TaskType.ANY);
-        return mockRequestSender;
+        return createMock(requestSender, inferenceEntityId, new RateLimitSettings(1));
     }
 
     public static RequestManager createMock(RequestSender requestSender, String inferenceEntityId, RateLimitSettings settings) {
@@ -63,6 +61,8 @@ public class RequestManagerTests {
 
         when(mockManager.rateLimitSettings()).thenReturn(settings);
         when(mockManager.inferenceEntityId()).thenReturn(inferenceEntityId);
+        when(mockManager.service()).thenReturn("test-service");
+        when(mockManager.taskType()).thenReturn(TaskType.ANY);
 
         return mockManager;
     }

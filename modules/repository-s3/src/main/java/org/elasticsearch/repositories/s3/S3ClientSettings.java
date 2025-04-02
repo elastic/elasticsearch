@@ -185,6 +185,7 @@ final class S3ClientSettings {
         // Note: AWS4UnsignedPayloadSignerType is no longer supported, there is no equivalent in V2 short of a custom signer.
         // Note: QueryStringSigner is deprecated in V2, thus not given support.
         // TODO NOMERGE let's find better names for these things and make this less of a breaking change
+        // TODO NOMERGE: why are these Signer types deprecated? What's the alternative?
         SDKV1_AWS_V4_SIGNER_TYPE("Aws4SignerType", Aws4Signer::create),
         SDKV1_AWS_S3_V4_SIGNER_TYPE("AwsS3V4Signer", AwsS3V4Signer::create),
         SDKV1_NOOP_SIGNER_TYPE("NoopSigner", NoOpSigner::new),
@@ -242,9 +243,6 @@ final class S3ClientSettings {
     /** The number of retries to use for the s3 client. */
     final int maxRetries;
 
-    /** Whether the s3 client should use an exponential backoff retry policy. */
-    final boolean throttleRetries; // TODO: remove, no longer supported in v2
-
     /** Whether the s3 client should use path style access. */
     final boolean pathStyleAccess;
 
@@ -268,7 +266,6 @@ final class S3ClientSettings {
         int readTimeoutMillis,
         int maxConnections,
         int maxRetries,
-        boolean throttleRetries,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
         String region,
@@ -284,7 +281,6 @@ final class S3ClientSettings {
         this.readTimeoutMillis = readTimeoutMillis;
         this.maxConnections = maxConnections;
         this.maxRetries = maxRetries;
-        this.throttleRetries = throttleRetries;
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
         this.region = region;
@@ -313,7 +309,6 @@ final class S3ClientSettings {
         );
         final int newMaxConnections = getRepoSettingOrDefault(MAX_CONNECTIONS_SETTING, normalizedSettings, maxConnections);
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
-        final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
             DISABLE_CHUNKED_ENCODING,
@@ -335,7 +330,6 @@ final class S3ClientSettings {
             && newReadTimeoutMillis == readTimeoutMillis
             && maxConnections == newMaxConnections
             && maxRetries == newMaxRetries
-            && newThrottleRetries == throttleRetries
             && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
@@ -354,7 +348,6 @@ final class S3ClientSettings {
             newReadTimeoutMillis,
             newMaxConnections,
             newMaxRetries,
-            newThrottleRetries,
             newPathStyleAccess,
             newDisableChunkedEncoding,
             newRegion,
@@ -462,7 +455,6 @@ final class S3ClientSettings {
                 Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
                 getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING),
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
-                getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
                 getConfigValue(settings, clientName, REGION),
@@ -484,7 +476,6 @@ final class S3ClientSettings {
             && readTimeoutMillis == that.readTimeoutMillis
             && maxConnections == that.maxConnections
             && maxRetries == that.maxRetries
-            && throttleRetries == that.throttleRetries
             && Objects.equals(credentials, that.credentials)
             && Objects.equals(endpoint, that.endpoint)
             && Objects.equals(proxyHost, that.proxyHost)
@@ -509,7 +500,6 @@ final class S3ClientSettings {
             readTimeoutMillis,
             maxRetries,
             maxConnections,
-            throttleRetries,
             disableChunkedEncoding,
             region,
             signerOverride

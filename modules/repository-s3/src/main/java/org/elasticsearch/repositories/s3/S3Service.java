@@ -17,6 +17,7 @@ import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.http.SdkHttpClient;
@@ -65,6 +66,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -253,7 +255,10 @@ class S3Service implements Closeable {
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
         httpClientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
 
-        applyProxyConfiguration(clientSettings, httpClientBuilder);
+        Optional<ProxyConfiguration> proxyConfiguration = buildProxyConfiguration(clientSettings);
+        if (proxyConfiguration.isPresent()) {
+            httpClientBuilder.proxyConfiguration(proxyConfiguration.get());
+        }
 
         if (dnsResolver != null) {
             httpClientBuilder.dnsResolver(dnsResolver);
@@ -271,25 +276,29 @@ class S3Service implements Closeable {
 
     static ClientOverrideConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
-
-        clientOverrideConfiguration.retryStrategy(builder -> {
-            builder.maxAttempts(clientSettings.maxRetries + 1 /* first attempt is not a retry */);
-            // TODO NOMERGE: revisit this, does it still make sense to specially retry?
-            // -- dct: yes, in serverless we sometimes get 403s during because of delays in propagating updated credentials
-            // (IAM is not strongly consistent); TODO NOMERGE this should be covered by some end-to-end test, and documented more accurately
-            if (isStateless) {
-                // Create a 403 error retryable policy.
-                builder.retryOnException(S3Service::RETRYABLE_403_RETRY_PREDICATE);
-            }
-        });
         clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, clientSettings.signerOverride.signerFactory.get());
+        var retryStrategyBuilder = AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .maxAttempts(clientSettings.maxRetries + 1 /* first attempt is not a retry */);
+        if (isStateless) {
+            // Create a 403 error retryable policy. In serverless we sometimes get 403s during because of delays in propagating updated
+            // credentials because IAM is not strongly consistent.
+            // TODO NOMERGE this should be covered by some end-to-end test, and documented more accurately
+            retryStrategyBuilder.retryOnException(S3Service::RETRYABLE_403_RETRY_PREDICATE);
+        }
+        clientOverrideConfiguration.retryStrategy(retryStrategyBuilder.build());
         return clientOverrideConfiguration.build();
     }
 
-    private static void applyProxyConfiguration(S3ClientSettings clientSettings, ApacheHttpClient.Builder httpClientBuilder) {
+    /**
+     * Populates a {@link ProxyConfiguration} with any user specified settings via {@link S3ClientSettings}, if any are set.
+     * Otherwise, returns empty Optional.
+     */
+    // pkg private for tests
+    static Optional<ProxyConfiguration> buildProxyConfiguration(S3ClientSettings clientSettings) {
         // If proxy settings are provided
         if (Strings.hasText(clientSettings.proxyHost)) {
-            final var uriBuilder = new URIBuilder();
+            final URIBuilder uriBuilder = new URIBuilder();
             uriBuilder.setScheme(clientSettings.proxyScheme.getSchemeString())
                 .setHost(clientSettings.proxyHost)
                 .setPort(clientSettings.proxyPort);
@@ -299,15 +308,17 @@ class S3Service implements Closeable {
             } catch (URISyntaxException e) {
                 throw new IllegalArgumentException(e);
             }
-            httpClientBuilder.proxyConfiguration(
+
+            return Optional.of(
                 ProxyConfiguration.builder()
                     .endpoint(proxyUri)
-                    .scheme(clientSettings.proxyScheme.getSchemeString())
+                    .scheme(clientSettings.proxyScheme.getSchemeString()) // TODO NOMERGE do we need this again?
                     .username(clientSettings.proxyUsername)
                     .password(clientSettings.proxyPassword)
                     .build()
             );
         }
+        return Optional.empty();
     }
 
     // pkg private for tests

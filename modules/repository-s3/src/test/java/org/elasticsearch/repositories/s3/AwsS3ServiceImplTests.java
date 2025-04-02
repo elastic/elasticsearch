@@ -9,8 +9,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -37,7 +35,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // TODO NOMERGE
 public class AwsS3ServiceImplTests extends ESTestCase {
 
     private final S3Service.CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider = Mockito.mock(
@@ -161,8 +158,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             -1,
             null,
             null,
+            null,
             3,
-            S3ClientSettings.Defaults.THROTTLE_RETRIES,
             Math.toIntExact(S3ClientSettings.Defaults.READ_TIMEOUT.seconds())
         );
     }
@@ -173,53 +170,49 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         secureSettings.setString("s3.client.default.proxy.password", "aws_proxy_password");
         final Settings settings = Settings.builder()
             .setSecureSettings(secureSettings)
-            .put("s3.client.default.protocol", "http")
             .put("s3.client.default.proxy.host", "aws_proxy_host")
             .put("s3.client.default.proxy.port", 8080)
+            .put("s3.client.default.proxy.scheme", "http")
             .put("s3.client.default.read_timeout", "10s")
             .build();
-        launchAWSConfigurationTest(
-            settings,
-            "aws_proxy_host",
-            8080,
-            "aws_proxy_username",
-            "aws_proxy_password",
-            3,
-            S3ClientSettings.Defaults.THROTTLE_RETRIES,
-            10000
-        );
+        launchAWSConfigurationTest(settings, "aws_proxy_host", 8080, "http", "aws_proxy_username", "aws_proxy_password", 3, 10000);
     }
 
     public void testRepositoryMaxRetries() {
         final Settings settings = Settings.builder().put("s3.client.default.max_retries", 5).build();
-        launchAWSConfigurationTest(settings, null, -1, null, null, 5, S3ClientSettings.Defaults.THROTTLE_RETRIES, 50000);
+        launchAWSConfigurationTest(settings, null, -1, null, null, null, 5, 50000);
     }
 
     private void launchAWSConfigurationTest(
         Settings settings,
         String expectedProxyHost,
         int expectedProxyPort,
+        String expectedHttpScheme,
         String expectedProxyUsername,
         String expectedProxyPassword,
         Integer expectedMaxRetries,
-        boolean expectedUseThrottleRetries,
         int expectedReadTimeout
     ) {
-
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
-        final var httpClient = S3Service.buildHttpClient(clientSettings, null);
-        final ClientOverrideConfiguration configuration = S3Service.buildConfiguration(clientSettings, false);
 
-        // TODO NOMERGE
-        // assertThat(configuration.(), getResponseMetadataCacheSize(), is(0));
-        // assertThat(httpClientBuilder.proxyConfiguration(), is(expectedProxyHost));
-        // assertThat(configuration.getProxyPort(), is(expectedProxyPort));
-        // assertThat(configuration.getProxyUsername(), is(expectedProxyUsername));
-        // assertThat(configuration.getProxyPassword(), is(expectedProxyPassword));
-        // assertThat(configuration.getMaxErrorRetry(), is(expectedMaxRetries));
-        // assertThat(configuration.useThrottledRetries(), is(expectedUseThrottleRetries));
-        // assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));
-        // assertThat(configuration.retryPolicy(), is(PredefinedRetryPolicies.DEFAULT));
+        final var proxyClientConfiguration = S3Service.buildProxyConfiguration(clientSettings);
+        if (proxyClientConfiguration.isPresent()) {
+            final var proxyConfig = proxyClientConfiguration.get();
+            assertThat(proxyConfig.username(), is(expectedProxyUsername));
+            assertThat(proxyConfig.password(), is(expectedProxyPassword));
+            assertThat(proxyConfig.scheme(), is(expectedHttpScheme));
+            // TODO NOMERGE: something about URI is broken here.
+            // In S3Service, URI proxyUri returns the right endpoint, but not host and port pieces.
+            // Can't get endpoint here (though toString() surfaces it).
+            // assertThat(proxyConfig.host(), is(expectedProxyHost));
+            // assertThat(proxyConfig.port(), is(expectedProxyPort));
+        }
+
+        final ClientOverrideConfiguration configuration = S3Service.buildConfiguration(clientSettings, false);
+        assertThat(configuration.retryStrategy().get().maxAttempts(), is(expectedMaxRetries + 1));
+
+        // TODO NOMERGE: consider whether this needs to be tested elsewhere.
+        // assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout)); // set on the httpClient
     }
 
     public void testEndpointSetting() {

@@ -810,10 +810,8 @@ public class CefProcessorTests extends ESTestCase {
                     )
                 )
             ),
-            entry(
-                "host", Map.of("nat",Map.of("ip", "10.0.0.3"))),
-            entry(
-                "log", Map.of("syslog", Map.of("facility", Map.of("code", 16L)))),
+            entry("host", Map.of("nat", Map.of("ip", "10.0.0.3"))),
+            entry("log", Map.of("syslog", Map.of("facility", Map.of("code", 16L)))),
             entry(
                 "observer",
                 Map.ofEntries(
@@ -840,7 +838,7 @@ public class CefProcessorTests extends ESTestCase {
                     entry("mac", "00:0a:95:9d:68:16")
                 )
             ),
-            entry("process", Map.of("name", "procName","pid", 5678L)),
+            entry("process", Map.of("name", "procName", "pid", 5678L)),
             entry(
                 "destination",
                 Map.ofEntries(

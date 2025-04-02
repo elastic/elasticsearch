@@ -38,7 +38,7 @@ public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3Re
         true,
         BUCKET,
         BASE_PATH,
-        fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN)
+        fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN, "*", "s3")
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

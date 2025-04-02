@@ -82,8 +82,8 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
@@ -852,6 +852,8 @@ public class OpenAiServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -890,6 +892,8 @@ public class OpenAiServiceTests extends ESTestCase {
                 () -> service.infer(
                     model,
                     null,
+                    null,
+                    null,
                     List.of(""),
                     false,
                     new HashMap<>(),
@@ -924,6 +928,8 @@ public class OpenAiServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -963,6 +969,8 @@ public class OpenAiServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -1023,6 +1031,8 @@ public class OpenAiServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1262,6 +1272,8 @@ public class OpenAiServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 true,
@@ -1793,6 +1805,8 @@ public class OpenAiServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,

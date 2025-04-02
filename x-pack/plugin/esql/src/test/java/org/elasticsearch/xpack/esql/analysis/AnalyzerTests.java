@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -2324,7 +2325,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRateRequiresCounterTypes() {
         assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var query = "METRICS test avg(rate(network.connections))";
+        var query = "METRICS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
         assertThat(
             error.getMessage(),
@@ -2544,10 +2545,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNamedDoubleParamsForIdentifiers() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         assertProjectionWithMapping(
             """
                 from test
@@ -2658,10 +2656,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testInvalidNamedDoubleParamsForIdentifiers() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         // missing field
         assertError(
             """
@@ -3186,7 +3181,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
 
-    // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
     private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
         String indexName,
         Map<String, IndexFieldCapabilities> fields
@@ -3195,7 +3189,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static Map<String, IndexFieldCapabilities> messageResponseMap(String date) {
-        return Map.of("message", new IndexFieldCapabilities("message", date, false, true, true, false, null, null));
+        return Map.of("message", new IndexFieldCapabilitiesBuilder("message", date).build());
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

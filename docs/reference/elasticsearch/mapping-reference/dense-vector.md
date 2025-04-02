@@ -291,7 +291,7 @@ $$$dense-vector-index-options$$$
     :   (Optional, object) Functionality in [preview]. An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
     :::::{dropdown} Properties of `rescore_vector`
     `oversample`
-    :   (required, float) The amount to oversample the search results by. This value should be greater than `1.0` and less than `10.0`. The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
+    :   (required, float) The amount to oversample the search results by. This value should be greater than `1.0` and less than `10.0` or exactly `0` to indicate no oversampling & rescoring should occur. The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
         :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
         :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
         :::::

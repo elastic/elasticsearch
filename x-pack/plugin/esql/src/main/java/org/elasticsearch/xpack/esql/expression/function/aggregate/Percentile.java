@@ -56,7 +56,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         appendix = """
             ### `PERCENTILE` is (usually) approximate [esql-percentile-approximate]
 
-            :::{include} /reference/data-analysis/aggregations/_snippets/search-aggregations-metrics-percentile-aggregation-approximate.md
+            :::{include} /reference/aggregations/_snippets/search-aggregations-metrics-percentile-aggregation-approximate.md
             :::
 
             ::::{warning}

@@ -8,7 +8,7 @@ Use `RLIKE` to filter data based on string patterns using using
 the left-hand side of the operator, but it can also act on a constant (literal)
 expression. The right-hand side of the operator represents the pattern.
 
-```
+```esql
 FROM employees
 | WHERE first_name RLIKE """.leja.*"""
 | KEEP first_name, last_name

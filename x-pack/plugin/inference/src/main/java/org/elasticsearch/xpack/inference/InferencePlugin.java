@@ -83,7 +83,6 @@ import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLim
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.NoopNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
@@ -116,6 +115,7 @@ import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
@@ -248,7 +248,9 @@ public class InferencePlugin extends Plugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         var components = new ArrayList<>();
-        var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
+        var throttlerManager = new ThrottlerManager(settings, services.threadPool());
+        throttlerManager.init(services.clusterService());
+
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
         threadPoolSetOnce.set(services.threadPool());

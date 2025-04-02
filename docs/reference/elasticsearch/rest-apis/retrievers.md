@@ -666,7 +666,7 @@ Follow these steps:
     }
     ```
 
-    1. [Adaptive allocations](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-auto-scale.md#nlp-model-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
+    1. [Adaptive allocations](docs-content://deploy-manage/autoscaling/trained-model-autoscaling.md#enabling-autoscaling-through-apis-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
 
 2. Define a `text_similarity_rerank` retriever:
 
@@ -929,7 +929,7 @@ The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operati
 
 ### Using aggregations with a retriever tree [retriever-aggregations]
 
-[Aggregations](/reference/data-analysis/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
+[Aggregations](/reference/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
 
 
 ### Restrictions on search parameters when specifying a retriever [retriever-restrictions]

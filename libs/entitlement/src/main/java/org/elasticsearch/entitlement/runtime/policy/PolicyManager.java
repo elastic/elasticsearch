@@ -57,6 +57,7 @@ import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
+import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
 
 public class PolicyManager {
     /**
@@ -277,7 +278,7 @@ public class PolicyManager {
             Strings.format(
                 "component [%s], module [%s], class [%s], operation [%s]",
                 entitlements.componentName(),
-                requestingClass.getModule().getName(),
+                getModuleName(requestingClass),
                 requestingClass,
                 operationDescription.get()
             ),
@@ -395,7 +396,7 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
@@ -425,7 +426,7 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     path
                 ),
@@ -514,7 +515,7 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     PolicyParser.buildEntitlementNameFromClass(entitlementClass)
                 ),
@@ -527,7 +528,7 @@ public class PolicyManager {
                 () -> Strings.format(
                     "Entitled: component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     PolicyParser.buildEntitlementNameFromClass(entitlementClass)
                 )
@@ -547,7 +548,7 @@ public class PolicyManager {
                     () -> Strings.format(
                         "Entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                         entitlements.componentName(),
-                        requestingClass.getModule().getName(),
+                        getModuleName(requestingClass),
                         requestingClass,
                         property
                     )
@@ -558,7 +559,7 @@ public class PolicyManager {
             Strings.format(
                 "component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
-                requestingClass.getModule().getName(),
+                getModuleName(requestingClass),
                 requestingClass,
                 property
             ),
@@ -571,7 +572,7 @@ public class PolicyManager {
         var exception = new NotEntitledException(message);
         // Don't emit a log for muted classes, e.g. classes containing self tests
         if (mutedClasses.contains(callerClass) == false) {
-            entitlements.logger().warn("Not entitled:", exception);
+            entitlements.logger().warn("Not entitled: {}", message, exception);
         }
         throw exception;
     }
@@ -712,8 +713,6 @@ public class PolicyManager {
 
     /**
      * Given a stream of {@link StackFrame}s, identify the one whose entitlements should be checked.
-     *
-     * @throws NullPointerException if the requesting module is {@code null}
      */
     Optional<StackFrame> findRequestingFrame(Stream<StackFrame> frames) {
         return frames.filter(f -> f.getDeclaringClass().getModule() != entitlementsModule) // ignore entitlements library
@@ -732,12 +731,24 @@ public class PolicyManager {
             generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
         }
+        if (requestingClass == NO_CLASS) {
+            generalLogger.debug("Entitlement trivially allowed from outermost frame");
+            return true;
+        }
         if (SYSTEM_LAYER_MODULES.contains(requestingClass.getModule())) {
             generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }
         generalLogger.trace("Entitlement not trivially allowed");
         return false;
+    }
+
+    /**
+     * @return the {@code requestingClass}'s module name as it would appear in an entitlement policy file
+     */
+    private static String getModuleName(Class<?> requestingClass) {
+        String name = requestingClass.getModule().getName();
+        return (name == null) ? ALL_UNNAMED : name;
     }
 
     @Override

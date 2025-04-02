@@ -146,7 +146,7 @@ More subfields enables more specific queries but increases index size.
 The following parameters are accepted in a mapping for the `search_as_you_type` field due to its nature as a text-like field, and behave similarly to their behavior when configuring a field of the [`text`](/reference/elasticsearch/mapping-reference/text.md) data type. Unless otherwise noted, these options configure the root fields subfields in the same way.
 
 [`analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md)
-:   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for `text` fields, both at index-time and at search-time (unless overridden by the [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)). Defaults to the default index analyzer, or the [`standard` analyzer](/reference/data-analysis/text-analysis/analysis-standard-analyzer.md).
+:   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for `text` fields, both at index-time and at search-time (unless overridden by the [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)). Defaults to the default index analyzer, or the [`standard` analyzer](/reference/text-analysis/analysis-standard-analyzer.md).
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be searchable? Accepts `true` (default) or `false`.

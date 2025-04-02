@@ -85,7 +85,7 @@ public class VerifierTests extends ESTestCase {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";
 
-        EsField unsupportedField = new UnsupportedEsField(unsupported, "flattened");
+        EsField unsupportedField = new UnsupportedEsField(unsupported, List.of("flattened"));
         // Use linked maps/sets to fix the order in the error message.
         LinkedHashSet<String> ipIndices = new LinkedHashSet<>();
         ipIndices.add("test1");
@@ -1014,6 +1014,17 @@ public class VerifierTests extends ESTestCase {
             line 1:23: Unknown column [avg]""", error("from test | stats c = avg by missing + 1, not_found"));
     }
 
+    public void testMultipleAggsOutsideStats() {
+        assertEquals(
+            """
+                1:71: aggregate function [avg(salary)] not allowed outside STATS command
+                line 1:96: aggregate function [median(emp_no)] not allowed outside STATS command
+                line 1:22: aggregate function [sum(salary)] not allowed outside STATS command
+                line 1:39: aggregate function [avg(languages)] not allowed outside STATS command""",
+            error("from test | eval s = sum(salary), l = avg(languages) | where salary > avg(salary) and emp_no > median(emp_no)")
+        );
+    }
+
     public void testSpatialSort() {
         String prefix = "ROW wkt = [\"POINT(42.9711 -14.7553)\", \"POINT(75.8093 22.7277)\"] | MV_EXPAND wkt ";
         assertEquals("1:130: cannot sort on geo_point", error(prefix + "| EVAL shape = TO_GEOPOINT(wkt) | limit 5 | sort shape"));
@@ -1125,45 +1136,41 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         assertThat(
             error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
-            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
-        );
-        assertThat(
-            error("METRICS tests | STATS sum(rate(network.bytes_in))", tsdb),
-            equalTo("1:27: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used with the metrics command")
         );
         assertThat(
             error("FROM tests | STATS rate(network.bytes_in)", tsdb),
-            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used with the metrics command")
         );
         assertThat(
             error("FROM tests | EVAL r = rate(network.bytes_in)", tsdb),
-            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside METRICS command")
+            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside STATS command")
         );
     }
 
     public void testRateNotEnclosedInAggregate() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         assertThat(
-            error("METRICS tests rate(network.bytes_in)", tsdb),
+            error("METRICS tests | STATS rate(network.bytes_in)", tsdb),
             equalTo(
-                "1:15: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+                "1:23: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command and inside another aggregate"
             )
         );
         assertThat(
-            error("METRICS tests avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
+            error("METRICS tests | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
             equalTo(
-                "1:44: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+                "1:52: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command and inside another aggregate"
             )
         );
-        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+        assertThat(error("METRICS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:27: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
              [max(avg(rate(network.bytes_in)))]
-            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+            line 1:31: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command\
              and inside another aggregate"""));
-        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+        assertThat(error("METRICS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:27: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
              [max(avg(rate(network.bytes_in)))]
-            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+            line 1:31: the rate aggregate [rate(network.bytes_in)] can only be used with the metrics command\
              and inside another aggregate"""));
     }
 
@@ -2111,10 +2118,53 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testSortByAggregate() {
-        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT count(*)"));
-        assertEquals("1:28: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT to_string(count(*))"));
-        assertEquals("1:22: Aggregate functions are not allowed in SORT [MAX]", error("ROW a = 1 | SORT 1 + max(a)"));
-        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("FROM test | SORT count(*)"));
+        assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 | SORT count(*)"));
+        assertEquals(
+            "1:28: aggregate function [count(*)] not allowed outside STATS command",
+            error("ROW a = 1 | SORT to_string(count(*))")
+        );
+        assertEquals("1:22: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | SORT 1 + max(a)"));
+        assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("FROM test | SORT count(*)"));
+    }
+
+    public void testFilterByAggregate() {
+        assertEquals("1:19: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 | WHERE count(*) > 0"));
+        assertEquals(
+            "1:29: aggregate function [count(*)] not allowed outside STATS command",
+            error("ROW a = 1 | WHERE to_string(count(*)) IS NOT NULL")
+        );
+        assertEquals("1:23: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | WHERE 1 + max(a) > 0"));
+        assertEquals(
+            "1:24: aggregate function [min(languages)] not allowed outside STATS command",
+            error("FROM employees | WHERE min(languages) > 2")
+        );
+    }
+
+    public void testDissectByAggregate() {
+        assertEquals(
+            "1:21: aggregate function [min(first_name)] not allowed outside STATS command",
+            error("from test | dissect min(first_name) \"%{foo}\"")
+        );
+        assertEquals(
+            "1:21: aggregate function [avg(salary)] not allowed outside STATS command",
+            error("from test | dissect avg(salary) \"%{foo}\"")
+        );
+    }
+
+    public void testGrokByAggregate() {
+        assertEquals(
+            "1:18: aggregate function [max(last_name)] not allowed outside STATS command",
+            error("from test | grok max(last_name) \"%{WORD:foo}\"")
+        );
+        assertEquals(
+            "1:18: aggregate function [sum(salary)] not allowed outside STATS command",
+            error("from test | grok sum(salary) \"%{WORD:foo}\"")
+        );
+    }
+
+    public void testAggregateInRow() {
+        assertEquals("1:13: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 + count(*)"));
+        assertEquals("1:9: aggregate function [avg(2)] not allowed outside STATS command", error("ROW a = avg(2)"));
     }
 
     public void testLookupJoinDataTypeMismatch() {

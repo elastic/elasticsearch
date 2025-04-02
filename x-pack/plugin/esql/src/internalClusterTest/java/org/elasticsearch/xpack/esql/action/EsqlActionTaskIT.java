@@ -167,7 +167,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         \\_AggregationOperator[mode = INITIAL, aggs = sum of longs]
                         \\_ExchangeSinkOperator""".replace(
                         "sourceStatus",
-                        "dataPartitioning = SHARD, maxPageSize = " + pageSize() + ", limit = 2147483647, scoreMode = COMPLETE_NO_SCORES"
+                        "dataPartitioning = SHARD, maxPageSize = " + pageSize() + ", limit = 2147483647, needsScore = false"
                     )
                 )
             );
@@ -502,7 +502,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 [{"pause_me":{"order":"asc","missing":"_last","unmapped_type":"long"}}]""";
             String sourceStatus = "dataPartitioning = SHARD, maxPageSize = "
                 + pageSize()
-                + ", limit = 1000, scoreMode = TOP_DOCS, sorts = "
+                + ", limit = 1000, needsScore = false, sorts = "
                 + sortStatus;
             assertThat(dataTasks(tasks).get(0).description(), equalTo("""
                 \\_LuceneTopNSourceOperator[sourceStatus]
@@ -545,7 +545,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             scriptPermits.release(pageSize() - prereleasedDocs);
             List<TaskInfo> tasks = getTasksRunning();
             assertThat(dataTasks(tasks).get(0).description(), equalTo("""
-                \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit(), scoreMode = COMPLETE_NO_SCORES]
+                \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit(), needsScore = false]
                 \\_ValuesSourceReaderOperator[fields = [pause_me]]
                 \\_ProjectOperator[projection = [1]]
                 \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize())).replace("limit()", limit)));
@@ -573,8 +573,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             logger.info("unblocking script");
             scriptPermits.release(pageSize());
             List<TaskInfo> tasks = getTasksRunning();
-            String sourceStatus = "dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, scoreMode = COMPLETE_NO_SCORES"
-                .replace("pageSize()", Integer.toString(pageSize()));
+            String sourceStatus = "dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, needsScore = false".replace(
+                "pageSize()",
+                Integer.toString(pageSize())
+            );
             assertThat(
                 dataTasks(tasks).get(0).description(),
                 equalTo(

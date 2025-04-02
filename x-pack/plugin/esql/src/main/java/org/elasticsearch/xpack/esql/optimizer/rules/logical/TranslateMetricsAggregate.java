@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
@@ -123,18 +123,14 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        if (aggregate.aggregateType() == Aggregate.AggregateType.METRICS) {
-            return translate(aggregate);
-        } else {
-            return aggregate;
-        }
+        return translate(aggregate);
     }
 
-    LogicalPlan translate(Aggregate metrics) {
+    LogicalPlan translate(Aggregate aggregate) {
         Map<Rate, Alias> rateAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
-        for (NamedExpression agg : metrics.aggregates()) {
+        for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
                 Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
                 Expression outerAgg = af.transformDown(Rate.class, rate -> {
@@ -157,11 +153,11 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
             }
         }
         if (rateAggs.isEmpty()) {
-            return toStandardAggregate(metrics);
+            return aggregate;
         }
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
-        metrics.forEachDown(EsRelation.class, r -> {
+        aggregate.forEachDown(EsRelation.class, r -> {
             for (Attribute attr : r.output()) {
                 if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
                     tsid.set(attr);
@@ -171,7 +167,10 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
                 }
             }
         });
-        if (tsid.get() == null || timestamp.get() == null) {
+        if (tsid.get() == null) {
+            tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
+        }
+        if (timestamp.get() == null) {
             throw new IllegalArgumentException("_tsid or @timestamp field are missing from the metrics source");
         }
         // metrics aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
@@ -179,7 +178,7 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
         firstPassGroupings.add(tsid.get());
         List<Expression> secondPassGroupings = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
-        metrics.child().forEachExpressionUp(NamedExpression.class, e -> {
+        aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
             for (Expression child : e.children()) {
                 if (child instanceof Bucket bucket && bucket.field().equals(timestamp.get())) {
                     if (timeBucketRef.get() != null) {
@@ -190,7 +189,7 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
             }
         });
         NamedExpression timeBucket = timeBucketRef.get();
-        for (Expression group : metrics.groupings()) {
+        for (Expression group : aggregate.groupings()) {
             if (group instanceof Attribute == false) {
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
@@ -205,24 +204,25 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
             }
             secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
+        LogicalPlan relation = aggregate.child().transformUp(EsRelation.class, r -> {
+            if (r.output().contains(tsid.get()) == false) {
+                return new EsRelation(
+                    r.source(),
+                    r.indexPattern(),
+                    r.indexMode(),
+                    r.indexNameWithModes(),
+                    CollectionUtils.combine(r.output(), tsid.get())
+                );
+            } else {
+                return r;
+            }
+        });
         return newAggregate(
-            newAggregate(metrics.child(), Aggregate.AggregateType.METRICS, firstPassAggs, firstPassGroupings),
+            newAggregate(relation, Aggregate.AggregateType.METRICS, firstPassAggs, firstPassGroupings),
             Aggregate.AggregateType.STANDARD,
             secondPassAggs,
             secondPassGroupings
         );
-    }
-
-    private static Aggregate toStandardAggregate(Aggregate metrics) {
-        final LogicalPlan child = metrics.child().transformDown(EsRelation.class, r -> {
-            var attributes = new ArrayList<>(new AttributeSet(metrics.inputSet()));
-            attributes.removeIf(a -> a.name().equals(MetadataAttribute.TSID_FIELD));
-            if (attributes.stream().noneMatch(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD))) {
-                attributes.removeIf(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD));
-            }
-            return new EsRelation(r.source(), r.indexPattern(), IndexMode.STANDARD, r.indexNameWithModes(), new ArrayList<>(attributes));
-        });
-        return new Aggregate(metrics.source(), child, Aggregate.AggregateType.STANDARD, metrics.groupings(), metrics.aggregates());
     }
 
     private static Aggregate newAggregate(

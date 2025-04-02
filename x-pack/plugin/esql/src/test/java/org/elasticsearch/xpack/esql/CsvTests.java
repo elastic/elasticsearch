@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -85,7 +86,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -120,7 +120,6 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.cap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -155,6 +154,17 @@ import static org.hamcrest.Matchers.notNullValue;
  * it’s creating its own Source physical operator, aggregation operator (just a tiny bit of it) and field extract operator.
  * <p>
  * To log the results logResults() should return "true".
+ * <p>
+ * This test never pushes to Lucene because there isn't a Lucene index to push to. It always runs everything in
+ * the compute engine. This yields the same results modulo a few things:
+ * <ul>
+ *     <li>Warnings for multivalued fields: See {@link SingleValueMatchQuery} for an in depth discussion, but the
+ *         short version is this class will always emit warnings on multivalued fields but tests that run against
+ *         a real index are only guaranteed to emit a warning if the document would match all filters <strong>except</strong>
+ *         it has a multivalue field.</li>
+ *     <li>Sorting: This class emits values in the order they appear in the {@code .csv} files that power it. A real
+ *         index emits documents a fair random order. Multi-shard and multi-node tests doubly so.</li>
+ * </ul>
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
@@ -255,7 +265,10 @@ public class CsvTests extends ESTestCase {
                 "can't use match in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.capabilityName())
             );
-            assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
+            assumeFalse(
+                "can't load metrics in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METRICS_COMMAND.capabilityName())
+            );
             assumeFalse(
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())

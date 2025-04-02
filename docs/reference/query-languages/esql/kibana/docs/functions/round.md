@@ -8,7 +8,7 @@ Defaults to 0, which returns the nearest integer. If the
 precision is a negative number, rounds to the number of digits left
 of the decimal point.
 
-```
+```esql
 FROM employees
 | KEEP first_name, last_name, height
 | EVAL height_ft = ROUND(height * 3.281, 1)

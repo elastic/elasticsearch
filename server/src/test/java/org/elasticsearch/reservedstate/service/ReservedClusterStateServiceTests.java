@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
@@ -41,6 +42,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -60,6 +62,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
@@ -67,6 +70,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -75,6 +79,20 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class ReservedClusterStateServiceTests extends ESTestCase {
+
+    private static final String TEST_CHUNK_TEMPLATE = """
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+                 "%s": {
+                     "nothing": "useful"
+                 }
+             }
+        }
+        """;
 
     @SuppressWarnings("unchecked")
     private static <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> mockTaskQueue() {
@@ -347,6 +365,178 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         taskExecutor.clusterStatePublished(state);
         verify(rerouteService, times(1)).reroute(anyString(), any(), any());
+    }
+
+    public void testUpdateErrorStateNonExistingProject() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
+        when(clusterService.state()).thenReturn(state);
+
+        ReservedClusterStateService service = new ReservedClusterStateService(
+            clusterService,
+            mock(RerouteService.class),
+            List.of(),
+            List.of()
+        );
+
+        ErrorState error = new ErrorState(
+            Optional.of(randomUniqueProjectId()),
+            "namespace",
+            2L,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            List.of("error"),
+            ReservedStateErrorMetadata.ErrorKind.TRANSIENT
+        );
+        service.updateErrorState(error);
+        verify(clusterService, never()).createTaskQueue(any(), any(), any());
+    }
+
+    public void testProcessMultipleChunks() throws Exception {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        ProjectId projectId = randomProjectIdOrDefault();
+        state = setupProject(state, Optional.of(projectId));
+        when(clusterService.state()).thenReturn(state);
+
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        List<ReservedStateChunk> chunks = new ArrayList<>();
+
+        String[] randomStateKeys = generateRandomStringArray(randomIntBetween(5, 10), randomIntBetween(10, 15), false, false);
+
+        List<ReservedClusterStateHandler<ProjectMetadata, ?>> projectHandlers = new ArrayList<>();
+        for (var key : randomStateKeys) {
+            projectHandlers.add(spy(new TestProjectStateHandler(key)));
+        }
+
+        ReservedClusterStateService controller = new ReservedClusterStateService(
+            clusterService,
+            mock(RerouteService.class),
+            List.of(),
+            projectHandlers
+        );
+
+        for (var testHandler : randomStateKeys) {
+            String testChunkJSON = Strings.format(TEST_CHUNK_TEMPLATE, 1, testHandler);
+            try (
+                XContentParser chunkParser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testChunkJSON);
+            ) {
+                chunks.add(controller.parse(projectId, "test", chunkParser));
+            }
+        }
+
+        controller.process(
+            projectId,
+            "test",
+            chunks,
+            randomFrom(ReservedStateVersionCheck.HIGHER_VERSION_ONLY, ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION),
+            exceptionRef::set
+        );
+
+        assertThat(exceptionRef.get(), nullValue());
+
+        for (var projectHandler : projectHandlers) {
+            verify(projectHandler, times(1)).transform(any(), any());
+        }
+    }
+
+    public void testProcessMultipleChunksVersionMismatch() throws Exception {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        ProjectId projectId = randomProjectIdOrDefault();
+        state = setupProject(state, Optional.of(projectId));
+        when(clusterService.state()).thenReturn(state);
+
+        String testJSON1 = Strings.format(TEST_CHUNK_TEMPLATE, 1, "test1");
+        String testJSON2 = Strings.format(TEST_CHUNK_TEMPLATE, 2, "test2");
+
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        List<ReservedStateChunk> chunks = new ArrayList<>();
+
+        TestProjectStateHandler projectStateHandler1 = spy(new TestProjectStateHandler("test1"));
+        TestProjectStateHandler projectStateHandler2 = spy(new TestProjectStateHandler("test2"));
+
+        ReservedClusterStateService controller = new ReservedClusterStateService(
+            clusterService,
+            mock(RerouteService.class),
+            List.of(),
+            List.of(projectStateHandler1, projectStateHandler2)
+        );
+
+        try (
+            XContentParser chunkParser1 = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON1);
+            XContentParser chunkParser2 = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON2)
+        ) {
+            chunks.add(controller.parse(projectId, "test", chunkParser1));
+            chunks.add(controller.parse(projectId, "test", chunkParser2));
+        }
+
+        controller.process(
+            projectId,
+            "test",
+            chunks,
+            randomFrom(ReservedStateVersionCheck.HIGHER_VERSION_ONLY, ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION),
+            exceptionRef::set
+        );
+
+        assertThat(exceptionRef.get(), notNullValue());
+        assertThat(exceptionRef.get().getMessage(), containsString("Failed to merge reserved state chunks because of version mismatch: ["));
+        verify(projectStateHandler1, times(0)).transform(any(), any());
+        verify(projectStateHandler2, times(0)).transform(any(), any());
+    }
+
+    public void testProcessMultipleChunksDuplicateKeys() throws Exception {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        ProjectId projectId = randomProjectIdOrDefault();
+        state = setupProject(state, Optional.of(projectId));
+        when(clusterService.state()).thenReturn(state);
+
+        String testJSON1 = Strings.format(TEST_CHUNK_TEMPLATE, 1, "test");
+        String testJSON2 = Strings.format(TEST_CHUNK_TEMPLATE, 1, "test");
+
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        List<ReservedStateChunk> chunks = new ArrayList<>();
+
+        TestProjectStateHandler projectStateHandler1 = spy(new TestProjectStateHandler("test"));
+
+        ReservedClusterStateService controller = new ReservedClusterStateService(
+            clusterService,
+            mock(RerouteService.class),
+            List.of(),
+            List.of(projectStateHandler1)
+        );
+
+        try (
+            XContentParser chunkParser1 = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON1);
+            XContentParser chunkParser2 = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON2)
+        ) {
+            chunks.add(controller.parse(projectId, "test", chunkParser1));
+            chunks.add(controller.parse(projectId, "test", chunkParser2));
+        }
+
+        controller.process(
+            projectId,
+            "test",
+            chunks,
+            randomFrom(ReservedStateVersionCheck.HIGHER_VERSION_ONLY, ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION),
+            exceptionRef::set
+        );
+
+        assertThat(exceptionRef.get(), notNullValue());
+        assertThat(
+            exceptionRef.get().getMessage(),
+            containsString("Failed to merge reserved state chunks because of duplicate keys: [test]")
+        );
+        verify(projectStateHandler1, times(0)).transform(any(), any());
     }
 
     public void testUpdateErrorState() {

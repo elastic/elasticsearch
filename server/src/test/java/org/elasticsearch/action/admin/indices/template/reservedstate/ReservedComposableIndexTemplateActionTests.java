@@ -694,7 +694,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             threadPool,
             null,
             mock(ActionFilters.class),
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, putIndexAction.reservedStateHandlerName().get());
         assertThat(
@@ -707,7 +707,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             threadPool,
             null,
             mock(ActionFilters.class),
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, delIndexAction.reservedStateHandlerName().get());
         assertThat(
@@ -722,7 +722,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             null,
             mock(ActionFilters.class),
             indexScopedSettings,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, putComponentAction.reservedStateHandlerName().get());
         assertThat(
@@ -736,7 +736,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             threadPool,
             null,
             mock(ActionFilters.class),
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, delComponentAction.reservedStateHandlerName().get());
         assertThat(
@@ -959,7 +959,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             threadPool,
             null,
             mock(ActionFilters.class),
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
 
         // Try fake REST modification request with validate_template, this will fail

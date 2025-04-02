@@ -317,15 +317,29 @@ public final class IngestDocument {
 
     /**
      * Removes the field identified by the provided path.
+     *
      * @param path the path of the field to be removed
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
     public void removeField(String path) {
+        removeField(path, false);
+    }
+
+    /**
+     * Removes the field identified by the provided path.
+     *
+     * @param path the path of the field to be removed
+     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
+     * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
+     */
+    public void removeField(String path, boolean ignoreMissing) {
         final FieldPath fieldPath = FieldPath.of(path);
         Object context = fieldPath.initialContext(this);
         ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length - 1, path, context);
         if (result.wasSuccessful) {
             context = result.resolvedObject;
+        } else if (ignoreMissing) {
+            return; // nothing was found, so there's nothing to remove :shrug:
         } else {
             throw new IllegalArgumentException(result.errorMessage);
         }
@@ -336,13 +350,13 @@ public final class IngestDocument {
         } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
             if (map.containsKey(leafKey)) {
                 map.remove(leafKey);
-            } else {
+            } else if (ignoreMissing == false) {
                 throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
             }
         } else if (context instanceof Map<?, ?> map) {
             if (map.containsKey(leafKey)) {
                 map.remove(leafKey);
-            } else {
+            } else if (ignoreMissing == false) {
                 throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
             }
         } else if (context instanceof List<?> list) {
@@ -353,11 +367,13 @@ public final class IngestDocument {
                 throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
             }
             if (index < 0 || index >= list.size()) {
-                throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
+                if (ignoreMissing == false) {
+                    throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
+                }
             } else {
                 list.remove(index);
             }
-        } else {
+        } else if (ignoreMissing == false) {
             throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, context));
         }
     }

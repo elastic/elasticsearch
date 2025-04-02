@@ -317,9 +317,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.StatementParserTests
   method: testInvalidJoinPatterns
   issue: https://github.com/elastic/elasticsearch/issues/125536
-- class: org.elasticsearch.xpack.security.authz.accesscontrol.IndicesPermissionTests
-  method: testAuthorizeDataStreamFailureIndices
-  issue: https://github.com/elastic/elasticsearch/issues/125555
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_crud/Test get stats on newly created config}
   issue: https://github.com/elastic/elasticsearch/issues/121726
@@ -341,9 +338,6 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
   method: testAlreadyUpToDateDataStream
   issue: https://github.com/elastic/elasticsearch/issues/125727
-- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
-  method: testMergingFallsBehindAndThenCatchesUp
-  issue: https://github.com/elastic/elasticsearch/issues/125744
 - class: org.elasticsearch.xpack.esql.spatial.SpatialExtentAggregationNoLicenseIT
   method: testStExtentAggregationWithPoints
   issue: https://github.com/elastic/elasticsearch/issues/125735
@@ -401,6 +395,9 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
   method: testBlockLoader {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
   issue: https://github.com/elastic/elasticsearch/issues/126121
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/122707
 
 # Examples:
 #

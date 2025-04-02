@@ -390,11 +390,13 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 }).when(mergeSource).merge(any(OneMerge.class));
                 // trigger run merges on the merge source
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
-                do {
+                boolean done = false;
+                while (done == false) {
                     // let merges run, but wait for the in-progress one to signal it is running
                     nextMergeSemaphore.acquire();
+                    done = runMergeIdx.get() >= followUpMergeCount;
                     runMergeSemaphore.release();
-                } while (runMergeIdx.get() < followUpMergeCount);
+                }
                 assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
             }
         }

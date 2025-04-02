@@ -89,6 +89,9 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
 public class LookupJoinTypesIT extends ESIntegTestCase {
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(EsqlPlugin.class);
+    }
 
     private static final Map<String, TestConfigs> testConfigurations = new HashMap<>();
     static {
@@ -138,134 +141,6 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 knownTypes.add(config.indexName());
             }
         }
-    }
-
-    private record TestConfigs(String group, Set<TestConfig> configs) {
-
-        private void addPasses(DataType mainType, DataType lookupType) {
-            configs.add(new TestConfigPasses(mainType, lookupType, true));
-        }
-
-        private void addEmptyResult(DataType mainType, DataType lookupType) {
-            configs.add(new TestConfigPasses(mainType, lookupType, false));
-        }
-
-        private void addFails(DataType mainType, DataType lookupType) {
-            String fieldName = "field_" + mainType.esType();
-            String errorMessage = String.format(
-                Locale.ROOT,
-                "JOIN left field [%s] of type [%s] is incompatible with right field [%s] of type [%s]",
-                fieldName,
-                mainType.widenSmallNumeric(),
-                fieldName,
-                lookupType.widenSmallNumeric()
-            );
-            configs.add(
-                new TestConfigFails<>(
-                    mainType,
-                    lookupType,
-                    VerificationException.class,
-                    e -> assertThat(e.getMessage(), containsString(errorMessage))
-                )
-            );
-        }
-
-        private void addFailsText(DataType mainType, DataType lookupType) {
-            String fieldName = "field_" + mainType.esType();
-            String errorMessage = String.format(Locale.ROOT, "JOIN with right field [%s] of type [TEXT] is not supported", fieldName);
-            configs.add(
-                new TestConfigFails<>(
-                    mainType,
-                    lookupType,
-                    VerificationException.class,
-                    e -> assertThat(e.getMessage(), containsString(errorMessage))
-                )
-            );
-        }
-
-        private <E extends Exception> void addFails(DataType mainType, DataType lookupType, Class<E> exception, Consumer<E> assertion) {
-            configs.add(new TestConfigFails<>(mainType, lookupType, exception, assertion));
-        }
-    }
-
-    interface TestConfig {
-        DataType mainType();
-
-        DataType lookupType();
-
-        default String indexName() {
-            return "index_" + mainType().esType() + "_" + lookupType().esType();
-        }
-
-        default String fieldName() {
-            return "field_" + mainType().esType();
-        }
-
-        default String mainPropertySpec() {
-            return "\"" + fieldName() + "\": { \"type\" : \"" + mainType().esType() + "\" }";
-        }
-
-        /** Make sure the left index has the expected fields and types */
-        default void validateMainIndex() {
-            validateIndex("index", fieldName(), sampleDataFor(mainType()));
-        }
-
-        /** Make sure the lookup index has the expected fields and types */
-        default void validateLookupIndex() {
-            validateIndex(indexName(), fieldName(), sampleDataFor(lookupType()));
-        }
-
-        void testQuery(String query);
-    }
-
-    private static void validateIndex(String indexName, String fieldName, Object expectedValue) {
-        String query = String.format(Locale.ROOT, "FROM %s | KEEP %s", indexName, fieldName);
-        try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
-            ColumnInfo info = response.response().columns().getFirst();
-            assertThat("Expected index '" + indexName + "' to have column '" + fieldName + ": " + query, info.name(), is(fieldName));
-            Iterator<Object> results = response.response().column(0).iterator();
-            assertTrue("Expected at least one result for query: " + query, results.hasNext());
-            Object indexedResult = response.response().column(0).iterator().next();
-            assertThat("Expected valid result: " + query, indexedResult, is(expectedValue));
-        }
-    }
-
-    record TestConfigPasses(DataType mainType, DataType lookupType, boolean hasResults) implements TestConfig {
-        @Override
-        public void testQuery(String query) {
-            try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
-                Iterator<Object> results = response.response().column(0).iterator();
-                assertTrue("Expected at least one result for query: " + query, results.hasNext());
-                Object indexedResult = response.response().column(0).iterator().next();
-                if (hasResults) {
-                    assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
-                } else {
-                    assertThat("Expected empty results for query: " + query, indexedResult, is(nullValue()));
-                }
-            }
-        }
-    }
-
-    record TestConfigFails<E extends Exception>(DataType mainType, DataType lookupType, Class<E> exception, Consumer<E> assertion)
-        implements
-            TestConfig {
-        @Override
-        public void testQuery(String query) {
-            E e = expectThrows(
-                exception(),
-                "Expected exception " + exception().getSimpleName() + " but no exception was thrown: " + query,
-                () -> {
-                    try (var ignored = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
-                        // We use try-with-resources to ensure the request is closed if the exception is not thrown (less cluttered errors)
-                    }
-                }
-            );
-            assertion().accept(e);
-        }
-    }
-
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPlugin.class);
     }
 
     public void testLookupJoinStrings() {
@@ -362,5 +237,129 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             case FLOAT, DOUBLE -> 1.0;
             default -> throw new IllegalArgumentException("Unsupported type: " + type);
         };
+    }
+
+    private record TestConfigs(String group, Set<TestConfig> configs) {
+
+        private void addPasses(DataType mainType, DataType lookupType) {
+            configs.add(new TestConfigPasses(mainType, lookupType, true));
+        }
+
+        private void addEmptyResult(DataType mainType, DataType lookupType) {
+            configs.add(new TestConfigPasses(mainType, lookupType, false));
+        }
+
+        private void addFails(DataType mainType, DataType lookupType) {
+            String fieldName = "field_" + mainType.esType();
+            String errorMessage = String.format(
+                Locale.ROOT,
+                "JOIN left field [%s] of type [%s] is incompatible with right field [%s] of type [%s]",
+                fieldName,
+                mainType.widenSmallNumeric(),
+                fieldName,
+                lookupType.widenSmallNumeric()
+            );
+            configs.add(
+                new TestConfigFails<>(
+                    mainType,
+                    lookupType,
+                    VerificationException.class,
+                    e -> assertThat(e.getMessage(), containsString(errorMessage))
+                )
+            );
+        }
+
+        private void addFailsText(DataType mainType, DataType lookupType) {
+            String fieldName = "field_" + mainType.esType();
+            String errorMessage = String.format(Locale.ROOT, "JOIN with right field [%s] of type [TEXT] is not supported", fieldName);
+            configs.add(
+                new TestConfigFails<>(
+                    mainType,
+                    lookupType,
+                    VerificationException.class,
+                    e -> assertThat(e.getMessage(), containsString(errorMessage))
+                )
+            );
+        }
+
+        private <E extends Exception> void addFails(DataType mainType, DataType lookupType, Class<E> exception, Consumer<E> assertion) {
+            configs.add(new TestConfigFails<>(mainType, lookupType, exception, assertion));
+        }
+    }
+
+    interface TestConfig {
+        DataType mainType();
+
+        DataType lookupType();
+
+        default String indexName() {
+            return "index_" + mainType().esType() + "_" + lookupType().esType();
+        }
+
+        default String fieldName() {
+            return "field_" + mainType().esType();
+        }
+
+        default String mainPropertySpec() {
+            return "\"" + fieldName() + "\": { \"type\" : \"" + mainType().esType() + "\" }";
+        }
+
+        /** Make sure the left index has the expected fields and types */
+        default void validateMainIndex() {
+            validateIndex("index", fieldName(), sampleDataFor(mainType()));
+        }
+
+        /** Make sure the lookup index has the expected fields and types */
+        default void validateLookupIndex() {
+            validateIndex(indexName(), fieldName(), sampleDataFor(lookupType()));
+        }
+
+        void testQuery(String query);
+    }
+
+    private static void validateIndex(String indexName, String fieldName, Object expectedValue) {
+        String query = String.format(Locale.ROOT, "FROM %s | KEEP %s", indexName, fieldName);
+        try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+            ColumnInfo info = response.response().columns().getFirst();
+            assertThat("Expected index '" + indexName + "' to have column '" + fieldName + ": " + query, info.name(), is(fieldName));
+            Iterator<Object> results = response.response().column(0).iterator();
+            assertTrue("Expected at least one result for query: " + query, results.hasNext());
+            Object indexedResult = response.response().column(0).iterator().next();
+            assertThat("Expected valid result: " + query, indexedResult, is(expectedValue));
+        }
+    }
+
+    private record TestConfigPasses(DataType mainType, DataType lookupType, boolean hasResults) implements TestConfig {
+        @Override
+        public void testQuery(String query) {
+            try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+                Iterator<Object> results = response.response().column(0).iterator();
+                assertTrue("Expected at least one result for query: " + query, results.hasNext());
+                Object indexedResult = response.response().column(0).iterator().next();
+                if (hasResults) {
+                    assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
+                } else {
+                    assertThat("Expected empty results for query: " + query, indexedResult, is(nullValue()));
+                }
+            }
+        }
+    }
+
+    private record TestConfigFails<E extends Exception>(DataType mainType, DataType lookupType, Class<E> exception, Consumer<E> assertion)
+        implements
+            TestConfig {
+        @Override
+        public void testQuery(String query) {
+            E e = expectThrows(
+                exception(),
+                "Expected exception " + exception().getSimpleName() + " but no exception was thrown: " + query,
+                () -> {
+                    try (var ignored = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+                        // We use try-with-resources to ensure the request is closed if the exception is not thrown (less cluttered errors)
+                    }
+                }
+            );
+            assertion().accept(e);
+        }
     }
 }

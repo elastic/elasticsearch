@@ -46,7 +46,7 @@ template:
         dynamic: true
         priority: 20
         properties:
-          transaction.profiler_stack_trace_ids:
+          elastic.profiler_stack_trace_ids:
             type: counted_keyword
       links:
         synthetic_source_keep: arrays

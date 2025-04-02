@@ -148,7 +148,7 @@ traces@lifecycle:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "span_id":"1", "attributes": {"transaction.profiler_stack_trace_ids": "S7VyNjRieh4zCEmv7MiwwAcaFlvHvn1cleFkExsq-nbA"}}'
+          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "span_id":"1", "attributes": {"elastic.profiler_stack_trace_ids": "S7VyNjRieh4zCEmv7MiwwAcaFlvHvn1cleFkExsq-nbA"}}'
   - is_false: errors
   - do:
       indices.get_data_stream:
@@ -157,4 +157,4 @@ traces@lifecycle:
   - do:
       indices.get_mapping:
         index: $idx0name
-  - match: { .$idx0name.mappings.properties.attributes.properties.transaction\.profiler_stack_trace_ids.type: 'counted_keyword' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.elastic\.profiler_stack_trace_ids.type: 'counted_keyword' }

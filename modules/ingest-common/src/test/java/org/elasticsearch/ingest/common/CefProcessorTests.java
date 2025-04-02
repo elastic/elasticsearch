@@ -17,7 +17,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,12 +35,10 @@ public class CefProcessorTests extends ESTestCase {
 
     public void testExecute() {
         Map<String, Object> source = new HashMap<>();
-        source.put(
-            "message",
-            "CEF:0|Elastic|Vaporware|1.0.0-alpha|18|Web request|low|eventId=3457 requestMethod=POST "
-                + "slat=38.915 slong=-77.511 proto=TCP sourceServiceName=httpd requestContext=https://www.google.com "
-                + "src=89.160.20.156 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart"
-        );
+        String message = "CEF:0|Elastic|Vaporware|1.0.0-alpha|18|Web request|low|eventId=3457 requestMethod=POST "
+            + "slat=38.915 slong=-77.511 proto=TCP sourceServiceName=httpd requestContext=https://www.google.com "
+            + "src=89.160.20.156 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart";
+        source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
@@ -76,12 +73,7 @@ public class CefProcessorTests extends ESTestCase {
                     entry("http", Map.of("request", Map.of("method", "POST", "referrer", "https://www.google.com"))),
                     entry("network", Map.of("transport", "TCP")),
                     entry("url", Map.of("original", "https://www.example.com/cart")),
-                    entry(
-                        "message",
-                        "CEF:0|Elastic|Vaporware|1.0.0-alpha|18|Web request|low|eventId=3457 requestMethod=POST "
-                            + "slat=38.915 slong=-77.511 proto=TCP sourceServiceName=httpd requestContext=https://www.google.com "
-                            + "src=89.160.20.156 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart"
-                    )
+                    entry("message", message)
                 )
             )
         );
@@ -96,7 +88,6 @@ public class CefProcessorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> processor.execute(invalidIngestDocument));
     }
 
-    @SuppressWarnings("unchecked")
     public void testStandardMessage() {
         String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|"
             + "src=10.0.0.192 dst=12.121.122.82 spt=1232 eventId=1 in=4294967296 out=4294967296";
@@ -106,25 +97,25 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("26"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-        // ECS fields
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
-        assertThat(document.getFieldValue("event.id", String.class), equalTo("1"));
-        assertThat(document.getFieldValue("source.bytes", Long.class), equalTo(4294967296L));
-        assertThat(document.getFieldValue("destination.bytes", Long.class), equalTo(4294967296L));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "26"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("source", Map.of("ip", "10.0.0.192", "port", 1232, "bytes", 4294967296L)),
+            entry("destination", Map.of("ip", "12.121.122.82", "bytes", 4294967296L)),
+            entry("event", Map.of("id", "1", "code", "100")),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testHeaderOnly() {
         String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|";
         Map<String, Object> source = new HashMap<>();
@@ -133,18 +124,23 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("26"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "26"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testEmptyDeviceFields() {
         String message = "CEF:0|||1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232";
         Map<String, Object> source = new HashMap<>();
@@ -153,22 +149,25 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo(""));
-        assertThat(device.get("product"), equalTo(""));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-        // ECS fields
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "", "product", "", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "", "vendor", "", "version", "1.0")),
+            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+            entry("destination", Map.of("ip", "12.121.122.82")),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testEscapedPipeInHeader() {
         String message = "CEF:26|security|threat\\|->manager|1.0|100|"
             + "trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232";
@@ -178,22 +177,25 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("26"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("product"), equalTo("threat|->manager"));
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "26"),
+                    entry("device", Map.of("vendor", "security", "product", "threat|->manager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threat|->manager", "vendor", "security", "version", "1.0")),
+            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+            entry("destination", Map.of("ip", "12.121.122.82")),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testEqualsSignInHeader() {
         String message = "CEF:26|security|threat=manager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232";
         Map<String, Object> source = new HashMap<>();
@@ -202,22 +204,25 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("26"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threat=manager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "26"),
+                    entry("device", Map.of("vendor", "security", "product", "threat=manager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threat=manager", "vendor", "security", "version", "1.0")),
+            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+            entry("destination", Map.of("ip", "12.121.122.82")),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testEmptyExtensionValue() {
         String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst= spt=1232";
         Map<String, Object> source = new HashMap<>();
@@ -226,21 +231,24 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("26"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "26"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testLeadingWhitespace() {
         String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10| src=10.0.0.192 dst=12.121.122.82 spt=1232";
         Map<String, Object> source = new HashMap<>();
@@ -249,22 +257,25 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+            entry("destination", Map.of("ip", "12.121.122.82")),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testEscapedPipeInExtension() {
         String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this\\|has an escaped pipe";
         Map<String, Object> source = new HashMap<>();
@@ -273,42 +284,50 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("cef.extensions.moo", String.class), equalTo("this\\|has an escaped pipe"));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10"),
+                    entry("extensions", Map.of("moo", "this\\|has an escaped pipe"))
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testPipeInMessage() {
-        String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this|has an pipe";
+        String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this|has a pipe";
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("cef.extensions.moo", String.class), equalTo("this|has an pipe"));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10"),
+                    entry("extensions", Map.of("moo", "this|has a pipe"))
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testEqualsInMessage() {
         String message =
             "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this =has = equals\\= dst=12.121.122.82 spt=1232";
@@ -318,22 +337,26 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
-        assertThat(document.getFieldValue("cef.extensions.moo", String.class), equalTo("this =has = equals="));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10"),
+                    entry("extensions", Map.of("moo", "this =has = equals="))
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("destination", Map.of("ip", "12.121.122.82")),
+            entry("source", Map.of("port", 1232)),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testEscapesInExtension() {
         String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|msg=a+b\\=c x=c\\\\d\\=z";
         Map<String, Object> source = new HashMap<>();
@@ -342,21 +365,24 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("message", String.class), equalTo("a+b=c"));
-        assertThat(document.getFieldValue("cef.extensions.x", String.class), equalTo("c\\d=z"));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10"),
+                    entry("extensions", Map.of("x", "c\\d=z"))
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("message", "a+b=c")
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testMalformedExtensionEscape() {
         String message = "CEF:0|FooBar|Web Gateway|1.2.3.45.67|200|Success|2|rt=Sep 07 2018 14:50:39 cat=Access Log dst=1.1.1.1 "
             + "dhost=foo.example.com suser=redacted src=2.2.2.2 requestMethod=POST request='https://foo.example.com/bar/bingo/1' "
@@ -367,33 +393,33 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("FooBar"));
-        assertThat(device.get("product"), equalTo("Web Gateway"));
-        assertThat(device.get("version"), equalTo("1.2.3.45.67"));
-        assertThat(device.get("event_class_id"), equalTo("200"));
-        assertThat(cef.get("name"), equalTo("Success"));
-        assertThat(cef.get("severity"), equalTo("2"));
-
-        assertThat(document.getFieldValue("@timestamp", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2018-09-07T14:50:39Z")));
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("1.1.1.1"));
-        assertThat(document.getFieldValue("destination.domain", String.class), equalTo("foo.example.com"));
-        assertThat(document.getFieldValue("source.user.name", String.class), equalTo("redacted"));
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("2.2.2.2"));
-        assertThat(document.getFieldValue("http.request.method", String.class), equalTo("POST"));
-        assertThat(document.getFieldValue("url.original", String.class), equalTo("'https://foo.example.com/bar/bingo/1'"));
-        assertThat(
-            document.getFieldValue("user_agent.original", String.class),
-            equalTo("'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='")
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry(
+                        "device",
+                        Map.of("vendor", "FooBar", "product", "Web Gateway", "version", "1.2.3.45.67", "event_class_id", "200")
+                    ),
+                    entry("name", "Success"),
+                    entry("severity", "2"),
+                    entry("extensions", Map.of("deviceCustomString1Label", "Foo Bar", "deviceEventCategory", "Access Log"))
+                )
+            ),
+            entry("event", Map.of("code", "200")),
+            entry("observer", Map.of("product", "Web Gateway", "vendor", "FooBar", "version", "1.2.3.45.67")),
+            entry("@timestamp", ZonedDateTime.parse("2018-09-07T14:50:39Z")),
+            entry("destination", Map.of("ip", "1.1.1.1", "domain", "foo.example.com")),
+            entry("source", Map.ofEntries(entry("ip", "2.2.2.2"), entry("user", Map.of("name", "redacted")))),
+            entry("http", Map.of("request", Map.of("method", "POST"))),
+            entry("url", Map.of("original", "'https://foo.example.com/bar/bingo/1'")),
+            entry("user_agent", Map.of("original", "'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='")),
+            entry("message", message)
         );
-
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString1Label", String.class), equalTo("Foo Bar"));
-        assertThat(document.getFieldValue("cef.extensions.deviceEventCategory", String.class), equalTo("Access Log"));
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testMultipleMalformedExtensionValues() {
         String message = "CEF:0|vendor|product|version|event_id|name|Very-High| "
             + "msg=Hello World error=Failed because id==old_id user=root angle=106.7<=180";
@@ -403,24 +429,24 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("vendor"));
-        assertThat(device.get("product"), equalTo("product"));
-        assertThat(device.get("version"), equalTo("version"));
-        assertThat(device.get("event_class_id"), equalTo("event_id"));
-        assertThat(cef.get("name"), equalTo("name"));
-        assertThat(cef.get("severity"), equalTo("Very-High"));
-
-        assertThat(document.getFieldValue("message", String.class), equalTo("Hello World"));
-        assertThat(document.getFieldValue("cef.extensions.error", String.class), equalTo("Failed because"));
-        assertThat(document.getFieldValue("cef.extensions.id", String.class), equalTo("=old_id"));
-        assertThat(document.getFieldValue("cef.extensions.user", String.class), equalTo("root"));
-        assertThat(document.getFieldValue("cef.extensions.angle", String.class), equalTo("106.7<=180"));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "vendor", "product", "product", "version", "version", "event_class_id", "event_id")),
+                    entry("name", "name"),
+                    entry("severity", "Very-High"),
+                    entry("extensions", Map.of("id", "=old_id", "user", "root", "angle", "106.7<=180", "error", "Failed because"))
+                )
+            ),
+            entry("event", Map.of("code", "event_id")),
+            entry("observer", Map.of("product", "product", "vendor", "vendor", "version", "version")),
+            entry("message", "Hello World")
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testPaddedMessage() {
         String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|spt=1232 "
             + "msg=Trailing space in non-final extensions is  preserved    src=10.0.0.192 ";
@@ -430,22 +456,24 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("message is padded"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
-        assertThat(document.getFieldValue("message", String.class), equalTo("Trailing space in non-final extensions is  preserved"));
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "message is padded"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+            entry("message", "Trailing space in non-final extensions is  preserved")
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testCrlfMessage() {
         String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|"
             + "spt=1232 msg=Trailing space in final extensions is not preserved\t \r\ndpt=1234";
@@ -455,22 +483,25 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("message is padded"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
-        assertThat(document.getFieldValue("message", String.class), equalTo("Trailing space in final extensions is not preserved"));
-        assertThat(document.getFieldValue("destination.port", Integer.class), equalTo(1234));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "message is padded"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("source", Map.of("port", 1232)),
+            entry("message", "Trailing space in final extensions is not preserved"),
+            entry("destination", Map.of("port", 1234))
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testTabMessage() {
         String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|"
             + "spt=1232 msg=Tabs\tand\rcontrol\ncharacters are preserved\t src=127.0.0.1";
@@ -480,22 +511,24 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("message is padded"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
-        assertThat(document.getFieldValue("message", String.class), equalTo("Tabs\tand\rcontrol\ncharacters are preserved"));
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("127.0.0.1"));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "message is padded"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("source", Map.of("port", 1232, "ip", "127.0.0.1")),
+            entry("message", "Tabs\tand\rcontrol\ncharacters are preserved")
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testTabNoSepMessage() {
         String message = "CEF:0|security|threatmanager|1.0|100|message has tabs|10|spt=1232 msg=Tab is not a separator\tsrc=127.0.0.1";
         Map<String, Object> source = new HashMap<>();
@@ -504,22 +537,24 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("message has tabs"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
-        assertThat(document.getFieldValue("message", String.class), equalTo("Tab is not a separator"));
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("127.0.0.1"));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "message has tabs"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("source", Map.of("port", 1232, "ip", "127.0.0.1")),
+            entry("message", "Tab is not a separator")
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testEscapedMessage() {
         String message = "CEF:0|security\\compliance|threat\\|->manager|1.0|100|message contains escapes|10|"
             + "spt=1232 msg=Newlines in messages\\\nare allowed.\\\r\\\nAnd so are carriage feeds\\\\newlines\\\\\\=. dpt=4432";
@@ -529,25 +564,28 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security\\compliance"));
-        assertThat(device.get("product"), equalTo("threat|->manager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("message contains escapes"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(1232));
-        assertThat(
-            document.getFieldValue("message", String.class),
-            equalTo("Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=.")
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry(
+                        "device",
+                        Map.of("vendor", "security\\compliance", "product", "threat|->manager", "version", "1.0", "event_class_id", "100")
+                    ),
+                    entry("name", "message contains escapes"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threat|->manager", "vendor", "security\\compliance", "version", "1.0")),
+            entry("source", Map.of("port", 1232)),
+            entry("message", "Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=."),
+            entry("destination", Map.of("port", 4432))
         );
-        assertThat(document.getFieldValue("destination.port", Integer.class), equalTo(4432));
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testTruncatedHeader() {
         String message = "CEF:0|SentinelOne|Mgmt|activityID=1111111111111111111 activityType=3505 "
             + "siteId=None siteName=None accountId=1222222222222222222 accountName=foo-bar mdr notificationScope=ACCOUNT";
@@ -557,25 +595,33 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("SentinelOne"));
-        assertThat(device.get("product"), equalTo("Mgmt"));
-
-        assertThat(document.getFieldValue("cef.extensions.activityID", String.class), equalTo("1111111111111111111"));
-        assertThat(document.getFieldValue("cef.extensions.activityType", String.class), equalTo("3505"));
-        assertThat(document.getFieldValue("cef.extensions.siteId", String.class), equalTo("None"));
-        assertThat(document.getFieldValue("cef.extensions.siteName", String.class), equalTo("None"));
-        assertThat(document.getFieldValue("cef.extensions.accountId", String.class), equalTo("1222222222222222222"));
-        assertThat(document.getFieldValue("cef.extensions.accountName", String.class), equalTo("foo-bar mdr"));
-        assertThat(document.getFieldValue("cef.extensions.notificationScope", String.class), equalTo("ACCOUNT"));
-
-        // Incomplete Header yields an error message too
-        assertThat(document.getFieldValue("error.message", HashSet.class), equalTo(new HashSet<>(Set.of("incomplete CEF header"))));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "SentinelOne", "product", "Mgmt")),
+                    entry(
+                        "extensions",
+                        Map.ofEntries(
+                            entry("activityID", "1111111111111111111"),
+                            entry("activityType", "3505"),
+                            entry("siteId", "None"),
+                            entry("siteName", "None"),
+                            entry("accountId", "1222222222222222222"),
+                            entry("accountName", "foo-bar mdr"),
+                            entry("notificationScope", "ACCOUNT")
+                        )
+                    )
+                )
+            ),
+            entry("observer", Map.of("product", "Mgmt", "vendor", "SentinelOne")),
+            entry("message", message),
+            entry("error", Map.of("message", Set.of("incomplete CEF header")))
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testRemoveEmptyValueInExtension() {
         String message = "CEF:26|security|threat=manager|1.0|100|trojan successfully stopped|10|src= dst=12.121.122.82 spt=";
         Map<String, Object> source = new HashMap<>();
@@ -584,24 +630,24 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("26"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threat=manager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
-
-        // Empty src fields are not mapped into the ingestDocument
-        assertThat(document.hasField("source.port"), equalTo(false));
-        assertThat(document.hasField("source.ip"), equalTo(false));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "26"),
+                    entry("device", Map.of("vendor", "security", "product", "threat=manager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10")
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threat=manager", "vendor", "security", "version", "1.0")),
+            entry("destination", Map.of("ip", "12.121.122.82")),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testHyphenInExtensionKey() {
         String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|Some-Key=123456";
         Map<String, Object> source = new HashMap<>();
@@ -610,19 +656,24 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("26"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-        assertThat(document.getFieldValue("cef.extensions.Some-Key", String.class), equalTo("123456"));
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "26"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10"),
+                    entry("extensions", Map.of("Some-Key", "123456"))
+                )
+            ),
+            entry("event", Map.of("code", "100")),
+            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+            entry("message", message)
+        );
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
-    @SuppressWarnings("unchecked")
     public void testAllFieldsInExtension() {
         String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|"
             + "agt=192.168.0.1 agentDnsDomain=example.com ahost=agentHost aid=agentId amac=00:0a:95:9d:68:16 agentNtDomain=example.org "
@@ -666,230 +717,202 @@ public class CefProcessorTests extends ESTestCase {
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
 
-        Map<String, Object> cef = document.getFieldValue("cef", Map.class);
-        assertThat(cef.get("version"), equalTo("0"));
-        Map<String, Object> device = (Map<String, Object>) cef.get("device");
-        assertThat(device.get("vendor"), equalTo("security"));
-        assertThat(device.get("product"), equalTo("threatmanager"));
-        assertThat(device.get("version"), equalTo("1.0"));
-        assertThat(device.get("event_class_id"), equalTo("100"));
-        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
-        assertThat(cef.get("severity"), equalTo("10"));
-
-        assertThat(document.getFieldValue("agent.ip", String.class), equalTo("192.168.0.1"));
-        assertThat(document.getFieldValue("agent.name", String.class), equalTo("example.com"));
-        assertThat(document.getFieldValue("agent.id", String.class), equalTo("agentId"));
-        assertThat(document.getFieldValue("agent.type", String.class), equalTo("agentType"));
-        assertThat(document.getFieldValue("agent.version", String.class), equalTo("1.0"));
-        assertThat(document.getFieldValue("agent.mac", String.class), equalTo("00:0a:95:9d:68:16"));
-        assertThat(document.getFieldValue("cef.extensions.deviceNtDomain", String.class), equalTo("example.org"));
-        assertThat(document.getFieldValue("cef.extensions.agentZoneExternalID", String.class), equalTo("zoneExtId"));
-        assertThat(document.getFieldValue("cef.extensions.agentTimeZone", String.class), equalTo("UTC"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomIPv6Address1Label", String.class), equalTo("c6a1Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString1", String.class), equalTo("customString1"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomIPv6Address2Label", String.class), equalTo("c6a2Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomNumber3", Long.class), equalTo(345L));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomFloatingPoint1", Float.class), equalTo(1.23f));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomNumber2", Long.class), equalTo(234L));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomFloatingPoint2", Float.class), equalTo(2.34f));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomFloatingPoint3", Float.class), equalTo(3.45f));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomFloatingPoint4", Float.class), equalTo(4.56f));
-        assertThat(
-            document.getFieldValue("cef.extensions.flexDate1", ZonedDateTime.class),
-            equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z"))
+        Map<String, Object> expectedMap = Map.ofEntries(
+            entry(
+                "cef",
+                Map.ofEntries(
+                    entry("version", "0"),
+                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
+                    entry("name", "trojan successfully stopped"),
+                    entry("severity", "10"),
+                    entry(
+                        "extensions",
+                        Map.ofEntries(
+                            entry("deviceNtDomain", "example.org"),
+                            entry("agentZoneExternalID", "zoneExtId"),
+                            entry("agentTimeZone", "UTC"),
+                            entry("deviceCustomIPv6Address1Label", "c6a1Label"),
+                            entry("deviceCustomString1", "customString1"),
+                            entry("deviceCustomIPv6Address2Label", "c6a2Label"),
+                            entry("deviceCustomNumber3", 345L),
+                            entry("deviceCustomFloatingPoint1", 1.23f),
+                            entry("deviceCustomNumber2", 234L),
+                            entry("deviceCustomFloatingPoint2", 2.34f),
+                            entry("deviceCustomFloatingPoint3", 3.45f),
+                            entry("deviceCustomFloatingPoint4", 4.56f),
+                            entry("flexDate1", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                            entry("destinationTranslatedZoneExternalID", "destExtId"),
+                            entry("deviceCustomNumber1", 123L),
+                            entry("deviceEventCategory", "category"),
+                            entry("deviceCustomString6Label", "cs6Label"),
+                            entry("deviceCustomNumber2Label", "cn2Label"),
+                            entry("flexString1Label", "flexString1Label"),
+                            entry("deviceCustomString5Label", "cs5Label"),
+                            entry("agentZoneURI", "zoneUri"),
+                            entry("deviceCustomString2Label", "cs2Label"),
+                            entry("deviceCustomDate2Label", "customDate2Label"),
+                            entry("deviceCustomNumber1Label", "cn1Label"),
+                            entry("oldFileType", "oldType"),
+                            entry("destinationZoneExternalID", "destZoneExtId"),
+                            entry("categoryDeviceType", "catDeviceType"),
+                            entry("deviceZoneURI", "zoneUri"),
+                            entry("sourceTranslatedZoneExternalID", "sourceExtId"),
+                            entry("agentTranslatedAddress", "10.0.0.1"),
+                            entry("requestCookies", "cookies"),
+                            entry("deviceCustomIPv6Address3", "2001:db8::3"),
+                            entry("oldFilePath", "/old/path"),
+                            entry("deviceCustomIPv6Address2", "2001:db8::2"),
+                            entry("deviceCustomIPv6Address1", "2001:db8::1"),
+                            entry("oldFileId", "oldId"),
+                            entry("deviceTranslatedZoneExternalID", "transExtId"),
+                            entry("deviceCustomFloatingPoint2Label", "cfp2Label"),
+                            entry("deviceTranslatedZoneURI", "transUri"),
+                            entry("deviceCustomIPv6Address4Label", "c6a4Label"),
+                            entry("agentTranslatedZoneURI", "uri"),
+                            entry("oldFilePermission", "rw-r--r--"),
+                            entry("deviceCustomIPv6Address4", "2001:db8::4"),
+                            entry("sourceZoneURI", "sourceZoneUri"),
+                            entry("deviceCustomFloatingPoint3Label", "cfp3Label"),
+                            entry("agentTranslatedZoneExternalID", "ext123"),
+                            entry("destinationZoneURI", "destZoneUri"),
+                            entry("flexDate1Label", "flexDate1Label"),
+                            entry("agentNtDomain", "example.org"),
+                            entry("deviceCustomDate2", ZonedDateTime.parse("2021-06-01T11:45Z")),
+                            entry("deviceCustomDate1", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                            entry("deviceCustomString3Label", "cs3Label"),
+                            entry("deviceCustomDate1Label", "customDate1Label"),
+                            entry("destinationTranslatedZoneURI", "destUri"),
+                            entry("oldFileModificationTime", ZonedDateTime.parse("2021-06-01T11:45Z")),
+                            entry("deviceCustomFloatingPoint1Label", "cfp1Label"),
+                            entry("deviceCustomIPv6Address3Label", "c6a3Label"),
+                            entry("deviceCustomFloatingPoint4Label", "cfp4Label"),
+                            entry("oldFileSize", 2048),
+                            entry("externalId", "extId"),
+                            entry("baseEventCount", 1234),
+                            entry("flexString2", "flexString2"),
+                            entry("deviceCustomNumber3Label", "cn3Label"),
+                            entry("flexString1", "flexString1"),
+                            entry("deviceCustomString4Label", "cs4Label"),
+                            entry("flexString2Label", "flexString2Label"),
+                            entry("deviceCustomString3", "customString3"),
+                            entry("deviceCustomString2", "customString2"),
+                            entry("deviceCustomString1Label", "cs1Label"),
+                            entry("deviceCustomString5", "customString5"),
+                            entry("deviceCustomString4", "customString4"),
+                            entry("deviceZoneExternalID", "zoneExtId"),
+                            entry("deviceCustomString6", "customString6"),
+                            entry("oldFileName", "oldFile"),
+                            entry("sourceZoneExternalID", "sourceZoneExtId"),
+                            entry("oldFileHash", "oldHash"),
+                            entry("sourceTranslatedZoneURI", "sourceUri"),
+                            entry("oldFileCreateTime", ZonedDateTime.parse("2021-06-01T11:43:20Z"))
+                        )
+                    )
+                )
+            ),
+            entry(
+                "host", Map.of("nat",Map.of("ip", "10.0.0.3"))),
+            entry(
+                "log", Map.of("syslog", Map.of("facility", Map.of("code", 16L)))),
+            entry(
+                "observer",
+                Map.ofEntries(
+                    entry("ingress", Map.of("interface", Map.of("name", "eth0"))),
+                    entry("registered_domain", "example.com"),
+                    entry("product", "threatmanager"),
+                    entry("hostname", "host1"),
+                    entry("vendor", "security"),
+                    entry("ip", "192.168.0.3"),
+                    entry("name", "extId"),
+                    entry("version", "1.0"),
+                    entry("mac", "00:0a:95:9d:68:16"),
+                    entry("egress", Map.of("interface", Map.of("name", "eth1")))
+                )
+            ),
+            entry(
+                "agent",
+                Map.ofEntries(
+                    entry("ip", "192.168.0.1"),
+                    entry("name", "example.com"),
+                    entry("id", "agentId"),
+                    entry("type", "agentType"),
+                    entry("version", "1.0"),
+                    entry("mac", "00:0a:95:9d:68:16")
+                )
+            ),
+            entry("process", Map.of("name", "procName","pid", 5678L)),
+            entry(
+                "destination",
+                Map.ofEntries(
+                    entry("nat", Map.of("port", 8080, "ip", "10.0.0.2")),
+                    entry("geo", Map.of("location", Map.of("lon", -122.4194, "lat", 37.7749))),
+                    entry("registered_domain", "destNtDomain"),
+                    entry("process", Map.of("name", "destProc", "pid", 1234L)),
+                    entry("port", 80),
+                    entry("bytes", 91011L),
+                    entry("service", Map.of("name", "destService")),
+                    entry("domain", "destHost"),
+                    entry("ip", "192.168.0.2"),
+                    entry("user", Map.of("name", "destUser", "id", "destUserId", "group", Map.of("name", "admin"))),
+                    entry("mac", "00:0a:95:9d:68:16")
+                )
+            ),
+            entry(
+                "source",
+                Map.ofEntries(
+                    entry("geo", Map.of("location", Map.of("lon", -122.4194, "lat", 37.7749))),
+                    entry("nat", Map.of("port", 8081, "ip", "10.0.0.4")),
+                    entry("registered_domain", "sourceNtDomain"),
+                    entry("process", Map.of("name", "sourceProc", "pid", 1234L)),
+                    entry("port", 443),
+                    entry("service", Map.of("name", "sourceService")),
+                    entry("bytes", 5678L),
+                    entry("ip", "192.168.0.4"),
+                    entry("domain", "sourceDomain"),
+                    entry("user", Map.of("name", "sourceUser", "id", "sourceUserId", "group", Map.of("name", "sourcePriv"))),
+                    entry("mac", "00:0a:95:9d:68:16")
+                )
+            ),
+            entry("message", "message"),
+            entry("url", Map.of("original", "url")),
+            entry("network", Map.of("protocol", "HTTP", "transport", "TCP", "direction", "inbound")),
+            entry(
+                "file",
+                Map.ofEntries(
+                    entry("inode", "5678"),
+                    entry("path", "/path/to/file"),
+                    entry("size", 1024L),
+                    entry("created", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                    entry("name", "file.txt"),
+                    entry("mtime", ZonedDateTime.parse("2021-06-01T11:45Z")),
+                    entry("type", "txt"),
+                    entry("hash", "abcd1234"),
+                    entry("group", "rw-r--r--")
+                )
+            ),
+            entry("@timestamp", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+            entry("organization", Map.of("name", "custUri", "id", "custExtId")),
+            entry(
+                "event",
+                Map.ofEntries(
+                    entry("action", "blocked"),
+                    entry("timezone", "UTC"),
+                    entry("end", ZonedDateTime.parse("2021-06-01T11:45Z")),
+                    entry("id", "evt123"),
+                    entry("outcome", "success"),
+                    entry("start", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                    entry("reason", "reason"),
+                    entry("ingested", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                    entry("kind", 1),
+                    entry("original", "rawEvent"),
+                    entry("created", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                    entry("code", "100")
+                )
+            ),
+            entry("user_agent", Map.of("original", "Mozilla")),
+            entry("http", Map.of("request", Map.of("referrer", "referrer", "method", "GET")))
         );
-        assertThat(document.getFieldValue("cef.extensions.destinationTranslatedZoneExternalID", String.class), equalTo("destExtId"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomNumber1", Long.class), equalTo(123L));
-        assertThat(document.getFieldValue("cef.extensions.deviceEventCategory", String.class), equalTo("category"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString6Label", String.class), equalTo("cs6Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomNumber2Label", String.class), equalTo("cn2Label"));
-        assertThat(document.getFieldValue("cef.extensions.flexString1Label", String.class), equalTo("flexString1Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString5Label", String.class), equalTo("cs5Label"));
-        assertThat(document.getFieldValue("cef.extensions.agentZoneURI", String.class), equalTo("zoneUri"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString2Label", String.class), equalTo("cs2Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomDate2Label", String.class), equalTo("customDate2Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomNumber1Label", String.class), equalTo("cn1Label"));
-        assertThat(document.getFieldValue("cef.extensions.oldFileType", String.class), equalTo("oldType"));
-        assertThat(document.getFieldValue("cef.extensions.destinationZoneExternalID", String.class), equalTo("destZoneExtId"));
-        assertThat(document.getFieldValue("cef.extensions.categoryDeviceType", String.class), equalTo("catDeviceType"));
-        assertThat(document.getFieldValue("cef.extensions.deviceZoneURI", String.class), equalTo("zoneUri"));
-        assertThat(document.getFieldValue("cef.extensions.sourceTranslatedZoneExternalID", String.class), equalTo("sourceExtId"));
-        assertThat(document.getFieldValue("cef.extensions.agentTranslatedAddress", String.class), equalTo("10.0.0.1"));
-        assertThat(document.getFieldValue("cef.extensions.requestCookies", String.class), equalTo("cookies"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomIPv6Address3", String.class), equalTo("2001:db8::3"));
-        assertThat(document.getFieldValue("cef.extensions.oldFilePath", String.class), equalTo("/old/path"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomIPv6Address2", String.class), equalTo("2001:db8::2"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomIPv6Address1", String.class), equalTo("2001:db8::1"));
-        assertThat(document.getFieldValue("cef.extensions.oldFileId", String.class), equalTo("oldId"));
-        assertThat(document.getFieldValue("cef.extensions.deviceTranslatedZoneExternalID", String.class), equalTo("transExtId"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomFloatingPoint2Label", String.class), equalTo("cfp2Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceTranslatedZoneURI", String.class), equalTo("transUri"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomIPv6Address4Label", String.class), equalTo("c6a4Label"));
-        assertThat(document.getFieldValue("cef.extensions.agentTranslatedZoneURI", String.class), equalTo("uri"));
-        assertThat(document.getFieldValue("cef.extensions.oldFilePermission", String.class), equalTo("rw-r--r--"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomIPv6Address4", String.class), equalTo("2001:db8::4"));
-        assertThat(document.getFieldValue("cef.extensions.sourceZoneURI", String.class), equalTo("sourceZoneUri"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomFloatingPoint3Label", String.class), equalTo("cfp3Label"));
-        assertThat(document.getFieldValue("cef.extensions.agentTranslatedZoneExternalID", String.class), equalTo("ext123"));
-        assertThat(document.getFieldValue("cef.extensions.destinationZoneURI", String.class), equalTo("destZoneUri"));
-        assertThat(document.getFieldValue("cef.extensions.categoryDeviceType", String.class), equalTo("catDeviceType"));
-        assertThat(document.getFieldValue("cef.extensions.flexDate1Label", String.class), equalTo("flexDate1Label"));
-        assertThat(document.getFieldValue("cef.extensions.agentNtDomain", String.class), equalTo("example.org"));
-        assertThat(
-            document.getFieldValue("cef.extensions.deviceCustomDate2", ZonedDateTime.class),
-            equalTo(ZonedDateTime.parse("2021-06-01T11:45Z"))
-        );
-        assertThat(
-            document.getFieldValue("cef.extensions.deviceCustomDate1", ZonedDateTime.class),
-            equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z"))
-        );
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString3Label", String.class), equalTo("cs3Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomDate1Label", String.class), equalTo("customDate1Label"));
-        assertThat(document.getFieldValue("cef.extensions.destinationTranslatedZoneURI", String.class), equalTo("destUri"));
-        assertThat(
-            document.getFieldValue("cef.extensions.oldFileModificationTime", ZonedDateTime.class),
-            equalTo(ZonedDateTime.parse("2021-06-01T11:45Z"))
-        );
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomFloatingPoint1Label", String.class), equalTo("cfp1Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomIPv6Address3Label", String.class), equalTo("c6a3Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomFloatingPoint4Label", String.class), equalTo("cfp4Label"));
-        assertThat(document.getFieldValue("cef.extensions.oldFileSize", Integer.class), equalTo(2048));
-        assertThat(document.getFieldValue("cef.extensions.externalId", String.class), equalTo("extId"));
-        assertThat(document.getFieldValue("cef.extensions.baseEventCount", Integer.class), equalTo(1234));
-        assertThat(document.getFieldValue("cef.extensions.flexString2", String.class), equalTo("flexString2"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomNumber3Label", String.class), equalTo("cn3Label"));
-        assertThat(document.getFieldValue("cef.extensions.flexString1", String.class), equalTo("flexString1"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString4Label", String.class), equalTo("cs4Label"));
-        assertThat(document.getFieldValue("cef.extensions.flexString2Label", String.class), equalTo("flexString2Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString3", String.class), equalTo("customString3"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString2", String.class), equalTo("customString2"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString1Label", String.class), equalTo("cs1Label"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString5", String.class), equalTo("customString5"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString4", String.class), equalTo("customString4"));
-        assertThat(document.getFieldValue("cef.extensions.deviceZoneExternalID", String.class), equalTo("zoneExtId"));
-        assertThat(document.getFieldValue("cef.extensions.deviceCustomString6", String.class), equalTo("customString6"));
-        assertThat(document.getFieldValue("cef.extensions.oldFileName", String.class), equalTo("oldFile"));
-        assertThat(document.getFieldValue("cef.extensions.sourceZoneExternalID", String.class), equalTo("sourceZoneExtId"));
-        assertThat(document.getFieldValue("cef.extensions.oldFileHash", String.class), equalTo("oldHash"));
-        assertThat(document.getFieldValue("cef.extensions.sourceTranslatedZoneURI", String.class), equalTo("sourceUri"));
-        assertThat(
-            document.getFieldValue("cef.extensions.oldFileCreateTime", ZonedDateTime.class),
-            equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z"))
-        );
-        assertThat(document.getFieldValue("process.name", String.class), equalTo("procName"));
-        assertThat(document.getFieldValue("process.pid", Long.class), equalTo(5678L));
-        assertThat(document.getFieldValue("destination.nat.port", Integer.class), equalTo(8080));
-        assertThat(document.getFieldValue("destination.nat.ip", String.class), equalTo("10.0.0.2"));
-        assertThat(document.getFieldValue("destination.geo.location.lon", Double.class), equalTo(-122.4194));
-        assertThat(document.getFieldValue("destination.geo.location.lat", Double.class), equalTo(37.7749));
-        assertThat(document.getFieldValue("destination.registered_domain", String.class), equalTo("destNtDomain"));
-        assertThat(document.getFieldValue("destination.process.name", String.class), equalTo("destProc"));
-        assertThat(document.getFieldValue("destination.process.pid", Long.class), equalTo(1234L));
-        assertThat(document.getFieldValue("destination.port", Integer.class), equalTo(80));
-        assertThat(document.getFieldValue("destination.bytes", Long.class), equalTo(91011L));
-        assertThat(document.getFieldValue("destination.service.name", String.class), equalTo("destService"));
-        assertThat(document.getFieldValue("destination.domain", String.class), equalTo("destHost"));
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("192.168.0.2"));
-        assertThat(document.getFieldValue("destination.user.name", String.class), equalTo("destUser"));
-        assertThat(document.getFieldValue("destination.user.id", String.class), equalTo("destUserId"));
-        assertThat(document.getFieldValue("destination.user.group.name", String.class), equalTo("admin"));
-        assertThat(document.getFieldValue("destination.mac", String.class), equalTo("00:0a:95:9d:68:16"));
-        assertThat(document.getFieldValue("source.geo.location.lon", Double.class), equalTo(-122.4194));
-        assertThat(document.getFieldValue("source.geo.location.lat", Double.class), equalTo(37.7749));
-        assertThat(document.getFieldValue("source.nat.port", Integer.class), equalTo(8081));
-        assertThat(document.getFieldValue("source.nat.ip", String.class), equalTo("10.0.0.4"));
-        assertThat(document.getFieldValue("source.registered_domain", String.class), equalTo("sourceNtDomain"));
-        assertThat(document.getFieldValue("source.process.name", String.class), equalTo("sourceProc"));
-        assertThat(document.getFieldValue("source.process.pid", Long.class), equalTo(1234L));
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(443));
-        assertThat(document.getFieldValue("source.service.name", String.class), equalTo("sourceService"));
-        assertThat(document.getFieldValue("source.bytes", Long.class), equalTo(5678L));
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("192.168.0.4"));
-        assertThat(document.getFieldValue("source.domain", String.class), equalTo("sourceDomain"));
-        assertThat(document.getFieldValue("source.user.name", String.class), equalTo("sourceUser"));
-        assertThat(document.getFieldValue("source.user.id", String.class), equalTo("sourceUserId"));
-        assertThat(document.getFieldValue("source.user.group.name", String.class), equalTo("sourcePriv"));
-        assertThat(document.getFieldValue("source.mac", String.class), equalTo("00:0a:95:9d:68:16"));
-        assertThat(document.getFieldValue("message", String.class), equalTo("message"));
-        assertThat(document.getFieldValue("url.original", String.class), equalTo("url"));
-        assertThat(document.getFieldValue("network.protocol", String.class), equalTo("HTTP"));
-        assertThat(document.getFieldValue("network.transport", String.class), equalTo("TCP"));
-        assertThat(document.getFieldValue("network.direction", String.class), equalTo("inbound"));
-        assertThat(document.getFieldValue("observer.ingress.interface.name", String.class), equalTo("eth0"));
-        assertThat(document.getFieldValue("observer.registered_domain", String.class), equalTo("example.com"));
-        assertThat(document.getFieldValue("observer.product", String.class), equalTo("threatmanager"));
-        assertThat(document.getFieldValue("observer.hostname", String.class), equalTo("host1"));
-        assertThat(document.getFieldValue("observer.vendor", String.class), equalTo("security"));
-        assertThat(document.getFieldValue("observer.ip", String.class), equalTo("192.168.0.3"));
-        assertThat(document.getFieldValue("observer.name", String.class), equalTo("extId"));
-        assertThat(document.getFieldValue("observer.version", String.class), equalTo("1.0"));
-        assertThat(document.getFieldValue("observer.mac", String.class), equalTo("00:0a:95:9d:68:16"));
-        assertThat(document.getFieldValue("file.inode", String.class), equalTo("5678"));
-        assertThat(document.getFieldValue("file.path", String.class), equalTo("/path/to/file"));
-        assertThat(document.getFieldValue("file.size", Long.class), equalTo(1024L));
-        assertThat(document.getFieldValue("file.created", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z")));
-        assertThat(document.getFieldValue("file.name", String.class), equalTo("file.txt"));
-        assertThat(document.getFieldValue("file.mtime", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:45Z")));
-        assertThat(document.getFieldValue("file.type", String.class), equalTo("txt"));
-        assertThat(document.getFieldValue("file.hash", String.class), equalTo("abcd1234"));
-        assertThat(document.getFieldValue("file.group", String.class), equalTo("rw-r--r--"));
-        assertThat(document.getFieldValue("@timestamp", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z")));
-        assertThat(document.getFieldValue("organization.name", String.class), equalTo("custUri"));
-        assertThat(document.getFieldValue("organization.id", String.class), equalTo("custExtId"));
-        assertThat(document.getFieldValue("organization.name", String.class), equalTo("custUri"));
-        assertThat(document.getFieldValue("destination.ip", String.class), equalTo("192.168.0.2"));
-        assertThat(document.getFieldValue("destination.geo.location.lat", Double.class), equalTo(37.7749));
-        assertThat(document.getFieldValue("destination.geo.location.lon", Double.class), equalTo(-122.4194));
-        assertThat(document.getFieldValue("destination.mac", String.class), equalTo("00:0a:95:9d:68:16"));
-        assertThat(document.getFieldValue("destination.port", Integer.class), equalTo(80));
-        assertThat(document.getFieldValue("destination.process.pid", Long.class), equalTo(1234L));
-        assertThat(document.getFieldValue("destination.process.name", String.class), equalTo("destProc"));
-        assertThat(document.getFieldValue("destination.user.id", String.class), equalTo("destUserId"));
-        assertThat(document.getFieldValue("destination.user.name", String.class), equalTo("destUser"));
-        assertThat(document.getFieldValue("destination.user.group.name", String.class), equalTo("admin"));
-        assertThat(document.getFieldValue("event.action", String.class), equalTo("blocked"));
-        assertThat(document.getFieldValue("observer.ip", String.class), equalTo("192.168.0.3"));
-        assertThat(document.getFieldValue("network.direction", String.class), equalTo("inbound"));
-        assertThat(document.getFieldValue("observer.hostname", String.class), equalTo("host1"));
-        assertThat(document.getFieldValue("observer.ingress.interface.name", String.class), equalTo("eth0"));
-        assertThat(document.getFieldValue("observer.mac", String.class), equalTo("00:0a:95:9d:68:16"));
-        assertThat(document.getFieldValue("observer.egress.interface.name", String.class), equalTo("eth1"));
-        assertThat(document.getFieldValue("process.pid", Long.class), equalTo(5678L));
-        assertThat(document.getFieldValue("process.name", String.class), equalTo("procName"));
-        assertThat(document.getFieldValue("@timestamp", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z")));
-        assertThat(document.getFieldValue("event.timezone", String.class), equalTo("UTC"));
-        assertThat(document.getFieldValue("host.nat.ip", String.class), equalTo("10.0.0.3"));
-        assertThat(document.getFieldValue("observer.version", String.class), equalTo("1.0"));
-        assertThat(document.getFieldValue("event.end", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:45Z")));
-        assertThat(document.getFieldValue("event.id", String.class), equalTo("evt123"));
-        assertThat(document.getFieldValue("event.outcome", String.class), equalTo("success"));
-        assertThat(document.getFieldValue("file.created", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z")));
-        assertThat(document.getFieldValue("file.hash", String.class), equalTo("abcd1234"));
-        assertThat(document.getFieldValue("file.inode", String.class), equalTo("5678"));
-        assertThat(document.getFieldValue("file.mtime", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:45Z")));
-        assertThat(document.getFieldValue("file.name", String.class), equalTo("file.txt"));
-        assertThat(document.getFieldValue("file.path", String.class), equalTo("/path/to/file"));
-        assertThat(document.getFieldValue("file.group", String.class), equalTo("rw-r--r--"));
-        assertThat(document.getFieldValue("file.size", Long.class), equalTo(1024L));
-        assertThat(document.getFieldValue("file.type", String.class), equalTo("txt"));
-        assertThat(document.getFieldValue("message", String.class), equalTo("message"));
-        assertThat(document.getFieldValue("event.reason", String.class), equalTo("reason"));
-        assertThat(document.getFieldValue("user_agent.original", String.class), equalTo("Mozilla"));
-        assertThat(document.getFieldValue("http.request.referrer", String.class), equalTo("referrer"));
-        assertThat(document.getFieldValue("http.request.method", String.class), equalTo("GET"));
-        assertThat(document.getFieldValue("url.original", String.class), equalTo("url"));
-        assertThat(document.getFieldValue("source.ip", String.class), equalTo("192.168.0.4"));
-        assertThat(document.getFieldValue("source.geo.location.lat", Double.class), equalTo(37.7749));
-        assertThat(document.getFieldValue("source.geo.location.lon", Double.class), equalTo(-122.4194));
-        assertThat(document.getFieldValue("source.domain", String.class), equalTo("sourceDomain"));
-        assertThat(document.getFieldValue("source.mac", String.class), equalTo("00:0a:95:9d:68:16"));
-        assertThat(document.getFieldValue("source.port", Integer.class), equalTo(443));
-        assertThat(document.getFieldValue("source.process.pid", Long.class), equalTo(1234L));
-        assertThat(document.getFieldValue("source.process.name", String.class), equalTo("sourceProc"));
-        assertThat(document.getFieldValue("source.service.name", String.class), equalTo("sourceService"));
-        assertThat(document.getFieldValue("event.start", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z")));
-        assertThat(document.getFieldValue("network.transport", String.class), equalTo("TCP"));
-        assertThat(document.getFieldValue("event.ingested", ZonedDateTime.class), equalTo(ZonedDateTime.parse("2021-06-01T11:43:20Z")));
+        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     // Date parsing tests

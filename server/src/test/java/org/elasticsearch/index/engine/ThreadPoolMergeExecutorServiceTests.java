@@ -380,7 +380,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
                     assertThat(newTargetIORateLimit, either(is(MAX_IO_RATE.getBytes())).or(greaterThan(targetIORateLimit.get())));
                 } else {
-                    // assert the IO rate does change, when there are a couple of merge tasks enqueued
+                    // assert the IO rate does not change, when there are a couple of merge tasks enqueued
                     assertThat(newTargetIORateLimit, equalTo(targetIORateLimit.get()));
                 }
                 targetIORateLimit.set(newTargetIORateLimit);

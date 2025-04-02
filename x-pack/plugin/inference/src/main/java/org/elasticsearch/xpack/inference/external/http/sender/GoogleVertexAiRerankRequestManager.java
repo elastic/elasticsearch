@@ -12,11 +12,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.googlevertexai.GoogleVertexAiResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleVertexAiRerankRequest;
 import org.elasticsearch.xpack.inference.external.response.googlevertexai.GoogleVertexAiRerankResponseEntity;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiResponseHandler;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 
 import java.util.Objects;

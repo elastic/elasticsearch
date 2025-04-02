@@ -565,6 +565,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
                 verify(coordinatingIndexingPressure, never()).close();
+
+                // Call the listener once the request is successfully processed, like is done in the production code path
+                listener.onResponse(null);
             } finally {
                 chainExecuted.countDown();
             }

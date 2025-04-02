@@ -152,8 +152,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
             var fieldInferenceMetadata = bulkShardRequest.consumeInferenceFieldMap();
             if (fieldInferenceMetadata != null && fieldInferenceMetadata.isEmpty() == false) {
-                Runnable onInferenceCompletion = () -> chain.proceed(task, action, request, listener);
-                processBulkShardRequest(fieldInferenceMetadata, bulkShardRequest, onInferenceCompletion);
+                // Maintain coordinating indexing pressure from inference until the indexing operations are complete
+                CoordinatingIndexingPressureWrapper coordinatingWrapper = startCoordinatingOperations();
+                Runnable onInferenceCompletion = () -> chain.proceed(
+                    task,
+                    action,
+                    request,
+                    ActionListener.releaseAfter(listener, coordinatingWrapper)
+                );
+                processBulkShardRequest(fieldInferenceMetadata, bulkShardRequest, onInferenceCompletion, coordinatingWrapper);
                 return;
             }
         }
@@ -163,21 +170,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private void processBulkShardRequest(
         Map<String, InferenceFieldMetadata> fieldInferenceMap,
         BulkShardRequest bulkShardRequest,
-        Runnable onCompletion
+        Runnable onCompletion,
+        CoordinatingIndexingPressureWrapper coordinatingWrapper
     ) {
         final ProjectMetadata project = clusterService.state().getMetadata().getProject();
         var index = project.index(bulkShardRequest.index());
         boolean useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(index.getSettings()) == false;
-
-        try (CoordinatingIndexingPressureWrapper coordinatingWrapper = startCoordinatingOperations()) {
-            new AsyncBulkShardInferenceAction(
-                useLegacyFormat,
-                fieldInferenceMap,
-                bulkShardRequest,
-                onCompletion,
-                coordinatingWrapper.coordinating()
-            ).run();
-        }
+        new AsyncBulkShardInferenceAction(useLegacyFormat, fieldInferenceMap, bulkShardRequest, onCompletion, coordinatingWrapper).run();
     }
 
     private CoordinatingIndexingPressureWrapper startCoordinatingOperations() {
@@ -255,7 +254,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final BulkShardRequest bulkShardRequest;
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
-        private final IndexingPressure.Coordinating coordinatingIndexingPressure;
+        private final CoordinatingIndexingPressureWrapper coordinatingWrapper;
 
         private long estimatedInferenceRequestMemoryUsageInBytes = 0;  // Estimated memory used by requests that perform inference
 
@@ -264,14 +263,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
             BulkShardRequest bulkShardRequest,
             Runnable onCompletion,
-            @Nullable IndexingPressure.Coordinating coordinatingIndexingPressure
+            CoordinatingIndexingPressureWrapper coordinatingWrapper
         ) {
             this.useLegacyFormat = useLegacyFormat;
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
             this.onCompletion = onCompletion;
-            this.coordinatingIndexingPressure = coordinatingIndexingPressure;
+            this.coordinatingWrapper = coordinatingWrapper;
         }
 
         @Override
@@ -281,6 +280,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
 
         private void estimateMemoryUsage() {
+            IndexingPressure.Coordinating coordinatingIndexingPressure = coordinatingWrapper.coordinating();
             if (coordinatingIndexingPressure == null) {
                 return;
             }
@@ -363,6 +363,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         // Currently using the former
                         coordinatingIndexingPressure.increment(1, estimatedMemoryUsage);
                     } catch (EsRejectedExecutionException e) {
+                        // We don't run the rest of the action filter chain in this case, so explicitly close the coordinating indexing
+                        // pressure here
+                        coordinatingWrapper.close();
                         throw new InferenceException("Insufficient memory available to perform inference on bulk request", e);
                     }
                 }
@@ -785,6 +788,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             FieldInferenceResponseAccumulator accumulator
         ) {
             boolean success = true;
+
+            IndexingPressure.Coordinating coordinatingIndexingPressure = coordinatingWrapper.coordinating();
             if (coordinatingIndexingPressure == null) {
                 return success;
             }

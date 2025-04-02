@@ -11,14 +11,12 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -65,28 +63,11 @@ class FieldCapabilitiesFetcher {
     ) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
-        final Engine.Searcher searcher;
         if (alwaysMatches(indexFilter)) {
             // no need to open a searcher if we aren't filtering, but make sure we are reading from an up-to-dated shard
             indexShard.readAllowed();
-            searcher = null;
-        } else {
-            searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
         }
-        try (searcher) {
-            return doFetch(
-                task,
-                shardId,
-                fieldNameFilter,
-                filters,
-                fieldTypes,
-                indexFilter,
-                nowInMillis,
-                runtimeFields,
-                indexService,
-                searcher
-            );
-        }
+        return doFetch(task, shardId, fieldNameFilter, filters, fieldTypes, indexFilter, nowInMillis, runtimeFields, indexService);
     }
 
     private FieldCapabilitiesIndexResponse doFetch(
@@ -98,22 +79,13 @@ class FieldCapabilitiesFetcher {
         QueryBuilder indexFilter,
         long nowInMillis,
         Map<String, Object> runtimeFields,
-        IndexService indexService,
-        @Nullable Engine.Searcher searcher
+        IndexService indexService
     ) throws IOException {
-        final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
-            shardId.id(),
-            0,
-            searcher,
-            () -> nowInMillis,
-            null,
-            runtimeFields
-        );
-        var indexMode = searchExecutionContext.getIndexSettings().getMode();
-        if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
+        QueryRewriteContext queryRewriteContext = indexService.newQueryRewriteContext(() -> nowInMillis, runtimeFields, null);
+        var indexMode = indexService.getIndexSettings().getMode();
+        if (canMatchShard(shardId, indexFilter, nowInMillis, queryRewriteContext) == false) {
             return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false, indexMode);
         }
-
         final MappingMetadata mapping = indexService.getMetadata().mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
@@ -135,7 +107,7 @@ class FieldCapabilitiesFetcher {
         }
         task.ensureNotCancelled();
         final Map<String, IndexFieldCapabilities> responseMap = retrieveFieldCaps(
-            searchExecutionContext,
+            queryRewriteContext,
             fieldNameFilter,
             filters,
             fieldTypes,
@@ -150,7 +122,7 @@ class FieldCapabilitiesFetcher {
     }
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
-        SearchExecutionContext context,
+        QueryRewriteContext context,
         Predicate<String> fieldNameFilter,
         String[] filters,
         String[] types,
@@ -236,20 +208,20 @@ class FieldCapabilitiesFetcher {
         ShardId shardId,
         QueryBuilder indexFilter,
         long nowInMillis,
-        SearchExecutionContext searchExecutionContext
+        QueryRewriteContext queryRewriteContext
     ) throws IOException {
         assert alwaysMatches(indexFilter) == false : "should not be called for always matching [" + indexFilter + "]";
         assert nowInMillis != 0L;
         ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(indexFilter));
-        return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
+        return SearchService.queryStillMatchesAfterRewrite(searchRequest, queryRewriteContext);
     }
 
     private static boolean alwaysMatches(QueryBuilder indexFilter) {
         return indexFilter == null || indexFilter instanceof MatchAllQueryBuilder;
     }
 
-    private static Predicate<MappedFieldType> buildFilter(String[] filters, String[] fieldTypes, SearchExecutionContext context) {
+    private static Predicate<MappedFieldType> buildFilter(String[] filters, String[] fieldTypes, QueryRewriteContext context) {
         // security filters don't exclude metadata fields
         Predicate<MappedFieldType> fcf = null;
         if (fieldTypes.length > 0) {

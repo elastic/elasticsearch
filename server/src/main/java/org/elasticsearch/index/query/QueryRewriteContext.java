@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -465,4 +466,22 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
     }
 
+    public boolean isMetadataField(String field) {
+        return mapperService.isMetadataField(field);
+    }
+
+    public boolean isMultiField(String field) {
+        if (runtimeMappings.containsKey(field)) {
+            return false;
+        }
+        return mapperService.isMultiField(field);
+    }
+
+    public NestedLookup nestedLookup() {
+        return mappingLookup.nestedLookup();
+    }
+
+    public boolean hasMappings() {
+        return mappingLookup.hasMappings();
+    }
 }

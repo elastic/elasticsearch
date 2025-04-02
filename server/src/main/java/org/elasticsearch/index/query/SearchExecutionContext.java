@@ -43,7 +43,6 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -372,30 +371,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 
-    public NestedLookup nestedLookup() {
-        return mappingLookup.nestedLookup();
-    }
-
-    public boolean hasMappings() {
-        return mappingLookup.hasMappings();
-    }
-
     /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
      */
     public boolean isFieldMapped(String name) {
         return fieldType(name) != null;
-    }
-
-    public boolean isMetadataField(String field) {
-        return mapperService.isMetadataField(field);
-    }
-
-    public boolean isMultiField(String field) {
-        if (runtimeMappings.containsKey(field)) {
-            return false;
-        }
-        return mapperService.isMultiField(field);
     }
 
     public Iterable<MappedFieldType> dimensionFields() {

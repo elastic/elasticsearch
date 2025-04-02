@@ -1,5 +1,0 @@
-pr: 125938
-summary: Make `AttributeMap` and `AttributeSet` immutable
-area: ES|QL
-type: enhancement
-issues: []

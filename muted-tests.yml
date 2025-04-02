@@ -221,9 +221,6 @@ tests:
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/122707
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testEnrichExplosionManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/122913
@@ -392,6 +389,15 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/125901
+- class: org.elasticsearch.xpack.security.authz.RBACEngineTests
+  method: testGetRoleDescriptorsIntersectionForRemoteClusterHasDeterministicOrderForIndicesPrivileges
+  issue: https://github.com/elastic/elasticsearch/issues/126061
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTerminateAfter
+  issue: https://github.com/elastic/elasticsearch/issues/126085
+- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/126088
 
 # Examples:
 #

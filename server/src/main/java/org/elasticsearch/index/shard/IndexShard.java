@@ -91,6 +91,7 @@ import org.elasticsearch.index.engine.Engine.GetResult;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.EngineReadWriteLock;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
@@ -182,7 +183,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -249,7 +249,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
 
     // read/write lock for mutating the engine (lock ordering: closeMutex -> engineLock.writeLock -> mutex)
-    private final ReentrantReadWriteLock engineLock = new ReentrantReadWriteLock();
+    private final EngineReadWriteLock engineLock = new EngineReadWriteLock();
     private Engine currentEngine = null; // must be accessed while holding engineLock
     final EngineFactory engineFactory;
 
@@ -1841,7 +1841,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     engineLock.writeLock().unlock();
                 }
             } finally {
-                assert engineLock.getReadHoldCount() > 0 : "hold the read lock when submitting the engine closing task";
+                assert engineLock.isReadLockedByCurrentThread() : "hold the read lock when submitting the engine closing task";
                 try {
                     final Engine engine = engineOrNull;
                     // When closeExecutor is EsExecutors.DIRECT_EXECUTOR_SERVICE, the following runnable will run within the current thread
@@ -3397,7 +3397,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine getCurrentEngine(boolean allowNoEngine) {
-        assert engineLock.getReadHoldCount() > 0 || engineLock.isWriteLockedByCurrentThread();
+        assert engineLock.isReadLockedByCurrentThread() || engineLock.isWriteLockedByCurrentThread();
         var engine = this.currentEngine;
         if (engine == null && allowNoEngine == false) {
             throw new AlreadyClosedException("engine is closed");
@@ -3735,7 +3735,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             relativeTimeInNanosSupplier,
             indexCommitListener,
             routingEntry().isPromotableToPrimary(),
-            mapperService()
+            mapperService(),
+            engineLock
         );
     }
 

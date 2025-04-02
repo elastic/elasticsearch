@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -54,7 +53,6 @@ public class PerFieldFormatSupplier {
 
         if (mapperService != null
             && USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
-            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.USE_LUCENE101_POSTINGS_FORMAT)
             && mapperService.getIndexSettings().getMode() == IndexMode.STANDARD) {
             defaultPostingsFormat = lucene101PostingsFormat;
         } else {

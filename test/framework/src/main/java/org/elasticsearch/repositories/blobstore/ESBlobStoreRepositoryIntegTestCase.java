@@ -396,7 +396,6 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         );
     }
 
-    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testMultipleSnapshotAndRollback() throws Exception {
         final String repoName = createRepository(randomRepositoryName());
         int iterationCount = randomIntBetween(2, 5);
@@ -461,7 +460,6 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         client().admin().indices().prepareRefresh(indexName).get();
     }
 
-    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testIndicesDeletedFromRepository() throws Exception {
         final String repoName = createRepository(randomRepositoryName());
         Client client = client();

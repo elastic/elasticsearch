@@ -81,6 +81,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -675,8 +676,22 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     protected static class S3ErroneousHttpHandler extends ErroneousHttpHandler {
 
+        // S3 SDK stops retrying after TOKEN_BUCKET_SIZE/DEFAULT_EXCEPTION_TOKEN_COST == 500/5 == 100 failures in quick succession
+        // see software.amazon.awssdk.retries.DefaultRetryStrategy.Legacy.TOKEN_BUCKET_SIZE
+        // see software.amazon.awssdk.retries.DefaultRetryStrategy.Legacy.DEFAULT_EXCEPTION_TOKEN_COST
+        private final Semaphore failurePermits = new Semaphore(100);
+
         S3ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
             super(delegate, maxErrorsPerRequest);
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (failurePermits.tryAcquire()) {
+                super.handle(exchange);
+            } else {
+                delegate.handle(exchange);
+            }
         }
 
         @Override

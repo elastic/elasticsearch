@@ -244,7 +244,7 @@ public class InboundHandler {
             Releasables.assertOnce(message.takeBreakerReleaseControl())
         );
 
-        try {
+        try (message) {
             messageListener.onRequestReceived(requestId, action);
             if (reg != null) {
                 reg.addRequestStats(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
@@ -259,8 +259,9 @@ public class InboundHandler {
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
             assert assertRemoteVersion(stream, header.getVersion());
             final T request;
-            try (message) {
+            try {
                 request = reg.newRequest(stream);
+                message.close(); // eager release message to save heap
             } catch (Exception e) {
                 assert ignoreDeserializationErrors : e;
                 throw e;

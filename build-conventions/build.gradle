@@ -77,7 +77,7 @@ dependencies {
     api buildLibs.apache.rat
     compileOnly buildLibs.checkstyle
     constraints {
-      api("org.eclipse.platform:org.eclipse.osgi:3.18.300") {
+      api("org.eclipse.platform:org.eclipse.osgi:3.18.500") {
         because("Use the same version as we do in spotless gradle plugin at runtime")
       }
     }

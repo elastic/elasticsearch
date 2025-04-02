@@ -35,7 +35,10 @@ public class PluginSecurity {
     static void confirmPolicyExceptions(Terminal terminal, Set<String> entitlements, boolean batch) throws UserException {
         List<String> requested = new ArrayList<>(entitlements);
         if (requested.isEmpty()) {
-            terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional entitlements");
+            terminal.println(
+                Verbosity.NORMAL,
+                "WARNING: plugin has a policy file with no additional entitlements. Double check this is intentional."
+            );
         } else {
             // sort entitlements in a reasonable order
             Collections.sort(requested);

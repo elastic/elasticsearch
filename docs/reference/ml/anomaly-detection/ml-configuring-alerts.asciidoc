@@ -13,7 +13,7 @@ rule to check an {anomaly-job} every fifteen minutes for critical anomalies and
 to notify you in an email. To learn more about {kib} {alert-features}, refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting].
 
-NOTE: When an anomaly detection rule triggers an alert with an email action, the email includes only the top three anomalous records or influencers, even if more anomalies are detected during the check interval. This keeps the alert concise by showing only the most significant anomalies, based on their anomaly score or record score. 
+NOTE: When an {anomaly-detect} rule triggers an alert with an email action, the email includes only the top three anomalous records or influencers, even if more anomalies are detected during the check interval. This keeps the alert concise by showing only the most significant anomalies, based on their anomaly score or record score. 
 
 The following {ml} rules are available:
 

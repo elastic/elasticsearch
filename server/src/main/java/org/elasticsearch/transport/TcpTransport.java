@@ -815,6 +815,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         try {
             inboundHandler.inboundMessage(channel, message);
         } catch (Exception e) {
+            message.close();
             onException(channel, e);
         }
     }

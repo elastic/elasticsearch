@@ -138,7 +138,7 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 [`date` processor](/reference/enrich-processor/date-processor.md)
 :   Extracts and converts date fields.
 
-[`dot_expand`](/reference/enrich-processor/dot-expand-processor.md) processor
+[`dot_expand` processor](/reference/enrich-processor/dot-expand-processor.md)
 :   Expands a field with dots into an object field.
 
 [`html_strip` processor](/reference/enrich-processor/htmlstrip-processor.md)

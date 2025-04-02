@@ -104,7 +104,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
-import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -163,10 +162,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public static final List<Attribute> NO_FIELDS = List.of(
         new ReferenceAttribute(Source.EMPTY, "<no-fields>", NULL, Nullability.TRUE, null, true)
     );
-    private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
-    static {
-        var init = new Batch<>(
+    private static final List<Batch<LogicalPlan>> RULES = List.of(
+        new Batch<>(
             "Initialize",
             Limiter.ONCE,
             new ResolveTable(),
@@ -174,8 +172,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveLookupTables(),
             new ResolveFunctions(),
             new ResolveForkFunctions()
-        );
-        var resolution = new Batch<>(
+        ),
+        new Batch<>(
             "Resolution",
             /*
              * ImplicitCasting must be before ResolveRefs. Because a reference is created for a Bucket in Aggregate's aggregates,
@@ -186,17 +184,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ImplicitForkCasting(),
             new ResolveRefs(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
-        );
-
-        var finish = new Batch<>(
-            "Finish Analysis",
-            Limiter.ONCE,
-            new AddImplicitLimit(),
-            new AddImplicitForkLimit(),
-            new UnionTypesCleanup()
-        );
-        rules = List.of(init, resolution, finish);
-    }
+        ),
+        new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
+    );
 
     private final Verifier verifier;
 
@@ -219,8 +209,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     @Override
-    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
-        return rules;
+    protected List<Batch<LogicalPlan>> batches() {
+        return RULES;
     }
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
@@ -1062,10 +1052,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final DataType dataType = resolved.dataType();
                     String matchType = enrich.policy().getType();
                     DataType[] allowed = allowedEnrichTypes(matchType);
-                    if (Arrays.asList(allowed).contains(dataType) == false && multiTypedField(resolved) == null) { // leave multi-typed
-                                                                                                                   // fields to
-                                                                                                                   // ImplicitCasting to
-                                                                                                                   // deal with
+                    // leave multi-typed fields to ImplicitCasting to cast to a common type
+                    if (Arrays.asList(allowed).contains(dataType) == false && multiTypedField(resolved) == null) {
                         String suffix = "only ["
                             + Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", "))
                             + "] allowed for type ["
@@ -1555,7 +1543,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             if (i < targetDataTypes.size()) {
                                 targetDataType = targetDataTypes.get(i);
                             }
-                            if (targetDataType != NULL && targetDataType != DataType.UNSUPPORTED) {
+                            if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
                                 Expression e = castStringLiteral(arg, targetDataType);
                                 if (e != arg) {
                                     childrenChanged = true;

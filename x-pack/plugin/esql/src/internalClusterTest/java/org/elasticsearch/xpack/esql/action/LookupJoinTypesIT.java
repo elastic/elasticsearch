@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -20,7 +21,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,6 +31,17 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -90,38 +102,38 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
 public class LookupJoinTypesIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPlugin.class);
+        return List.of(EsqlPlugin.class, MapperExtrasPlugin.class);
     }
 
     private static final Map<String, TestConfigs> testConfigurations = new HashMap<>();
     static {
         // Initialize the test configurations for string tests
         {
-            TestConfigs configs = testConfigurations.computeIfAbsent("strings", k -> new TestConfigs(k, new LinkedHashSet<>()));
-            configs.addPasses(DataType.KEYWORD, DataType.KEYWORD);
-            configs.addPasses(DataType.TEXT, DataType.KEYWORD);
-            configs.addFailsText(DataType.KEYWORD, DataType.TEXT);
-            configs.addFailsText(DataType.TEXT, DataType.TEXT);
+            TestConfigs configs = testConfigurations.computeIfAbsent("strings", TestConfigs::new);
+            configs.addPasses(KEYWORD, KEYWORD);
+            configs.addPasses(TEXT, KEYWORD);
+            configs.addFailsText(KEYWORD, TEXT);
+            configs.addFailsText(TEXT, TEXT);
         }
 
         // Test integer types
+        var integerTypes = List.of(BYTE, SHORT, INTEGER);
         {
-            TestConfigs configs = testConfigurations.computeIfAbsent("integers", k -> new TestConfigs(k, new LinkedHashSet<>()));
-            var integerTypes = List.of(DataType.BYTE, DataType.SHORT, DataType.INTEGER);
+            TestConfigs configs = testConfigurations.computeIfAbsent("integers", TestConfigs::new);
             for (DataType mainType : integerTypes) {
                 for (DataType lookupType : integerTypes) {
                     configs.addPasses(mainType, lookupType);
                 }
                 // Long is currently treated differently in the validation, but we could consider changing that
-                configs.addFails(mainType, DataType.LONG);
-                configs.addFails(DataType.LONG, mainType);
+                configs.addFails(mainType, LONG);
+                configs.addFails(LONG, mainType);
             }
         }
 
         // Test float and double
+        var floatTypes = List.of(HALF_FLOAT, FLOAT, DOUBLE);
         {
-            TestConfigs configs = testConfigurations.computeIfAbsent("floats", k -> new TestConfigs(k, new LinkedHashSet<>()));
-            var floatTypes = List.of(DataType.FLOAT, DataType.DOUBLE);
+            TestConfigs configs = testConfigurations.computeIfAbsent("floats", TestConfigs::new);
             for (DataType mainType : floatTypes) {
                 for (DataType lookupType : floatTypes) {
                     configs.addPasses(mainType, lookupType);
@@ -129,18 +141,64 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             }
         }
 
+        // Tests for mixed-numerical types
+        {
+            TestConfigs configs = testConfigurations.computeIfAbsent("mixed-numerical", TestConfigs::new);
+            for (DataType mainType : integerTypes) {
+                for (DataType lookupType : floatTypes) {
+                    // TODO: We should probably allow this, but we need to change the validation code in Join.java
+                    configs.addFails(mainType, lookupType);
+                    configs.addFails(lookupType, mainType);
+                }
+            }
+        }
+
+        // Tests for all types where left and right are the same type
+        // DataType[] all = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, IP, KEYWORD };
+        DataType[] all = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, IP, KEYWORD };
+        {
+            Collection<TestConfigs> existing = testConfigurations.values();
+            TestConfigs configs = testConfigurations.computeIfAbsent("same", TestConfigs::new);
+            for (DataType type : all) {
+                if (existingIndex(existing, type, type)) {
+                    // Skip existing configurations
+                    continue;
+                }
+                configs.addPasses(type, type);
+            }
+        }
+
+        // Tests for all other type combinations
+        {
+            Collection<TestConfigs> existing = testConfigurations.values();
+            TestConfigs configs = testConfigurations.computeIfAbsent("others", TestConfigs::new);
+            for (DataType mainType : all) {
+                for (DataType lookupType : all) {
+                    if (existingIndex(existing, mainType, lookupType)) {
+                        // Skip existing configurations
+                        continue;
+                    }
+                    configs.addFails(mainType, lookupType);
+                }
+            }
+        }
         // TODO: Add tests for mixed groups (should mostly fail, but might be some implicit casting to consider)
 
         // Make sure we have never added two configurations with the same index name
         Set<String> knownTypes = new HashSet<>();
         for (TestConfigs configs : testConfigurations.values()) {
-            for (TestConfig config : configs.configs()) {
+            for (TestConfig config : configs.configs.values()) {
                 if (knownTypes.contains(config.indexName())) {
                     throw new IllegalArgumentException("Duplicate index name: " + config.indexName());
                 }
                 knownTypes.add(config.indexName());
             }
         }
+    }
+
+    private static boolean existingIndex(Collection<TestConfigs> existing, DataType mainType, DataType lookupType) {
+        String indexName = "index_" + mainType.esType() + "_" + lookupType.esType();
+        return existing.stream().anyMatch(c -> c.exists(indexName));
     }
 
     public void testLookupJoinStrings() {
@@ -155,10 +213,22 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         testLookupJoinTypes("floats");
     }
 
+    public void testLookupJoinMixedNumerical() {
+        testLookupJoinTypes("mixed-numerical");
+    }
+
+    public void testLookupJoinSame() {
+        testLookupJoinTypes("same");
+    }
+
+    public void testLookupJoinOthers() {
+        testLookupJoinTypes("others");
+    }
+
     private void testLookupJoinTypes(String group) {
         initIndexes(group);
         initData(group);
-        for (TestConfig config : testConfigurations.get(group).configs()) {
+        for (TestConfig config : testConfigurations.get(group).configs.values()) {
             String query = String.format(
                 Locale.ROOT,
                 "FROM index | LOOKUP JOIN %s ON %s | KEEP other",
@@ -172,7 +242,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private void initIndexes(String group) {
-        Set<TestConfig> configs = testConfigurations.get(group).configs;
+        Collection<TestConfig> configs = testConfigurations.get(group).configs.values();
         // The main index will have many fields, one of each type to use in later type specific joins
         String mainFields = "{\n  \"properties\" : {\n"
             + configs.stream().map(TestConfig::mainPropertySpec).distinct().collect(Collectors.joining(",\n    "))
@@ -193,7 +263,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private void initData(String group) {
-        Set<TestConfig> configs = testConfigurations.get(group).configs;
+        Collection<TestConfig> configs = testConfigurations.get(group).configs.values();
         int docId = 0;
         for (TestConfig config : configs) {
             String doc = String.format(Locale.ROOT, """
@@ -224,29 +294,50 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     private static String sampleDataTextFor(DataType type) {
         return switch (type) {
-            case KEYWORD, TEXT -> "\"" + sampleDataFor(type) + "\"";
+            case KEYWORD, TEXT, DATETIME, DATE_NANOS, IP -> "\"" + sampleDataFor(type) + "\"";
             default -> String.valueOf(sampleDataFor(type));
         };
     }
 
     private static Object sampleDataFor(DataType type) {
         return switch (type) {
+            case BOOLEAN -> true;
+            case DATETIME, DATE_NANOS -> "2025-04-02T12:00:00.000Z";
+            case IP -> "127.0.0.1";
             case KEYWORD, TEXT -> "key";
             case BYTE, SHORT, INTEGER -> 1;
             case LONG -> 1L;
-            case FLOAT, DOUBLE -> 1.0;
+            case HALF_FLOAT, FLOAT, DOUBLE -> 1.0;
             default -> throw new IllegalArgumentException("Unsupported type: " + type);
         };
     }
 
-    private record TestConfigs(String group, Set<TestConfig> configs) {
+    private static class TestConfigs {
+        final String group;
+        final Map<String, TestConfig> configs;
+
+        TestConfigs(String group) {
+            this.group = group;
+            this.configs = new LinkedHashMap<>();
+        }
+
+        private boolean exists(String indexName) {
+            return configs.containsKey(indexName);
+        }
+
+        private void add(TestConfig config) {
+            if (configs.containsKey(config.indexName())) {
+                throw new IllegalArgumentException("Duplicate index name: " + config.indexName());
+            }
+            configs.put(config.indexName(), config);
+        }
 
         private void addPasses(DataType mainType, DataType lookupType) {
-            configs.add(new TestConfigPasses(mainType, lookupType, true));
+            add(new TestConfigPasses(mainType, lookupType, true));
         }
 
         private void addEmptyResult(DataType mainType, DataType lookupType) {
-            configs.add(new TestConfigPasses(mainType, lookupType, false));
+            add(new TestConfigPasses(mainType, lookupType, false));
         }
 
         private void addFails(DataType mainType, DataType lookupType) {
@@ -259,7 +350,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 fieldName,
                 lookupType.widenSmallNumeric()
             );
-            configs.add(
+            add(
                 new TestConfigFails<>(
                     mainType,
                     lookupType,
@@ -272,7 +363,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         private void addFailsText(DataType mainType, DataType lookupType) {
             String fieldName = "field_" + mainType.esType();
             String errorMessage = String.format(Locale.ROOT, "JOIN with right field [%s] of type [TEXT] is not supported", fieldName);
-            configs.add(
+            add(
                 new TestConfigFails<>(
                     mainType,
                     lookupType,
@@ -283,7 +374,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         private <E extends Exception> void addFails(DataType mainType, DataType lookupType, Class<E> exception, Consumer<E> assertion) {
-            configs.add(new TestConfigFails<>(mainType, lookupType, exception, assertion));
+            add(new TestConfigFails<>(mainType, lookupType, exception, assertion));
         }
     }
 

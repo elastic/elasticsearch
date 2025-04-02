@@ -35,18 +35,6 @@ public final class Expressions {
         return list;
     }
 
-    public static AttributeMap<Expression> asAttributeMap(List<? extends NamedExpression> named) {
-        if (named.isEmpty()) {
-            return AttributeMap.emptyAttributeMap();
-        }
-
-        AttributeMap<Expression> map = new AttributeMap<>();
-        for (NamedExpression exp : named) {
-            map.add(exp.toAttribute(), exp);
-        }
-        return map;
-    }
-
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
         for (Expression exp : exps) {
             if (exp.anyMatch(predicate)) {
@@ -121,10 +109,15 @@ public final class Expressions {
             return AttributeSet.EMPTY;
         }
 
-        AttributeSet set = new AttributeSet();
+        int size = 0;
+        for (Expression exp : exps) {
+            size += exp.references().size();
+        }
+        AttributeSet set = new AttributeSet(size);
         for (Expression exp : exps) {
             set.addAll(exp.references());
         }
+
         return set;
     }
 

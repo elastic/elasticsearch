@@ -19,6 +19,7 @@ There are a number of settings available to control the shard allocation process
 * [Disk-based shard allocation settings](#disk-based-shard-allocation) explains how Elasticsearch takes available disk space into account, and the related settings.
 * [Shard allocation awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md) and [Forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness) control how shards can be distributed across different racks or availability zones.
 * [Cluster-level shard allocation filtering](#cluster-shard-allocation-filtering) allows certain nodes or groups of nodes excluded from allocation so that they can be decommissioned.
+* [Cluster-level node allocation stats cache settings](#node-allocation-stats-cache) control the node allocation statistics cache on the master node.
 
 Besides these, there are a few other [miscellaneous cluster-level settings](/reference/elasticsearch/configuration-reference/miscellaneous-cluster-settings.md).
 
@@ -233,7 +234,7 @@ You can use [custom node attributes](/reference/elasticsearch/configuration-refe
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The shard allocation awareness values that must exist for shards to be reallocated in case of location failure. Learn more about [forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness).
 
 
-## Cluster-level shard allocation filterin [cluster-shard-allocation-filtering]
+## Cluster-level shard allocation filtering [cluster-shard-allocation-filtering]
 
 You can use cluster-level shard allocation filters to control where {{es}} allocates shards from any index. These cluster wide filters are applied in conjunction with [per-index allocation filtering](/reference/elasticsearch/index-settings/shard-allocation.md) and [allocation awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md).
 
@@ -303,4 +304,7 @@ PUT _cluster/settings
 ```
 
 
+## Node Allocation Stats Cache [node-allocation-stats-cache]
 
+`cluster.routing.allocation.stats.cache.ttl`
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Calculating the node allocation stats for a [Get node statistics API call](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-stats) can become expensive on the master for clusters with a high number of nodes. To prevent overloading the master the node allocation stats are cached on the master for 1 minute `1m` by default.  This setting can be used to adjust the cache time to live value, if necessary, keeping in mind the tradeoff between the freshness of the statistics and the processing costs on the master.  The cache can be disabled (not recommended) by setting the value to `0s` (the minimum value). The maximum value is 10 minutes `10m`.

@@ -31,8 +31,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.amazonbedrock.AmazonBedrockActionCreator;
-import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -42,6 +41,8 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.action.AmazonBedrockActionCreator;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
@@ -459,7 +460,7 @@ public class AmazonBedrockService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(AmazonBedrockSecretSettings.Configuration.get());
+                configurationMap.putAll(AwsSecretSettings.Configuration.get());
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",

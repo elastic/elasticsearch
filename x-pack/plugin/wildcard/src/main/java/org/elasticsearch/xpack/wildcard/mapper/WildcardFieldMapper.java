@@ -510,13 +510,13 @@ public class WildcardFieldMapper extends FieldMapper {
                         String cs = Character.toString(j);
                         String normalizedChar = toLowerCase(cs);
                         queries.add(new TermQuery(new Term("", normalizedChar)));
-                        if(queries.size() > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                        if (queries.size() > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
                             break;
                         }
                     }
                     queries.add(new MatchAllDocsQuery());
                 }
-                if(queries.size() > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                if (queries.size() > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
                     break;
                 }
             }

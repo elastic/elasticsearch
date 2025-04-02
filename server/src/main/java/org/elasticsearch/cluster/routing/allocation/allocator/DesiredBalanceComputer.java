@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -46,9 +47,8 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
  */
 public class DesiredBalanceComputer {
 
-    private static final Logger STATIC_LOGGER = LogManager.getLogger(DesiredBalanceComputer.class);
+    private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
-    private final Logger logger;
     private final ShardsAllocator delegateAllocator;
     private final TimeProvider timeProvider;
 
@@ -76,34 +76,21 @@ public class DesiredBalanceComputer {
     private long numIterationsSinceLastConverged;
     private long lastConvergedTimeMillis;
     private long lastNotConvergedLogMessageTimeMillis;
+    private Level convergenceLogMsgLevel;
 
     public DesiredBalanceComputer(ClusterSettings clusterSettings, TimeProvider timeProvider, ShardsAllocator delegateAllocator) {
-        this(clusterSettings, timeProvider, delegateAllocator, STATIC_LOGGER);
-    }
-
-    // Package access for testing.
-    DesiredBalanceComputer(ClusterSettings clusterSettings, TimeProvider timeProvider, ShardsAllocator delegateAllocator, Logger logger) {
-        this.logger = logger;
         this.delegateAllocator = delegateAllocator;
         this.timeProvider = timeProvider;
         this.numComputeCallsSinceLastConverged = 0;
         this.numIterationsSinceLastConverged = 0;
         this.lastConvergedTimeMillis = timeProvider.relativeTimeInMillis();
         this.lastNotConvergedLogMessageTimeMillis = lastConvergedTimeMillis;
+        this.convergenceLogMsgLevel = Level.DEBUG;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
             MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
             value -> this.maxBalanceComputationTimeDuringIndexCreationMillis = value.millis()
         );
-    }
-
-    public record LastConvergenceInfo(long numComputeCallsSince, long numIterationsSince, long timestampMillis) {}
-
-    /**
-     * Returns the last convergence timestamp along with the total number of computation calls and iterations since the last convergence.
-     */
-    public LastConvergenceInfo getLastConvergence() {
-        return new LastConvergenceInfo(numComputeCallsSinceLastConverged, numIterationsSinceLastConverged, lastConvergedTimeMillis);
     }
 
     public DesiredBalance compute(
@@ -112,7 +99,7 @@ public class DesiredBalanceComputer {
         Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
         Predicate<DesiredBalanceInput> isFresh
     ) {
-        ++numComputeCallsSinceLastConverged;
+        numComputeCallsSinceLastConverged += 1;
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "Recomputing desired balance for [{}]: {}, {}, {}, {}",
@@ -345,8 +332,8 @@ public class DesiredBalanceComputer {
                 }
             }
 
-            i++;
-            ++numIterationsSinceLastConverged;
+            i += 1;
+            numIterationsSinceLastConverged += 1;
             final int iterations = i;
             final long currentTime = timeProvider.relativeTimeInMillis();
             final boolean reportByTime = nextReportTime <= currentTime;
@@ -356,16 +343,32 @@ public class DesiredBalanceComputer {
             }
 
             if (hasChanges == false && hasEnoughIterations(i)) {
-                logger.debug(
-                    "Desired balance computation for [{}] converged after [{}] and [{}] iterations, "
-                        + "[{}] compute() calls with [{}] total iterations since last convergence [{}] ago",
-                    desiredBalanceInput.index(),
-                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
-                    i,
-                    numComputeCallsSinceLastConverged,
-                    numIterationsSinceLastConverged,
-                    TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString()
-                );
+                if (numComputeCallsSinceLastConverged > 1) {
+                    logger.log(
+                        convergenceLogMsgLevel,
+                        () -> Strings.format(
+                            """
+                                Desired balance computation for [%d] converged after [%s] and [%d] iterations, \
+                                resumed computation [%d] times with [%d] iterations since the last resumption [%s] ago""",
+                            desiredBalanceInput.index(),
+                            TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                            numIterationsSinceLastConverged,
+                            numComputeCallsSinceLastConverged,
+                            iterations,
+                            TimeValue.timeValueMillis(currentTime - computationStartedTime).toString()
+                        )
+                    );
+                } else {
+                    logger.log(
+                        convergenceLogMsgLevel,
+                        () -> Strings.format(
+                            "Desired balance computation for [%d] converged after [%s] and [%d] iterations",
+                            desiredBalanceInput.index(),
+                            TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                            numIterationsSinceLastConverged
+                        )
+                    );
+                }
                 numComputeCallsSinceLastConverged = 0;
                 numIterationsSinceLastConverged = 0;
                 lastConvergedTimeMillis = currentTime;
@@ -400,17 +403,33 @@ public class DesiredBalanceComputer {
                 break;
             }
 
-            logger.log(
-                reportByIterationCount || reportByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE,
-                "Desired balance computation for [{}] is still not converged after [{}] and [{}] iterations, "
-                    + "[{}] compute() calls with [{}] total iterations since last convergence [{}] ago",
-                desiredBalanceInput.index(),
-                TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
-                iterations,
-                numComputeCallsSinceLastConverged,
-                numIterationsSinceLastConverged,
-                TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString()
-            );
+            final var logLevel = reportByIterationCount || reportByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE;
+            if (numComputeCallsSinceLastConverged > 1) {
+                logger.log(
+                    logLevel,
+                    () -> Strings.format(
+                        """
+                            Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations, \
+                            resumed computation [%d] times with [%d] iterations since the last resumption [%s] ago""",
+                        desiredBalanceInput.index(),
+                        TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                        numIterationsSinceLastConverged,
+                        numComputeCallsSinceLastConverged,
+                        iterations,
+                        TimeValue.timeValueMillis(currentTime - computationStartedTime).toString()
+                    )
+                );
+            } else {
+                logger.log(
+                    logLevel,
+                    () -> Strings.format(
+                        "Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations",
+                        desiredBalanceInput.index(),
+                        TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                        numIterationsSinceLastConverged
+                    )
+                );
+            }
 
             if (reportByIterationCount || reportByTime) {
                 lastNotConvergedLogMessageTimeMillis = currentTime;
@@ -508,5 +527,22 @@ public class DesiredBalanceComputer {
             iterations *= 10;
         }
         return iterations;
+    }
+
+    // Package-level getters for testing.
+    long getNumComputeCallsSinceLastConverged() {
+        return numComputeCallsSinceLastConverged;
+    }
+
+    long getNumIterationsSinceLastConverged() {
+        return numIterationsSinceLastConverged;
+    }
+
+    long getLastConvergedTimeMillis() {
+        return lastConvergedTimeMillis;
+    }
+
+    void setConvergenceLogMsgLevel(Level level) {
+        convergenceLogMsgLevel = level;
     }
 }

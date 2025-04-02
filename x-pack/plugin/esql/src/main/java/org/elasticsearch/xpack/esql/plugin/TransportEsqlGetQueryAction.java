@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -21,8 +23,11 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryRequest;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 
 public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQueryRequest, EsqlGetQueryResponse> {
     private final NodeClient nodeClient;
@@ -35,33 +40,44 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
 
     @Override
     protected void doExecute(Task task, EsqlGetQueryRequest request, ActionListener<EsqlGetQueryResponse> listener) {
-        new GetTaskRequestBuilder(nodeClient).setTaskId(request.id()).execute(new ActionListener<>() {
-            @Override
-            public void onResponse(GetTaskResponse response) {
-                TaskInfo task = response.getTask().getTask();
-                new ListTasksRequestBuilder(nodeClient).setDetailed(true)
-                    .setActions(DriverTaskRunner.ACTION_NAME)
-                    .setTargetParentTaskId(request.id())
-                    .execute(new ActionListener<>() {
-                        @Override
-                        public void onResponse(ListTasksResponse response) {
-                            listener.onResponse(new EsqlGetQueryResponse(toDetailedQuery(task, response)));
-                        }
+        ClientHelper.executeAsyncWithOrigin(
+            nodeClient,
+            ESQL_ORIGIN,
+            TransportGetTaskAction.TYPE,
+            new GetTaskRequest().setTaskId(request.id()),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(GetTaskResponse response) {
+                    TaskInfo task = response.getTask().getTask();
+                    ClientHelper.executeAsyncWithOrigin(
+                        nodeClient,
+                        ESQL_ORIGIN,
+                        TransportListTasksAction.TYPE,
+                        new ListTasksRequest().setDetailed(true)
+                            .setActions(DriverTaskRunner.ACTION_NAME)
+                            .setTargetParentTaskId(request.id()),
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(ListTasksResponse response) {
+                                listener.onResponse(new EsqlGetQueryResponse(toDetailedQuery(task, response)));
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
                         }
-                    });
-            }
+                    );
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                // The underlying root cause is meaningless to the user, but that is what will be shown, so we remove it.
-                var withoutCause = new Exception(e.getMessage());
-                listener.onFailure(withoutCause);
+                @Override
+                public void onFailure(Exception e) {
+                    // The underlying root cause is meaningless to the user, but that is what will be shown, so we remove it.
+                    var withoutCause = new Exception(e.getMessage());
+                    listener.onFailure(withoutCause);
+                }
             }
-        });
+        );
     }
 
     private static EsqlGetQueryResponse.DetailedQuery toDetailedQuery(TaskInfo task, ListTasksResponse response) {

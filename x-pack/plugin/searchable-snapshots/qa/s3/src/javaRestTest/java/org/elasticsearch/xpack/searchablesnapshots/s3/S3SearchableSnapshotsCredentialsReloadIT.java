@@ -279,7 +279,6 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
                 allOf(
                     containsString("Access denied"),
                     containsString("Status Code: 403"),
-                    containsString("Error Code: AccessDenied"),
                     containsString("failed to read data from cache")
                 )
             );

@@ -276,11 +276,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
             searchRequest.addParameter("size", "10000");
             assertThat(
                 expectThrows(ResponseException.class, () -> client().performRequest(searchRequest)).getMessage(),
-                allOf(
-                    containsString("Access denied"),
-                    containsString("Status Code: 403"),
-                    containsString("failed to read data from cache")
-                )
+                allOf(containsString("Access denied"), containsString("Status Code: 403"), containsString("failed to read data from cache"))
             );
         }
     }

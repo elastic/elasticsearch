@@ -28,7 +28,6 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
@@ -1602,7 +1601,8 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
+        protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector)
+            throws IOException {
             assert source.equals(CAN_MATCH_SEARCH_SOURCE) == false;
             super.searchLeaf(ctx, minDocId, maxDocId, weight, collector);
         }

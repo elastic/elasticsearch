@@ -560,7 +560,7 @@ Refer to [*Semantic re-ranking*](docs-content://solutions/search/ranking/semanti
 
 ### Prerequisites [_prerequisites_15]
 
-To use `text_similarity_reranker` you must first set up an inference endpoint for the `rerank` task using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put). The endpoint should be set up with a machine learning model that can compute text similarity. Refer to [the Elastic NLP model reference](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-model-ref.md#ml-nlp-model-ref-text-similarity) for a list of third-party text similarity models supported by {{es}}.
+To use `text_similarity_reranker` you can use the preconfigured `.rerank-v1-elasticsearch` inference endpoint, which is the default if no `inference_id` is provided. Alternatively, you can set up a custom inference endpoint for the `rerank` task using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put). The endpoint should be set up with a machine learning model that can compute text similarity. Refer to [the Elastic NLP model reference](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-model-ref.md#ml-nlp-model-ref-text-similarity) for a list of third-party text similarity models supported by {{es}}.
 
 You have the following options:
 
@@ -606,9 +606,9 @@ score = ln(score), if score < 0
 
 
 `inference_id`
-:   (Required, `string`)
+:   (Optional, `string`)
 
-    Unique identifier of the inference endpoint created using the {{infer}} API.
+    Unique identifier of the inference endpoint created using the {{infer}} API. If you don’t specify an inference endpoint, the `inference_id` field defaults to `.rerank-v1-elasticsearch`, a preconfigured endpoint for the elasticsearch `.rerank-v1` model.
 
 
 `inference_text`

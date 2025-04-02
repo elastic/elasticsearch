@@ -398,6 +398,9 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
   method: testBlockLoader {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
   issue: https://github.com/elastic/elasticsearch/issues/126121
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/122707
 
 # Examples:
 #

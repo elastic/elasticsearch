@@ -50,10 +50,7 @@ public class PreAnalyzer {
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
 
-        plan.forEachUp(
-            UnresolvedRelation.class,
-            p -> (p.indexMode() == IndexMode.LOOKUP ? lookupIndices : indices).add(p.indexPattern())
-        );
+        plan.forEachUp(UnresolvedRelation.class, p -> (p.indexMode() == IndexMode.LOOKUP ? lookupIndices : indices).add(p.indexPattern()));
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)

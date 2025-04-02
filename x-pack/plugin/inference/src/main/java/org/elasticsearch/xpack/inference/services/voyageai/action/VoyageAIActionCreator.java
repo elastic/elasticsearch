@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbed
 import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIRerankRequest;
 import org.elasticsearch.xpack.inference.external.response.voyageai.VoyageAIEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.voyageai.VoyageAIRerankResponseEntity;
-import org.elasticsearch.xpack.inference.external.voyageai.VoyageAIResponseHandler;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIResponseHandler;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
 

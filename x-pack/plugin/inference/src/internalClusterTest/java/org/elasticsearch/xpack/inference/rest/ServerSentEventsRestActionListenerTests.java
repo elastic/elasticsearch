@@ -194,11 +194,6 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
 
         @Override
-        public List<? extends InferenceResults> transformToLegacyFormat() {
-            return List.of();
-        }
-
-        @Override
         public Map<String, Object> asMap() {
             return Map.of();
         }
@@ -279,11 +274,6 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
         @Override
         public List<? extends InferenceResults> transformToCoordinationFormat() {
-            return List.of();
-        }
-
-        @Override
-        public List<? extends InferenceResults> transformToLegacyFormat() {
             return List.of();
         }
 

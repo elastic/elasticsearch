@@ -30,13 +30,16 @@ public class AttributeSet implements Set<Attribute> {
         delegate = new AttributeMap<>();
     }
 
+    public AttributeSet(int expectedSize) {
+        delegate = new AttributeMap<>(expectedSize);
+    }
+
     public AttributeSet(Attribute attr) {
         delegate = new AttributeMap<>(attr, PRESENT);
     }
 
     public AttributeSet(Collection<? extends Attribute> attr) {
-        delegate = new AttributeMap<>();
-
+        delegate = new AttributeMap<>(attr.size());
         for (Attribute a : attr) {
             delegate.add(a, PRESENT);
         }

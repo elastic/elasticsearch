@@ -48,11 +48,15 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     public AttributeSet inputSet() {
         if (lazyInputSet == null) {
-            List<Attribute> attrs = new ArrayList<>();
+            int size = 0;
             for (PlanType child : children()) {
-                attrs.addAll(child.output());
+                size += child.output().size();
             }
-            lazyInputSet = new AttributeSet(attrs);
+            var attributes = new AttributeSet(size);
+            for (PlanType child : children()) {
+                attributes.addAll(child.output());
+            }
+            lazyInputSet = attributes;
         }
         return lazyInputSet;
     }

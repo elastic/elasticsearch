@@ -407,6 +407,10 @@ public class WildcardFieldMapper extends FieldMapper {
         public static Query toApproximationQuery(RegExp r) throws IllegalArgumentException {
             Query result = null;
             switch (r.kind) {
+                case REGEXP_CHAR_RANGE:
+                case REGEXP_CHAR_CLASS:
+                    result = createCharacterClassQuery(r);
+                    break;
                 case REGEXP_UNION:
                     result = createUnionQuery(r);
                     break;
@@ -426,7 +430,6 @@ public class WildcardFieldMapper extends FieldMapper {
                     // Repeat is zero or more times so zero matches = match all
                     result = new MatchAllDocsQuery();
                     break;
-
                 case REGEXP_REPEAT_MIN:
                 case REGEXP_REPEAT_MINMAX:
                     if (r.min > 0) {
@@ -453,11 +456,11 @@ public class WildcardFieldMapper extends FieldMapper {
                 case REGEXP_OPTIONAL:
                 case REGEXP_INTERSECTION:
                 case REGEXP_COMPLEMENT:
-                case REGEXP_CHAR_RANGE:
-                case REGEXP_CHAR_CLASS:
                 case REGEXP_ANYCHAR:
                 case REGEXP_INTERVAL:
                 case REGEXP_EMPTY:
+//                case REGEXP_CHAR_RANGE:
+//                case REGEXP_CHAR_CLASS:
                 case REGEXP_AUTOMATON:
                     // case REGEXP_PRE_CLASS:
                     result = new MatchAllDocsQuery();
@@ -497,11 +500,40 @@ public class WildcardFieldMapper extends FieldMapper {
 
         }
 
+        private static Query createCharacterClassQuery(RegExp r) {
+            List<Query> queries = new ArrayList<>();
+            for (int i = 0; i < r.from.length; i++) {
+                if (r.from[i] == r.to[i]) {
+                    String cs = Character.toString(r.from[i]);
+                    String normalizedChar = toLowerCase(cs);
+                    queries.add(new TermQuery(new Term("", normalizedChar)));
+                } else {
+                    for (int j = r.from[i]; j <= r.to[i]; j++) {
+                        String cs = Character.toString(j);
+                        String normalizedChar = toLowerCase(cs);
+                        queries.add(new TermQuery(new Term("", normalizedChar)));
+                        if(queries.size() > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                            break;
+                        }
+                    }
+                    queries.add(new MatchAllDocsQuery());
+                }
+                if(queries.size() > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                    break;
+                }
+            }
+            return formQuery(queries);
+        }
+
         private static Query createUnionQuery(RegExp r) {
             // Create an OR of clauses
-            ArrayList<Query> queries = new ArrayList<>();
-            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
-            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
+            List<Query> queries = new ArrayList<>();
+            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CHAR_CLASS, queries);
+            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CHAR_CLASS, queries);
+            return formQuery(queries);
+        }
+
+        private static Query formQuery(List<Query> queries) {
             BooleanQuery.Builder bOr = new BooleanQuery.Builder();
             HashSet<Query> uniqueClauses = new HashSet<>();
             for (Query query : queries) {

@@ -571,12 +571,12 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             { ".*/etc/passw.*", "+\\/es +esc +sc\\/ +c\\/o +\\/oa +oas +ass +ssw" },
             { ".*etc/passwd", " +esc +sc\\/ +c\\/o +\\/oa +oas +ass +ssw +swc +wc_ +c__" },
             { "(http|ftp)://foo.*", "+\\/\\/\\/ +\\/\\/e +\\/eo +eoo +((+gss +sso) eso)" },
-            {
-                "[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]",
+            { "[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]",
                 "+_oo +oow +owe +weq +eqs +qsg +sge +gek +ekk +kk\\/ +k\\/e +\\/ew +ewe +we_ +e__" },
             { "foo<1-100>bar", "+_eo +eoo +aaq +aq_ +q__" },
             { "(aaa.+&.+bbb)cat", "+cas +as_ +s__" },
-            { ".a", "a__" } };
+            { ".a", "a__" }
+        };
         for (String[] test : acceleratedTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
@@ -600,7 +600,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             "\\s",
             "\\S",
             "\\d",
-            "\\D" };
+            "\\D"
+        };
         for (String regex : matchAllButVerifyTests) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;

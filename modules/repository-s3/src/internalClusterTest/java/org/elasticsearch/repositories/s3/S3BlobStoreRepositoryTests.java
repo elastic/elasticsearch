@@ -20,7 +20,6 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -198,7 +197,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         super.testRequestStats();
     }
 
-    @AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testAbortRequestStats() throws Exception {
         final String repository = createRepository(randomRepositoryName(), false);
 
@@ -711,6 +709,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 assertTrue(s3Request.hasQueryParamOnce(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE));
             }
             if (shouldFailCompleteMultipartUploadRequest.get() && s3Request.isCompleteMultipartUploadRequest()) {
+                trackRequest("PutMultipartObject");
                 try (exchange) {
                     drainInputStream(exchange.getRequestBody());
                     exchange.sendResponseHeaders(

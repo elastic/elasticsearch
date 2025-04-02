@@ -83,7 +83,6 @@ public class CefProcessorTests extends ESTestCase {
         Map<String, Object> invalidSource = new HashMap<>();
         invalidSource.put("message", "Invalid CEF message");
         IngestDocument invalidIngestDocument = new IngestDocument("index", "id", 1L, null, null, invalidSource);
-
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         expectThrows(IllegalArgumentException.class, () -> processor.execute(invalidIngestDocument));
     }
@@ -96,24 +95,30 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "26"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "26"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("source", Map.of("ip", "10.0.0.192", "port", 1232, "bytes", 4294967296L)),
+                    entry("destination", Map.of("ip", "12.121.122.82", "bytes", 4294967296L)),
+                    entry("event", Map.of("id", "1", "code", "100")),
+                    entry("message", message)
                 )
-            ),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("source", Map.of("ip", "10.0.0.192", "port", 1232, "bytes", 4294967296L)),
-            entry("destination", Map.of("ip", "12.121.122.82", "bytes", 4294967296L)),
-            entry("event", Map.of("id", "1", "code", "100")),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testHeaderOnly() {
@@ -123,22 +128,28 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "26"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "26"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testEmptyDeviceFields() {
@@ -148,24 +159,27 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "", "product", "", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry("device", Map.of("vendor", "", "product", "", "version", "1.0", "event_class_id", "100")),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "", "vendor", "", "version", "1.0")),
+                    entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+                    entry("destination", Map.of("ip", "12.121.122.82")),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "", "vendor", "", "version", "1.0")),
-            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
-            entry("destination", Map.of("ip", "12.121.122.82")),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testEscapedPipeInHeader() {
@@ -176,24 +190,30 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "26"),
-                    entry("device", Map.of("vendor", "security", "product", "threat|->manager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "26"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threat|->manager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threat|->manager", "vendor", "security", "version", "1.0")),
+                    entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+                    entry("destination", Map.of("ip", "12.121.122.82")),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threat|->manager", "vendor", "security", "version", "1.0")),
-            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
-            entry("destination", Map.of("ip", "12.121.122.82")),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testEqualsSignInHeader() {
@@ -203,24 +223,30 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "26"),
-                    entry("device", Map.of("vendor", "security", "product", "threat=manager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "26"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threat=manager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threat=manager", "vendor", "security", "version", "1.0")),
+                    entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+                    entry("destination", Map.of("ip", "12.121.122.82")),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threat=manager", "vendor", "security", "version", "1.0")),
-            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
-            entry("destination", Map.of("ip", "12.121.122.82")),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testEmptyExtensionValue() {
@@ -230,23 +256,29 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "26"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "26"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testLeadingWhitespace() {
@@ -256,24 +288,30 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+                    entry("destination", Map.of("ip", "12.121.122.82")),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
-            entry("destination", Map.of("ip", "12.121.122.82")),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testEscapedPipeInExtension() {
@@ -292,23 +330,29 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10"),
-                    entry("extensions", Map.of("moo", "this|has a pipe"))
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10"),
+                            entry("extensions", Map.of("moo", "this|has a pipe"))
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testEqualsInMessage() {
@@ -319,25 +363,31 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10"),
-                    entry("extensions", Map.of("moo", "this =has = equals="))
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10"),
+                            entry("extensions", Map.of("moo", "this =has = equals="))
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("destination", Map.of("ip", "12.121.122.82")),
+                    entry("source", Map.of("port", 1232)),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("destination", Map.of("ip", "12.121.122.82")),
-            entry("source", Map.of("port", 1232)),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testEscapesInExtension() {
@@ -347,23 +397,29 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10"),
-                    entry("extensions", Map.of("x", "c\\d=z"))
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10"),
+                            entry("extensions", Map.of("x", "c\\d=z"))
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("message", "a+b=c")
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("message", "a+b=c")
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testMalformedExtensionEscape() {
@@ -375,32 +431,35 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
                     entry(
-                        "device",
-                        Map.of("vendor", "FooBar", "product", "Web Gateway", "version", "1.2.3.45.67", "event_class_id", "200")
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "FooBar", "product", "Web Gateway", "version", "1.2.3.45.67", "event_class_id", "200")
+                            ),
+                            entry("name", "Success"),
+                            entry("severity", "2"),
+                            entry("extensions", Map.of("deviceCustomString1Label", "Foo Bar", "deviceEventCategory", "Access Log"))
+                        )
                     ),
-                    entry("name", "Success"),
-                    entry("severity", "2"),
-                    entry("extensions", Map.of("deviceCustomString1Label", "Foo Bar", "deviceEventCategory", "Access Log"))
+                    entry("event", Map.of("code", "200")),
+                    entry("observer", Map.of("product", "Web Gateway", "vendor", "FooBar", "version", "1.2.3.45.67")),
+                    entry("@timestamp", ZonedDateTime.parse("2018-09-07T14:50:39Z")),
+                    entry("destination", Map.of("ip", "1.1.1.1", "domain", "foo.example.com")),
+                    entry("source", Map.of("ip", "2.2.2.2", "user", Map.of("name", "redacted"))),
+                    entry("http", Map.of("request", Map.of("method", "POST"))),
+                    entry("url", Map.of("original", "'https://foo.example.com/bar/bingo/1'")),
+                    entry("user_agent", Map.of("original", "'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='")),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "200")),
-            entry("observer", Map.of("product", "Web Gateway", "vendor", "FooBar", "version", "1.2.3.45.67")),
-            entry("@timestamp", ZonedDateTime.parse("2018-09-07T14:50:39Z")),
-            entry("destination", Map.of("ip", "1.1.1.1", "domain", "foo.example.com")),
-            entry("source", Map.of("ip", "2.2.2.2", "user", Map.of("name", "redacted"))),
-            entry("http", Map.of("request", Map.of("method", "POST"))),
-            entry("url", Map.of("original", "'https://foo.example.com/bar/bingo/1'")),
-            entry("user_agent", Map.of("original", "'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='")),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testMultipleMalformedExtensionValues() {
@@ -411,23 +470,29 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "vendor", "product", "product", "version", "version", "event_class_id", "event_id")),
-                    entry("name", "name"),
-                    entry("severity", "Very-High"),
-                    entry("extensions", Map.of("id", "=old_id", "user", "root", "angle", "106.7<=180", "error", "Failed because"))
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "vendor", "product", "product", "version", "version", "event_class_id", "event_id")
+                            ),
+                            entry("name", "name"),
+                            entry("severity", "Very-High"),
+                            entry("extensions", Map.of("id", "=old_id", "user", "root", "angle", "106.7<=180", "error", "Failed because"))
+                        )
+                    ),
+                    entry("event", Map.of("code", "event_id")),
+                    entry("observer", Map.of("product", "product", "vendor", "vendor", "version", "version")),
+                    entry("message", "Hello World")
                 )
-            ),
-            entry("event", Map.of("code", "event_id")),
-            entry("observer", Map.of("product", "product", "vendor", "vendor", "version", "version")),
-            entry("message", "Hello World")
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testPaddedMessage() {
@@ -438,23 +503,29 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "message is padded"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "message is padded"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
+                    entry("message", "Trailing space in non-final extensions is  preserved")
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
-            entry("message", "Trailing space in non-final extensions is  preserved")
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testCrlfMessage() {
@@ -465,24 +536,30 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "message is padded"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "message is padded"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("source", Map.of("port", 1232)),
+                    entry("message", "Trailing space in final extensions is not preserved"),
+                    entry("destination", Map.of("port", 1234))
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("source", Map.of("port", 1232)),
-            entry("message", "Trailing space in final extensions is not preserved"),
-            entry("destination", Map.of("port", 1234))
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testTabMessage() {
@@ -493,23 +570,29 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "message is padded"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "message is padded"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("source", Map.of("port", 1232, "ip", "127.0.0.1")),
+                    entry("message", "Tabs\tand\rcontrol\ncharacters are preserved")
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("source", Map.of("port", 1232, "ip", "127.0.0.1")),
-            entry("message", "Tabs\tand\rcontrol\ncharacters are preserved")
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testTabNoSepMessage() {
@@ -519,23 +602,29 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "message has tabs"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "message has tabs"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("source", Map.of("port", 1232, "ip", "127.0.0.1")),
+                    entry("message", "Tab is not a separator")
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("source", Map.of("port", 1232, "ip", "127.0.0.1")),
-            entry("message", "Tab is not a separator")
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testEscapedMessage() {
@@ -546,27 +635,35 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
                     entry(
-                        "device",
-                        Map.of("vendor", "security\\compliance", "product", "threat|->manager", "version", "1.0", "event_class_id", "100")
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.ofEntries(
+                                    entry("vendor", "security\\compliance"),
+                                    entry("product", "threat|->manager"),
+                                    entry("version", "1.0"),
+                                    entry("event_class_id", "100")
+                                )
+                            ),
+                            entry("name", "message contains escapes"),
+                            entry("severity", "10")
+                        )
                     ),
-                    entry("name", "message contains escapes"),
-                    entry("severity", "10")
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threat|->manager", "vendor", "security\\compliance", "version", "1.0")),
+                    entry("source", Map.of("port", 1232)),
+                    entry("message", "Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=."),
+                    entry("destination", Map.of("port", 4432))
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threat|->manager", "vendor", "security\\compliance", "version", "1.0")),
-            entry("source", Map.of("port", 1232)),
-            entry("message", "Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=."),
-            entry("destination", Map.of("port", 4432))
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testTruncatedHeader() {
@@ -577,32 +674,35 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "SentinelOne", "product", "Mgmt")),
                     entry(
-                        "extensions",
+                        "cef",
                         Map.ofEntries(
-                            entry("activityID", "1111111111111111111"),
-                            entry("activityType", "3505"),
-                            entry("siteId", "None"),
-                            entry("siteName", "None"),
-                            entry("accountId", "1222222222222222222"),
-                            entry("accountName", "foo-bar mdr"),
-                            entry("notificationScope", "ACCOUNT")
+                            entry("version", "0"),
+                            entry("device", Map.of("vendor", "SentinelOne", "product", "Mgmt")),
+                            entry(
+                                "extensions",
+                                Map.ofEntries(
+                                    entry("activityID", "1111111111111111111"),
+                                    entry("activityType", "3505"),
+                                    entry("siteId", "None"),
+                                    entry("siteName", "None"),
+                                    entry("accountId", "1222222222222222222"),
+                                    entry("accountName", "foo-bar mdr"),
+                                    entry("notificationScope", "ACCOUNT")
+                                )
+                            )
                         )
-                    )
+                    ),
+                    entry("observer", Map.of("product", "Mgmt", "vendor", "SentinelOne")),
+                    entry("message", message),
+                    entry("error", Map.of("message", Set.of("incomplete CEF header")))
                 )
-            ),
-            entry("observer", Map.of("product", "Mgmt", "vendor", "SentinelOne")),
-            entry("message", message),
-            entry("error", Map.of("message", Set.of("incomplete CEF header")))
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testRemoveEmptyValueInExtension() {
@@ -612,23 +712,29 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "26"),
-                    entry("device", Map.of("vendor", "security", "product", "threat=manager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10")
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "26"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threat=manager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10")
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threat=manager", "vendor", "security", "version", "1.0")),
+                    entry("destination", Map.of("ip", "12.121.122.82")),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threat=manager", "vendor", "security", "version", "1.0")),
-            entry("destination", Map.of("ip", "12.121.122.82")),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testHyphenInExtensionKey() {
@@ -638,23 +744,29 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "26"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10"),
-                    entry("extensions", Map.of("Some-Key", "123456"))
+                    entry(
+                        "cef",
+                        Map.ofEntries(
+                            entry("version", "26"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10"),
+                            entry("extensions", Map.of("Some-Key", "123456"))
+                        )
+                    ),
+                    entry("event", Map.of("code", "100")),
+                    entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
+                    entry("message", message)
                 )
-            ),
-            entry("event", Map.of("code", "100")),
-            entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-            entry("message", message)
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     public void testAllFieldsInExtension() {
@@ -699,201 +811,207 @@ public class CefProcessorTests extends ESTestCase {
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
         processor.execute(document);
-
-        Map<String, Object> expectedMap = Map.ofEntries(
-            entry(
-                "cef",
+        assertThat(
+            document.getSource(),
+            equalTo(
                 Map.ofEntries(
-                    entry("version", "0"),
-                    entry("device", Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")),
-                    entry("name", "trojan successfully stopped"),
-                    entry("severity", "10"),
                     entry(
-                        "extensions",
+                        "cef",
                         Map.ofEntries(
-                            entry("deviceNtDomain", "example.org"),
-                            entry("agentZoneExternalID", "zoneExtId"),
-                            entry("agentTimeZone", "UTC"),
-                            entry("deviceCustomIPv6Address1Label", "c6a1Label"),
-                            entry("deviceCustomString1", "customString1"),
-                            entry("deviceCustomIPv6Address2Label", "c6a2Label"),
-                            entry("deviceCustomNumber3", 345L),
-                            entry("deviceCustomFloatingPoint1", 1.23f),
-                            entry("deviceCustomNumber2", 234L),
-                            entry("deviceCustomFloatingPoint2", 2.34f),
-                            entry("deviceCustomFloatingPoint3", 3.45f),
-                            entry("deviceCustomFloatingPoint4", 4.56f),
-                            entry("flexDate1", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
-                            entry("destinationTranslatedZoneExternalID", "destExtId"),
-                            entry("deviceCustomNumber1", 123L),
-                            entry("deviceEventCategory", "category"),
-                            entry("deviceCustomString6Label", "cs6Label"),
-                            entry("deviceCustomNumber2Label", "cn2Label"),
-                            entry("flexString1Label", "flexString1Label"),
-                            entry("deviceCustomString5Label", "cs5Label"),
-                            entry("agentZoneURI", "zoneUri"),
-                            entry("deviceCustomString2Label", "cs2Label"),
-                            entry("deviceCustomDate2Label", "customDate2Label"),
-                            entry("deviceCustomNumber1Label", "cn1Label"),
-                            entry("oldFileType", "oldType"),
-                            entry("destinationZoneExternalID", "destZoneExtId"),
-                            entry("categoryDeviceType", "catDeviceType"),
-                            entry("deviceZoneURI", "zoneUri"),
-                            entry("sourceTranslatedZoneExternalID", "sourceExtId"),
-                            entry("agentTranslatedAddress", "10.0.0.1"),
-                            entry("requestCookies", "cookies"),
-                            entry("deviceCustomIPv6Address3", "2001:db8::3"),
-                            entry("oldFilePath", "/old/path"),
-                            entry("deviceCustomIPv6Address2", "2001:db8::2"),
-                            entry("deviceCustomIPv6Address1", "2001:db8::1"),
-                            entry("oldFileId", "oldId"),
-                            entry("deviceTranslatedZoneExternalID", "transExtId"),
-                            entry("deviceCustomFloatingPoint2Label", "cfp2Label"),
-                            entry("deviceTranslatedZoneURI", "transUri"),
-                            entry("deviceCustomIPv6Address4Label", "c6a4Label"),
-                            entry("agentTranslatedZoneURI", "uri"),
-                            entry("oldFilePermission", "rw-r--r--"),
-                            entry("deviceCustomIPv6Address4", "2001:db8::4"),
-                            entry("sourceZoneURI", "sourceZoneUri"),
-                            entry("deviceCustomFloatingPoint3Label", "cfp3Label"),
-                            entry("agentTranslatedZoneExternalID", "ext123"),
-                            entry("destinationZoneURI", "destZoneUri"),
-                            entry("flexDate1Label", "flexDate1Label"),
-                            entry("agentNtDomain", "example.org"),
-                            entry("deviceCustomDate2", ZonedDateTime.parse("2021-06-01T11:45Z")),
-                            entry("deviceCustomDate1", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
-                            entry("deviceCustomString3Label", "cs3Label"),
-                            entry("deviceCustomDate1Label", "customDate1Label"),
-                            entry("destinationTranslatedZoneURI", "destUri"),
-                            entry("oldFileModificationTime", ZonedDateTime.parse("2021-06-01T11:45Z")),
-                            entry("deviceCustomFloatingPoint1Label", "cfp1Label"),
-                            entry("deviceCustomIPv6Address3Label", "c6a3Label"),
-                            entry("deviceCustomFloatingPoint4Label", "cfp4Label"),
-                            entry("oldFileSize", 2048),
-                            entry("externalId", "extId"),
-                            entry("baseEventCount", 1234),
-                            entry("flexString2", "flexString2"),
-                            entry("deviceCustomNumber3Label", "cn3Label"),
-                            entry("flexString1", "flexString1"),
-                            entry("deviceCustomString4Label", "cs4Label"),
-                            entry("flexString2Label", "flexString2Label"),
-                            entry("deviceCustomString3", "customString3"),
-                            entry("deviceCustomString2", "customString2"),
-                            entry("deviceCustomString1Label", "cs1Label"),
-                            entry("deviceCustomString5", "customString5"),
-                            entry("deviceCustomString4", "customString4"),
-                            entry("deviceZoneExternalID", "zoneExtId"),
-                            entry("deviceCustomString6", "customString6"),
-                            entry("oldFileName", "oldFile"),
-                            entry("sourceZoneExternalID", "sourceZoneExtId"),
-                            entry("oldFileHash", "oldHash"),
-                            entry("sourceTranslatedZoneURI", "sourceUri"),
-                            entry("oldFileCreateTime", ZonedDateTime.parse("2021-06-01T11:43:20Z"))
+                            entry("version", "0"),
+                            entry(
+                                "device",
+                                Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
+                            ),
+                            entry("name", "trojan successfully stopped"),
+                            entry("severity", "10"),
+                            entry(
+                                "extensions",
+                                Map.ofEntries(
+                                    entry("deviceNtDomain", "example.org"),
+                                    entry("agentZoneExternalID", "zoneExtId"),
+                                    entry("agentTimeZone", "UTC"),
+                                    entry("deviceCustomIPv6Address1Label", "c6a1Label"),
+                                    entry("deviceCustomString1", "customString1"),
+                                    entry("deviceCustomIPv6Address2Label", "c6a2Label"),
+                                    entry("deviceCustomNumber3", 345L),
+                                    entry("deviceCustomFloatingPoint1", 1.23f),
+                                    entry("deviceCustomNumber2", 234L),
+                                    entry("deviceCustomFloatingPoint2", 2.34f),
+                                    entry("deviceCustomFloatingPoint3", 3.45f),
+                                    entry("deviceCustomFloatingPoint4", 4.56f),
+                                    entry("flexDate1", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                                    entry("destinationTranslatedZoneExternalID", "destExtId"),
+                                    entry("deviceCustomNumber1", 123L),
+                                    entry("deviceEventCategory", "category"),
+                                    entry("deviceCustomString6Label", "cs6Label"),
+                                    entry("deviceCustomNumber2Label", "cn2Label"),
+                                    entry("flexString1Label", "flexString1Label"),
+                                    entry("deviceCustomString5Label", "cs5Label"),
+                                    entry("agentZoneURI", "zoneUri"),
+                                    entry("deviceCustomString2Label", "cs2Label"),
+                                    entry("deviceCustomDate2Label", "customDate2Label"),
+                                    entry("deviceCustomNumber1Label", "cn1Label"),
+                                    entry("oldFileType", "oldType"),
+                                    entry("destinationZoneExternalID", "destZoneExtId"),
+                                    entry("categoryDeviceType", "catDeviceType"),
+                                    entry("deviceZoneURI", "zoneUri"),
+                                    entry("sourceTranslatedZoneExternalID", "sourceExtId"),
+                                    entry("agentTranslatedAddress", "10.0.0.1"),
+                                    entry("requestCookies", "cookies"),
+                                    entry("deviceCustomIPv6Address3", "2001:db8::3"),
+                                    entry("oldFilePath", "/old/path"),
+                                    entry("deviceCustomIPv6Address2", "2001:db8::2"),
+                                    entry("deviceCustomIPv6Address1", "2001:db8::1"),
+                                    entry("oldFileId", "oldId"),
+                                    entry("deviceTranslatedZoneExternalID", "transExtId"),
+                                    entry("deviceCustomFloatingPoint2Label", "cfp2Label"),
+                                    entry("deviceTranslatedZoneURI", "transUri"),
+                                    entry("deviceCustomIPv6Address4Label", "c6a4Label"),
+                                    entry("agentTranslatedZoneURI", "uri"),
+                                    entry("oldFilePermission", "rw-r--r--"),
+                                    entry("deviceCustomIPv6Address4", "2001:db8::4"),
+                                    entry("sourceZoneURI", "sourceZoneUri"),
+                                    entry("deviceCustomFloatingPoint3Label", "cfp3Label"),
+                                    entry("agentTranslatedZoneExternalID", "ext123"),
+                                    entry("destinationZoneURI", "destZoneUri"),
+                                    entry("flexDate1Label", "flexDate1Label"),
+                                    entry("agentNtDomain", "example.org"),
+                                    entry("deviceCustomDate2", ZonedDateTime.parse("2021-06-01T11:45Z")),
+                                    entry("deviceCustomDate1", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                                    entry("deviceCustomString3Label", "cs3Label"),
+                                    entry("deviceCustomDate1Label", "customDate1Label"),
+                                    entry("destinationTranslatedZoneURI", "destUri"),
+                                    entry("oldFileModificationTime", ZonedDateTime.parse("2021-06-01T11:45Z")),
+                                    entry("deviceCustomFloatingPoint1Label", "cfp1Label"),
+                                    entry("deviceCustomIPv6Address3Label", "c6a3Label"),
+                                    entry("deviceCustomFloatingPoint4Label", "cfp4Label"),
+                                    entry("oldFileSize", 2048),
+                                    entry("externalId", "extId"),
+                                    entry("baseEventCount", 1234),
+                                    entry("flexString2", "flexString2"),
+                                    entry("deviceCustomNumber3Label", "cn3Label"),
+                                    entry("flexString1", "flexString1"),
+                                    entry("deviceCustomString4Label", "cs4Label"),
+                                    entry("flexString2Label", "flexString2Label"),
+                                    entry("deviceCustomString3", "customString3"),
+                                    entry("deviceCustomString2", "customString2"),
+                                    entry("deviceCustomString1Label", "cs1Label"),
+                                    entry("deviceCustomString5", "customString5"),
+                                    entry("deviceCustomString4", "customString4"),
+                                    entry("deviceZoneExternalID", "zoneExtId"),
+                                    entry("deviceCustomString6", "customString6"),
+                                    entry("oldFileName", "oldFile"),
+                                    entry("sourceZoneExternalID", "sourceZoneExtId"),
+                                    entry("oldFileHash", "oldHash"),
+                                    entry("sourceTranslatedZoneURI", "sourceUri"),
+                                    entry("oldFileCreateTime", ZonedDateTime.parse("2021-06-01T11:43:20Z"))
+                                )
+                            )
                         )
-                    )
+                    ),
+                    entry("host", Map.of("nat", Map.of("ip", "10.0.0.3"))),
+                    entry("log", Map.of("syslog", Map.of("facility", Map.of("code", 16L)))),
+                    entry(
+                        "observer",
+                        Map.ofEntries(
+                            entry("ingress", Map.of("interface", Map.of("name", "eth0"))),
+                            entry("registered_domain", "example.com"),
+                            entry("product", "threatmanager"),
+                            entry("hostname", "host1"),
+                            entry("vendor", "security"),
+                            entry("ip", "192.168.0.3"),
+                            entry("name", "extId"),
+                            entry("version", "1.0"),
+                            entry("mac", "00:0a:95:9d:68:16"),
+                            entry("egress", Map.of("interface", Map.of("name", "eth1")))
+                        )
+                    ),
+                    entry(
+                        "agent",
+                        Map.ofEntries(
+                            entry("ip", "192.168.0.1"),
+                            entry("name", "example.com"),
+                            entry("id", "agentId"),
+                            entry("type", "agentType"),
+                            entry("version", "1.0"),
+                            entry("mac", "00:0a:95:9d:68:16")
+                        )
+                    ),
+                    entry("process", Map.of("name", "procName", "pid", 5678L)),
+                    entry(
+                        "destination",
+                        Map.ofEntries(
+                            entry("nat", Map.of("port", 8080, "ip", "10.0.0.2")),
+                            entry("geo", Map.of("location", Map.of("lon", -122.4194, "lat", 37.7749))),
+                            entry("registered_domain", "destNtDomain"),
+                            entry("process", Map.of("name", "destProc", "pid", 1234L)),
+                            entry("port", 80),
+                            entry("bytes", 91011L),
+                            entry("service", Map.of("name", "destService")),
+                            entry("domain", "destHost"),
+                            entry("ip", "192.168.0.2"),
+                            entry("user", Map.of("name", "destUser", "id", "destUserId", "group", Map.of("name", "admin"))),
+                            entry("mac", "00:0a:95:9d:68:16")
+                        )
+                    ),
+                    entry(
+                        "source",
+                        Map.ofEntries(
+                            entry("geo", Map.of("location", Map.of("lon", -122.4194, "lat", 37.7749))),
+                            entry("nat", Map.of("port", 8081, "ip", "10.0.0.4")),
+                            entry("registered_domain", "sourceNtDomain"),
+                            entry("process", Map.of("name", "sourceProc", "pid", 1234L)),
+                            entry("port", 443),
+                            entry("service", Map.of("name", "sourceService")),
+                            entry("bytes", 5678L),
+                            entry("ip", "192.168.0.4"),
+                            entry("domain", "sourceDomain"),
+                            entry("user", Map.of("name", "sourceUser", "id", "sourceUserId", "group", Map.of("name", "sourcePriv"))),
+                            entry("mac", "00:0a:95:9d:68:16")
+                        )
+                    ),
+                    entry("message", "message"),
+                    entry("url", Map.of("original", "url")),
+                    entry("network", Map.of("protocol", "HTTP", "transport", "TCP", "direction", "inbound")),
+                    entry(
+                        "file",
+                        Map.ofEntries(
+                            entry("inode", "5678"),
+                            entry("path", "/path/to/file"),
+                            entry("size", 1024L),
+                            entry("created", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                            entry("name", "file.txt"),
+                            entry("mtime", ZonedDateTime.parse("2021-06-01T11:45Z")),
+                            entry("type", "txt"),
+                            entry("hash", "abcd1234"),
+                            entry("group", "rw-r--r--")
+                        )
+                    ),
+                    entry("@timestamp", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                    entry("organization", Map.of("name", "custUri", "id", "custExtId")),
+                    entry(
+                        "event",
+                        Map.ofEntries(
+                            entry("action", "blocked"),
+                            entry("timezone", "UTC"),
+                            entry("end", ZonedDateTime.parse("2021-06-01T11:45Z")),
+                            entry("id", "evt123"),
+                            entry("outcome", "success"),
+                            entry("start", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                            entry("reason", "reason"),
+                            entry("ingested", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                            entry("kind", 1),
+                            entry("original", "rawEvent"),
+                            entry("created", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
+                            entry("code", "100")
+                        )
+                    ),
+                    entry("user_agent", Map.of("original", "Mozilla")),
+                    entry("http", Map.of("request", Map.of("referrer", "referrer", "method", "GET")))
                 )
-            ),
-            entry("host", Map.of("nat", Map.of("ip", "10.0.0.3"))),
-            entry("log", Map.of("syslog", Map.of("facility", Map.of("code", 16L)))),
-            entry(
-                "observer",
-                Map.ofEntries(
-                    entry("ingress", Map.of("interface", Map.of("name", "eth0"))),
-                    entry("registered_domain", "example.com"),
-                    entry("product", "threatmanager"),
-                    entry("hostname", "host1"),
-                    entry("vendor", "security"),
-                    entry("ip", "192.168.0.3"),
-                    entry("name", "extId"),
-                    entry("version", "1.0"),
-                    entry("mac", "00:0a:95:9d:68:16"),
-                    entry("egress", Map.of("interface", Map.of("name", "eth1")))
-                )
-            ),
-            entry(
-                "agent",
-                Map.ofEntries(
-                    entry("ip", "192.168.0.1"),
-                    entry("name", "example.com"),
-                    entry("id", "agentId"),
-                    entry("type", "agentType"),
-                    entry("version", "1.0"),
-                    entry("mac", "00:0a:95:9d:68:16")
-                )
-            ),
-            entry("process", Map.of("name", "procName", "pid", 5678L)),
-            entry(
-                "destination",
-                Map.ofEntries(
-                    entry("nat", Map.of("port", 8080, "ip", "10.0.0.2")),
-                    entry("geo", Map.of("location", Map.of("lon", -122.4194, "lat", 37.7749))),
-                    entry("registered_domain", "destNtDomain"),
-                    entry("process", Map.of("name", "destProc", "pid", 1234L)),
-                    entry("port", 80),
-                    entry("bytes", 91011L),
-                    entry("service", Map.of("name", "destService")),
-                    entry("domain", "destHost"),
-                    entry("ip", "192.168.0.2"),
-                    entry("user", Map.of("name", "destUser", "id", "destUserId", "group", Map.of("name", "admin"))),
-                    entry("mac", "00:0a:95:9d:68:16")
-                )
-            ),
-            entry(
-                "source",
-                Map.ofEntries(
-                    entry("geo", Map.of("location", Map.of("lon", -122.4194, "lat", 37.7749))),
-                    entry("nat", Map.of("port", 8081, "ip", "10.0.0.4")),
-                    entry("registered_domain", "sourceNtDomain"),
-                    entry("process", Map.of("name", "sourceProc", "pid", 1234L)),
-                    entry("port", 443),
-                    entry("service", Map.of("name", "sourceService")),
-                    entry("bytes", 5678L),
-                    entry("ip", "192.168.0.4"),
-                    entry("domain", "sourceDomain"),
-                    entry("user", Map.of("name", "sourceUser", "id", "sourceUserId", "group", Map.of("name", "sourcePriv"))),
-                    entry("mac", "00:0a:95:9d:68:16")
-                )
-            ),
-            entry("message", "message"),
-            entry("url", Map.of("original", "url")),
-            entry("network", Map.of("protocol", "HTTP", "transport", "TCP", "direction", "inbound")),
-            entry(
-                "file",
-                Map.ofEntries(
-                    entry("inode", "5678"),
-                    entry("path", "/path/to/file"),
-                    entry("size", 1024L),
-                    entry("created", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
-                    entry("name", "file.txt"),
-                    entry("mtime", ZonedDateTime.parse("2021-06-01T11:45Z")),
-                    entry("type", "txt"),
-                    entry("hash", "abcd1234"),
-                    entry("group", "rw-r--r--")
-                )
-            ),
-            entry("@timestamp", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
-            entry("organization", Map.of("name", "custUri", "id", "custExtId")),
-            entry(
-                "event",
-                Map.ofEntries(
-                    entry("action", "blocked"),
-                    entry("timezone", "UTC"),
-                    entry("end", ZonedDateTime.parse("2021-06-01T11:45Z")),
-                    entry("id", "evt123"),
-                    entry("outcome", "success"),
-                    entry("start", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
-                    entry("reason", "reason"),
-                    entry("ingested", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
-                    entry("kind", 1),
-                    entry("original", "rawEvent"),
-                    entry("created", ZonedDateTime.parse("2021-06-01T11:43:20Z")),
-                    entry("code", "100")
-                )
-            ),
-            entry("user_agent", Map.of("original", "Mozilla")),
-            entry("http", Map.of("request", Map.of("referrer", "referrer", "method", "GET")))
+            )
         );
-        assertThat(document.getSource(), equalTo(expectedMap));
     }
 
     // Date parsing tests

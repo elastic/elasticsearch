@@ -119,17 +119,34 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return matchesRegex(
-            "LuceneSourceOperator"
-                + "\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, needsScore = (true|false)]"
+            "LuceneSourceOperator\\["
+                + "dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), "
+                + "maxPageSize = \\d+, "
+                + "limit = 100, "
+                + "needsScore = (true|false)]"
         );
     }
 
-    // TODO tests for the other data partitioning configurations
+    public void testAutoPartitioning() {
+        testSimple(DataPartitioning.AUTO);
+    }
 
-    public void testShardDataPartitioning() {
+    public void testShardPartitioning() {
+        testSimple(DataPartitioning.SHARD);
+    }
+
+    public void testSegmentPartitioning() {
+        testSimple(DataPartitioning.SEGMENT);
+    }
+
+    public void testDocPartitioning() {
+        testSimple(DataPartitioning.DOC);
+    }
+
+    private void testSimple(DataPartitioning partitioning) {
         int size = between(1_000, 20_000);
         int limit = between(10, size);
-        testSimple(driverContext(), size, limit);
+        testSimple(driverContext(), partitioning, size, limit);
     }
 
     public void testEarlyTermination() {
@@ -168,22 +185,12 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testEmpty() {
-        testSimple(driverContext(), 0, between(10, 10_000));
-    }
-
-    public void testWithCranky() {
-        try {
-            testSimple(crankyDriverContext(), between(1, 10_000), 100);
-            logger.info("cranky didn't break");
-        } catch (CircuitBreakingException e) {
-            logger.info("broken", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
+        testSimple(driverContext(), randomFrom(DataPartitioning.values()), 0, between(10, 10_000));
     }
 
     public void testEmptyWithCranky() {
         try {
-            testSimple(crankyDriverContext(), 0, between(10, 10_000));
+            testSimple(crankyDriverContext(), randomFrom(DataPartitioning.values()), 0, between(10, 10_000));
             logger.info("cranky didn't break");
         } catch (CircuitBreakingException e) {
             logger.info("broken", e);
@@ -191,11 +198,27 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
     }
 
-    public void testShardDataPartitioningWithCranky() {
+    public void testAutoPartitioningWithCranky() {
+        testWithCranky(DataPartitioning.AUTO);
+    }
+
+    public void testShardPartitioningWithCranky() {
+        testWithCranky(DataPartitioning.SHARD);
+    }
+
+    public void testSegmentPartitioningWithCranky() {
+        testWithCranky(DataPartitioning.SEGMENT);
+    }
+
+    public void testDocPartitioningWithCranky() {
+        testWithCranky(DataPartitioning.DOC);
+    }
+
+    private void testWithCranky(DataPartitioning partitioning) {
         int size = between(1_000, 20_000);
         int limit = between(10, size);
         try {
-            testSimple(crankyDriverContext(), size, limit);
+            testSimple(crankyDriverContext(), partitioning, size, limit);
             logger.info("cranky didn't break");
         } catch (CircuitBreakingException e) {
             logger.info("broken", e);
@@ -203,8 +226,8 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
     }
 
-    private void testSimple(DriverContext ctx, int size, int limit) {
-        LuceneSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit, scoring);
+    private void testSimple(DriverContext ctx, DataPartitioning partitioning, int size, int limit) {
+        LuceneSourceOperator.Factory factory = simple(partitioning, size, limit, scoring);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();

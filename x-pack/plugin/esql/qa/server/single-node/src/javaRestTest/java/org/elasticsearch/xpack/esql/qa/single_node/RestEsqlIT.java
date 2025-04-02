@@ -687,7 +687,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
-                .entry("processed_queries", List.of("*:*"));
+                .entry("processed_queries", List.of("*:*"))
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))

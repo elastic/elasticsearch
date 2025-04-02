@@ -49,7 +49,16 @@ public class LuceneCountOperator extends LuceneOperator {
             int taskConcurrency,
             int limit
         ) {
-            super(contexts, weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES), dataPartitioning, taskConcurrency, limit, false);
+            super(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                taskConcurrency,
+                limit,
+                false,
+                ScoreMode.COMPLETE_NO_SCORES
+            );
         }
 
         @Override

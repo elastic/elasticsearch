@@ -102,6 +102,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
         clone.retrieverName = this.retrieverName;
+        clone.minScore = this.minScore;
         for (int i = 0; i < newRetrievers.size() && i < this.innerRetrievers.size(); i++) {
             if (this.innerRetrievers.get(i).retriever().retrieverName() != null) {
                 newRetrievers.get(i).retriever().retrieverName(this.innerRetrievers.get(i).retriever().retrieverName());
@@ -168,11 +169,17 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         // sort the results based on rrf score, tiebreaker based on smaller doc id
         RRFRankDoc[] sortedResults = docsToRankResults.values().toArray(RRFRankDoc[]::new);
         Arrays.sort(sortedResults);
-        // trim the results if needed, otherwise each shard will always return `rank_window_sieze` results.
+
+        // Store total hits before applying rank window size
+        int totalHits = sortedResults.length;
+
+        // Apply rank window size
         RRFRankDoc[] topResults = new RRFRankDoc[Math.min(rankWindowSize, sortedResults.length)];
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedResults[rank];
             topResults[rank].rank = rank + 1;
+            // Store total hits in each doc for coordinator to use
+            topResults[rank].totalHits = totalHits;
         }
         return topResults;
     }

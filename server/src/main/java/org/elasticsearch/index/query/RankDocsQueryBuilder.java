@@ -48,6 +48,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     private final QueryBuilder[] queryBuilders;
     private final boolean onlyRankDocs;
     private final float minScore;
+    private boolean countFilteredHits = false;
 
     public RankDocsQueryBuilder(RankDoc[] rankDocs, QueryBuilder[] queryBuilders, boolean onlyRankDocs) {
         this(rankDocs, queryBuilders, onlyRankDocs, DEFAULT_MIN_SCORE);
@@ -67,10 +68,16 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
             this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
             this.onlyRankDocs = in.readBoolean();
             this.minScore = in.readFloat();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
+                this.countFilteredHits = in.readBoolean();
+            } else {
+                this.countFilteredHits = false;
+            }
         } else {
             this.queryBuilders = null;
             this.onlyRankDocs = false;
             this.minScore = DEFAULT_MIN_SCORE;
+            this.countFilteredHits = false;
         }
     }
 
@@ -112,6 +119,9 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
             out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
             out.writeBoolean(onlyRankDocs);
             out.writeFloat(minScore);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
+                out.writeBoolean(countFilteredHits);
+            }
         }
     }
 
@@ -139,7 +149,12 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
             queries = new Query[0];
             queryNames = Strings.EMPTY_ARRAY;
         }
-        return new RankDocsQuery(reader, shardRankDocs, queries, queryNames, onlyRankDocs, minScore);
+        
+        RankDocsQuery query = new RankDocsQuery(reader, shardRankDocs, queries, queryNames, onlyRankDocs, minScore);
+        if (countFilteredHits) {
+            query.setCountFilteredHits(true);
+        }
+        return query;
     }
 
     @Override
@@ -160,16 +175,30 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
         return Arrays.equals(rankDocs, other.rankDocs)
             && Arrays.equals(queryBuilders, other.queryBuilders)
             && onlyRankDocs == other.onlyRankDocs
-            && minScore == other.minScore;
+            && minScore == other.minScore
+            && countFilteredHits == other.countFilteredHits;
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(Arrays.hashCode(rankDocs), Arrays.hashCode(queryBuilders), onlyRankDocs, minScore);
+        return Objects.hash(Arrays.hashCode(rankDocs), Arrays.hashCode(queryBuilders), onlyRankDocs, minScore, countFilteredHits);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_16_0;
+    }
+
+    /**
+     * Sets whether this query should count only documents that pass the min_score filter.
+     * When true, the total hits count will reflect the number of documents meeting the minimum score threshold.
+     * When false (default), the total hits count will include all matching documents regardless of score.
+     * 
+     * @param countFilteredHits true to count only documents passing min_score, false to count all matches
+     * @return this builder
+     */
+    public RankDocsQueryBuilder setCountFilteredHits(boolean countFilteredHits) {
+        this.countFilteredHits = countFilteredHits;
+        return this;
     }
 }

@@ -22,6 +22,21 @@ public class IdentityScoreNormalizer extends ScoreNormalizer {
 
     @Override
     public ScoreDoc[] normalizeScores(ScoreDoc[] docs) {
-        return docs;
+        if (docs == null || docs.length == 0) {
+            return docs;
+        }
+        
+        // Create a new array to avoid modifying input
+        ScoreDoc[] normalizedDocs = new ScoreDoc[docs.length];
+        for (int i = 0; i < docs.length; i++) {
+            ScoreDoc doc = docs[i];
+            if (doc == null) {
+                normalizedDocs[i] = new ScoreDoc(0, 0.0f, 0);
+            } else {
+                float score = Float.isNaN(doc.score) ? 0.0f : doc.score;
+                normalizedDocs[i] = new ScoreDoc(doc.doc, score, doc.shardIndex);
+            }
+        }
+        return normalizedDocs;
     }
 }

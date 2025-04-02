@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangeType;
 
 import java.util.Arrays;
 import java.util.Random;

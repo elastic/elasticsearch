@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangeType;
 
 import java.util.Map;
 import java.util.Optional;

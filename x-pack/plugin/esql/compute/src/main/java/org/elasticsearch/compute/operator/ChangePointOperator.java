@@ -16,8 +16,8 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangeType;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector;
-import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 
 import java.util.ArrayList;
 import java.util.Deque;

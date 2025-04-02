@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangeType;
 import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.io.IOException;

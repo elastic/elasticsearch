@@ -364,9 +364,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);
 
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                SocketAccess.doPrivilegedVoid(() -> {
-                    clientReference.client().copyObject(copyRequest);
-                });
+                SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
             } catch (final AmazonClientException e) {
                 throw new IOException(
                     "Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]",
@@ -686,9 +684,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             S3BlobStore.configureRequestForMetrics(request, blobStore, Operation.COPY_MULTIPART_OBJECT, purpose);
 
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                final var result = SocketAccess.doPrivileged(
-                    () -> clientReference.client().copyPart(request)
-                );
+                final var result = SocketAccess.doPrivileged(() -> clientReference.client().copyPart(request));
                 return result.getPartETag();
             }
         }));

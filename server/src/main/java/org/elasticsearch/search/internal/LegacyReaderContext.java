@@ -73,6 +73,7 @@ public final class LegacyReaderContext extends ReaderContext {
     @Override
     public ShardSearchRequest getShardSearchRequest(ShardSearchRequest other) {
         if (other != null) {
+            // the source builder maybe changed in knn query or another case
             shardSearchRequest.source(other.source());
         }
         return shardSearchRequest;

@@ -50,30 +50,22 @@ public class KnnSearchIT extends ESIntegTestCase {
     public void testKnnSearchWithScroll() throws Exception {
         Client client = client();
 
-        // create index
         client.admin().indices().prepareCreate(INDEX_NAME).setMapping(createKnnMapping()).get();
 
-        // 插入测试数据
         int count = randomIntBetween(10, 20);
         for (int i = 0; i < count; i++) {
-            client.prepareIndex(INDEX_NAME)
-                .setSource(XContentType.JSON, VECTOR_FIELD, new float[]{i, i})
-                .get();
+            client.prepareIndex(INDEX_NAME).setSource(XContentType.JSON, VECTOR_FIELD, new float[] { i, i }).get();
         }
-
 
         refresh(INDEX_NAME);
 
-        // 构建KNN搜索请求
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         int k = count / 2;
-        sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[]{0, 0}, k, k, null, null)));
+        sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, k, null, null)));
 
         SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
-        searchRequest.source(sourceBuilder)
-            .scroll(TimeValue.timeValueMinutes(1));
+        searchRequest.source(sourceBuilder).scroll(TimeValue.timeValueMinutes(1));
 
-        // 执行首次搜索
         SearchResponse firstResponse = client.search(searchRequest).actionGet();
         assertThat(firstResponse.getScrollId(), notNullValue());
         assertThat(firstResponse.getHits().getHits().length, equalTo(k));
@@ -90,7 +82,6 @@ public class KnnSearchIT extends ESIntegTestCase {
             assertThat(scrollResponse.getHits().getTotalHits().value(), equalTo((long) k));
         }
 
-        // 清理Scroll上下文
         client.prepareClearScroll().addScrollId(firstResponse.getScrollId()).get();
     }
 }

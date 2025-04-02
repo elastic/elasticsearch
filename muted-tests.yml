@@ -238,9 +238,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference_bwc/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/117349
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/116175
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/117024
@@ -468,9 +465,6 @@ tests:
 - class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
   method: testLuceneVersionConstant
   issue: https://github.com/elastic/elasticsearch/issues/125638
-- class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
-  method: testUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/125554
 - class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
   method: testElser {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/125550
@@ -492,9 +486,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebPreservationTests
   method: test40RestartOnUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/125821
-- class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
-  method: testAlreadyUpgraded
-  issue: https://github.com/elastic/elasticsearch/issues/125585
 - class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
   method: testHFEmbeddings {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/125551
@@ -504,3 +495,6 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/125668
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {range.Invalid boundaries date SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126083

@@ -221,9 +221,6 @@ tests:
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/122707
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testEnrichExplosionManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/122913
@@ -320,15 +317,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.StatementParserTests
   method: testInvalidJoinPatterns
   issue: https://github.com/elastic/elasticsearch/issues/125536
-- class: org.elasticsearch.xpack.security.authz.accesscontrol.IndicesPermissionTests
-  method: testAuthorizeDataStreamFailureIndices
-  issue: https://github.com/elastic/elasticsearch/issues/125555
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_crud/Test get stats on newly created config}
   issue: https://github.com/elastic/elasticsearch/issues/121726
-- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
-  method: testMergeSourceWithFollowUpMergesRunSequentially
-  issue: https://github.com/elastic/elasticsearch/issues/125639
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header and column selection}
   issue: https://github.com/elastic/elasticsearch/issues/125641
@@ -341,12 +332,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
   method: testSearchableSnapshotsInHotPhasePinnedToHotNodes
   issue: https://github.com/elastic/elasticsearch/issues/125683
-- class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
-  method: testAlreadyUpToDateDataStream
-  issue: https://github.com/elastic/elasticsearch/issues/125727
-- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
-  method: testMergingFallsBehindAndThenCatchesUp
-  issue: https://github.com/elastic/elasticsearch/issues/125744
 - class: org.elasticsearch.xpack.esql.spatial.SpatialExtentAggregationNoLicenseIT
   method: testStExtentAggregationWithPoints
   issue: https://github.com/elastic/elasticsearch/issues/125735
@@ -392,15 +377,21 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/125901
-- class: org.elasticsearch.xpack.security.authz.RBACEngineTests
-  method: testGetRoleDescriptorsIntersectionForRemoteClusterHasDeterministicOrderForIndicesPrivileges
-  issue: https://github.com/elastic/elasticsearch/issues/126061
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTerminateAfter
   issue: https://github.com/elastic/elasticsearch/issues/126085
-- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
-  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
-  issue: https://github.com/elastic/elasticsearch/issues/126088
+- class: org.elasticsearch.search.sort.GeoDistanceIT
+  method: testDistanceSortingWithUnmappedField
+  issue: https://github.com/elastic/elasticsearch/issues/126118
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/122707
+- class: org.elasticsearch.xpack.security.authz.RBACEngineTests
+  method: testBuildUserPrivilegeResponseCombinesIndexPrivileges
+  issue: https://github.com/elastic/elasticsearch/issues/126130
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/126139
 
 # Examples:
 #

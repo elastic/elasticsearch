@@ -46,7 +46,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
         @Override
         public String describe() {
-            return "MetricsAggregationOperator[mode = "
+            return "TimeSeriesAggregationOperator[mode = "
                 + "<not-needed>"
                 + ", aggs = "
                 + aggregators.stream().map(Describable::describe).collect(joining(", "))

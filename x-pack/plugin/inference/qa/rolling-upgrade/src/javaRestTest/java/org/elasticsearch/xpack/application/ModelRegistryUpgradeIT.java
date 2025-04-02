@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.application;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -25,6 +22,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT.elserConfig;
 import static org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT.elserResponse;
+import static org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT.embeddingConfig;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -136,17 +134,5 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
         }
         result.append("]]");
         return result.toString();
-    }
-
-    static String embeddingConfig(String url) {
-        return Strings.format("""
-            {
-                "service": "hugging_face",
-                "service_settings": {
-                    "url": "%s",
-                    "api_key": "XXXX"
-                }
-            }
-            """, url, randomFrom(DenseVectorFieldMapper.ElementType.values()), randomFrom(SimilarityMeasure.values()));
     }
 }

@@ -395,6 +395,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.RBACEngineTests
   method: testBuildUserPrivilegeResponseCombinesIndexPrivileges
   issue: https://github.com/elastic/elasticsearch/issues/126130
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/126139
 
 # Examples:
 #

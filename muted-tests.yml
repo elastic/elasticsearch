@@ -398,6 +398,9 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTerminateAfter
   issue: https://github.com/elastic/elasticsearch/issues/126085
+- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/126088
 
 # Examples:
 #

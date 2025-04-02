@@ -50,8 +50,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
 
     public enum AggregateType {
         STANDARD,
-        // include metrics aggregates such as rates
-        METRICS;
+        TIME_SERIES;
 
         static void writeType(StreamOutput out, AggregateType type) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
@@ -147,7 +146,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     public String telemetryLabel() {
         return switch (aggregateType) {
             case STANDARD -> "STATS";
-            case METRICS -> "METRICS";
+            case TIME_SERIES -> "TIME_SERIES";
         };
     }
 
@@ -259,7 +258,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         } else {
             forEachExpression(
                 Rate.class,
-                r -> failures.add(fail(r, "the rate aggregate[{}] can only be used with the metrics command", r.sourceText()))
+                r -> failures.add(fail(r, "the rate aggregate[{}] can only be used with the TS command", r.sourceText()))
             );
         }
         checkCategorizeGrouping(failures);
@@ -356,11 +355,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         if (expr instanceof Rate r) {
             if (nestedLevel != 2) {
                 failures.add(
-                    fail(
-                        expr,
-                        "the rate aggregate [{}] can only be used with the metrics command and inside another aggregate",
-                        r.sourceText()
-                    )
+                    fail(expr, "the rate aggregate [{}] can only be used with the TS command and inside another aggregate", r.sourceText())
                 );
             }
         }

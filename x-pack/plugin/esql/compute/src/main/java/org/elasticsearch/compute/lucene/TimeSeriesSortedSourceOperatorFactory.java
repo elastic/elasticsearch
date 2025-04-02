@@ -33,6 +33,8 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.compute.lucene.LuceneOperator.weightFunction;
+
 /**
  * Creates a source operator that takes advantage of the natural sorting of segments in a tsdb index.
  * <p>
@@ -56,7 +58,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
         int maxPageSize,
         int limit
     ) {
-        super(contexts, queryFunction, DataPartitioning.SHARD, taskConcurrency, limit, ScoreMode.COMPLETE_NO_SCORES);
+        super(contexts, weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES), DataPartitioning.SHARD, taskConcurrency, limit, false);
         this.maxPageSize = maxPageSize;
     }
 

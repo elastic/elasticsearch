@@ -16,7 +16,4 @@ For using the function syntax, or adding [match query parameters](https://www.el
 ```esql
 FROM books
 | WHERE MATCH(author, "Faulkner")
-| KEEP book_no, author
-| SORT book_no
-| LIMIT 5
 ```

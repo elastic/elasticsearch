@@ -9,7 +9,6 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.tests.mockfile.ExtrasFS;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
@@ -78,7 +77,6 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Integration tests for {@link BlobStoreRepository} implementations.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
 public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase {
 
     public static RepositoryData getRepositoryData(Repository repository) {

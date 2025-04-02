@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.s3;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -68,6 +69,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+@LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
 public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTests {
 
     private static final S3ErrorResponse S3_SLOW_DOWN_RESPONSE = new S3ErrorResponse(SERVICE_UNAVAILABLE, """

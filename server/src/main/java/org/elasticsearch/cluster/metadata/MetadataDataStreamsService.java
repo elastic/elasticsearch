@@ -315,9 +315,17 @@ public class MetadataDataStreamsService {
     ) {
         Metadata metadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(metadata);
+        boolean onlyInternalDataStreams = true;
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata.getProject(), dataStreamName);
             builder.put(dataStream.copy().setDataStreamOptions(dataStreamOptions).build());
+            onlyInternalDataStreams = onlyInternalDataStreams && dataStream.isInternal();
+        }
+        if (dataStreamOptions != null && dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
+            // We don't issue any warnings if all data streams are internal data streams
+            dataStreamOptions.failureStore()
+                .lifecycle()
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), onlyInternalDataStreams);
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }

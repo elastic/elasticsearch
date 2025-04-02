@@ -425,6 +425,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     );
                     indicesToXContent(builder, dataStream.getFailureIndices());
                     addAutoShardingEvent(builder, params, dataStream.getFailureComponent().getAutoShardingEvent());
+                    DataStreamLifecycle failuresLifecycle = dataStream.getFailuresLifecycle(failureStoreEffectivelyEnabled);
+                    if (failuresLifecycle != null) {
+                        builder.field(LIFECYCLE_FIELD.getPreferredName());
+                        failuresLifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, dataStream.isInternal());
+                    }
                     builder.endObject();
                 }
                 builder.endObject();

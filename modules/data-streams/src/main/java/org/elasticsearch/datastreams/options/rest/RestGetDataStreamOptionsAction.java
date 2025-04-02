@@ -21,11 +21,15 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetDataStreamOptionsAction extends BaseRestHandler {
+
+    public static final String DATA_STREAM_FAILURE_LIFECYCLE = "failure_lifecycle";
+    private static final Set<String> CAPABILITIES = Set.of(DATA_STREAM_FAILURE_LIFECYCLE);
 
     @Override
     public String getName() {
@@ -55,5 +59,10 @@ public class RestGetDataStreamOptionsAction extends BaseRestHandler {
     @Override
     public boolean allowSystemIndexAccessByDefault() {
         return true;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 }

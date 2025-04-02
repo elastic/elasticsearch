@@ -202,6 +202,24 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
                     containsString("The retention provided [30d] is exceeding the max allowed data retention of this project [10s]")
                 );
             }
+            try {
+                Request request = new Request("PUT", "_data_stream/my-data-stream/_options");
+                request.setJsonEntity("""
+                    {
+                      "failure_store": {
+                        "lifecycle": {
+                          "data_retention": "30d"
+                        }
+                      }
+                    }""");
+                assertAcknowledged(client().performRequest(request));
+                fail("Should have returned a warning about data retention exceeding the max retention");
+            } catch (WarningFailureException warningFailureException) {
+                assertThat(
+                    warningFailureException.getMessage(),
+                    containsString("The retention provided [30d] is exceeding the max allowed data retention of this project [10s]")
+                );
+            }
         }
 
         // Verify that the effective retention matches the max retention

@@ -16,7 +16,6 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -62,17 +61,14 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
-    private int setupIndexWithDocs() {
-        int numShards = numberOfShards();
-        createIndex("test1", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build());
-        createIndex("test2", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build());
+    private void setupIndexWithDocs() {
+        createIndex("test1", "test2");
         indexRandom(
             true,
             prepareIndex("test1").setId("1").setSource("field", "foo"),
             prepareIndex("test2").setId("10").setSource("field", 5)
         );
         refresh();
-        return numShards;
     }
 
     public void testSearchFailingQueryErrorTraceDefault() throws IOException {
@@ -131,8 +127,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         assertFalse(hasStackTrace.getAsBoolean());
     }
 
-    public void testNoLoggingInSearchFailingQueryErrorTraceTrue() throws IOException {
-        int numShards = setupIndexWithDocs();
+    public void testDataNodeDoesNotLogStackTraceWhenErrorTraceTrue() throws IOException {
+        setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
         searchRequest.setJsonEntity("""
@@ -147,6 +143,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             """);
 
         String errorTriggeringIndex = "test2";
+        int numShards = getNumShards(errorTriggeringIndex).numPrimaries;
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addUnseenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
 
@@ -156,8 +153,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         }
     }
 
-    public void testLoggingInSearchFailingQueryErrorTraceFalse() throws IOException {
-        int numShards = setupIndexWithDocs();
+    public void testDataNodeLogsStackTraceWhenErrorTraceFalseOrEmpty() throws IOException {
+        setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
         searchRequest.setJsonEntity("""
@@ -172,6 +169,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             """);
 
         String errorTriggeringIndex = "test2";
+        int numShards = getNumShards(errorTriggeringIndex).numPrimaries;
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addSeenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
 
@@ -235,8 +233,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         assertFalse(hasStackTrace.getAsBoolean());
     }
 
-    public void testLoggingInMultiSearchFailingQueryErrorTraceTrue() throws IOException {
-        int numShards = setupIndexWithDocs();
+    public void testDataNodeDoesNotLogStackTraceWhenErrorTraceTrueMultiSearch() throws IOException {
+        setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(
@@ -251,6 +249,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         searchRequest.addParameter("error_trace", "true");
 
         String errorTriggeringIndex = "test2";
+        int numShards = getNumShards(errorTriggeringIndex).numPrimaries;
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addUnseenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
 
@@ -259,8 +258,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         }
     }
 
-    public void testLoggingInMultiSearchFailingQueryErrorTraceFalse() throws IOException {
-        int numShards = setupIndexWithDocs();
+    public void testDataNodeLogsStackTraceWhenErrorTraceFalseOrEmptyMultiSearch() throws IOException {
+        setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(
@@ -278,6 +277,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         }
 
         String errorTriggeringIndex = "test2";
+        int numShards = getNumShards(errorTriggeringIndex).numPrimaries;
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addSeenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
 

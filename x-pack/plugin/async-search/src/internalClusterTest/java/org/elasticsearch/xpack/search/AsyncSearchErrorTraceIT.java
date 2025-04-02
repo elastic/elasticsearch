@@ -63,17 +63,14 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
-    private int setupIndexWithDocs() {
-        int numShards = numberOfShards();
-        createIndex("test1", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build());
-        createIndex("test2", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build());
+    private void setupIndexWithDocs() {
+        createIndex("test1", "test2");
         indexRandom(
             true,
             prepareIndex("test1").setId("1").setSource("field", "foo"),
             prepareIndex("test2").setId("10").setSource("field", 5)
         );
         refresh();
-        return numShards;
     }
 
     public void testAsyncSearchFailingQueryErrorTraceDefault() throws IOException, InterruptedException {
@@ -158,8 +155,8 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         assertFalse(transportMessageHasStackTrace.getAsBoolean());
     }
 
-    public void testLoggingInAsyncSearchFailingQueryErrorTraceTrue() throws IOException, InterruptedException {
-        int numShards = setupIndexWithDocs();
+    public void testDataNodeDoesNotLogStackTraceWhenErrorTraceTrue() throws IOException, InterruptedException {
+        setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
         searchRequest.setJsonEntity("""
@@ -177,6 +174,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         searchRequest.addParameter("wait_for_completion_timeout", "0ms");
 
         String errorTriggeringIndex = "test2";
+        int numShards = getNumShards(errorTriggeringIndex).numPrimaries;
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addUnseenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
 
@@ -193,8 +191,9 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         }
     }
 
-    public void testLoggingInAsyncSearchFailingQueryErrorTraceFalse() throws IOException, InterruptedException {
-        int numShards = setupIndexWithDocs();
+    public void testDataNodeLogsStackTraceWhenErrorTraceFalseOrEmpty() throws IOException, InterruptedException {
+        setupIndexWithDocs();
+
         // error_trace defaults to false so we can test both cases with some randomization
         final boolean defineErrorTraceFalse = randomBoolean();
 
@@ -216,6 +215,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         searchRequest.addParameter("wait_for_completion_timeout", "0ms");
 
         String errorTriggeringIndex = "test2";
+        int numShards = getNumShards(errorTriggeringIndex).numPrimaries;
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addSeenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
 

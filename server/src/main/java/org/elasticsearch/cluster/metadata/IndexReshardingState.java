@@ -380,6 +380,10 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return false;
         }
 
+        public boolean allTargetsSplit() {
+            return Arrays.stream(targetShards).allMatch(target -> target == TargetShardState.SPLIT);
+        }
+
         /**
          * Check whether all target shards for the given source shard are done.
          * @param shardNum a source shard index greater than or equal to 0 and less than the original shard count

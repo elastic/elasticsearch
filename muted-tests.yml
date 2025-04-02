@@ -338,9 +338,6 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
   method: testAlreadyUpToDateDataStream
   issue: https://github.com/elastic/elasticsearch/issues/125727
-- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
-  method: testMergingFallsBehindAndThenCatchesUp
-  issue: https://github.com/elastic/elasticsearch/issues/125744
 - class: org.elasticsearch.xpack.esql.spatial.SpatialExtentAggregationNoLicenseIT
   method: testStExtentAggregationWithPoints
   issue: https://github.com/elastic/elasticsearch/issues/125735
@@ -386,9 +383,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/125901
-- class: org.elasticsearch.xpack.security.authz.RBACEngineTests
-  method: testGetRoleDescriptorsIntersectionForRemoteClusterHasDeterministicOrderForIndicesPrivileges
-  issue: https://github.com/elastic/elasticsearch/issues/126061
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTerminateAfter
   issue: https://github.com/elastic/elasticsearch/issues/126085
@@ -398,6 +392,9 @@ tests:
 - class: org.elasticsearch.search.sort.GeoDistanceIT
   method: testDistanceSortingWithUnmappedField
   issue: https://github.com/elastic/elasticsearch/issues/126118
+- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
+  method: testBlockLoader {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/126121
 
 # Examples:
 #

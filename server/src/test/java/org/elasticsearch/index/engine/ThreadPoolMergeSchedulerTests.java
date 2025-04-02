@@ -518,6 +518,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     mergeDoneLatch.await();
                     return null;
                 }).when(mergeSource).merge(any(OneMerge.class));
+                // submit the merge
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
                 Thread t = new Thread(() -> {
                     try {
@@ -535,10 +536,10 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                         threadPoolMergeScheduler.merge(mergeSource2, randomFrom(MergeTrigger.values()));
                         // when the merge scheduler is closed it won't pull in any new merges from the merge source
                         verifyNoInteractions(mergeSource2);
+                        // assert the merge still shows up as "running"
+                        assertThat(threadPoolMergeScheduler.getRunningMergeTasks().keySet(), contains(oneMerge));
+                        assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(0));
                     });
-                    // assert the merge still shows up as "running"
-                    assertThat(threadPoolMergeScheduler.getRunningMergeTasks().keySet(), contains(oneMerge));
-                    assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(0));
                     assertTrue(t.isAlive());
                     // signal the merge to finish
                     mergeDoneLatch.countDown();

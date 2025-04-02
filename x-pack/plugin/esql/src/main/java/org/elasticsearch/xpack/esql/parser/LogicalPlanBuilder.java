@@ -268,7 +268,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
-    private UnresolvedRelation visitRelation(Source source, String commandName, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
+    private UnresolvedRelation visitRelation(Source source, IndexMode indexMode, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
         IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
@@ -285,13 +285,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
-        final IndexMode indexMode = commandName.equals("TS") ? IndexMode.TIME_SERIES : IndexMode.STANDARD;
+        final String commandName = indexMode == IndexMode.TIME_SERIES ? "TS" : "FROM";
         return new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
     }
 
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
-        return visitRelation(source(ctx), "FROM", ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), IndexMode.STANDARD, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -518,7 +518,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (Build.current().isSnapshot() == false) {
             throw new IllegalArgumentException("TS command currently requires a snapshot build");
         }
-        return visitRelation(source(ctx), "TS", ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
     }
 
     @Override

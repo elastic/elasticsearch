@@ -572,7 +572,7 @@ public class PolicyManager {
         var exception = new NotEntitledException(message);
         // Don't emit a log for muted classes, e.g. classes containing self tests
         if (mutedClasses.contains(callerClass) == false) {
-            entitlements.logger().warn("Not entitled:", exception);
+            entitlements.logger().warn("Not entitled: {}", message, exception);
         }
         throw exception;
     }

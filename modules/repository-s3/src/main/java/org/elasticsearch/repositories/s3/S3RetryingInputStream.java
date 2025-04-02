@@ -62,6 +62,7 @@ class S3RetryingInputStream extends InputStream {
     private long currentOffset;
     private boolean closed;
     private boolean eof;
+    private boolean aborted = false;
 
     S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey) throws IOException {
         this(purpose, blobStore, blobKey, 0, Long.MAX_VALUE - 1);
@@ -384,6 +385,7 @@ class S3RetryingInputStream extends InputStream {
         try {
             if (start + currentOffset < currentStreamLastOffset) {
                 stream.abort();
+                aborted = true;
             }
         } catch (Exception e) {
             logger.warn("Failed to abort stream before closing", e);
@@ -416,6 +418,8 @@ class S3RetryingInputStream extends InputStream {
 
     // package-private for tests
     boolean isAborted() {
-        throw new AssertionError("TODO NOMERGE doesn't seem to be a way to detect this any more");
+        // TODO NOMERGE: doesn't seem to be a way to detect abort any more
+        // -dianna: we use this for tests. It seems ok-ish to ascertain whether abort() was called, and leave reality to the SDK API.
+        return aborted;
     }
 }

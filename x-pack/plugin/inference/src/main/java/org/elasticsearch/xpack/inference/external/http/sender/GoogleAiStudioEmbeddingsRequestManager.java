@@ -14,11 +14,11 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.googleaistudio.GoogleAiStudioResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.googleaistudio.GoogleAiStudioEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioResponseHandler;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
 
 import java.util.List;

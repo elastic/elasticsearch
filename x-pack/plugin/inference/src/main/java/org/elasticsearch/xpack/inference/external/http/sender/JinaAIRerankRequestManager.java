@@ -14,9 +14,9 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.jinaai.JinaAIResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIRerankRequest;
 import org.elasticsearch.xpack.inference.external.response.jinaai.JinaAIRerankResponseEntity;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIResponseHandler;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
 
 import java.util.Objects;

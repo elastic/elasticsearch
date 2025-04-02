@@ -301,8 +301,8 @@ public class InternalEngine extends Engine {
             }
             externalReaderManager = createReaderManager(new RefreshWarmerListener(logger, isClosed, engineConfig));
             internalReaderManager = externalReaderManager.internalReaderManager;
-            this.internalReaderManager = internalReaderManager;
-            this.externalReaderManager = externalReaderManager;
+            this.internalReaderManager = wrapForAssertions(internalReaderManager, engineConfig);
+            this.externalReaderManager = wrapForAssertions(externalReaderManager, engineConfig);
             internalReaderManager.addListener(versionMap);
             this.lastUnsafeSegmentGenerationForGets = new AtomicLong(lastCommittedSegmentInfos.getGeneration());
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
@@ -2040,7 +2040,7 @@ public class InternalEngine extends Engine {
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
-        boolean refreshed;
+        boolean refreshed = false;
         long segmentGeneration = RefreshResult.UNKNOWN_GENERATION;
         try {
             // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
@@ -2051,12 +2051,30 @@ public class InternalEngine extends Engine {
                     // the second refresh will only do the extra work we have to do for warming caches etc.
                     ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
                     long generationBeforeRefresh = lastCommittedSegmentInfos.getGeneration();
+
+                    // The shard uses a reentrant read/write lock to guard again engine changes, a type of lock that prioritizes the threads
+                    // waiting for the write lock over the threads trying to acquire a (non-reentrant) read lock. Because refresh listeners
+                    // are accessing the engine read lock, we need to ensure that they won't block if another thread is waiting for the
+                    // engine write lock, so we acquire the read lock upfront before the refresh lock.
+                    final var engineReadLock = engineConfig.getEngineLock().readLock();
+
                     // it is intentional that we never refresh both internal / external together
                     if (block) {
-                        referenceManager.maybeRefreshBlocking();
-                        refreshed = true;
+                        engineReadLock.lock();
+                        try {
+                            referenceManager.maybeRefreshBlocking();
+                            refreshed = true;
+                        } finally {
+                            engineReadLock.unlock();
+                        }
                     } else {
-                        refreshed = referenceManager.maybeRefresh();
+                        if (engineReadLock.tryLock()) {
+                            try {
+                                refreshed = referenceManager.maybeRefresh();
+                            } finally {
+                                engineReadLock.unlock();
+                            }
+                        }
                     }
                     if (refreshed) {
                         final ElasticsearchDirectoryReader current = referenceManager.acquire();

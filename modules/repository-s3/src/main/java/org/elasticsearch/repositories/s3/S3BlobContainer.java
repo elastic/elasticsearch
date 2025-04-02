@@ -406,19 +406,19 @@ class S3BlobContainer extends AbstractBlobContainer {
     public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
         try {
             final var results = new HashMap<String, BlobContainer>();
-            final var relativePrefixStart = keyPath.length() + 1; // +1 to strip the delimiting slash
+            final var relativePrefixStart = keyPath.length();
             final var iterator = executeListing(purpose, keyPath);
             while (iterator.hasNext()) {
                 final var currentPage = iterator.next();
                 for (final var commonPrefix : currentPage.commonPrefixes()) {
-                    final var relativePrefix = commonPrefix.prefix().substring(relativePrefixStart);
-                    if (relativePrefix.isEmpty()) {
+                    final var absolutePrefix = commonPrefix.prefix();
+                    if (absolutePrefix.length() <= relativePrefixStart + 1) {
                         continue;
                     }
-                    assert currentPage.contents()
-                        .stream()
-                        .noneMatch(s3Object -> s3Object.key().substring(keyPath.length()).startsWith(relativePrefix))
-                        : "Response contained children for listed common prefix " + commonPrefix.prefix();
+                    final var relativePrefix = absolutePrefix.substring(relativePrefixStart, absolutePrefix.length() - 1);
+                    assert relativePrefix.isEmpty() == false;
+                    assert currentPage.contents().stream().noneMatch(s3Object -> s3Object.key().startsWith(absolutePrefix))
+                        : "Response contained children for listed common prefix " + absolutePrefix;
                     if (results.put(relativePrefix, blobStore.blobContainer(path().add(relativePrefix))) != null) {
                         throw new IllegalStateException(
                             "listing child containers of [" + keyPath + "] yielded multiple children with key [" + relativePrefix + "]"

@@ -114,12 +114,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
-    // TODO: deduplicate these fields, use the fields in NodeAllocationStatsAndWeightsCalculator instead.
-    private volatile float indexBalanceFactor;
-    private volatile float shardBalanceFactor;
-    private volatile float writeLoadBalanceFactor;
-    private volatile float diskUsageBalanceFactor;
-    private volatile float threshold;
+    private BalancerSettings balancerSettings;
+    private final NodeSorterFactory nodeSorterFactory;
 
     private final WriteLoadForecaster writeLoadForecaster;
 
@@ -135,14 +131,23 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this(clusterSettings, WriteLoadForecaster.DEFAULT);
     }
 
-    @Inject
     public BalancedShardsAllocator(ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
-        clusterSettings.initializeAndWatch(SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
-        clusterSettings.initializeAndWatch(INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
-        clusterSettings.initializeAndWatch(WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
-        clusterSettings.initializeAndWatch(DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
-        clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = value);
+        this(new BalancerSettings(clusterSettings), writeLoadForecaster);
+    }
+
+    public BalancedShardsAllocator(BalancerSettings balancerSettings, WriteLoadForecaster writeLoadForecaster) {
+        this(balancerSettings, writeLoadForecaster, new GlobalNodeSorterFactory(balancerSettings));
+    }
+
+    @Inject
+    public BalancedShardsAllocator(
+        BalancerSettings balancerSettings,
+        WriteLoadForecaster writeLoadForecaster,
+        NodeSorterFactory nodeSorterFactory
+    ) {
+        this.nodeSorterFactory = nodeSorterFactory;
         this.writeLoadForecaster = writeLoadForecaster;
+        this.balancerSettings = balancerSettings;
     }
 
     @Override
@@ -158,33 +163,33 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             failAllocationOfNewPrimaries(allocation);
             return;
         }
-        final WeightFunction weightFunction = new WeightFunction(
-            shardBalanceFactor,
-            indexBalanceFactor,
-            writeLoadBalanceFactor,
-            diskUsageBalanceFactor
-        );
-        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, threshold);
+        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, balancerSettings.getThreshold(), nodeSorterFactory);
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
 
         // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
-        collectAndRecordNodeWeightStats(balancer, weightFunction, allocation);
+        collectAndRecordNodeWeightStats(balancer, balancer.getPartitionedNodeSorter(), allocation);
     }
 
-    private void collectAndRecordNodeWeightStats(Balancer balancer, WeightFunction weightFunction, RoutingAllocation allocation) {
+    private void collectAndRecordNodeWeightStats(
+        Balancer balancer,
+        PartitionedNodeSorter partitionedNodeSorter,
+        RoutingAllocation allocation
+    ) {
         Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeLevelWeights = new HashMap<>();
         for (var entry : balancer.nodes.entrySet()) {
             var node = entry.getValue();
-            var nodeWeight = weightFunction.calculateNodeWeight(
-                node.numShards(),
-                balancer.avgShardsPerNode(),
-                node.writeLoad(),
-                balancer.avgWriteLoadPerNode(),
-                node.diskUsageInBytes(),
-                balancer.avgDiskUsageInBytesPerNode()
-            );
+            var nodeSorter = partitionedNodeSorter.sorterForNode(node);
+            var nodeWeight = nodeSorter.getWeightFunction()
+                .calculateNodeWeight(
+                    node.numShards(),
+                    balancer.avgShardsPerNode(),
+                    node.writeLoad(),
+                    balancer.avgWriteLoadPerNode(),
+                    node.diskUsageInBytes(),
+                    balancer.avgDiskUsageInBytesPerNode()
+                );
             nodeLevelWeights.put(
                 node.routingNode.node(),
                 new DesiredBalanceMetrics.NodeWeightStats(node.numShards(), node.diskUsageInBytes(), node.writeLoad(), nodeWeight)
@@ -195,13 +200,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
-        WeightFunction weightFunction = new WeightFunction(
-            shardBalanceFactor,
-            indexBalanceFactor,
-            writeLoadBalanceFactor,
-            diskUsageBalanceFactor
-        );
-        Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, threshold);
+        Balancer balancer = new Balancer(writeLoadForecaster, allocation, balancerSettings.getThreshold(), nodeSorterFactory);
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         final ProjectIndex index = new ProjectIndex(allocation, shard);
@@ -248,21 +247,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * Returns the currently configured delta threshold
      */
     public float getThreshold() {
-        return threshold;
+        return balancerSettings.getThreshold();
     }
 
     /**
      * Returns the index related weight factor.
      */
     public float getIndexBalance() {
-        return indexBalanceFactor;
+        return balancerSettings.getIndexBalanceFactor();
     }
 
     /**
      * Returns the shard related weight factor.
      */
     public float getShardBalance() {
-        return shardBalanceFactor;
+        return balancerSettings.getShardBalanceFactor();
     }
 
     /**
@@ -273,32 +272,34 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
         private final Metadata metadata;
-        private final WeightFunction weightFunction;
 
         private final float threshold;
         private final float avgShardsPerNode;
         private final double avgWriteLoadPerNode;
         private final double avgDiskUsageInBytesPerNode;
         private final Map<String, ModelNode> nodes;
-        private final NodeSorter sorter;
+        private final PartitionedNodeSorter partitionedNodeSorter;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
-            WeightFunction weightFunction,
-            float threshold
+            float threshold,
+            NodeSorterFactory nodeSorterFactory
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
-            this.weightFunction = weightFunction;
             this.threshold = threshold;
             avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
             avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
             avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(allocation.clusterInfo(), metadata, routingNodes);
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
-            sorter = newNodeSorter();
+            partitionedNodeSorter = nodeSorterFactory.create(nodesArray(), this);
+        }
+
+        public PartitionedNodeSorter getPartitionedNodeSorter() {
+            return partitionedNodeSorter;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -365,16 +366,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Returns a new {@link NodeSorter} that sorts the nodes based on their
-         * current weight with respect to the index passed to the sorter. The
-         * returned sorter is not sorted. Use {@link NodeSorter#reset(ProjectIndex)} )}
-         * to sort based on an index.
-         */
-        private NodeSorter newNodeSorter() {
-            return new NodeSorter(nodesArray(), weightFunction, this);
-        }
-
-        /**
          * The absolute value difference between two weights.
          */
         private static float absDelta(float lower, float higher) {
@@ -399,7 +390,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         /**
          * Balances the nodes on the cluster model according to the weight function.
-         * The actual balancing is delegated to {@link #balanceByWeights()}
+         * The actual balancing is delegated to {@link #balanceByWeights(NodeSorter)}
          */
         private void balance() {
             if (logger.isTraceEnabled()) {
@@ -424,7 +415,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 logger.trace("skipping rebalance as single node only");
                 return;
             }
-            balanceByWeights();
+
+            // Balance each partition
+            for (NodeSorter nodeSorter : partitionedNodeSorter.allNodeSorters()) {
+                balanceByWeights(nodeSorter);
+            }
         }
 
         /**
@@ -433,6 +428,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * explain API only.
          */
         private MoveDecision decideRebalance(final ProjectIndex index, final ShardRouting shard, Decision canRemain) {
+            final NodeSorter sorter = partitionedNodeSorter.sorterForShard(shard);
             index.assertMatch(shard);
             if (shard.started() == false) {
                 // we can only rebalance started shards
@@ -455,7 +451,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             assert currentNode != null : "currently assigned node could not be found";
 
             // balance the shard, if a better node can be found
-            final float currentWeight = weightFunction.calculateNodeWeightWithIndex(this, currentNode, index);
+            final float currentWeight = sorter.getWeightFunction().calculateNodeWeightWithIndex(this, currentNode, index);
             final AllocationDeciders deciders = allocation.deciders();
             Type rebalanceDecisionType = Type.NO;
             ModelNode targetNode = null;
@@ -471,7 +467,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // this is a comparison of the number of shards on this node to the number of shards
                 // that should be on each node on average (both taking the cluster as a whole into account
                 // as well as shards per index)
-                final float nodeWeight = weightFunction.calculateNodeWeightWithIndex(this, node, index);
+                final float nodeWeight = sorter.getWeightFunction().calculateNodeWeightWithIndex(this, node, index);
                 // if the node we are examining has a worse (higher) weight than the node the shard is
                 // assigned to, then there is no way moving the shard to the node with the worse weight
                 // can make the balance of the cluster better, so we check for that here
@@ -569,11 +565,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * only, or in other words relocations that move the weight delta closer
          * to {@code 0.0}
          */
-        private void balanceByWeights() {
+        private void balanceByWeights(NodeSorter sorter) {
             final AllocationDeciders deciders = allocation.deciders();
             final ModelNode[] modelNodes = sorter.modelNodes;
             final float[] weights = sorter.weights;
-            for (var index : buildWeightOrderedIndices()) {
+            for (var index : buildWeightOrderedIndices(sorter)) {
                 IndexMetadata indexMetadata = indexMetadata(index);
 
                 // find nodes that have a shard of this index or where shards of this index are allowed to be allocated to,
@@ -704,7 +700,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * average. To re-balance we need to move shards back eventually likely
          * to the nodes we relocated them from.
          */
-        private ProjectIndex[] buildWeightOrderedIndices() {
+        private ProjectIndex[] buildWeightOrderedIndices(NodeSorter sorter) {
             final ProjectIndex[] indices = allocation.globalRoutingTable()
                 .routingTables()
                 .entrySet()
@@ -802,6 +798,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
          */
         public MoveDecision decideMove(final ProjectIndex index, final ShardRouting shardRouting) {
+            NodeSorter sorter = partitionedNodeSorter.sorterForShard(shardRouting);
             index.assertMatch(shardRouting);
 
             if (shardRouting.started() == false) {
@@ -824,17 +821,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * This is not guaranteed to be balanced after this operation we still try best effort to
              * allocate on the minimal eligible node.
              */
-            MoveDecision moveDecision = decideMove(shardRouting, sourceNode, canRemain, this::decideCanAllocate);
+            MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocate);
             if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
                 final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
                 if (shardsOnReplacedNode) {
-                    return decideMove(shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
+                    return decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
                 }
             }
             return moveDecision;
         }
 
         private MoveDecision decideMove(
+            NodeSorter sorter,
             ShardRouting shardRouting,
             ModelNode sourceNode,
             Decision remainDecision,
@@ -1035,6 +1033,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * is of type {@link Type#NO}, then the assigned node will be null.
          */
         private AllocateUnassignedDecision decideAllocateUnassigned(final ProjectIndex index, final ShardRouting shard) {
+            WeightFunction weightFunction = partitionedNodeSorter.sorterForShard(shard).getWeightFunction();
             index.assertMatch(shard);
             if (shard.assignedToNode()) {
                 // we only make decisions for unassigned shards here
@@ -1391,6 +1390,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public float delta() {
             return weights[weights.length - 1] - weights[0];
+        }
+
+        public WeightFunction getWeightFunction() {
+            return function;
         }
     }
 

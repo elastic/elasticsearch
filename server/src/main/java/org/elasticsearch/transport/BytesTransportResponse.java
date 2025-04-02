@@ -21,7 +21,7 @@ import java.io.IOException;
  */
 public class BytesTransportResponse extends TransportResponse implements BytesTransportMessage {
 
-    final ReleasableBytesReference bytes;
+    private final ReleasableBytesReference bytes;
     private final TransportVersion version;
 
     public BytesTransportResponse(StreamInput in) throws IOException {

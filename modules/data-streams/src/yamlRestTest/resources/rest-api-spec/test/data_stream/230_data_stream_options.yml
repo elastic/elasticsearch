@@ -37,6 +37,13 @@ setup:
         wait_for_status: green
 
 ---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: failure-data-stream
+        ignore: 404
+
+---
 "Edit data stream options":
   - do:
       indices.get_data_stream_options:

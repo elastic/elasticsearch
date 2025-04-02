@@ -506,12 +506,14 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 )
             ) {
                 CountDownLatch mergeDoneLatch = new CountDownLatch(1);
+                CountDownLatch mergeRunningLatch = new CountDownLatch(1);
                 MergeSource mergeSource = mock(MergeSource.class);
                 OneMerge oneMerge = mock(OneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                 when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
                 doAnswer(invocation -> {
+                    mergeRunningLatch.countDown();
                     OneMerge merge = (OneMerge) invocation.getArguments()[0];
                     assertFalse(merge.isAborted());
                     // wait to be signalled before completing the merge
@@ -530,16 +532,18 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 t.start();
                 try {
                     assertTrue(t.isAlive());
+                    // wait for the merge to actually run
+                    mergeRunningLatch.await();
                     // ensure the merge scheduler is effectively "closed"
                     assertBusy(() -> {
                         MergeSource mergeSource2 = mock(MergeSource.class);
                         threadPoolMergeScheduler.merge(mergeSource2, randomFrom(MergeTrigger.values()));
                         // when the merge scheduler is closed it won't pull in any new merges from the merge source
                         verifyNoInteractions(mergeSource2);
-                        // assert the merge still shows up as "running"
-                        assertThat(threadPoolMergeScheduler.getRunningMergeTasks().keySet(), contains(oneMerge));
-                        assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(0));
                     });
+                    // assert the merge still shows up as "running"
+                    assertThat(threadPoolMergeScheduler.getRunningMergeTasks().keySet(), contains(oneMerge));
+                    assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(0));
                     assertTrue(t.isAlive());
                     // signal the merge to finish
                     mergeDoneLatch.countDown();

@@ -56,6 +56,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
     public static final String BUNDLE_PLUGIN_TASK_NAME = "bundlePlugin";
     public static final String EXPLODED_BUNDLE_PLUGIN_TASK_NAME = "explodedBundlePlugin";
     public static final String EXPLODED_BUNDLE_CONFIG = "explodedBundleZip";
+    public static final Attribute<Boolean> EXPLODED_PLUGIN_BUNDLE_ATTRIBUTE = Attribute.of("exploded-plugin-bundle", Boolean.class);
 
     protected final ProviderFactory providerFactory;
 
@@ -170,6 +171,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
         explodedBundleZip.setCanBeResolved(false);
         explodedBundleZip.setCanBeConsumed(true);
         explodedBundleZip.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        explodedBundleZip.getAttributes().attribute(EXPLODED_PLUGIN_BUNDLE_ATTRIBUTE, true);
         project.getArtifacts().add(EXPLODED_BUNDLE_CONFIG, explodedBundle);
         return bundle;
     }

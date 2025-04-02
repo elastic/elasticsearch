@@ -7,8 +7,19 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-grant {
-  // needed to cause problems
-  permission java.lang.RuntimePermission "getClassLoader";
-  permission java.lang.RuntimePermission "setFactory";
-};
+package org.elasticsearch.index.codec.tsdb.es819;
+
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
+
+public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
+
+    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+
+    @Override
+    protected Codec getCodec() {
+        return codec;
+    }
+
+}

@@ -350,23 +350,29 @@ class S3BlobContainer extends AbstractBlobContainer {
 
         final var s3SourceBlobContainer = (S3BlobContainer) sourceBlobContainer;
 
-        // metadata is inherited from source, but not canned ACL or storage class
-        final CopyObjectRequest copyRequest = new CopyObjectRequest(
-            s3SourceBlobContainer.blobStore.bucket(),
-            s3SourceBlobContainer.buildKey(sourceBlobName),
-            blobStore.bucket(),
-            buildKey(blobName)
-        ).withCannedAccessControlList(blobStore.getCannedACL()).withStorageClass(blobStore.getStorageClass());
+        if (blobSize > MAX_FILE_SIZE.getBytes()) {
+            executeMultipartCopy(purpose, s3SourceBlobContainer, sourceBlobName, blobName, blobSize);
+        } else {
+            // metadata is inherited from source, but not canned ACL or storage class
+            final CopyObjectRequest copyRequest = new CopyObjectRequest(
+                s3SourceBlobContainer.blobStore.bucket(),
+                s3SourceBlobContainer.buildKey(sourceBlobName),
+                blobStore.bucket(),
+                buildKey(blobName)
+            ).withCannedAccessControlList(blobStore.getCannedACL()).withStorageClass(blobStore.getStorageClass());
 
-        S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);
+            S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);
 
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
-        } catch (final AmazonClientException e) {
-            throw new IOException(
-                "Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]",
-                e
-            );
+            try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                SocketAccess.doPrivilegedVoid(() -> {
+                    clientReference.client().copyObject(copyRequest);
+                });
+            } catch (final AmazonClientException e) {
+                throw new IOException(
+                    "Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]",
+                    e
+                );
+            }
         }
     }
 

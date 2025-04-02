@@ -16,7 +16,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -191,7 +191,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
-                                    return r.profiles();
+                                    return r.completionInfo();
                                 }), DataNodeComputeResponse::new, esqlExecutor)
                             );
                         }
@@ -251,15 +251,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
             final AtomicInteger pagesProduced = new AtomicInteger();
             List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
-            ActionListener<List<DriverProfile>> batchListener = new ActionListener<>() {
-                final ActionListener<List<DriverProfile>> ref = computeListener.acquireCompute();
+            ActionListener<DriverCompletionInfo> batchListener = new ActionListener<>() {
+                final ActionListener<DriverCompletionInfo> ref = computeListener.acquireCompute();
 
                 @Override
-                public void onResponse(List<DriverProfile> result) {
+                public void onResponse(DriverCompletionInfo info) {
                     try {
                         onBatchCompleted(endBatchIndex);
                     } finally {
-                        ref.onResponse(result);
+                        ref.onResponse(info);
                     }
                 }
 
@@ -269,7 +269,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         for (ShardId shardId : shardIds) {
                             addShardLevelFailure(shardId, e);
                         }
-                        onResponse(List.of());
+                        onResponse(DriverCompletionInfo.EMPTY);
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
@@ -283,7 +283,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
                 if (searchContexts.isEmpty()) {
-                    batchListener.onResponse(List.of());
+                    batchListener.onResponse(DriverCompletionInfo.EMPTY);
                     return;
                 }
                 var computeContext = new ComputeContext(

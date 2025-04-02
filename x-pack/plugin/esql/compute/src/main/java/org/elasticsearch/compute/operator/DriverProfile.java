@@ -104,6 +104,8 @@ public record DriverProfile(
             if (b.humanReadable()) {
                 b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
             }
+            b.field("documents_found", operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
+            b.field("values_loaded", operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());
             b.field("iterations", iterations);
             return b;
         }),

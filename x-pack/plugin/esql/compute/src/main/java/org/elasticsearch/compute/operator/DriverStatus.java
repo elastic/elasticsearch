@@ -124,6 +124,8 @@ public record DriverStatus(
         if (builder.humanReadable()) {
             builder.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
         }
+        builder.field("documents_found", documentsFound());
+        builder.field("values_loaded", valuesLoaded());
         builder.field("iterations", iterations);
         builder.field("status", status, params);
         builder.startArray("completed_operators");
@@ -143,6 +145,34 @@ public record DriverStatus(
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * The number of documents found by this driver.
+     */
+    public long documentsFound() {
+        long documentsFound = 0;
+        for (OperatorStatus s : completedOperators) {
+            documentsFound += s.documentsFound();
+        }
+        for (OperatorStatus s : activeOperators) {
+            documentsFound += s.documentsFound();
+        }
+        return documentsFound;
+    }
+
+    /**
+     * The number of values loaded by this operator.
+     */
+    public long valuesLoaded() {
+        long valuesLoaded = 0;
+        for (OperatorStatus s : completedOperators) {
+            valuesLoaded += s.valuesLoaded();
+        }
+        for (OperatorStatus s : activeOperators) {
+            valuesLoaded += s.valuesLoaded();
+        }
+        return valuesLoaded;
     }
 
     public enum Status implements Writeable, ToXContentFragment {

@@ -251,7 +251,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
             testCase.query = newFrom + query.substring(first.length());
         }
-        if (commands[0].toLowerCase(Locale.ROOT).startsWith("TS")) {
+        if (commands[0].toLowerCase(Locale.ROOT).startsWith("ts ")) {
             String[] parts = commands[0].split("\\s+");
             assert parts.length >= 2 : commands[0];
             String[] indices = parts[1].split(",");

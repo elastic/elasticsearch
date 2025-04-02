@@ -14,12 +14,15 @@ import org.apache.http.nio.entity.NByteArrayEntity;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.ErrorTraceHelper;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -40,6 +43,13 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     @Before
     public void setupMessageListener() {
         hasStackTrace = ErrorTraceHelper.setupErrorTraceListener(internalCluster());
+        // TODO: make this test work with batched query execution by enhancing ErrorTraceHelper.setupErrorTraceListener
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
+    }
+
+    @After
+    public void resetSettings() {
+        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
     private void setupIndexWithDocs() {

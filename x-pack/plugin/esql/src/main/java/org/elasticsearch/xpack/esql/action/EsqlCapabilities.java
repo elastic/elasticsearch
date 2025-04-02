@@ -942,7 +942,12 @@ public class EsqlCapabilities {
         /**
          * Support for sorting when aggregate_metric_doubles are present
          */
-        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
+        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Listing queries and getting information on a specific query.
+         */
+        QUERY_MONITORING;
 
         private final boolean enabled;
 

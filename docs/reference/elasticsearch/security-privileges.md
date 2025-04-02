@@ -194,6 +194,9 @@ This section lists the privileges that you can assign to a role.
 `monitor_enrich`
 :   All read-only operations related to managing and executing enrich policies.
 
+`monitor_esql`
+:   All read-only operations related to ES|QL queries.
+
 `monitor_inference`
 :   All read-only operations related to {{infer}}.
 

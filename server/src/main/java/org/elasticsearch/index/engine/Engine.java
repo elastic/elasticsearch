@@ -26,10 +26,15 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
@@ -1553,12 +1558,20 @@ public abstract class Engine implements Closeable {
             QueryCachingPolicy queryCachingPolicy,
             Closeable onClose
         ) {
-            super(reader);
+            // pass in an executor so we can shortcut and avoid looping through all segments
+            super(reader, Runnable::run);
             setSimilarity(similarity);
             setQueryCache(queryCache);
             setQueryCachingPolicy(queryCachingPolicy);
             this.source = source;
             this.onClose = onClose;
+        }
+
+        private static final LeafSlice[] EMPTY_SLICES = new LeafSlice[0];
+
+        @Override
+        protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+            return EMPTY_SLICES;
         }
 
         /**
@@ -1585,6 +1598,21 @@ public abstract class Engine implements Closeable {
                 // This means there's a bug somewhere: don't suppress it
                 throw new AssertionError(e);
             }
+        }
+
+        @Override
+        protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) {
+            throw new UnsupportedOperationException("search not supported by this Engine.Searcher");
+        }
+
+        @Override
+        public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
+            throw new UnsupportedOperationException("search not supported by this Engine.Searcher");
+        }
+
+        @Override
+        protected Explanation explain(Weight weight, int doc) throws IOException {
+            throw new UnsupportedOperationException("explain not supported by this Engine.Searcher");
         }
     }
 

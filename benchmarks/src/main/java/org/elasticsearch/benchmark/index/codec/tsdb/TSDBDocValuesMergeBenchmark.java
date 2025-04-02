@@ -25,6 +25,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -107,7 +108,7 @@ public class TSDBDocValuesMergeBenchmark {
                 new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
             )
         );
-        ES87TSDBDocValuesFormat docValuesFormat = new ES87TSDBDocValuesFormat(4096, optimizedMergeEnabled);
+        ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(4096, optimizedMergeEnabled);
         config.setCodec(new Lucene101Codec() {
 
             @Override

@@ -165,7 +165,6 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 values = valuesProducer.getSortedNumeric(field);
                 final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
-
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                     final int count = values.docValueCount();
                     for (int i = 0; i < count; ++i) {

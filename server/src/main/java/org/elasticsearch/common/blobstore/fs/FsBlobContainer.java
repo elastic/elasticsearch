@@ -352,23 +352,24 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void copyBlob(
         OperationPurpose purpose,
+        BlobContainer sourceBlobContainer,
         String sourceBlobName,
-        BlobContainer destinationBlobContainer,
-        String destinationBlobName
+        String blobName,
+        long blobSize
     ) throws IOException {
-        if (destinationBlobContainer instanceof FsBlobContainer == false) {
-            throw new IllegalArgumentException("targetBlobContainer must be a FsBlobContainer");
+        if (sourceBlobContainer instanceof FsBlobContainer == false) {
+            throw new IllegalArgumentException("source blob container must be a FsBlobContainer");
         }
-        final FsBlobContainer targetContainer = (FsBlobContainer) destinationBlobContainer;
-        final Path sourceBlobPath = path.resolve(sourceBlobName);
-        final String tempBlob = tempBlobName(destinationBlobName);
-        final Path tempBlobPath = targetContainer.path.resolve(tempBlob);
+        final FsBlobContainer sourceContainer = (FsBlobContainer) sourceBlobContainer;
+        final Path sourceBlobPath = sourceContainer.path.resolve(sourceBlobName);
+        final String tempBlob = tempBlobName(blobName);
+        final Path tempBlobPath = path.resolve(tempBlob);
         Files.copy(sourceBlobPath, tempBlobPath, StandardCopyOption.REPLACE_EXISTING);
         try {
-            targetContainer.moveBlobAtomic(purpose, tempBlob, destinationBlobName, false);
+            moveBlobAtomic(purpose, tempBlob, blobName, false);
         } catch (IOException ex) {
             try {
-                targetContainer.deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));
+                deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));
             } catch (IOException e) {
                 ex.addSuppressed(e);
             }

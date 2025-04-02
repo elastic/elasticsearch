@@ -382,17 +382,17 @@ public class FsBlobContainerTests extends ESTestCase {
         final var store = new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false);
         final var sourcePath = BlobPath.EMPTY.add("source");
         final var sourceContainer = store.blobContainer(sourcePath);
-        final var targetPath = BlobPath.EMPTY.add("target");
-        final var targetContainer = store.blobContainer(targetPath);
+        final var destinationPath = BlobPath.EMPTY.add("destination");
+        final var destinationContainer = store.blobContainer(destinationPath);
 
         final var sourceBlobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
-        final var targetBlobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final var blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
         final var contents = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
         sourceContainer.writeBlob(randomPurpose(), sourceBlobName, contents, true);
-        sourceContainer.copyBlob(randomPurpose(), sourceBlobName, targetContainer, targetBlobName);
+        destinationContainer.copyBlob(randomPurpose(), sourceContainer, sourceBlobName, blobName, contents.length());
 
         var sourceContents = Streams.readFully(sourceContainer.readBlob(randomPurpose(), sourceBlobName));
-        var targetContents = Streams.readFully(targetContainer.readBlob(randomPurpose(), targetBlobName));
+        var targetContents = Streams.readFully(destinationContainer.readBlob(randomPurpose(), blobName));
         assertEquals(sourceContents, targetContents);
         assertEquals(contents, targetContents);
     }

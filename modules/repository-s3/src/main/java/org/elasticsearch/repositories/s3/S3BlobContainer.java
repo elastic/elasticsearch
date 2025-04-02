@@ -320,39 +320,42 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     /**
-     * Perform server-side copy of a blob
+     * Perform server-side copy of a blob from a source container
      * <p>
      * Server-side copy can be done for any size object, but if the object is larger than 5 GB then
      * it must be done through a series of part copy operations rather than a single blob copy.
      * See <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html">CopyObject</a>.
      * Note that this operation will overwrite the destination if it already exists.
      * @param purpose             The purpose of the operation
+     * @param sourceBlobContainer The blob container to copy the blob into
      * @param sourceBlobName      The name of the blob to copy from
-     * @param destinationBlobContainer The blob container to copy the blob into
-     * @param destinationBlobName      The name of the blob to copy to
+     * @param blobName            The name of the blob to copy to
+     * @param blobSize            The size of the source blob in bytes (needed because some object stores use different implementations
+     *                            for very large blobs)
      * @throws IOException        If the operation fails on the server side
      */
     @Override
     public void copyBlob(
-        OperationPurpose purpose,
-        String sourceBlobName,
-        BlobContainer destinationBlobContainer,
-        String destinationBlobName
+        final OperationPurpose purpose,
+        final BlobContainer sourceBlobContainer,
+        final String sourceBlobName,
+        final String blobName,
+        final long blobSize
     ) throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
-        assert BlobContainer.assertPurposeConsistency(purpose, destinationBlobName);
-        if (destinationBlobContainer instanceof S3BlobContainer == false) {
-            throw new IllegalArgumentException("target blob container must be a S3BlobContainer");
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
+        if (sourceBlobContainer instanceof S3BlobContainer == false) {
+            throw new IllegalArgumentException("source blob container must be a S3BlobContainer");
         }
 
-        final var s3TargetBlobContainer = (S3BlobContainer) destinationBlobContainer;
+        final var s3SourceBlobContainer = (S3BlobContainer) sourceBlobContainer;
 
         // metadata is inherited from source, but not canned ACL or storage class
         final CopyObjectRequest copyRequest = new CopyObjectRequest(
+            s3SourceBlobContainer.blobStore.bucket(),
+            s3SourceBlobContainer.buildKey(sourceBlobName),
             blobStore.bucket(),
-            buildKey(sourceBlobName),
-            s3TargetBlobContainer.blobStore.bucket(),
-            s3TargetBlobContainer.buildKey(destinationBlobName)
+            buildKey(blobName)
         ).withCannedAccessControlList(blobStore.getCannedACL()).withStorageClass(blobStore.getStorageClass());
 
         S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);
@@ -361,7 +364,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
         } catch (final AmazonClientException e) {
             throw new IOException(
-                "Unable to copy object [" + sourceBlobName + "] to [" + destinationBlobContainer + "][" + destinationBlobName + "]",
+                "Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]",
                 e
             );
         }

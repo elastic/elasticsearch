@@ -418,7 +418,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
     public void testCopy() throws Exception {
         final var sourceBucketName = randomAlphaOfLengthBetween(1, 10);
         final var sourceBlobName = randomAlphaOfLengthBetween(1, 10);
-        final var targetBlobName = randomAlphaOfLengthBetween(1, 10);
+        final var blobName = randomAlphaOfLengthBetween(1, 10);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
         final CannedAccessControlList cannedAccessControlList = randomBoolean() ? randomFrom(CannedAccessControlList.values()) : null;
@@ -433,21 +433,21 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final var sourceBlobPath = BlobPath.EMPTY.add(randomAlphaOfLengthBetween(1, 10));
         final var sourceBlobContainer = new S3BlobContainer(sourceBlobPath, blobStore);
 
-        final var targetBlobPath = BlobPath.EMPTY.add(randomAlphaOfLengthBetween(1, 10));
-        final var targetBlobContainer = new S3BlobContainer(targetBlobPath, blobStore);
+        final var destinationBlobPath = BlobPath.EMPTY.add(randomAlphaOfLengthBetween(1, 10));
+        final var destinationBlobContainer = new S3BlobContainer(destinationBlobPath, blobStore);
 
         final var client = configureMockClient(blobStore);
 
         final ArgumentCaptor<CopyObjectRequest> captor = ArgumentCaptor.forClass(CopyObjectRequest.class);
         when(client.copyObject(captor.capture())).thenReturn(new CopyObjectResult());
 
-        sourceBlobContainer.copyBlob(randomPurpose(), sourceBlobName, targetBlobContainer, targetBlobName);
+        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, blobName, randomLongBetween(1, 10_000));
 
         final CopyObjectRequest request = captor.getValue();
         assertEquals(sourceBucketName, request.getSourceBucketName());
         assertEquals(sourceBlobPath.buildAsString() + sourceBlobName, request.getSourceKey());
         assertEquals(sourceBucketName, request.getDestinationBucketName());
-        assertEquals(targetBlobPath.buildAsString() + targetBlobName, request.getDestinationKey());
+        assertEquals(destinationBlobPath.buildAsString() + blobName, request.getDestinationKey());
         assertEquals(storageClass.toString(), request.getStorageClass());
         assertEquals(cannedAccessControlList, request.getCannedAccessControlList());
 

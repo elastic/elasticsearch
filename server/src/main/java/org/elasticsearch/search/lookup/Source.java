@@ -24,8 +24,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-
-
 /**
  * The source of a document.  Note that, while objects returned from {@link #source()}
  * and {@link #internalSourceRef()} are immutable, objects implementing this interface
@@ -203,7 +201,6 @@ public interface Source {
             result.putAll(additionalEntries);
         }
     }
-
 
     /**
      * Build a Source from a Map representation.

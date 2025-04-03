@@ -634,7 +634,7 @@ public final class DataStreamTestHelper {
      * @return the matcher
      */
     public static Matcher<String> backingIndexEqualTo(String dataStreamName, int generation) {
-        return backingIndexEqualTo(dataStreamName, generation, false);
+        return dataStreamIndexEqualTo(dataStreamName, generation, false);
     }
 
     /**
@@ -645,7 +645,7 @@ public final class DataStreamTestHelper {
      * @param failureStore, determines the prefix, ".ds-" when failure store is false and ".fs-" when true
      * @return the matcher
      */
-    public static Matcher<String> backingIndexEqualTo(String dataStreamName, int generation, boolean failureStore) {
+    public static Matcher<String> dataStreamIndexEqualTo(String dataStreamName, int generation, boolean failureStore) {
         return new TypeSafeMatcher<>() {
             private final String prefix = failureStore ? FAILURE_STORE_PREFIX : BACKING_INDEX_PREFIX;
 

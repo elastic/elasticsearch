@@ -1087,7 +1087,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             public void onFailure(Exception e) {
                 ProjectMetadata latestProject = clusterService.state().metadata().projects().get(projectId);
                 DataStream dataStream = latestProject == null ? null : latestProject.dataStreams().get(resolvedRolloverTarget.resource());
-                if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
+                boolean targetsFailureStore = IndexComponentSelector.FAILURES == resolvedRolloverTarget.selector();
+                if (dataStream == null || Objects.equals(getWriteIndexName(dataStream, targetsFailureStore), writeIndexName) == false) {
                     // the data stream has another write index so no point in recording an error for the previous write index we were
                     // attempting to roll over
                     // if there are persistent issues with rolling over this data stream, the next data stream lifecycle run will attempt to
@@ -1100,6 +1101,17 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 }
             }
         });
+    }
+
+    @Nullable
+    private String getWriteIndexName(DataStream dataStream, boolean failureStore) {
+        if (dataStream == null) {
+            return null;
+        }
+        if (failureStore) {
+            return dataStream.getWriteFailureIndex() == null ? null : dataStream.getWriteFailureIndex().getName();
+        }
+        return dataStream.getWriteIndex().getName();
     }
 
     private void updateIndexSetting(ProjectId projectId, UpdateSettingsRequest updateSettingsRequest, ActionListener<Void> listener) {
@@ -1482,10 +1494,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         TimeValue dataRetention,
         boolean rolloverFailureStore
     ) {
-        RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
-        if (rolloverFailureStore) {
-            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES));
-        }
+        var rolloverTarget = rolloverFailureStore
+            ? IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES)
+            : dataStream;
+        RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;
     }

@@ -233,8 +233,6 @@ class S3Service extends AbstractLifecycleComponent {
         s3clientBuilder.serviceConfiguration(b -> b.chunkedEncodingEnabled(clientSettings.disableChunkedEncoding == false));
 
         s3clientBuilder.credentialsProvider(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
-        // TODO NOMERGE: may not want this, TBD
-        s3clientBuilder.crossRegionAccessEnabled(true);
 
         if (clientSettings.pathStyleAccess) {
             s3clientBuilder.forcePathStyle(true);

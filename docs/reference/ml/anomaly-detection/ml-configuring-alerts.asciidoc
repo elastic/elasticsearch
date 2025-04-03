@@ -156,11 +156,7 @@ rule's check interval.
 
 Alternatively, you can set the action frequency such that actions run for each
 alert. Choose how often the action runs (at each check interval, only when the
-alert status changes, or at a custom action interval). 
-
-When you use an email action with an {anomaly-detect} rule, the alert includes only the top three anomalous records or influencers detected during the check interval. This behavior ensures that the alert remains concise by highlighting the most significant anomalies based on their scores.
-
-For {anomaly-detect}
+alert status changes, or at a custom action interval). For {anomaly-detect}
 alert rules, you must also choose whether the action runs when the anomaly score
 matches the condition or when the alert recovers:
 
@@ -235,7 +231,7 @@ The bucket timestamp of the anomaly.
 The bucket timestamp of the anomaly in ISO8601 format.
 
 `context`.`topInfluencers`::
-The list of top influencers.
+The list of top influencers. Limited to a maximum of 3 documents.
 +
 .Properties of `context.topInfluencers`
 [%collapsible%open]
@@ -252,7 +248,7 @@ influencer's overall contribution to the anomalies.
 ====
 
 `context`.`topRecords`::
-The list of top records.
+The list of top records. Limited to a maximum of 3 documents.
 +
 .Properties of `context.topRecords`
 [%collapsible%open]

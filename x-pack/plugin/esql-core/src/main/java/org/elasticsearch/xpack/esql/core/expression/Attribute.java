@@ -66,7 +66,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public AttributeSet references() {
-        return new AttributeSet(this);
+        return AttributeSet.of(this);
     }
 
     public Attribute withLocation(Source source) {

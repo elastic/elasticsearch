@@ -41,7 +41,7 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
         // Fields from lookup indices don't need to be present on the node, and our search stats don't include them, anyway. Ignore them.
-        AttributeSet lookupFields = new AttributeSet();
+        var lookupFieldsBuilder = AttributeSet.builder();
         plan.forEachUp(EsRelation.class, esRelation -> {
             // Looking only for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index
             // is used in the FROM command, it will not be marked with LOOKUP mode there - but STANDARD.
@@ -50,14 +50,14 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
             // we're inside the right (or left) branch of a JOIN node. (See PlannerUtils.localPlan - this looks for FragmentExecs and
             // performs local logical optimization of the fragments; the right hand side of a LookupJoinExec can be a FragmentExec.)
             if (esRelation.indexMode() == IndexMode.LOOKUP) {
-                lookupFields.addAll(esRelation.output());
+                lookupFieldsBuilder.addAll(esRelation.output());
             }
         });
 
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> (localLogicalOptimizerContext.searchStats().exists(f.fieldName())
-            || lookupFields.contains(f));
+            || lookupFieldsBuilder.contains(f));
 
         return plan.transformUp(p -> missingToNull(p, shouldBeRetained));
     }

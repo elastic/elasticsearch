@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.inference.chunking.Chunker.ChunkOffset;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
@@ -94,13 +97,20 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             defaultChunkingSettings = DEFAULT_CHUNKING_SETTINGS;
         }
 
+        Map<ChunkingStrategy, Chunker> chunkers = inputs.stream()
+            .map(ChunkInferenceInput::chunkingSettings)
+            .filter(Objects::nonNull)
+            .map(ChunkingSettings::getChunkingStrategy)
+            .distinct()
+            .collect(Collectors.toMap(chunkingStrategy -> chunkingStrategy, ChunkerBuilder::fromChunkingStrategy));
+
         List<Request> allRequests = new ArrayList<>();
         for (int inputIndex = 0; inputIndex < inputs.size(); inputIndex++) {
             ChunkingSettings chunkingSettings = inputs.get(inputIndex).chunkingSettings();
             if (chunkingSettings == null) {
                 chunkingSettings = defaultChunkingSettings;
             }
-            Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
+            Chunker chunker = chunkers.get(chunkingSettings.getChunkingStrategy());
             List<ChunkOffset> chunks = chunker.chunk(inputs.get(inputIndex).input(), chunkingSettings);
             int resultCount = Math.min(chunks.size(), MAX_CHUNKS);
             resultEmbeddings.add(new AtomicReferenceArray<>(resultCount));

@@ -7,4 +7,4 @@ breaking:
   title: Remove deprecated `apm_user` role
   area: Authorization
   details: The deprecated `apm_user` role has been removed.
-  impact: Users depending on built-in `apm_user` role will lose access to APM UI and data. In order to retain access, replace it by one of the existing built-in roles ({ref}/built-in-roles.html#built-in-roles-viewer[viewer], {ref}/built-in-roles.html#built-in-roles-editor[editor] or {ref}/built-in-roles.html#built-in-roles-superuser[superuser]).
+  impact: Users depending on built-in `apm_user` role will lose access to APM UI and data. In order to retain access, replace it by one of the existing [built-in roles](elasticsearch/roles.md): `viewer`, `editor` or `superuser`).

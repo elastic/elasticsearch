@@ -33,6 +33,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
@@ -159,8 +160,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         // Tests for all types where left and right are the same type
-        // DataType[] all = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, IP, KEYWORD };
-        DataType[] all = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, IP, KEYWORD };
+        DataType[] all = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, DATETIME, IP, KEYWORD };
         {
             Collection<TestConfigs> existing = testConfigurations.values();
             TestConfigs configs = testConfigurations.computeIfAbsent("same", TestConfigs::new);

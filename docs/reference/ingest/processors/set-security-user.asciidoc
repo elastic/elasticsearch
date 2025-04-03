@@ -4,9 +4,9 @@
 <titleabbrev>Set security user</titleabbrev>
 ++++
 
-Sets user-related details (such as `username`,  `roles`, `email`, `full_name`,
+Sets user-related details (such as `username`, `roles`, `email`, `full_name`,
 `metadata`, `api_key`, `realm` and `authentication_type`) from the current
-authenticated user to the current document by pre-processing the ingest.
+authenticated user.
 The `api_key` property exists only if the user authenticates with an
 API key. It is an object containing the `id`, `name` and `metadata`
 (if it exists and is non-empty) fields of the API key.

@@ -238,9 +238,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference_bwc/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/117349
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/116175
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/117024
@@ -468,39 +465,27 @@ tests:
 - class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
   method: testLuceneVersionConstant
   issue: https://github.com/elastic/elasticsearch/issues/125638
-- class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
-  method: testUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/125554
-- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
-  method: testElser {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/125550
-- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
-  method: testHFEmbeddings {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/125543
-- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
-  method: testElser {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/125544
-- class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
-  method: testUpgradeModels {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/125535
-- class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
-  method: testUpgradeModels {upgradedNodes=0}
-  issue: https://github.com/elastic/elasticsearch/issues/125549
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {date.Implicit casting strings to dates for IN operator ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/121490
 - class: org.elasticsearch.packaging.test.DebPreservationTests
   method: test40RestartOnUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/125821
-- class: org.elasticsearch.xpack.inference.registry.ModelRegistryMetadataTests
-  method: testAlreadyUpgraded
-  issue: https://github.com/elastic/elasticsearch/issues/125585
-- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
-  method: testHFEmbeddings {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/125551
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
   method: testDataStreamLifecycleDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/123769
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/125668
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {range.Invalid boundaries date SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126083
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {range.Invalid boundaries date}
+  issue: https://github.com/elastic/elasticsearch/issues/126084
+- class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
+  method: testUpgradeModels {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/125549
+- class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
+  method: testUpgradeModels {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/125535

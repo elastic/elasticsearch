@@ -2,7 +2,7 @@ pr: 125060
 summary: Allow partial results by default in ES|QL
 area: ES|QL
 type: breaking
-issues: []
+issues: [122802]
 
 breaking:
   title: Allow partial results by default in ES|QL

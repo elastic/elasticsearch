@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -38,8 +40,24 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
+        // Fields from lookup indices don't need to be present on the node, and our search stats don't include them, anyway. Ignore them.
+        AttributeSet lookupFields = new AttributeSet();
+        plan.forEachUp(EsRelation.class, esRelation -> {
+            // Looking only for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index
+            // is used in the FROM command, it will not be marked with LOOKUP mode there - but STANDARD.
+            // It seems like we could instead just look for JOINs and walk down their right hand side to find lookup fields - but this does
+            // not work as this rule also gets called just on the right hand side of a JOIN, which means that we don't always know that
+            // we're inside the right (or left) branch of a JOIN node. (See PlannerUtils.localPlan - this looks for FragmentExecs and
+            // performs local logical optimization of the fragments; the right hand side of a LookupJoinExec can be a FragmentExec.)
+            if (esRelation.indexMode() == IndexMode.LOOKUP) {
+                lookupFields.addAll(esRelation.output());
+            }
+        });
+
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
-        Predicate<FieldAttribute> shouldBeRetained = f -> localLogicalOptimizerContext.searchStats().exists(f.fieldName());
+        // Also retain fields from lookup indices because we do not have stats for these.
+        Predicate<FieldAttribute> shouldBeRetained = f -> (localLogicalOptimizerContext.searchStats().exists(f.fieldName())
+            || lookupFields.contains(f));
 
         return plan.transformUp(p -> missingToNull(p, shouldBeRetained));
     }

@@ -659,6 +659,6 @@ from *
 | limit 1
 ;
 
-author.keyword:keyword|book_no:keyword|scalerank:integer|street:keyword|bytes_in:ul|@timestamp:unsupported|abbrev:keyword|city_location:geo_point|distance:double|description:unsupported|birth_date:date|language_code:integer|intersects:boolean|client_ip:unsupported|event_duration:long|version:version|language_name:keyword
-Fyodor Dostoevsky     |1211           |null             |null          |null       |null                  |null          |null                   |null           |null                   |null           |null                 |null              |null                 |null               |null           |null
+author.keyword:keyword|book_no:keyword|scalerank:integer|street:keyword|bytes_in:ul|@timestamp:null|abbrev:keyword|city_location:geo_point|distance:double|description:null|birth_date:date|language_code:keyword|intersects:boolean|client_ip:null|event_duration:long|version:version|language_name:keyword
+Fyodor Dostoevsky     |1211           |null             |null          |null       |null           |null          |null                   |null           |null            |null           |null                 |null              |null          |null               |null           |null
 ;

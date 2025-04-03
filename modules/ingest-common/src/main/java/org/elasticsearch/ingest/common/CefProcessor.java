@@ -97,9 +97,9 @@ public final class CefProcessor extends AbstractProcessor {
             ProjectId projectId
         ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
-            boolean ignoreEmptyValues = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_empty_values", true);
-            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
             String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field", "cef");
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
+            boolean ignoreEmptyValues = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_empty_values", true);
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "timezone");
             TemplateScript.Factory compiledTimezoneTemplate = null;
             if (timezoneString != null) {

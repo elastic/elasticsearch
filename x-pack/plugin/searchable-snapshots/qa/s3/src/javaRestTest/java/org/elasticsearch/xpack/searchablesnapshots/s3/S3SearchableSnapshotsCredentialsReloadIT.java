@@ -84,7 +84,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         keystoreSettings.put("s3.client.default.access_key", accessKey1);
         keystoreSettings.put("s3.client.default.secret_key", randomSecretKey());
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         testHarness.createFrozenSearchableSnapshotIndex();
 
@@ -104,7 +104,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         logger.info("--> update keystore contents");
         keystoreSettings.put("s3.client.default.access_key", accessKey2);
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         // Check access using refreshed credentials
         logger.info("--> expect success");
@@ -126,7 +126,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         keystoreSettings.put("s3.client." + alternativeClient + ".access_key", accessKey2);
         keystoreSettings.put("s3.client." + alternativeClient + ".secret_key", randomSecretKey());
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         testHarness.createFrozenSearchableSnapshotIndex();
 

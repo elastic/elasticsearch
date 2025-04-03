@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpFixture;
-import io.netty.handler.codec.http.HttpMethod;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -104,13 +103,5 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
 
         // Check access using refreshed credentials
         assertOK(client().performRequest(verifyRequest));
-    }
-
-    private Request createReloadSecureSettingsRequest() throws IOException {
-        return newXContentRequest(
-            HttpMethod.POST,
-            "/_nodes/reload_secure_settings",
-            (b, p) -> inFipsJvm() ? b.field("secure_settings_password", "keystore-password") : b
-        );
     }
 }

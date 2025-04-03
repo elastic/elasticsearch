@@ -15,6 +15,7 @@ import software.amazon.awssdk.auth.signer.Aws4Signer;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.signer.NoOpSigner;
+import software.amazon.awssdk.regions.Region;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -175,14 +176,14 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(settings.get("other").disableChunkedEncoding, is(true));
     }
 
-    public void testRegionCanBeSet() throws IOException {
-        final String region = randomAlphaOfLength(5);
+    public void testRegionCanBeSet() {
+        final String randomRegion = randomAlphaOfLength(5);
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.other.region", region).build()
+            Settings.builder().put("s3.client.other.region", randomRegion).build()
         );
 
         assertThat(settings.get("default").region, is(""));
-        assertThat(settings.get("other").region, is(region));
+        assertThat(settings.get("other").region, is(randomRegion));
 
         try (
             var s3Service = new S3Service(
@@ -192,16 +193,14 @@ public class S3ClientSettingsTests extends ESTestCase {
                 () -> null
             )
         ) {
-            // TODO NOMERGE: S3Client#getBucketLocation is supposed to be a work around to access the region: the response object includes
-            // the region. However, we can't build a S3Client in this file, so we need to migrate it elsewhere.
-            // "Unable to load credentials from any of the providers in the chain AwsCredentialsProviderChain"
-            // "AWS_CONTAINER_CREDENTIALS_FULL_URI" is not set. Or setup some other fake credential workaround.
+            var otherSettings = settings.get("other");
+            Region otherRegion = s3Service.getClientRegion(otherSettings);
+            assertEquals(randomRegion, otherRegion.toString());
 
-            // var otherSettings = settings.get("other");
-            // S3Client otherS3Client = s3Service.buildClient(otherSettings, S3Service.buildHttpClient(otherSettings));
-            // String request = otherS3Client.getBucketLocation(GetBucketLocationRequest.builder().build()).locationConstraintAsString();
-            // logger.info(Strings.format("region [{}], request string [{}]", region, request));
-            // assertTrue(Strings.format("Expected to find region [{}] in request string [{}]", region, request), request.contains(region));
+            var defaultSettings = settings.get("default");
+            Region defaultRegion = s3Service.getClientRegion(defaultSettings);
+            assertNotEquals(randomRegion, defaultRegion.toString());
+            assertEquals("us-east-1", defaultRegion.toString()); // us-east-1 is the default absent any other settings.
         }
     }
 

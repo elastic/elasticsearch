@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShar
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalPartitionedClusterFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.PartitionedClusterFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.TieredPartitionedClusterFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -455,7 +457,11 @@ public class ClusterModule extends AbstractModule {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        final PartitionedClusterFactory partitionedClusterFactory = new GlobalPartitionedClusterFactory(balancerSettings);
+        // I'm aware that the following is an anti-pattern and will implement as an SPI provider or plugin
+        // if we decide to go ahead with this.
+        final PartitionedClusterFactory partitionedClusterFactory = DiscoveryNode.isStateless(settings)
+            ? new TieredPartitionedClusterFactory(balancerSettings, clusterSettings)
+            : new GlobalPartitionedClusterFactory(balancerSettings);
         allocators.put(
             BALANCED_ALLOCATOR,
             () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, partitionedClusterFactory)

@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.ecs;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -131,17 +130,20 @@ public class EcsNamespaceProcessor extends AbstractProcessor {
         renameSpecialKeys(document);
 
         // Iterate through all top level keys and move them to the appropriate namespace
-        for (String key : Sets.newHashSet(source.keySet())) {
+        final var sourceItr = source.entrySet().iterator();
+        while (sourceItr.hasNext()) {
+            final var entry = sourceItr.next();
+            final var key = entry.getKey();
+            final var value = entry.getValue();
             if (KEEP_KEYS.contains(key)) {
                 continue;
             }
             if (shouldMoveToResourceAttributes(key)) {
-                Object value = source.remove(key);
                 newResourceAttributes.put(key, value);
             } else {
-                Object value = source.remove(key);
                 newAttributes.put(key, value);
             }
+            sourceItr.remove();
         }
 
         // Flatten attributes

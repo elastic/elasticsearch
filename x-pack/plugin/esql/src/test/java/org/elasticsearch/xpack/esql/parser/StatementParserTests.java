@@ -80,6 +80,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CLUSTER;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.DATE_MATH;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.INDEX_SELECTOR;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
@@ -458,7 +459,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         List<String> commands = new ArrayList<>();
         commands.add("FROM");
         if (Build.current().isSnapshot()) {
-            commands.add("METRICS");
+            commands.add("TS");
         }
         for (String command : commands) {
             assertStringAsIndexPattern("foo", command + " \"foo\"");
@@ -560,7 +561,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Map<String, String> commands = new HashMap<>();
         commands.put("FROM {}", "line 1:6: ");
         if (Build.current().isSnapshot()) {
-            commands.put("METRICS {}", "line 1:9: ");
             commands.put("ROW x = 1 | LOOKUP_🐔 {} ON j", "line 1:22: ");
         }
         String lineNumber;
@@ -636,7 +636,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectDoubleColonErrorWithLineNumber(command, "*:*::failures", parseLineNumber + 3);
 
                 // Too many colons
-                expectInvalidIndexNameErrorWithLineNumber(command, "\"index:::data\"", lineNumber, "index:", "must not contain ':'");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"index:::data\"",
+                    lineNumber,
+                    "index:::data",
+                    "Selectors are not yet supported on remote cluster patterns"
+                );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "\"index::::data\"",
@@ -653,7 +659,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // comma separated indices, with exclusions
         // Invalid index names after removing exclusion fail, when there is no index name with wildcard before it
         for (String command : commands.keySet()) {
-            if (command.contains("LOOKUP_🐔") || command.contains("METRICS")) {
+            if (command.contains("LOOKUP_🐔") || command.contains("TS")) {
                 continue;
             }
 
@@ -693,7 +699,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Invalid index names, except invalid DateMath, are ignored if there is an index name with wildcard before it
         String dateMathError = "unit [D] not supported for date math [/D]";
         for (String command : commands.keySet()) {
-            if (command.contains("LOOKUP_🐔") || command.contains("METRICS")) {
+            if (command.contains("LOOKUP_🐔") || command.contains("TS")) {
                 continue;
             }
             lineNumber = command.contains("FROM") ? "line 1:9: " : "line 1:12: ";
@@ -2206,8 +2212,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void assertStringAsIndexPattern(String string, String statement) {
-        if (Build.current().isSnapshot() == false && statement.contains("METRIC")) {
-            expectThrows(ParsingException.class, containsString("mismatched input 'METRICS' expecting {"), () -> statement(statement));
+        if (Build.current().isSnapshot() == false && statement.startsWith("TS ")) {
+            expectThrows(ParsingException.class, containsString("mismatched input 'TS' expecting {"), () -> statement(statement));
             return;
         }
         LogicalPlan from = statement(statement);
@@ -2312,20 +2318,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMetricsWithoutStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
 
-        assertStatement("METRICS foo", unresolvedTSRelation("foo"));
-        assertStatement("METRICS foo,bar", unresolvedTSRelation("foo,bar"));
-        assertStatement("METRICS foo*,bar", unresolvedTSRelation("foo*,bar"));
-        assertStatement("METRICS foo-*,bar", unresolvedTSRelation("foo-*,bar"));
-        assertStatement("METRICS foo-*,bar+*", unresolvedTSRelation("foo-*,bar+*"));
+        assertStatement("TS foo", unresolvedTSRelation("foo"));
+        assertStatement("TS foo,bar", unresolvedTSRelation("foo,bar"));
+        assertStatement("TS foo*,bar", unresolvedTSRelation("foo*,bar"));
+        assertStatement("TS foo-*,bar", unresolvedTSRelation("foo-*,bar"));
+        assertStatement("TS foo-*,bar+*", unresolvedTSRelation("foo-*,bar+*"));
     }
 
     public void testMetricsIdentifiers() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         Map<String, String> patterns = Map.ofEntries(
-            Map.entry("metrics foo,test-*", "foo,test-*"),
-            Map.entry("metrics 123-test@foo_bar+baz1", "123-test@foo_bar+baz1"),
-            Map.entry("metrics foo,   test,xyz", "foo,test,xyz"),
-            Map.entry("metrics <logstash-{now/M{yyyy.MM}}>", "<logstash-{now/M{yyyy.MM}}>")
+            Map.entry("ts foo,test-*", "foo,test-*"),
+            Map.entry("ts 123-test@foo_bar+baz1", "123-test@foo_bar+baz1"),
+            Map.entry("ts foo,   test,xyz", "foo,test,xyz"),
+            Map.entry("ts <logstash-{now/M{yyyy.MM}}>", "<logstash-{now/M{yyyy.MM}}>")
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
             assertStatement(e.getKey(), unresolvedTSRelation(e.getValue()));
@@ -2335,7 +2341,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testSimpleMetricsWithStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStatement(
-            "METRICS foo | STATS load=avg(cpu) BY ts",
+            "TS foo | STATS load=avg(cpu) BY ts",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo"),
@@ -2345,7 +2351,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertStatement(
-            "METRICS foo,bar | STATS load=avg(cpu) BY ts",
+            "TS foo,bar | STATS load=avg(cpu) BY ts",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
@@ -2355,7 +2361,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertStatement(
-            "METRICS foo,bar | STATS load=avg(cpu),max(rate(requests)) BY ts",
+            "TS foo,bar | STATS load=avg(cpu),max(rate(requests)) BY ts",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
@@ -2378,7 +2384,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertStatement(
-            "METRICS foo* | STATS count(errors)",
+            "TS foo* | STATS count(errors)",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
@@ -2388,7 +2394,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertStatement(
-            "METRICS foo* | STATS a(b)",
+            "TS foo* | STATS a(b)",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
@@ -2398,7 +2404,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertStatement(
-            "METRICS foo* | STATS a(b)",
+            "TS foo* | STATS a(b)",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
@@ -2408,7 +2414,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertStatement(
-            "METRICS foo* | STATS a1(b2)",
+            "TS foo* | STATS a1(b2)",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
@@ -2418,7 +2424,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertStatement(
-            "METRICS foo*,bar* | STATS b = min(a) by c, d.e",
+            "TS foo*,bar* | STATS b = min(a) by c, d.e",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*,bar*"),
@@ -2458,12 +2464,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.TIME_SERIES, null, "METRICS");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.TIME_SERIES, null, "TS");
     }
 
     public void testMetricWithGroupKeyAsAgg() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        var queries = List.of("METRICS foo | STATS a BY a");
+        var queries = List.of("TS foo | STATS a BY a");
         for (String query : queries) {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }
@@ -3142,18 +3148,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
             {
                 // Selectors are not supported on the left of the join query if used with cluster ids.
-                var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+                // Unquoted case: The language specification does not allow mixing `:` and `::` characters in an index expression
+                var fromPatterns = randomIndexPatterns(CROSS_CLUSTER, without(DATE_MATH));
                 // We do different validation based on the quotation of the pattern
                 // Autogenerated patterns will not mix cluster ids with selectors. Unquote it to ensure stable tests
                 fromPatterns = unquoteIndexPattern(fromPatterns) + "::data";
                 var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
                 expectError(
                     "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {"
                 );
             }
             {
                 // Selectors are not supported on the left of the join query if used with cluster ids.
+                // Quoted case: The language specification allows mixing `:` and `::` characters in a quoted expression, but this usage
+                // must cause a validation exception in the non-generated code.
                 var fromPatterns = randomIndexPatterns(CROSS_CLUSTER, without(INDEX_SELECTOR));
                 // We do different validation based on the quotation of the pattern
                 // Autogenerated patterns will not mix cluster ids with selectors. Unquote, modify, and requote it to ensure stable tests
@@ -3166,10 +3175,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
             }
             {
                 // Selectors are not yet supported in join patterns on the right.
-                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), INDEX_SELECTOR);
+                // Unquoted case: The language specification does not allow mixing `:` and `::` characters in an index expression
+                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(DATE_MATH), INDEX_SELECTOR);
+                // We do different validation based on the quotation of the pattern, so forcefully unquote the expression instead of leaving
+                // it to chance.
+                joinPattern = unquoteIndexPattern(joinPattern);
                 expectError(
-                    "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
                     "extraneous input ':' expecting {QUOTED_STRING, UNQUOTED_SOURCE}"
+                );
+            }
+            {
+                // Selectors are not yet supported in join patterns on the right.
+                // Quoted case: The language specification allows `::` characters in a quoted expression, but this usage
+                // must cause a validation exception in the non-generated code.
+                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(DATE_MATH), INDEX_SELECTOR);
+                // We do different validation based on the quotation of the pattern, so forcefully quote the expression instead of leaving
+                // it to chance.
+                joinPattern = "\"" + unquoteIndexPattern(joinPattern) + "\"";
+                expectError(
+                    "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "invalid index pattern ["
+                        + unquoteIndexPattern(joinPattern)
+                        + "], index pattern selectors are not supported in LOOKUP JOIN"
                 );
             }
         }
@@ -3193,7 +3221,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                    ( LIMIT 5 )
             """);
         var fork = as(plan, Fork.class);
-        var subPlans = fork.subPlans();
+        var subPlans = fork.children();
 
         // first subplan
         var eval = as(subPlans.get(0), Eval.class);
@@ -3357,10 +3385,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDoubleParamsForIdentifier() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         // There are three variations of double parameters - named, positional or anonymous, e.g. ??n, ??1 or ??, covered.
         // Each query is executed three times with the three variations.
 
@@ -3829,10 +3854,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMixedSingleDoubleParams() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         // This is a subset of testDoubleParamsForIdentifier, with single and double parameter markers mixed in the queries
         // Single parameter markers represent a constant value or pattern
         // double parameter markers represent identifiers - field or function names
@@ -4015,10 +4037,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidDoubleParamsNames() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         expectError(
             "from test | where x < ??n1 | eval y = ??n2",
             List.of(paramAsConstant("n1", "f1"), paramAsConstant("n3", "f2")),
@@ -4035,10 +4054,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidDoubleParamsPositions() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         expectError(
             "from test | where x < ??0",
             List.of(paramAsConstant(null, "f1")),
@@ -4066,10 +4082,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidDoubleParamsType() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         // double parameter markers cannot be declared as identifier patterns
         String error = "Query parameter [??f1][f1] declared as a pattern, cannot be used as an identifier";
         List<String> commandWithDoubleParams = List.of(

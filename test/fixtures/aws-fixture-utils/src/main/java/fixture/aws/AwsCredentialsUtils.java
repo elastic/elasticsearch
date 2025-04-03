@@ -39,25 +39,34 @@ public enum AwsCredentialsUtils {
      * @param region the name of the AWS region used to sign the request, or {@code *} to skip validation of the region parameter
      */
     public static BiPredicate<String, String> mutableAccessKey(Supplier<String> accessKeySupplier, String region, String serviceName) {
-        return (authorizationHeader, sessionTokenHeader) -> {
-            if (authorizationHeader == null) {
-                return false;
-            }
+        return (authorizationHeader, sessionTokenHeader) -> authorizationHeader != null
+            && isValidAwsV4SignedAuthorizationHeader(accessKeySupplier.get(), region, serviceName, authorizationHeader);
+    }
 
-            final var accessKey = accessKeySupplier.get();
-            final var expectedPrefix = "AWS4-HMAC-SHA256 Credential=" + accessKey + "/";
-            if (authorizationHeader.startsWith(expectedPrefix) == false) {
-                return false;
-            }
+    /**
+     * @return whether the given value is a valid AWS-v4-signed authorization header that matches the given access key, region, and service
+     * name.
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html">AWS v4 Signatures</a>
+     * @param region the name of the AWS region used to sign the request, or {@code *} to skip validation of the region parameter
+     */
+    public static boolean isValidAwsV4SignedAuthorizationHeader(
+        String accessKey,
+        String region,
+        String serviceName,
+        String authorizationHeader
+    ) {
+        final var expectedPrefix = "AWS4-HMAC-SHA256 Credential=" + accessKey + "/";
+        if (authorizationHeader.startsWith(expectedPrefix) == false) {
+            return false;
+        }
 
-            if (region.equals("*")) {
-                // skip region validation; TODO eliminate this when region is fixed in all tests
-                return authorizationHeader.contains("/" + serviceName + "/aws4_request, ");
-            }
+        if (region.equals("*")) {
+            // skip region validation; TODO eliminate this when region is fixed in all tests
+            return authorizationHeader.contains("/" + serviceName + "/aws4_request, ");
+        }
 
-            final var remainder = authorizationHeader.substring(expectedPrefix.length() + "YYYYMMDD".length() /* skip over date field */);
-            return remainder.startsWith("/" + region + "/" + serviceName + "/aws4_request, ");
-        };
+        final var remainder = authorizationHeader.substring(expectedPrefix.length() + "YYYYMMDD".length() /* skip over date field */);
+        return remainder.startsWith("/" + region + "/" + serviceName + "/aws4_request, ");
     }
 
     /**

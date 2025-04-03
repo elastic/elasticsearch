@@ -803,6 +803,17 @@ public class MetadataTests extends ESTestCase {
                     }
                   }
                 },
+                "repositories": {
+                  "my-repo": {
+                    "type": "fs",
+                    "uuid": "_my-repo-uuid_",
+                    "settings": {
+                      "location": "backup"
+                    },
+                    "generation": 42,
+                    "pending_generation": 42
+                  }
+                },
                 "reserved_state":{ }
               }
             }
@@ -821,8 +832,107 @@ public class MetadataTests extends ESTestCase {
         );
         assertThat(
             metadata.getProject().customs().keySet(),
-            containsInAnyOrder("persistent_tasks", "index-graveyard", "component_template")
+            containsInAnyOrder("persistent_tasks", "index-graveyard", "component_template", "repositories")
         );
+        assertThat(metadata.customs(), not(hasKey("repositories")));
+        final var repositoriesMetadata = RepositoriesMetadata.get(metadata.getProject(ProjectId.DEFAULT));
+        assertThat(
+            repositoriesMetadata.repositories(),
+            equalTo(
+                List.of(
+                    new RepositoryMetadata("my-repo", "_my-repo-uuid_", "fs", Settings.builder().put("location", "backup").build(), 42, 42)
+                )
+            )
+        );
+    }
+
+    public void testParseXContentFormatBeforeRepositoriesMetadataMigration() throws IOException {
+        final String json = org.elasticsearch.core.Strings.format("""
+            {
+              "meta-data": {
+                "version": 54321,
+                "cluster_uuid":"aba1aa1ababbbaabaabaab",
+                "cluster_uuid_committed":false,
+                "cluster_coordination":{
+                  "term":1,
+                  "last_committed_config":[],
+                  "last_accepted_config":[],
+                  "voting_config_exclusions":[]
+                },
+                "projects" : [
+                  {
+                    "id" : "default",
+                    "templates" : {
+                      "template" : {
+                        "order" : 0,
+                        "index_patterns" : [
+                          "pattern1",
+                          "pattern2"
+                        ],
+                        "mappings" : {
+                          "key1" : { }
+                        },
+                        "aliases" : { }
+                      }
+                    },
+                    "index-graveyard" : {
+                      "tombstones" : [ ]
+                    },
+                    "reserved_state" : { }
+                  },
+                  {
+                    "id" : "another_project",
+                    "templates" : {
+                      "template" : {
+                        "order" : 0,
+                        "index_patterns" : [
+                          "pattern1",
+                          "pattern2"
+                        ],
+                        "mappings" : {
+                          "key1" : { }
+                        },
+                        "aliases" : { }
+                      }
+                    },
+                    "index-graveyard" : {
+                      "tombstones" : [ ]
+                    },
+                    "reserved_state" : { }
+                  }
+                ],
+                "repositories": {
+                  "my-repo": {
+                    "type": "fs",
+                    "uuid": "_my-repo-uuid_",
+                    "settings": {
+                      "location": "backup"
+                    },
+                    "generation": 42,
+                    "pending_generation": 42
+                  }
+                },
+                "reserved_state":{ }
+              }
+            }
+            """, IndexVersion.current(), IndexVersion.current());
+
+        final Metadata metadata = fromJsonXContentStringWithPersistentTasks(json);
+        assertThat(metadata, notNullValue());
+        assertThat(metadata.clusterUUID(), is("aba1aa1ababbbaabaabaab"));
+
+        assertThat(metadata.projects().keySet(), containsInAnyOrder(ProjectId.fromId("default"), ProjectId.fromId("another_project")));
+        assertThat(metadata.customs(), not(hasKey("repositories")));
+        final var repositoriesMetadata = RepositoriesMetadata.get(metadata.getProject(ProjectId.DEFAULT));
+        assertThat(
+            repositoriesMetadata.repositories(),
+            equalTo(
+                List.of(
+                    new RepositoryMetadata("my-repo", "_my-repo-uuid_", "fs", Settings.builder().put("location", "backup").build(), 42, 42)
+                )
+            )
+        );
+        assertThat(metadata.getProject(ProjectId.fromId("another_project")).customs(), not(hasKey("repositories")));
     }
 
     private Metadata fromJsonXContentStringWithPersistentTasks(String json) throws IOException {
@@ -2572,6 +2682,25 @@ public class MetadataTests extends ESTestCase {
     public void testMultiProjectXContent() throws IOException {
         final long lastAllocationId = randomNonNegativeLong();
         final List<ProjectMetadata> projects = randomList(1, 5, () -> randomProject(randomUniqueProjectId(), randomIntBetween(1, 3)));
+            .stream()
+            .map(
+                project -> ProjectMetadata.builder(project)
+                    .putCustom(
+                        RepositoriesMetadata.TYPE,
+                        new RepositoriesMetadata(
+                            List.of(
+                                new RepositoryMetadata(
+                                    "backup",
+                                    "uuid-" + project.id().id(),
+                                    "fs",
+                                    Settings.builder().put("location", project.id().id()).build()
+                                )
+                            )
+                        )
+                    )
+                    .build()
+            )
+            .toList();
 
         final Metadata originalMeta = Metadata.builder(randomMetadata(projects))
             .putCustom(
@@ -2617,6 +2746,21 @@ public class MetadataTests extends ESTestCase {
 
         Metadata fromXContentMeta = fromJsonXContentStringWithPersistentTasks(bytes.utf8ToString());
         assertThat(fromXContentMeta.projects().keySet(), equalTo(originalMeta.projects().keySet()));
+        for (var project : fromXContentMeta.projects().values()) {
+            assertThat(
+                RepositoriesMetadata.get(project).repositories(),
+                equalTo(
+                    List.of(
+                        new RepositoryMetadata(
+                            "backup",
+                            "uuid-" + project.id().id(),
+                            "fs",
+                            Settings.builder().put("location", project.id().id()).build()
+                        )
+                    )
+                )
+            );
+        }
         final var clusterTasks = ClusterPersistentTasksCustomMetadata.get(fromXContentMeta);
         assertThat(clusterTasks.getLastAllocationId(), equalTo(lastAllocationId + 1));
         assertThat(clusterTasks.taskMap().keySet(), equalTo(Set.of(HealthNode.TASK_NAME)));
@@ -2843,8 +2987,6 @@ public class MetadataTests extends ESTestCase {
                 chunkCount += checkChunkSize(custom, params, 1);
             } else if (custom instanceof NodesShutdownMetadata nodesShutdownMetadata) {
                 chunkCount += checkChunkSize(custom, params, 2 + nodesShutdownMetadata.getAll().size());
-            } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
-                chunkCount += checkChunkSize(custom, params, repositoriesMetadata.repositories().size());
             } else {
                 // could be anything, we have to just try it
                 chunkCount += count(custom.toXContentChunked(params));

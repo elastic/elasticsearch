@@ -524,7 +524,12 @@ public class EsqlCapabilities {
         /**
          * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
          */
-        FIXED_REGEX_FOLD;
+        FIXED_REGEX_FOLD,
+
+        /**
+         * Avoid duplicated channels with the same name id when executing ESQL queries.
+         */
+        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT;
 
         private final boolean enabled;
 

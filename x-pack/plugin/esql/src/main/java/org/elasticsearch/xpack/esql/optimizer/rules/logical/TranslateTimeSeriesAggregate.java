@@ -26,12 +26,12 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * Rate aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -123,10 +123,14 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        return translate(aggregate);
+        if (aggregate instanceof TimeSeriesAggregate ts) {
+            return translate(ts);
+        } else {
+            return aggregate;
+        }
     }
 
-    LogicalPlan translate(Aggregate aggregate) {
+    LogicalPlan translate(TimeSeriesAggregate aggregate) {
         Map<Rate, Alias> rateAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
@@ -153,7 +157,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             }
         }
         if (rateAggs.isEmpty()) {
-            return aggregate;
+            // no time-series aggregations, run a regular aggregation instead.
+            return new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), aggregate.aggregates());
         }
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
@@ -204,7 +209,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             }
             secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
-        LogicalPlan relation = aggregate.child().transformUp(EsRelation.class, r -> {
+        LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
             if (r.output().contains(tsid.get()) == false) {
                 return new EsRelation(
                     r.source(),
@@ -217,26 +222,22 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 return r;
             }
         });
-        return newAggregate(
-            newAggregate(relation, Aggregate.AggregateType.TIME_SERIES, firstPassAggs, firstPassGroupings),
-            Aggregate.AggregateType.STANDARD,
-            secondPassAggs,
-            secondPassGroupings
+        final var firstPhase = new TimeSeriesAggregate(
+            newChild.source(),
+            newChild,
+            firstPassGroupings,
+            mergeExpressions(firstPassAggs, firstPassGroupings)
         );
+        return new Aggregate(firstPhase.source(), firstPhase, secondPassGroupings, mergeExpressions(secondPassAggs, secondPassGroupings));
     }
 
-    private static Aggregate newAggregate(
-        LogicalPlan child,
-        Aggregate.AggregateType type,
+    private static List<? extends NamedExpression> mergeExpressions(
         List<? extends NamedExpression> aggregates,
         List<Expression> groupings
     ) {
-        return new Aggregate(
-            child.source(),
-            child,
-            type,
-            groupings,
-            Stream.concat(aggregates.stream(), groupings.stream().map(Expressions::attribute)).toList()
-        );
+        List<NamedExpression> merged = new ArrayList<>(aggregates.size() + groupings.size());
+        merged.addAll(aggregates);
+        groupings.forEach(g -> merged.add(Expressions.attribute(g)));
+        return merged;
     }
 }

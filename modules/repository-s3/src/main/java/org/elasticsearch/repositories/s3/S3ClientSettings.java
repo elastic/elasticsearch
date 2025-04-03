@@ -85,7 +85,14 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<HttpScheme> PROTOCOL_SETTING = Setting.affixKeySetting(
         PREFIX,
         "protocol",
-        key -> new Setting<>(key, "https", s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope, Property.Deprecated)
+        key -> new Setting<>(
+            key,
+            "https",
+            s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)),
+            Property.NodeScope,
+            // TODO NOMERGE document this deprecation (setting now has no effect)
+            Property.Deprecated
+        )
     );
 
     /** The host name of a proxy to connect to s3 through. */
@@ -152,8 +159,7 @@ final class S3ClientSettings {
             key,
             Defaults.THROTTLE_RETRIES,
             Property.NodeScope,
-            // TODO NOMERGE why deprecated?
-            // -dianna: V2 retry strategies appear to use throttling by default for a category of exceptions. TODO: document
+            // TODO NOMERGE document this deprecation (setting now has no effect)
             Property.Deprecated
         )
     );
@@ -252,8 +258,8 @@ final class S3ClientSettings {
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
-    /** Signer override to use or empty string to use default. */ // TODO: fix comment
-    final AwsSignerOverrideType signerOverride; // TODO: document somewhat breaking change
+    /** Signer override to use or empty string to use default. */ // TODO NOMERGE fix comment
+    final AwsSignerOverrideType signerOverride; // TODO NOMERGE document somewhat breaking change
 
     private S3ClientSettings(
         AwsCredentials credentials,

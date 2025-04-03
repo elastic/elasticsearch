@@ -155,11 +155,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
     }
 
     @Override
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        throw new UnsupportedOperationException("not implemented");
-    }
-
-    @Override
     public Map<String, Object> asMap() {
         throw new UnsupportedOperationException("Not implemented");
     }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.anthropic.AnthropicAccount;
+import org.elasticsearch.xpack.inference.services.anthropic.AnthropicAccount;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicModel;
 
 import java.util.Objects;

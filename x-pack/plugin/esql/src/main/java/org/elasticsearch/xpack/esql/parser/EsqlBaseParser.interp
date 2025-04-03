@@ -155,7 +155,7 @@ STATS
 WHERE
 DEV_INLINESTATS
 FROM
-DEV_METRICS
+DEV_TIME_SERIES
 DEV_FORK
 JOIN_LOOKUP
 DEV_JOIN_FULL
@@ -287,7 +287,7 @@ rowCommand
 fields
 field
 fromCommand
-metricsCommand
+timeSeriesCommand
 indexPatternAndMetadataFields
 indexPattern
 clusterString

@@ -250,6 +250,10 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return targetShards.clone();
         }
 
+        public int sourceShard(int targetShard) {
+            return targetShard % shardCountBefore();
+        }
+
         /**
          * Create resharding metadata representing a new split operation
          * Split only supports updating an index to a multiple of its current shard count
@@ -343,6 +347,10 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             assert shardNum >= 0 && shardNum < sourceShards.length : "source shardNum is out of bounds";
 
             return sourceShards[shardNum];
+        }
+
+        public boolean isTargetShard(int shardId) {
+            return shardId >= shardCountBefore();
         }
 
         /**

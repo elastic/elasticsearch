@@ -17,4 +17,6 @@ public @interface FunctionAppliesTo {
     String version() default "";
 
     String description() default "";
+
+    boolean serverless() default true;
 }

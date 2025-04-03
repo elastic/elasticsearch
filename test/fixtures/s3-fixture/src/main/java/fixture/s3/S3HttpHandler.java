@@ -207,8 +207,9 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
             } else if (request.isListObjectsRequest()) {
-                if (request.queryParameters().containsKey("list-type")) {
-                    throw new AssertionError("Test must be adapted for GET Bucket (List Objects) Version 2");
+                final var listType = request.queryParameters().getOrDefault("list-type", List.of("1")).get(0);
+                if (request.queryParameters().containsKey("list-type") && listType.equals("2") == false) {
+                    throw new AssertionError("Unsupported list-type, must be absent or `2` but got " + listType);
                 }
 
                 final StringBuilder list = new StringBuilder();
@@ -223,6 +224,9 @@ public class S3HttpHandler implements HttpHandler {
                 if (delimiter != null) {
                     list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
                 }
+                // Would be good to test pagination here (the only real difference between ListObjects and ListObjectsV2) but for now
+                // we return all the results at once.
+                list.append("<IsTruncated>false</IsTruncated>");
                 for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
                     if (prefix != null && blob.getKey().startsWith("/" + bucket + "/" + prefix) == false) {
                         continue;

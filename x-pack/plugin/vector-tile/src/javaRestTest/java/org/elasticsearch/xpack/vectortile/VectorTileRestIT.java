@@ -50,10 +50,19 @@ import java.util.List;
 public class VectorTileRestIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("vector-tile")
-        .setting("xpack.license.self_generated.type", "trial")
-        .build();
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        var builder = ElasticsearchCluster.local().module("vector-tile").setting("xpack.license.self_generated.type", "trial");
+
+        if (Build.current().isSnapshot()) {
+            // This module is not available in non-snapshot builds
+            // The tests below that use it are disabled in non-snapshot builds
+            builder.module("test-error-query");
+        }
+
+        return builder.build();
+    }
 
     private static final String INDEX_POINTS = "index-points";
     private static final String INDEX_POLYGON = "index-polygon";

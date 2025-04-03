@@ -50,7 +50,7 @@ public class MetricsRestAction extends BaseRestHandler {
         if (request.hasContent()) {
             var metricsServiceRequest = ExportMetricsServiceRequest.parseFrom(request.content().streamInput());
 
-            logger.info("Received export metrics request: " + metricsServiceRequest);
+            logger.info("Received " + metricsServiceRequest.getResourceMetricsCount() + " metrics");
         }
 
         return channel -> {

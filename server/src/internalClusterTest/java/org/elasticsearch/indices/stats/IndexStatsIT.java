@@ -466,27 +466,26 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
     }
 
-    public void testThrottleStats() {
+    public void testThrottleStats() throws Exception {
         assertAcked(
-            prepareCreate("test").setSettings(
+            prepareCreate("test_throttle_stats_index").setSettings(
                 settingsBuilder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "1")
+                    .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "true")
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC.name())
             )
         );
-        ensureGreen();
+        ensureGreen("test_throttle_stats_index");
         // make sure we see throttling kicking in:
         AtomicBoolean done = new AtomicBoolean();
         AtomicLong termUpTo = new AtomicLong();
-        long start = System.currentTimeMillis();
-        for (int threadIdx = 0; threadIdx < 5; threadIdx++) {
-            int finalThreadIdx = threadIdx;
-            new Thread(() -> {
-                IndicesStatsResponse stats;
+        Thread[] indexingThreads = new Thread[5];
+        for (int threadIdx = 0; threadIdx < indexingThreads.length; threadIdx++) {
+            indexingThreads[threadIdx] = new Thread(() -> {
                 while (done.get() == false) {
                     for (int i = 0; i < 100; i++) {
                         // Provoke slowish merging by making many unique terms:
@@ -495,30 +494,35 @@ public class IndexStatsIT extends ESIntegTestCase {
                             sb.append(' ');
                             sb.append(termUpTo.incrementAndGet());
                         }
-                        prepareIndex("test").setId("" + termUpTo.get()).setSource("field" + (i % 10), sb.toString()).get();
+                        prepareIndex("test_throttle_stats_index").setId("" + termUpTo.get())
+                            .setSource("field" + (i % 10), sb.toString())
+                            .get();
                         if (i % 2 == 0) {
-                            refresh();
+                            refresh("test_throttle_stats_index");
                         }
                     }
-                    refresh();
-                    if (finalThreadIdx == 0) {
-                        stats = indicesAdmin().prepareStats().get();
-                        done.set(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0);
-                    }
-                    if (System.currentTimeMillis() - start > 300 * 1000) { // Wait 5 minutes for throttling to kick in
-                        done.set(true);
-                        fail("index throttling didn't kick in after 5 minutes of intense merging");
-                    }
+                    refresh("test_throttle_stats_index");
                 }
-            }).start();
+            });
+            indexingThreads[threadIdx].start();
+        }
+
+        assertBusy(() -> {
+            IndicesStatsResponse stats = indicesAdmin().prepareStats("test_throttle_stats_index").get();
+            assertTrue(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0);
+            done.set(true);
+        }, 5L, TimeUnit.MINUTES);
+
+        for (Thread indexingThread : indexingThreads) {
+            indexingThread.join();
         }
 
         // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
         // when ESIntegTestCase.after tries to remove indices created by the test:
-        logger.info("test: now optimize");
-        indicesAdmin().prepareForceMerge("test").get();
-        flush();
-        logger.info("test: test done");
+        logger.info("test throttle stats: now optimize");
+        indicesAdmin().prepareForceMerge("test_throttle_stats_index").get();
+        flush("test_throttle_stats_index");
+        logger.info("test throttle stats: test done");
     }
 
     public void testSimpleStats() throws Exception {

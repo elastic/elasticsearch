@@ -55,7 +55,7 @@ public class EcsNamespaceProcessor extends AbstractProcessor {
     );
 
     /**
-     * A close-set of keys that should be kept at the top level of the processed document after applying the namespacing.
+     * A closed-set of keys that should be kept at the top level of the processed document after applying the namespacing.
      * In essence, these are the fields that should not be moved to the "attributes" or "resource.attributes" namespaces.
      * Besides the @timestamp field, this set obviously contains the attributes and the resource fields, as well as the
      * OpenTelemetry-compatible fields that are renamed by the processor.
@@ -212,10 +212,10 @@ public class EcsNamespaceProcessor extends AbstractProcessor {
      *
      * <p>This method performs the following operations:
      * <ul>
-     *   <li>For each key in the {@code RENAME_KEYS} map, it checks if a corresponding field exists in the document. If first looks for the
+     *   <li>For each key in the {@code RENAME_KEYS} map, it checks if a corresponding field exists in the document. It first looks for the
      *   field assuming dot notation for nested fields. If the field is not found, it looks for a top level field with a dotted name.</li>
-     *   <li>If the field exists, it removes if from the document and adds a new field with the corresponding name from the {@code
-     *   RENAME_KEYS} map and the same value.</li>
+     *   <li>If the field exists, it removes it from the document and adds a new field with the corresponding name from the
+     *   {@code RENAME_KEYS} map and the same value.</li>
      *   <li>If the key is nested (contains dots), it recursively removes empty parent fields after renaming.</li>
      * </ul>
      *

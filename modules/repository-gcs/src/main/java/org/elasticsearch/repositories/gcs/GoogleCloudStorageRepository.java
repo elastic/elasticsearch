@@ -22,7 +22,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -86,7 +85,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final TimeValue retryThrottledCasDelayIncrement;
     private final int retryThrottledCasMaxNumberOfRetries;
     private final TimeValue retryThrottledCasMaxDelay;
-    private final RepositoriesMetrics repositoriesMetrics;
+    private final RepositoryStatsCollector statsCollector;
 
     GoogleCloudStorageRepository(
         final RepositoryMetadata metadata,
@@ -95,7 +94,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final RepositoriesMetrics repositoriesMetrics
+        final RepositoryStatsCollector statsCollector
     ) {
         super(
             metadata,
@@ -113,7 +112,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.retryThrottledCasDelayIncrement = RETRY_THROTTLED_CAS_DELAY_INCREMENT.get(metadata.settings());
         this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
         this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
-        this.repositoriesMetrics = repositoriesMetrics;
+        this.statsCollector = statsCollector;
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
 
@@ -144,13 +143,17 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             bigArrays,
             bufferSize,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
-            repositoriesMetrics
+            statsCollector
         );
     }
 
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    RepositoryStatsCollector statsCollector() {
+        return statsCollector;
     }
 
     /**

@@ -31,7 +31,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.mocksocket.MockHttpServer;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -259,7 +258,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             Math.toIntExact(BUFFER_SIZE.getBytes()),
             BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(10), 10),
-            RepositoriesMetrics.NOOP
+            new RepositoryStatsCollector()
         );
         final GoogleCloudStorageBlobContainer googleCloudStorageBlobContainer = new GoogleCloudStorageBlobContainer(
             BlobPath.EMPTY,

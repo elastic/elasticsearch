@@ -13,7 +13,6 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 
 public class OperationStats {
 
-    private static final ThreadLocal<OperationStats> OPERATION_STATS = new ThreadLocal<>();
     final OperationPurpose purpose;
     final StorageOperation operation;
 
@@ -56,26 +55,6 @@ public class OperationStats {
         this.purpose = purpose;
         this.operation = operation;
         this.startTimeMs = 0;
-    }
-
-    static OperationStats initAndGet(OperationPurpose purpose, StorageOperation operation) {
-        var stats = new OperationStats(purpose, operation);
-        OPERATION_STATS.set(stats);
-        return stats;
-    }
-
-    static void set(OperationStats stats) {
-        OPERATION_STATS.set(stats);
-    }
-
-    static OperationStats get() {
-        var stats = OPERATION_STATS.get();
-        assert stats != null : "must initialize operation stats";
-        return stats;
-    }
-
-    static void clear() {
-        OPERATION_STATS.remove();
     }
 
 }

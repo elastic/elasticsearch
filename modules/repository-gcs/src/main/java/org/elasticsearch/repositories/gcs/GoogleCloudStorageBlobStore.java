@@ -43,7 +43,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
@@ -123,14 +122,14 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BigArrays bigArrays,
         int bufferSize,
         BackoffPolicy casBackoffPolicy,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoryStatsCollector statsCollector
     ) {
         this.bucketName = bucketName;
         this.clientName = clientName;
         this.repositoryName = repositoryName;
         this.storageService = storageService;
         this.bigArrays = bigArrays;
-        this.statsCollector = new RepositoryStatsCollector(repositoryName, repositoriesMetrics);
+        this.statsCollector = statsCollector;
         this.bufferSize = bufferSize;
         this.casBackoffPolicy = casBackoffPolicy;
     }

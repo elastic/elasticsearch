@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
@@ -79,7 +78,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             }
         };
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
-        var statsCollector = new RepositoryStatsCollector("repo", RepositoriesMetrics.NOOP);
+        var statsCollector = new RepositoryStatsCollector();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> service.client("another_client", "repo", statsCollector)
@@ -115,7 +114,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
-            var statsCollector = new RepositoryStatsCollector("repo", RepositoriesMetrics.NOOP);
+            var statsCollector = new RepositoryStatsCollector();
             final var client11 = storageService.client("gcs1", "repo1", statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
             final var client12 = storageService.client("gcs2", "repo2", statsCollector);
@@ -144,6 +143,22 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             // client 3 emerged
             final var client23 = storageService.client("gcs3", "repo3", statsCollector);
             assertThat(client23.getOptions().getProjectId(), equalTo("project_gcs23"));
+        }
+    }
+
+    public void testClientsAreNotSharedAcrossRepositories() throws Exception {
+        final MockSecureSettings secureSettings1 = new MockSecureSettings();
+        secureSettings1.setFile("gcs.client.gcs1.credentials_file", serviceAccountFileContent("test_project"));
+        final Settings settings = Settings.builder().setSecureSettings(secureSettings1).build();
+        try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
+            final GoogleCloudStorageService storageService = plugin.storageService;
+
+            final MeteredStorage repo1Client = storageService.client("gcs1", "repo1", new RepositoryStatsCollector());
+            final MeteredStorage repo2Client = storageService.client("gcs1", "repo2", new RepositoryStatsCollector());
+            final MeteredStorage repo1ClientSecondInstance = storageService.client("gcs1", "repo1", new RepositoryStatsCollector());
+
+            assertNotSame(repo1Client, repo2Client);
+            assertSame(repo1Client, repo1ClientSecondInstance);
         }
     }
 

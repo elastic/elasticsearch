@@ -277,7 +277,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    repositoriesMetrics
+                    new RepositoryStatsCollector()
                 ) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
@@ -289,7 +289,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
                             BackoffPolicy.noBackoff(),
-                            repositoriesMetrics
+                            this.statsCollector()
                         ) {
                             @Override
                             long getLargeBlobThresholdInBytes() {

@@ -45,7 +45,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
@@ -205,7 +204,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
             BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(1), 3, TimeValue.timeValueSeconds(1)),
-            RepositoriesMetrics.NOOP
+            new RepositoryStatsCollector()
         );
 
         return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);

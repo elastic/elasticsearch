@@ -22,7 +22,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -79,11 +78,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         when(storage.get("bucket")).thenReturn(mock(Bucket.class));
         when(storage.batch()).thenReturn(batch);
         final com.google.api.services.storage.Storage storageRpc = mock(com.google.api.services.storage.Storage.class);
-        final MeteredStorage meteredStorage = new MeteredStorage(
-            storage,
-            storageRpc,
-            new RepositoryStatsCollector("repo", RepositoriesMetrics.NOOP)
-        );
+        final MeteredStorage meteredStorage = new MeteredStorage(storage, storageRpc, new RepositoryStatsCollector());
 
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
         when(storageService.client(any(String.class), any(String.class), any(RepositoryStatsCollector.class))).thenReturn(meteredStorage);
@@ -97,7 +92,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 BigArrays.NON_RECYCLING_INSTANCE,
                 randomIntBetween(1, 8) * 1024,
                 BackoffPolicy.noBackoff(),
-                RepositoriesMetrics.NOOP
+                new RepositoryStatsCollector()
             )
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);

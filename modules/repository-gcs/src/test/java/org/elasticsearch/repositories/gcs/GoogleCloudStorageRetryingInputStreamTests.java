@@ -24,7 +24,6 @@ import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -70,7 +69,7 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
                 .setRetrySettings(RetrySettings.newBuilder().setMaxAttempts(randomIntBetween(1, 3)).build())
                 .build()
         );
-        meteredStorage = new MeteredStorage(storage, storageRpc, new RepositoryStatsCollector("repo", RepositoriesMetrics.NOOP));
+        meteredStorage = new MeteredStorage(storage, storageRpc, new RepositoryStatsCollector());
     }
 
     public void testReadWithinBlobLength() throws IOException {

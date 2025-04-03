@@ -171,7 +171,7 @@ public class GoogleCloudStorageService {
 
                 return (httpRequest) -> {
                     if (requestInitializer != null) requestInitializer.initialize(httpRequest);
-                    httpRequest.setResponseInterceptor(new MeteringResponseInterceptor());
+                    httpRequest.setResponseInterceptor(RepositoryStatsCollector.METERING_INTERCEPTOR);
                 };
             }
         };

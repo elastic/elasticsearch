@@ -23,9 +23,9 @@ import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
+import org.apache.lucene.util.IORunnable;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
@@ -42,6 +42,8 @@ import static org.elasticsearch.repositories.gcs.StorageOperation.LIST;
 
 /**
  * A wrapper for GCP {@link Storage} client. Provides metering and telemetry.
+ * It's mostly boilerplate code that wraps Storage calls with thread-local metrics.
+ * And special cases, such as Paginated List calls, WriteChannel, ReadChannel.
  */
 public class MeteredStorage {
     private final Storage storage;
@@ -108,13 +110,17 @@ public class MeteredStorage {
         return new MeteredObjectsGetRequest(statsCollector, purpose, storageRpc.objects().get(bucket, blob));
     }
 
-    public MeteredWriteChannel meteredWriter(OperationPurpose purpose, BlobInfo blobInfo, Storage.BlobWriteOption... writeOptions) {
-        var initStats = OperationStats.initAndGet(purpose, INSERT);
-        return new MeteredWriteChannel(statsCollector, initStats, storage.writer(blobInfo, writeOptions));
+    public MeteredWriteChannel meteredWriter(OperationPurpose purpose, BlobInfo blobInfo, Storage.BlobWriteOption... writeOptions)
+        throws IOException {
+        var initStats = new OperationStats(purpose, INSERT);
+        return statsCollector.continueAndCollect(
+            initStats,
+            () -> new MeteredWriteChannel(statsCollector, initStats, storage.writer(blobInfo, writeOptions))
+        );
     }
 
     public MeteredReadChannel meteredReader(OperationPurpose purpose, BlobId blobId, Storage.BlobSourceOption... options) {
-        var initStats = OperationStats.initAndGet(purpose, GET);
+        var initStats = new OperationStats(purpose, GET);
         return new MeteredReadChannel(statsCollector, initStats, storage.reader(blobId, options));
     }
 
@@ -186,7 +192,7 @@ public class MeteredStorage {
 
         @Override
         public void close() throws IOException {
-            statsCollector.finishAndCollect(stats, (CheckedRunnable<IOException>) writeChannel::close);
+            statsCollector.finishAndCollect(stats, (IORunnable) writeChannel::close);
         }
     }
 

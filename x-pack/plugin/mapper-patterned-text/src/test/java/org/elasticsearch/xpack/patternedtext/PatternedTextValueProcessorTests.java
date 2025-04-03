@@ -97,4 +97,44 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
             PatternedTextValueProcessor.merge(parts)
         );
     }
+
+    public void testIsUUID() {
+        String[] validUUIDs = { "123e4567-e89b-12d3-a456-426614174000", "550e8400-e29b-41d4-a716-446655440000" };
+
+        String[] invalidUUIDs = {
+            "not-a-uuid",  // very invalid
+            "550e8400-e29b-41d4-a716-4466554400000"  // Invalid last extra character
+        };
+
+        for (String uuid : validUUIDs) {
+            assertTrue("Expected valid UUID: " + uuid, PatternedTextValueProcessor.isUUID_manual(uuid));
+            assertTrue("Expected valid UUID: " + uuid, PatternedTextValueProcessor.isUUID_regex(uuid));
+        }
+
+        for (String uuid : invalidUUIDs) {
+            assertFalse("Expected invalid UUID: " + uuid, PatternedTextValueProcessor.isUUID_manual(uuid));
+            assertFalse("Expected invalid UUID: " + uuid, PatternedTextValueProcessor.isUUID_regex(uuid));
+        }
+    }
+
+    public void testIsIPv4() {
+        String[] validIPv4s = { "192.168.1.1", "10.0.0.1", "172.16.0.1", "255.255.255.255", "0.0.0.0" };
+
+        String[] invalidIPv4s = {
+            "256.256.256.256", // Out of range
+            "192.168.1",        // Missing one octet
+            "192.168.1.1.1",    // Extra octet
+            "192.168.1.a"       // Invalid character
+        };
+
+        for (String ip : validIPv4s) {
+            assertTrue("Expected valid IPv4: " + ip, PatternedTextValueProcessor.isIpv4_manual_iterative(ip));
+            assertTrue("Expected valid IPv4: " + ip, PatternedTextValueProcessor.isIpv4_regex(ip));
+        }
+
+        for (String ip : invalidIPv4s) {
+            assertFalse("Expected invalid IPv4: " + ip, PatternedTextValueProcessor.isIpv4_regex(ip));
+            assertFalse("Expected invalid IPv4: " + ip, PatternedTextValueProcessor.isIpv4_manual_iterative(ip));
+        }
+    }
 }

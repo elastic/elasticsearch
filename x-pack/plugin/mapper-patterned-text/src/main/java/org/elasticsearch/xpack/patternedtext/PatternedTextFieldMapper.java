@@ -154,6 +154,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
         // Add template docvalues and index.
         context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));
+        // todo: calling templateStripped() right after split() seems like a waste, would be better to do it in the split() method
         context.doc().add(new Field(fieldType().templateFieldName(), parts.templateStripped(), templateFieldType));
 
         // Add timestamp docvalues.

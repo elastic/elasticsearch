@@ -21,6 +21,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Map.entry;
+
 /**
  * This processor is responsible for transforming non-OpenTelemetry-compliant documents into a namespaced flavor of ECS
  * that makes them compatible with OpenTelemetry.
@@ -43,15 +45,11 @@ public class EcsNamespaceProcessor extends AbstractProcessor {
     /**
      * Mapping of ECS field names to their corresponding OpenTelemetry-compatible counterparts.
      */
-    private static final Map<String, String> RENAME_KEYS = Map.of(
-        "span.id",
-        "span_id",
-        "message",
-        "body.text",
-        "log.level",
-        "severity_text",
-        "trace.id",
-        "trace_id"
+    private static final Map<String, String> RENAME_KEYS = Map.ofEntries(
+        entry("span.id", "span_id"),
+        entry("message", "body.text"),
+        entry("log.level", "severity_text"),
+        entry("trace.id", "trace_id")
     );
 
     /**

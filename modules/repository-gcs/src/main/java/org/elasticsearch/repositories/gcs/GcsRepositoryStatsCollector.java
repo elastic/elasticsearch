@@ -251,7 +251,7 @@ public class GcsRepositoryStatsCollector {
                     var stat = operationKv.getValue();
                     var ops = stat.operations.sum();
                     var req = stat.requests.sum();
-                    out.put(purposeKv.getKey() + "_" + operationKv.getKey(), new BlobStoreActionStats(ops, req));
+                    out.put(purposeKv.getKey().getKey() + "_" + operationKv.getKey().key(), new BlobStoreActionStats(ops, req));
                 }
             }
         } else {

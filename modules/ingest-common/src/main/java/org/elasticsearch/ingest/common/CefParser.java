@@ -412,7 +412,7 @@ final class CefParser {
         }
         // If there's any remaining unparsed content, throw an exception
         if (lastEnd < extensionString.length()) {
-            throw new IllegalArgumentException("Invalid extensions; keyless value present: " + extensionString.substring(lastEnd));
+            throw new IllegalArgumentException("Invalid extensions in the CEF event: " + extensionString.substring(lastEnd));
         }
         return extensions;
     }

@@ -186,8 +186,8 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     @Override
     protected AttributeSet computeReferences() {
         return mode.isInputPartial()
-            ? new AttributeSet(intermediateAttributes)
-            : Aggregate.computeReferences(aggregates, groupings).subtract(new AttributeSet(ordinalAttributes()));
+            ? AttributeSet.of(intermediateAttributes)
+            : Aggregate.computeReferences(aggregates, groupings).subtract(AttributeSet.of(ordinalAttributes()));
     }
 
     /** Returns the attributes that can be loaded from ordinals -- no explicit extraction is needed */

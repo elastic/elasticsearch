@@ -35,7 +35,9 @@ public class ChangePointOperator implements Operator {
 
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
 
-    public record Factory(ChangePointDetector changePointDetector, int channel, String sourceText, int sourceLine, int sourceColumn) implements OperatorFactory {
+    public record Factory(ChangePointDetector changePointDetector, int channel, String sourceText, int sourceLine, int sourceColumn)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new ChangePointOperator(driverContext, changePointDetector, channel, sourceText, sourceLine, sourceColumn);
@@ -60,7 +62,14 @@ public class ChangePointOperator implements Operator {
 
     // TODO: make org.elasticsearch.xpack.esql.core.tree.Source available here
     // (by modularizing esql-core) and use that instead of the individual fields.
-    public ChangePointOperator(DriverContext driverContext, ChangePointDetector changePointDetector, int channel, String sourceText, int sourceLine, int sourceColumn) {
+    public ChangePointOperator(
+        DriverContext driverContext,
+        ChangePointDetector changePointDetector,
+        int channel,
+        String sourceText,
+        int sourceLine,
+        int sourceColumn
+    ) {
         this.driverContext = driverContext;
         this.changePointDetector = changePointDetector;
         this.channel = channel;

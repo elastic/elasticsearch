@@ -97,6 +97,9 @@ class Elasticsearch {
         assert bootstrap != null;
 
         try {
+            if (true) {
+                throw new NodeValidationException("Potato test NodeValidationException");
+            }
             initPhase2(bootstrap);
             initPhase3(bootstrap);
         } catch (NodeValidationException e) {

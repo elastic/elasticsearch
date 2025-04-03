@@ -39,42 +39,42 @@ import java.util.stream.Stream;
  * we first execute the rate aggregation using the time-series keys, then perform another aggregation with
  * the resulting rate using the user-specific keys.
  * <p>
- * This class translates the aggregates in the METRICS commands to standard aggregates.
- * This approach helps avoid introducing new plans and operators for metrics aggregations specially.
+ * This class translates the aggregates in the time-series aggregations to standard aggregates.
+ * This approach helps avoid introducing new plans and operators for time-series aggregations specially.
  * <p>
  * Examples:
  * <pre>
- * METRICS k8s max(rate(request))
+ * TS k8s | STATS max(rate(request))
  *
  * becomes
  *
- * METRICS k8s
+ * TS k8s
  * | STATS rate(request) BY _tsid
  * | STATS max(`rate(request)`)
  *
- * METRICS k8s max(rate(request)) BY host
+ * TS k8s | STATS max(rate(request)) BY host
  *
  * becomes
  *
- * METRICS k8s
+ * TS k8s
  * | STATS rate(request), VALUES(host) BY _tsid
  * | STATS max(`rate(request)`) BY host=`VALUES(host)`
  *
- * METRICS k8s avg(rate(request)) BY host
+ * TS k8s | STATS avg(rate(request)) BY host
  *
  * becomes
  *
- * METRICS k8s
+ * TS k8s
  * | STATS rate(request), VALUES(host) BY _tsid
  * | STATS sum=sum(`rate(request)`), count(`rate(request)`) BY host=`VALUES(host)`
  * | EVAL `avg(rate(request))` = `sum(rate(request))` / `count(rate(request))`
  * | KEEP `avg(rate(request))`, host
  *
- * METRICS k8s avg(rate(request)) BY host, bucket(@timestamp, 1minute)
+ * TS k8s | STATS avg(rate(request)) BY host, bucket(@timestamp, 1minute)
  *
  * becomes
  *
- * METRICS k8s
+ * TS k8s
  * | EVAL  `bucket(@timestamp, 1minute)`=datetrunc(@timestamp, 1minute)
  * | STATS rate(request), VALUES(host) BY _tsid,`bucket(@timestamp, 1minute)`
  * | STATS sum=sum(`rate(request)`), count(`rate(request)`) BY host=`VALUES(host)`, `bucket(@timestamp, 1minute)`
@@ -88,36 +88,36 @@ import java.util.stream.Stream;
  * produced by `to_partial`. Examples:
  *
  * <pre>
- * METRICS k8s max(rate(request)), max(memory_used) becomes:
+ * TS k8s | STATS max(rate(request)), max(memory_used) becomes:
  *
- * METRICS k8s
+ * TS k8s
  * | STATS rate(request), $p1=to_partial(max(memory_used)) BY _tsid
  * | STATS max(`rate(request)`), `max(memory_used)` = from_partial($p1, max($_))
  *
- * METRICS k8s max(rate(request)) avg(memory_used) BY host
+ * TS k8s | STATS max(rate(request)) avg(memory_used) BY host
  *
  * becomes
  *
- * METRICS k8s
+ * TS k8s
  * | STATS rate(request), $p1=to_partial(sum(memory_used)), $p2=to_partial(count(memory_used)), VALUES(host) BY _tsid
  * | STATS max(`rate(request)`), $sum=from_partial($p1, sum($_)), $count=from_partial($p2, count($_)) BY host=`VALUES(host)`
  * | EVAL `avg(memory_used)` = $sum / $count
  * | KEEP `max(rate(request))`, `avg(memory_used)`, host
  *
- * METRICS k8s min(memory_used) sum(rate(request)) BY pod, bucket(@timestamp, 5m)
+ * TS k8s | STATS min(memory_used) sum(rate(request)) BY pod, bucket(@timestamp, 5m)
  *
  * becomes
  *
- * METRICS k8s
+ * TS k8s
  * | EVAL `bucket(@timestamp, 5m)` = datetrunc(@timestamp, '5m')
  * | STATS rate(request), $p1=to_partial(min(memory_used)), VALUES(pod) BY _tsid, `bucket(@timestamp, 5m)`
  * | STATS sum(`rate(request)`), `min(memory_used)` = from_partial($p1, min($)) BY pod=`VALUES(pod)`, `bucket(@timestamp, 5m)`
  * | KEEP `min(memory_used)`, `sum(rate(request))`, pod, `bucket(@timestamp, 5m)`
  * </pre>
  */
-public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class TranslateTimeSeriesAggregate extends OptimizerRules.OptimizerRule<Aggregate> {
 
-    public TranslateMetricsAggregate() {
+    public TranslateTimeSeriesAggregate() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
@@ -171,9 +171,9 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
             tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
         }
         if (timestamp.get() == null) {
-            throw new IllegalArgumentException("_tsid or @timestamp field are missing from the metrics source");
+            throw new IllegalArgumentException("_tsid or @timestamp field are missing from the time-series source");
         }
-        // metrics aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
+        // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();
         firstPassGroupings.add(tsid.get());
         List<Expression> secondPassGroupings = new ArrayList<>();
@@ -218,7 +218,7 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
             }
         });
         return newAggregate(
-            newAggregate(relation, Aggregate.AggregateType.METRICS, firstPassAggs, firstPassGroupings),
+            newAggregate(relation, Aggregate.AggregateType.TIME_SERIES, firstPassAggs, firstPassGroupings),
             Aggregate.AggregateType.STANDARD,
             secondPassAggs,
             secondPassGroupings

@@ -10,25 +10,16 @@
 package org.elasticsearch.search;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportMessageListener;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.test.ESIntegTestCase.getNodeId;
 import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
-import static org.elasticsearch.test.ESTestCase.asInstanceOf;
 
 /**
  * Utilities around testing the `error_trace` message header in search.

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,9 +18,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.ErrorTraceHelper;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 import org.junit.BeforeClass;

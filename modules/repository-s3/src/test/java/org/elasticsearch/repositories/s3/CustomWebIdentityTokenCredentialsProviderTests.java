@@ -110,7 +110,8 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                         """,
                     ROLE_ARN,
                     ROLE_NAME,
-                    ZonedDateTime.now(Clock.systemUTC()).plusSeconds(1L) // short expiry to force a reload
+                    ZonedDateTime.now(Clock.systemUTC())
+                        .plusSeconds(1L) // short expiry to force a reload
                         .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"))
                 ).getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);

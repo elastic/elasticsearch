@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -631,9 +630,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "Fork requires at least two branches");
         }
         return input -> {
-            var stub = StubRelation.EMPTY;
-            List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(stub)).toList();
-            return new Fork(source(ctx), input, subPlans);
+            List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
+            return new Fork(source(ctx), subPlans);
         };
     }
 

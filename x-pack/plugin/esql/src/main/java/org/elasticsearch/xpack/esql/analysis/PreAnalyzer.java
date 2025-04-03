@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -54,7 +56,8 @@ public class PreAnalyzer {
     }
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
-        List<IndexPattern> indices = new ArrayList<>();
+        Set<IndexPattern> indices = new HashSet<>();
+
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
         List<InferencePlan> unresolvedInferencePlans = new ArrayList<>();
@@ -66,6 +69,6 @@ public class PreAnalyzer {
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indices, unresolvedEnriches, unresolvedInferencePlans, lookupIndices);
+        return new PreAnalysis(indices.stream().toList(), unresolvedEnriches, unresolvedInferencePlans, lookupIndices);
     }
 }

@@ -63,7 +63,7 @@ public class DateTrunc extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
-        description = "Rounds down a date to the closest interval.",
+        description = "Rounds down a date to the closest interval since epoch, which starts at `0001-01-01T00:00:00Z`.",
         examples = {
             @Example(file = "date", tag = "docsDateTrunc"),
             @Example(
@@ -190,14 +190,14 @@ public class DateTrunc extends EsqlScalarFunction {
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR);
         } else if (period.getDays() > 1) {
             rounding = new Rounding.Builder(new TimeValue(period.getDays(), TimeUnit.DAYS));
-        } else if (period.getMonths() == 1) {
-            rounding = new Rounding.Builder(Rounding.DateTimeUnit.MONTH_OF_YEAR);
         } else if (period.getMonths() == 3) {
-            // java.time.Period does not have a QUATERLY period, so a period of 3 months
+            // java.time.Period does not have a QUARTERLY period, so a period of 3 months
             // returns a quarterly rounding
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR);
-        } else if (period.getYears() == 1) {
-            rounding = new Rounding.Builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY);
+        } else if (period.getMonths() > 0) {
+            rounding = new Rounding.Builder(Rounding.DateTimeUnit.MONTH_OF_YEAR, period.getMonths());
+        } else if (period.getYears() > 0) {
+            rounding = new Rounding.Builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY, period.getYears());
         } else {
             throw new IllegalArgumentException("Time interval is not supported");
         }

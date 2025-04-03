@@ -498,7 +498,7 @@ public class CsvTests extends ESTestCase {
             throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
         }
 
-        String indexName = indices.get(0).id().indexPattern();
+        String indexName = indices.getFirst().indexPattern();
         List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
         if (indexName.endsWith("*")) {
             String indexPrefix = indexName.substring(0, indexName.length() - 1);

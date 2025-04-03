@@ -25,7 +25,6 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorCont
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
-import org.elasticsearch.search.rank.feature.Snippets;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Arrays;

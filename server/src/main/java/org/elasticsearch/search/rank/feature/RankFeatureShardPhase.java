@@ -57,9 +57,12 @@ public final class RankFeatureShardPhase {
                 new FetchFieldsContext(Collections.singletonList(new FieldAndFormat(rankFeaturePhaseRankShardContext.getField(), null)))
             );
             try {
-                Snippets snippets = request.snippets();
+                RerankSnippetInput snippets = request.snippets();
                 if (snippets != null) {
+                    // For POC purposes we're just stripping pre/post tags and deferring if/how we'd want to handle them for this use case.
                     HighlightBuilder highlightBuilder = new HighlightBuilder().field(field).preTags("").postTags("");
+                    // Force sorting by score to ensure that the first snippet is always the highest score
+                    highlightBuilder.order(HighlightBuilder.Order.SCORE);
                     if (snippets.numFragments() != null) {
                         highlightBuilder.numOfFragments(snippets.numFragments());
                     }

@@ -12,7 +12,7 @@ package org.elasticsearch.search.rank.context;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.Snippets;
+import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -31,9 +31,15 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     protected final int from;
     protected final int rankWindowSize;
     protected final boolean failuresAllowed;
-    protected final Snippets snippets;
+    protected final RerankSnippetInput snippets;
 
-    public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, boolean failuresAllowed, Snippets snippets) {
+    public RankFeaturePhaseRankCoordinatorContext(
+        int size,
+        int from,
+        int rankWindowSize,
+        boolean failuresAllowed,
+        RerankSnippetInput snippets
+    ) {
         this.size = size < 0 ? DEFAULT_SIZE : size;
         this.from = from < 0 ? DEFAULT_FROM : from;
         this.rankWindowSize = rankWindowSize;
@@ -45,7 +51,7 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
         return failuresAllowed;
     }
 
-    public Snippets snippets() {
+    public RerankSnippetInput snippets() {
         return snippets;
     }
 

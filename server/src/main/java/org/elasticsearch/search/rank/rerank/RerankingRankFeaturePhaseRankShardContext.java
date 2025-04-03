@@ -21,7 +21,6 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -53,9 +52,10 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
                 }
                 Map<String, HighlightField> highlightFields = hit.getHighlightFields();
                 if (highlightFields != null) {
-                    HighlightField highlightField = highlightFields.get(field);
-                    if (highlightField != null) {
-                        List<String> snippets = new ArrayList<>(Arrays.stream(highlightField.fragments()).map(Text::toString).toList());
+                    if (highlightFields.containsKey(field)) {
+                        List<String> snippets = Arrays.stream(highlightFields.get(field).fragments())
+                            .map(Text::string)
+                            .collect(Collectors.toList());
                         rankFeatureDocs[i].snippets(snippets);
                     }
                 }

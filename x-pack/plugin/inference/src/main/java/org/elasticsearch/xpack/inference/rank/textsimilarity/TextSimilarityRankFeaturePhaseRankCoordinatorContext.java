@@ -14,7 +14,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.Snippets;
+import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -45,7 +45,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         String inferenceText,
         Float minScore,
         boolean failuresAllowed,
-        Snippets snippets
+        RerankSnippetInput snippets
     ) {
         super(size, from, rankWindowSize, failuresAllowed, snippets);
         this.client = client;
@@ -65,7 +65,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             // Ensure we get exactly as many scores as the number of docs we passed, otherwise we may return incorrect results
             List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
 
-            if (snippets == null && rankedDocs.size() != featureDocs.length) {
+            if (rankedDocs.size() != featureDocs.length) {
                 l.onFailure(
                     new IllegalStateException(
                         "Reranker input document count and returned score count mismatch: ["
@@ -112,17 +112,16 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             if (featureDocs.length == 0) {
                 inferenceListener.onResponse(new InferenceAction.Response(new RankedDocsResults(List.of())));
             } else {
-                List<String> featureData = new ArrayList<>();
-                List<String> snippets = new ArrayList<>();
+                List<String> inferenceInputs = new ArrayList<>();
                 for (RankFeatureDoc featureDoc : featureDocs) {
-                    featureData.add(featureDoc.featureData);
-                    if (featureDoc.snippets != null) {
-                        snippets.addAll(featureDoc.snippets);
+                    if (featureDoc.snippets != null && featureDoc.snippets.isEmpty() == false) {
+                        // TODO support reranking multiple snippets
+                        inferenceInputs.add(featureDoc.snippets.get(0));
+                    } else {
+                        inferenceInputs.add(featureDoc.featureData);
                     }
                 }
-                InferenceAction.Request inferenceRequest = snippets.isEmpty() == false
-                    ? generateRequest(snippets)
-                    : generateRequest(featureData);
+                InferenceAction.Request inferenceRequest = generateRequest(inferenceInputs);
                 try {
                     client.execute(InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
                 } finally {

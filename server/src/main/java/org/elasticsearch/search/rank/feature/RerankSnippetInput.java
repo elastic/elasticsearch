@@ -15,9 +15,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public record Snippets(Integer numFragments, Integer maxSize) implements Writeable {
+public record RerankSnippetInput(Integer numFragments, Integer maxSize) implements Writeable {
 
-    public Snippets(StreamInput in) throws IOException {
+    public RerankSnippetInput(StreamInput in) throws IOException {
         this(in.readOptionalVInt(), in.readOptionalVInt());
     }
 

@@ -23,7 +23,7 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.Snippets;
+import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -55,7 +55,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String field;
     private final Float minScore;
     private final boolean failuresAllowed;
-    private final Snippets snippets;
+    private final RerankSnippetInput snippets;
 
     public TextSimilarityRankBuilder(
         String field,
@@ -64,7 +64,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         int rankWindowSize,
         Float minScore,
         boolean failuresAllowed,
-        Snippets snippets
+        RerankSnippetInput snippets
     ) {
         super(rankWindowSize);
         this.inferenceId = inferenceId;
@@ -88,7 +88,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             this.failuresAllowed = false;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            this.snippets = in.readOptionalWriteable(Snippets::new);
+            this.snippets = in.readOptionalWriteable(RerankSnippetInput::new);
         } else {
             this.snippets = null;
         }

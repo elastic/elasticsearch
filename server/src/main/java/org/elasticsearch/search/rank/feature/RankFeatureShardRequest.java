@@ -40,14 +40,14 @@ public class RankFeatureShardRequest extends TransportRequest implements Indices
 
     private final int[] docIds;
 
-    private final Snippets snippets;
+    private final RerankSnippetInput snippets;
 
     public RankFeatureShardRequest(
         OriginalIndices originalIndices,
         ShardSearchContextId contextId,
         ShardSearchRequest shardSearchRequest,
         List<Integer> docIds,
-        @Nullable Snippets snippets
+        @Nullable RerankSnippetInput snippets
     ) {
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;
@@ -63,7 +63,7 @@ public class RankFeatureShardRequest extends TransportRequest implements Indices
         docIds = in.readIntArray();
         contextId = in.readOptionalWriteable(ShardSearchContextId::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            snippets = in.readOptionalWriteable(Snippets::new);
+            snippets = in.readOptionalWriteable(RerankSnippetInput::new);
         } else {
             snippets = null;
         }
@@ -109,7 +109,7 @@ public class RankFeatureShardRequest extends TransportRequest implements Indices
         return contextId;
     }
 
-    public Snippets snippets() {
+    public RerankSnippetInput snippets() {
         return snippets;
     }
 

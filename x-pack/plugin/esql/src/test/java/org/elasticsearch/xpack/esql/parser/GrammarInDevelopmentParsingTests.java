@@ -23,7 +23,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentMetrics() throws Exception {
-        parse("metrics foo", "metrics");
+        parse("TS foo", "TS");
     }
 
     public void testDevelopmentMatch() throws Exception {

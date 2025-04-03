@@ -127,17 +127,17 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
 
     @Override
     protected AttributeSet computeReferences() {
-        AttributeSet refs = computeReferences(rerankFields);
+        AttributeSet.Builder refs = computeReferences(rerankFields).asBuilder();
 
         if (planHasAttribute(child(), scoreAttribute)) {
             refs.add(scoreAttribute);
         }
 
-        return refs;
+        return refs.build();
     }
 
     public static AttributeSet computeReferences(List<Alias> fields) {
-        AttributeSet rerankFields = new AttributeSet(asAttributes(fields));
+        AttributeSet rerankFields = AttributeSet.of(asAttributes(fields));
         return Expressions.references(fields).subtract(rerankFields);
     }
 

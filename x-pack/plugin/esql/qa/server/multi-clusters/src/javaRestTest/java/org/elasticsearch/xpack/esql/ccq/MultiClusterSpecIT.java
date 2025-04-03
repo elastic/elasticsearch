@@ -135,6 +135,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("RERANK not yet supported in CCS", testCase.requiredCapabilities.contains(RERANK.capabilityName()));
     }
 
+    @Override
+    protected boolean supportTimeSeriesCommand() {
+        return false;
+    }
+
     private TestFeatureService remoteFeaturesService() throws IOException {
         if (remoteFeaturesService == null) {
             var remoteNodeVersions = readVersionsFromNodesInfo(remoteClusterClient());
@@ -249,7 +254,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
             testCase.query = newFrom + query.substring(first.length());
         }
-        if (commands[0].toLowerCase(Locale.ROOT).startsWith("metrics")) {
+        if (commands[0].toLowerCase(Locale.ROOT).startsWith("ts ")) {
             String[] parts = commands[0].split("\\s+");
             assert parts.length >= 2 : commands[0];
             String[] indices = parts[1].split(",");

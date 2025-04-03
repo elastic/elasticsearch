@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -26,16 +27,16 @@ public class PreAnalyzer {
     public static class PreAnalysis {
         public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList(), emptyList(), emptyList());
 
-        public final List<TableInfo> indices;
+        public final List<IndexPattern> indices;
         public final List<Enrich> enriches;
         public final List<InferencePlan> inferencePlans;
-        public final List<TableInfo> lookupIndices;
+        public final List<IndexPattern> lookupIndices;
 
         public PreAnalysis(
-            List<TableInfo> indices,
+            List<IndexPattern> indices,
             List<Enrich> enriches,
             List<InferencePlan> inferencePlans,
-            List<TableInfo> lookupIndices
+            List<IndexPattern> lookupIndices
         ) {
             this.indices = indices;
             this.enriches = enriches;
@@ -53,15 +54,12 @@ public class PreAnalyzer {
     }
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
-        List<TableInfo> indices = new ArrayList<>();
+        List<IndexPattern> indices = new ArrayList<>();
         List<Enrich> unresolvedEnriches = new ArrayList<>();
+        List<IndexPattern> lookupIndices = new ArrayList<>();
         List<InferencePlan> unresolvedInferencePlans = new ArrayList<>();
-        List<TableInfo> lookupIndices = new ArrayList<>();
 
-        plan.forEachUp(UnresolvedRelation.class, p -> {
-            List<TableInfo> list = p.indexMode() == IndexMode.LOOKUP ? lookupIndices : indices;
-            list.add(new TableInfo(p.indexPattern()));
-        });
+        plan.forEachUp(UnresolvedRelation.class, p -> (p.indexMode() == IndexMode.LOOKUP ? lookupIndices : indices).add(p.indexPattern()));
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
         plan.forEachUp(InferencePlan.class, unresolvedInferencePlans::add);
 

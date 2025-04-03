@@ -111,13 +111,13 @@ public class RerankExec extends InferenceExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        AttributeSet refs = Rerank.computeReferences(rerankFields);
+        AttributeSet.Builder refs = Rerank.computeReferences(rerankFields).asBuilder();
 
         if (planHasAttribute(child(), scoreAttribute)) {
             refs.add(scoreAttribute);
         }
 
-        return refs;
+        return refs.build();
     }
 
     @Override

@@ -9,7 +9,6 @@
 
 configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.elasticsearch.plugin' // for modules which publish client jars
-  // apply plugin: 'elasticsearch.internal-testclusters'
   apply plugin: 'elasticsearch.internal-es-plugin'
   apply plugin: 'elasticsearch.internal-test-artifact'
 

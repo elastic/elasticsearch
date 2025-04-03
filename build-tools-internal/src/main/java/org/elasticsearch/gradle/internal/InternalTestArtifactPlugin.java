@@ -24,7 +24,7 @@ public class InternalTestArtifactPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPlugins().apply(InternalTestArtifactBasePlugin.class);
         InternalTestArtifactExtension testArtifactExtension = project.getExtensions().getByType(InternalTestArtifactExtension.class);
-        project.getExtensions().getByType(SourceSetContainer.class).all(sourceSet -> {
+        project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> {
             if (sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME) == false) {
                 testArtifactExtension.registerTestArtifactFromSourceSet(sourceSet);
             }

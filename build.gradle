@@ -397,19 +397,6 @@ allprojects {
     tasks.matching { it.name.equals('integTest') }.configureEach { integTestTask ->
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
-
-/*    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
-      dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
-        Project upstreamProject = dep.dependencyProject
-        if (project.path != upstreamProject?.path) {
-          for (String taskName : ['test', 'integTest']) {
-            project.tasks.matching { it.name == taskName }.configureEach { task ->
-              task.shouldRunAfter(upstreamProject.tasks.matching { upStreamTask -> upStreamTask.name == taskName })
-            }
-          }
-        }
-      }
-    }*/
   }
 
   apply plugin: 'elasticsearch.formatting'

@@ -723,13 +723,19 @@ public class WellKnownText {
         return type == StreamTokenizer.TT_WORD;
     }
 
-    private static boolean isZOrMNext(StreamTokenizer stream) throws ParseException, IOException {
-        String token = nextWord(stream);
-        if (token.equals(Z) || token.equals(M)) {
-            return true;
+    private static boolean isZOrMNext(StreamTokenizer stream) {
+        String token;
+        try {
+            token = nextWord(stream);
+            if (token.equals(Z) || token.equals(M)) {
+                return true;
+            }
+            stream.pushBack();
+            return false;
+        } catch (ParseException | IOException e) {
+            return false;
         }
-        stream.pushBack();
-        return false;
+
     }
 
     private static String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ParseException {

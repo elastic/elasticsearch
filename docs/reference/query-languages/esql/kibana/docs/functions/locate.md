@@ -7,7 +7,7 @@ Returns an integer that indicates the position of a keyword substring within ano
 Returns `0` if the substring cannot be found.
 Note that string positions start from `1`.
 
-```
-row a = "hello"
-| eval a_ll = locate(a, "ll")
+```esql
+ROW a = "hello"
+| EVAL a_ll = LOCATE(a, "ll")
 ```

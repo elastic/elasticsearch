@@ -33,7 +33,7 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "basic_credentials_client";
 
-    private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, fixedAccessKey(ACCESS_KEY));
+    private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, fixedAccessKey(ACCESS_KEY, "*", "s3"));
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")

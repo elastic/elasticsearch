@@ -122,7 +122,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         Function<DataType, DataType> expectedDataType,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT, DataType.IP, DataType.VERSION }) {
+        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.IP, DataType.VERSION }) {
             if (type != DataType.IP) {
                 cases.add(
                     new TestCaseSupplier(

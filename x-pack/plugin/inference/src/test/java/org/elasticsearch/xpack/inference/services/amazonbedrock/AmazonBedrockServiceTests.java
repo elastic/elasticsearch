@@ -39,10 +39,10 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
-import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockMockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockMockRequestSender;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
@@ -932,6 +932,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -978,6 +980,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 ValidationException.class,
                 () -> service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of(""),
                     false,
@@ -1029,6 +1033,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 service.infer(
                     model,
                     null,
+                    null,
+                    null,
                     List.of("abc"),
                     false,
                     new HashMap<>(),
@@ -1070,6 +1076,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
                 service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of("abc"),
                     false,
@@ -1413,6 +1421,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,

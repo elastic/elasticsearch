@@ -7,7 +7,7 @@ Computes the distance between two points.
 For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates.
 For geographic geometries, this is the circular distance along the great circle in meters.
 
-```
+```esql
 FROM airports
 | WHERE abbrev == "CPH"
 | EVAL distance = ST_DISTANCE(location, city_location)

@@ -30,6 +30,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
@@ -59,6 +60,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
@@ -205,6 +207,21 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
     }
 
+    public void testWriteFileMultipleOfChunkSize() throws IOException {
+        final int uploadSize = randomIntBetween(2, 4) * GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE;
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
+            final String key = randomIdentifier();
+            byte[] initialValue = randomByteArrayOfLength(uploadSize);
+            container.writeBlob(randomPurpose(), key, new BytesArray(initialValue), true);
+
+            BytesReference reference = readFully(container.readBlob(randomPurpose(), key));
+            assertEquals(new BytesArray(initialValue), reference);
+
+            container.deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single(key));
+        }
+    }
+
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
 
         public TestGoogleCloudStoragePlugin(Settings settings) {
@@ -347,7 +364,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        public void maybeTrack(final String request, Headers requestHeaders) {
+        public void maybeTrack(HttpExchange exchange) {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+            final Headers requestHeaders = exchange.getRequestHeaders();
             if (Regex.simpleMatch("GET */storage/v1/b/*/o/*", request)) {
                 trackRequest(StorageOperation.GET.key());
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {

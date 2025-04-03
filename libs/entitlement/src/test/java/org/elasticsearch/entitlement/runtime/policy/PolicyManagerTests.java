@@ -508,7 +508,7 @@ public class PolicyManagerTests extends ESTestCase {
         assertThat(
             iae.getMessage(),
             allOf(
-                containsString("Path [/base/test] is already exclusive"),
+                containsString("Path [" + testPath1 + "] is already exclusive"),
                 containsString("[plugin1][test.module1]"),
                 containsString("[plugin2][test.module2]"),
                 containsString("cannot add exclusive access")

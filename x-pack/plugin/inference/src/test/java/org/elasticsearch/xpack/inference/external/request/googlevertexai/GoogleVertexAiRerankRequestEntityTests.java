@@ -20,8 +20,8 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class GoogleVertexAiRerankRequestEntityTests extends ESTestCase {
-    public void testXContent_SingleRequest_WritesModelAndTopNIfDefined() throws IOException {
-        var entity = new GoogleVertexAiRerankRequestEntity("query", List.of("abc"), "model", 8);
+    public void testXContent_SingleRequest_WritesAllFieldsIfDefined() throws IOException {
+        var entity = new GoogleVertexAiRerankRequestEntity("query", List.of("abc"), Boolean.TRUE, 10, "model");
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -37,13 +37,14 @@ public class GoogleVertexAiRerankRequestEntityTests extends ESTestCase {
                         "content": "abc"
                     }
                 ],
-                "topN": 8
+                "topN": 10,
+                "ignoreRecordDetailsInResponse": false
             }
             """));
     }
 
-    public void testXContent_SingleRequest_DoesNotWriteModelAndTopNIfNull() throws IOException {
-        var entity = new GoogleVertexAiRerankRequestEntity("query", List.of("abc"), null, null);
+    public void testXContent_SingleRequest_WritesMinimalFields() throws IOException {
+        var entity = new GoogleVertexAiRerankRequestEntity("query", List.of("abc"), null, null, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -62,8 +63,8 @@ public class GoogleVertexAiRerankRequestEntityTests extends ESTestCase {
             """));
     }
 
-    public void testXContent_MultipleRequests_WritesModelAndTopNIfDefined() throws IOException {
-        var entity = new GoogleVertexAiRerankRequestEntity("query", List.of("abc", "def"), "model", 8);
+    public void testXContent_MultipleRequests_WritesAllFieldsIfDefined() throws IOException {
+        var entity = new GoogleVertexAiRerankRequestEntity("query", List.of("abc", "def"), Boolean.FALSE, 12, "model");
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -83,13 +84,14 @@ public class GoogleVertexAiRerankRequestEntityTests extends ESTestCase {
                         "content": "def"
                     }
                 ],
-                "topN": 8
+                "topN": 12,
+                "ignoreRecordDetailsInResponse": true
             }
             """));
     }
 
-    public void testXContent_MultipleRequests_DoesNotWriteModelAndTopNIfNull() throws IOException {
-        var entity = new GoogleVertexAiRerankRequestEntity("query", List.of("abc", "def"), null, null);
+    public void testXContent_MultipleRequests_WritesMinimalFields() throws IOException {
+        var entity = new GoogleVertexAiRerankRequestEntity("query", List.of("abc", "def"), null, null, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -111,5 +113,4 @@ public class GoogleVertexAiRerankRequestEntityTests extends ESTestCase {
             }
             """));
     }
-
 }

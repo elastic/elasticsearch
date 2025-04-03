@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceResults;
@@ -727,22 +728,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
     }
 
-    public void chunkedInfer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<List<ChunkedInference>> listener
-    ) {
-        chunkedInfer(model, null, input, taskSettings, inputType, timeout, listener);
-    }
-
     @Override
     public void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,

@@ -53,11 +53,11 @@ import static org.elasticsearch.ingest.common.CefParser.DataType.StringType;
 import static org.elasticsearch.ingest.common.CefParser.DataType.TimestampType;
 
 final class CefParser {
-    private final boolean removeEmptyValue;
+    private final boolean removeEmptyValues;
     private final ZoneId timezone;
 
-    CefParser(ZoneId timezone, boolean removeEmptyValue) {
-        this.removeEmptyValue = removeEmptyValue;
+    CefParser(ZoneId timezone, boolean removeEmptyValues) {
+        this.removeEmptyValues = removeEmptyValues;
         this.timezone = timezone;
     }
 
@@ -368,8 +368,8 @@ final class CefParser {
         String extensionString = cefString.substring(extensionStart);
         final Map<String, String> parsedExtensions = parseExtensions(extensionString);
         // Cleanup empty values in extensions
-        if (removeEmptyValue) {
-            removeEmptyValue(parsedExtensions);
+        if (removeEmptyValues) {
+            removeEmptyValues(parsedExtensions);
         }
         // Translate extensions to possible ECS fields
         for (Map.Entry<String, String> entry : parsedExtensions.entrySet()) {
@@ -508,7 +508,7 @@ final class CefParser {
         return sb.toString();
     }
 
-    private static void removeEmptyValue(Map<String, String> map) {
+    private static void removeEmptyValues(Map<String, String> map) {
         map.values().removeIf(Strings::isEmpty);
     }
 

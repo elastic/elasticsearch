@@ -668,7 +668,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testRemoveEmptyValueInExtension() {
+    public void testIgnoreEmptyValuesInExtension() {
         String message = "CEF:26|security|threat=manager|1.0|100|trojan successfully stopped|10|src= dst=12.121.122.82 spt=";
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);

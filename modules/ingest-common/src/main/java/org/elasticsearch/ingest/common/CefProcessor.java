@@ -30,7 +30,7 @@ public final class CefProcessor extends AbstractProcessor {
     final String field;
     final String targetField;
     final boolean ignoreMissing;
-    final boolean removeEmptyValue;
+    final boolean ignoreEmptyValues;
     private final TemplateScript.Factory timezone;
 
     CefProcessor(
@@ -39,14 +39,14 @@ public final class CefProcessor extends AbstractProcessor {
         String field,
         String targetField,
         boolean ignoreMissing,
-        boolean removeEmptyValue,
+        boolean ignoreEmptyValues,
         @Nullable TemplateScript.Factory timezone
     ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
-        this.removeEmptyValue = removeEmptyValue;
+        this.ignoreEmptyValues = ignoreEmptyValues;
         this.timezone = timezone;
     }
 
@@ -59,7 +59,7 @@ public final class CefProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
         ZoneId timezone = getTimezone(document);
-        try (CefEvent event = new CefParser(timezone, removeEmptyValue).process(line)) {
+        try (CefEvent event = new CefParser(timezone, ignoreEmptyValues).process(line)) {
             event.getRootMappings().forEach(document::setFieldValue);
             event.getCefMappings().forEach((k, v) -> document.setFieldValue(targetField + "." + k, v));
         }
@@ -97,7 +97,7 @@ public final class CefProcessor extends AbstractProcessor {
             ProjectId projectId
         ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            boolean removeEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", true);
+            boolean ignoreEmptyValues = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_values", true);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "cef");
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
@@ -118,7 +118,7 @@ public final class CefProcessor extends AbstractProcessor {
                 field,
                 targetField,
                 ignoreMissing,
-                removeEmptyValue,
+                ignoreEmptyValues,
                 compiledTimezoneTemplate
             );
         }

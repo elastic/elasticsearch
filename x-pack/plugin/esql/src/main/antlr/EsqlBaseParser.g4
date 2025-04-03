@@ -293,3 +293,7 @@ rrfCommand
 rerankCommand
     : DEV_RERANK queryText=constant ON fields WITH inferenceId=identifierOrParameter
     ;
+
+completionCommand
+    : DEV_RERANK prompt=primaryExpression WITH inferenceId=identifierOrParameter (AS targetFieldName=qualifiedName)
+    ;

@@ -15,8 +15,8 @@ TEST_ESQL_ABI_CHANGE_TAPI {
         cleanup = "@testGitCommit@"
         build = "@testGitCommit@"
     }
-    warm-ups = 2
-    iterations = 5
+    warm-ups = 3
+    iterations = 10
 }
 
 TEST_ESQL_ABI_CHANGE_TAPI_CC {
@@ -35,8 +35,8 @@ TEST_ESQL_ABI_CHANGE_TAPI_CC {
         cleanup = "@testGitCommit@"
         build = "@testGitCommit@"
     }
-    warm-ups = 2
-    iterations = 5
+    warm-ups = 3
+    iterations = 10
 }
 
 TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT {
@@ -55,8 +55,8 @@ TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT {
         cleanup = "@testGitCommit@"
         build = "@testGitCommit@"
     }
-    warm-ups = 2
-    iterations = 5
+    warm-ups = 3
+    iterations = 10
 }
 
 TEST_ESQL_ABI_CHANGE_TAPI_MAIN {
@@ -74,8 +74,8 @@ TEST_ESQL_ABI_CHANGE_TAPI_MAIN {
         cleanup = "main"
         build = "main"
     }
-    warm-ups = 2
-    iterations = 5
+    warm-ups = 3
+    iterations = 10
 }
 
 TEST_ESQL_ABI_CHANGE_TAPI_CC_MAIN {
@@ -94,8 +94,8 @@ TEST_ESQL_ABI_CHANGE_TAPI_CC_MAIN {
         cleanup = "main"
         build = "main"
     }
-    warm-ups = 2
-    iterations = 5
+    warm-ups = 3
+    iterations = 10
 }
 
 TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT_MAIN {
@@ -113,6 +113,6 @@ TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT_MAIN {
         cleanup = "main"
         build = "main"
     }
-    warm-ups = 2
-    iterations = 5
+    warm-ups = 3
+    iterations = 10
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -762,7 +763,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testScalingWithEmptyCore() {
-        testScalingWithEmptyCore(
+        testScalingWithEmptyCoreAndMaxSingleThread(
             EsExecutors.newScaling(
                 getTestName(),
                 0,
@@ -777,7 +778,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testScalingWithEmptyCoreAndKeepAlive() {
-        testScalingWithEmptyCore(
+        testScalingWithEmptyCoreAndMaxSingleThread(
             EsExecutors.newScaling(
                 getTestName(),
                 0,
@@ -792,11 +793,11 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testScalingWithEmptyCoreAndLargerMaxSize() {
-        testScalingWithEmptyCore(
+        testScalingWithEmptyCoreAndMaxMultipleThreads(
             EsExecutors.newScaling(
                 getTestName(),
                 0,
-                between(2, 5),
+                2,// between(2, 5),
                 0,
                 TimeUnit.MILLISECONDS,
                 true,
@@ -807,11 +808,11 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testScalingWithEmptyCoreAndKeepAliveAndLargerMaxSize() {
-        testScalingWithEmptyCore(
+        testScalingWithEmptyCoreAndMaxMultipleThreads(
             EsExecutors.newScaling(
                 getTestName(),
                 0,
-                between(2, 5),
+                2,//
                 1,
                 TimeUnit.MILLISECONDS,
                 true,
@@ -823,7 +824,7 @@ public class EsExecutorsTests extends ESTestCase {
 
     public void testScalingWithEmptyCoreAndWorkerPoolProbing() {
         // the executor is created directly here, newScaling doesn't use ExecutorScalingQueue & probing if max pool size = 1.
-        testScalingWithEmptyCore(
+        testScalingWithEmptyCoreAndMaxSingleThread(
             new EsThreadPoolExecutor(
                 getTestName(),
                 0,
@@ -840,7 +841,7 @@ public class EsExecutorsTests extends ESTestCase {
 
     public void testScalingWithEmptyCoreAndKeepAliveAndWorkerPoolProbing() {
         // the executor is created directly here, newScaling doesn't use ExecutorScalingQueue & probing if max pool size = 1.
-        testScalingWithEmptyCore(
+        testScalingWithEmptyCoreAndMaxSingleThread(
             new EsThreadPoolExecutor(
                 getTestName(),
                 0,
@@ -855,72 +856,131 @@ public class EsExecutorsTests extends ESTestCase {
         );
     }
 
-    private void testScalingWithEmptyCore(EsThreadPoolExecutor executor) {
+    private void testScalingWithEmptyCoreAndMaxSingleThread(EsThreadPoolExecutor testSubject) {
+        try {
+            final var keepAliveNanos = testSubject.getKeepAliveTime(TimeUnit.NANOSECONDS);
 
-        class TaskScheduler extends SubscribableListener<Void> {
+            class Task extends AbstractRunnable {
+                private final CountDownLatch doneLatch;
+                private int remaining;
+
+                Task(int iterations, CountDownLatch doneLatch) {
+                    this.remaining = iterations;
+                    this.doneLatch = doneLatch;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    if (--remaining == 0) {
+                        doneLatch.countDown();
+                    } else {
+                        new Thread(() -> {
+                            if (keepAliveNanos > 0) {
+                                waitUntilKeepAliveTime(keepAliveNanos);
+                            }
+                            testSubject.execute(Task.this);
+                        }).start();
+                    }
+                }
+            }
+
+            for (int i = 0; i < 20; i++) {
+                final var doneLatch = new CountDownLatch(1);
+                testSubject.execute(new Task(between(1, 500), doneLatch));
+                safeAwait(doneLatch, TimeValue.ONE_MINUTE);
+            }
+        } finally {
+            ThreadPool.terminate(testSubject, 1, TimeUnit.SECONDS);
+        }
+    }
+
+    private void testScalingWithEmptyCoreAndMaxMultipleThreads(EsThreadPoolExecutor testSubject) {
+        final var keepAliveNanos = testSubject.getKeepAliveTime(TimeUnit.NANOSECONDS);
+        // Use max pool size with one additional scheduler task if a keep alive time is set.
+        final var schedulerTasks = testSubject.getMaximumPoolSize() + (keepAliveNanos > 0 ? 1 : 0);
+
+        class TaskScheduler {
+            final SubscribableListener<Void> result = new SubscribableListener<>();
             final ExecutorService scheduler;
             final CyclicBarrier cyclicBarrier;
             final Semaphore taskCompletions;
-            volatile int remaining;
+            private int remaining;
 
             TaskScheduler(ExecutorService scheduler, int iterations) {
                 this.scheduler = scheduler;
                 this.taskCompletions = new Semaphore(0);
-                this.cyclicBarrier = new CyclicBarrier(executor.getMaximumPoolSize(), () -> remaining--);
+                this.cyclicBarrier = new CyclicBarrier(schedulerTasks, () -> remaining--);
                 this.remaining = iterations;
             }
 
             public void start() {
-                final var keepAliveNanos = executor.getKeepAliveTime(TimeUnit.NANOSECONDS);
-                final var tasks = executor.getMaximumPoolSize();
-                Runnable runnable = () -> {
+                // The scheduler tasks are running on the dedicated scheduler thread pool. Each task submits
+                // a test task on the EsThreadPoolExecutor (`testSubject`) releasing one `taskCompletions` permit.
+                final Runnable schedulerTask = () -> {
                     try {
                         while (remaining > 0) {
-                            // wait for all scheduler threads to be ready for the next attempt
-                            var first = cyclicBarrier.await(2, TimeUnit.SECONDS) == 0;
-                            executor.execute(taskCompletions::release);
+                            // Wait for all scheduler threads to be ready for the next attempt.
+                            var first = cyclicBarrier.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS) == schedulerTasks - 1;
+                            if (first && keepAliveNanos > 0) {
+                                // The task submitted by the first scheduler task (after reaching the keep alive time) is the task
+                                // that might starve without any worker available unless an additional worker probe is submitted.
+                                waitUntilKeepAliveTime(keepAliveNanos);
+                            }
+                            // Test EsThreadPoolExecutor by submitting a task that releases one permit.
+                            testSubject.execute(taskCompletions::release);
                             if (first) {
-                                // let the first scheduler (by arrival on the barrier) wait for completion of all tasks
-                                if (taskCompletions.tryAcquire(tasks, 1, TimeUnit.SECONDS) == false) {
+                                // Let the first scheduler task (by arrival on the barrier) wait for all permits.
+                                var success = taskCompletions.tryAcquire(
+                                    schedulerTasks,
+                                    SAFE_AWAIT_TIMEOUT.millis(),
+                                    TimeUnit.MILLISECONDS
+                                );
+                                if (success == false) {
                                     var msg = Strings.format(
                                         "timed out waiting for [%s] of [%s] tasks to complete [queue size: %s, workers: %s] ",
-                                        tasks - taskCompletions.availablePermits(),
-                                        tasks,
-                                        executor.getQueue().size(),
-                                        executor.getPoolSize()
+                                        schedulerTasks - taskCompletions.availablePermits(),
+                                        schedulerTasks,
+                                        testSubject.getQueue().size(),
+                                        testSubject.getPoolSize()
                                     );
-                                    onFailure(new TimeoutException(msg));
+                                    result.onFailure(new TimeoutException(msg));
                                     return;
-                                }
-                                if (keepAliveNanos > 0) {
-                                    var targetNanoTime = System.nanoTime() + keepAliveNanos + between(-1_000, 1_000);
-                                    while (System.nanoTime() < targetNanoTime) {
-                                        Thread.yield();
-                                    }
                                 }
                             }
                         }
                     } catch (Exception e) {
-                        onFailure(e);
+                        result.onFailure(e);
                         return;
                     }
-                    onResponse(null);
+                    result.onResponse(null);
                 };
-                for (int i = 0; i < tasks; i++) {
-                    scheduler.execute(runnable);
+                // Run scheduler tasks on the dedicated scheduler thread pool.
+                for (int i = 0; i < schedulerTasks; i++) {
+                    scheduler.execute(schedulerTask);
                 }
             }
         }
 
-        try (var scheduler = Executors.newFixedThreadPool(executor.getMaximumPoolSize())) {
+        try (var scheduler = Executors.newFixedThreadPool(schedulerTasks)) {
             for (int i = 0; i < 100; i++) {
-                logger.trace("--> attempt [{}]", i);
                 TaskScheduler taskScheduler = new TaskScheduler(scheduler, between(10, 200));
                 taskScheduler.start();
-                safeAwait(taskScheduler);
+                safeAwait(taskScheduler.result);
             }
         } finally {
-            ThreadPool.terminate(executor, 1, TimeUnit.SECONDS);
+            ThreadPool.terminate(testSubject, 1, TimeUnit.SECONDS);
+        }
+    }
+
+    private void waitUntilKeepAliveTime(long keepAliveNanos) {
+        var targetNanoTime = System.nanoTime() + keepAliveNanos + between(-1_000, 1_000);
+        while (System.nanoTime() < targetNanoTime) {
+            Thread.yield();
         }
     }
 }

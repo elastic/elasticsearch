@@ -168,11 +168,11 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     private AttributeMap() {
-        delegate = new LinkedHashMap<>();
+        this(new LinkedHashMap<>());
     }
 
     private AttributeMap(int expectedSize) {
-        delegate = Maps.newLinkedHashMapWithExpectedSize(expectedSize);
+        this(Maps.newLinkedHashMapWithExpectedSize(expectedSize));
     }
 
     public AttributeMap(Attribute key, E value) {

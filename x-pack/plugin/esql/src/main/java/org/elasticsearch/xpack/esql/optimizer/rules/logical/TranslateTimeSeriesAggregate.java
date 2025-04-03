@@ -235,8 +235,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         List<? extends NamedExpression> aggregates,
         List<Expression> groupings
     ) {
-        List<Attribute> merged = new ArrayList<>(aggregates.size() + groupings.size());
-        aggregates.forEach(a -> merged.add(Expressions.attribute(a)));
+        List<NamedExpression> merged = new ArrayList<>(aggregates.size() + groupings.size());
+        merged.addAll(aggregates);
         groupings.forEach(g -> merged.add(Expressions.attribute(g)));
         return merged;
     }

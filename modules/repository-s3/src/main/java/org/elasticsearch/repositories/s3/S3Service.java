@@ -234,8 +234,8 @@ class S3Service implements Closeable {
             s3clientBuilder.region(Region.of(clientSettings.region));
         } else if (AWS_REGION.getStringValue().isPresent() == false) {
             // TODO NOMERGE: how we handle regions TBD, this allows testing to pass
+            // TODO NOMERGE: specifically we don't pick up the region from IMDS
             s3clientBuilder.region(Region.of("us-east-1"));
-
         }
         if (Strings.hasLength(clientSettings.endpoint)) {
             s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint)); // TODO NOMERGE what if URI.create fails?

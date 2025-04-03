@@ -407,7 +407,6 @@ public class WildcardFieldMapper extends FieldMapper {
         public static Query toApproximationQuery(RegExp r) throws IllegalArgumentException {
             Query result = null;
             switch (r.kind) {
-                case REGEXP_CHAR_RANGE:
                 case REGEXP_CHAR_CLASS:
                     result = createCharacterClassQuery(r);
                     break;
@@ -456,6 +455,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 case REGEXP_OPTIONAL:
                 case REGEXP_INTERSECTION:
                 case REGEXP_COMPLEMENT:
+                case REGEXP_CHAR_RANGE:
                 case REGEXP_ANYCHAR:
                 case REGEXP_INTERVAL:
                 case REGEXP_EMPTY:
@@ -502,14 +502,20 @@ public class WildcardFieldMapper extends FieldMapper {
             List<Query> queries = new ArrayList<>();
             int maxClauseCount = 0;
             for (int i = 0; i < r.from.length; i++) {
-                maxClauseCount += r.to[i] - r.from[i];
-                if (maxClauseCount > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                // TODO: consider expanding this to allow for character ranges as well (need additional tests and performance eval)
+                if (r.from[i] == r.to[i]) {
+                    maxClauseCount += r.to[i] - r.from[i];
+                    if (maxClauseCount > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                        return new MatchAllDocsQuery();
+                    }
+                    for (int j = r.from[i]; j <= r.to[i]; j++) {
+                        String cs = Character.toString(j);
+                        String normalizedChar = toLowerCase(cs);
+                        queries.add(new TermQuery(new Term("", normalizedChar)));
+                    }
+                } else {
+                    // immediately exit because we can't currently optimize a combination of range and classes
                     return new MatchAllDocsQuery();
-                }
-                for (int j = r.from[i]; j <= r.to[i]; j++) {
-                    String cs = Character.toString(j);
-                    String normalizedChar = toLowerCase(cs);
-                    queries.add(new TermQuery(new Term("", normalizedChar)));
                 }
             }
             return formQuery(queries);

@@ -11,6 +11,7 @@ package org.elasticsearch.action.support.local;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -63,6 +64,11 @@ public abstract class LocalClusterStateRequest extends ActionRequest {
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         TransportAction.localOnly();
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
     }
 
     public TimeValue masterTimeout() {

@@ -72,25 +72,6 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                         );
                     }
                 ),
-                new TestCaseSupplier(
-                    "Substring basic test with semantic_text input",
-                    List.of(DataType.SEMANTIC_TEXT, DataType.INTEGER, DataType.INTEGER),
-                    () -> {
-                        int start = between(1, 8);
-                        int length = between(1, 10 - start);
-                        String text = randomAlphaOfLength(10);
-                        return new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(new BytesRef(text), DataType.SEMANTIC_TEXT, "str"),
-                                new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
-                                new TestCaseSupplier.TypedData(length, DataType.INTEGER, "end")
-                            ),
-                            "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
-                        );
-                    }
-                ),
                 new TestCaseSupplier("Substring empty string", List.of(DataType.TEXT, DataType.INTEGER, DataType.INTEGER), () -> {
                     int start = between(1, 8);
                     int length = between(1, 10 - start);

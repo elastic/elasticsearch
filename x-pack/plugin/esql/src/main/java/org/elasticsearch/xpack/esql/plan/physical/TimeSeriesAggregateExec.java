@@ -16,10 +16,15 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
+ * The grouping must be `_tsid` and `tbucket` or just `_tsid`.
+ */
 public class TimeSeriesAggregateExec extends AggregateExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,

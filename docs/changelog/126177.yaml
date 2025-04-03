@@ -1,5 +1,0 @@
-pr: 126177
-summary: Avoid extra allocations in `RestGetAliasesAction`
-area: Distributed
-type: enhancement
-issues: []

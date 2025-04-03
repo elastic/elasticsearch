@@ -184,7 +184,14 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
 
-        try (var s3Service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class))) {
+        try (
+            var s3Service = new S3Service(
+                Mockito.mock(Environment.class),
+                Settings.EMPTY,
+                Mockito.mock(ResourceWatcherService.class),
+                () -> null
+            )
+        ) {
             // TODO NOMERGE: S3Client#getBucketLocation is supposed to be a work around to access the region: the response object includes
             // the region. However, we can't build a S3Client in this file, so we need to migrate it elsewhere.
             // "Unable to load credentials from any of the providers in the chain AwsCredentialsProviderChain"

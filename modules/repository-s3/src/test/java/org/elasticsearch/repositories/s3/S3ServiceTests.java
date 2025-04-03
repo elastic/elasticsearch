@@ -12,6 +12,7 @@ import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.retry.RetryPolicyContext;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -29,7 +30,13 @@ import static org.mockito.Mockito.mock;
 public class S3ServiceTests extends ESTestCase {
 
     public void testCachedClientsAreReleased() throws IOException {
-        final S3Service s3Service = new S3Service(mock(Environment.class), Settings.EMPTY, mock(ResourceWatcherService.class));
+        final S3Service s3Service = new S3Service(
+            mock(Environment.class),
+            Settings.EMPTY,
+            mock(ResourceWatcherService.class),
+            () -> Region.of("es-test-region")
+        );
+        s3Service.start();
         final String endpointOverride = "http://first";
         final Settings settings = Settings.builder().put("endpoint", endpointOverride).build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
@@ -44,13 +51,14 @@ public class S3ServiceTests extends ESTestCase {
         assertEquals("es-test-region", reference.client().serviceClientConfiguration().region().toString());
 
         reference.close();
-        s3Service.close();
+        s3Service.doClose();
         final AmazonS3Reference referenceReloaded = s3Service.client(metadata1);
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();
-        s3Service.close();
+        s3Service.doClose();
         final S3ClientSettings clientSettingsReloaded = s3Service.settings(metadata1);
         assertNotSame(clientSettings, clientSettingsReloaded);
+        s3Service.close();
     }
 
     public void testRetryOn403RetryPolicy() {

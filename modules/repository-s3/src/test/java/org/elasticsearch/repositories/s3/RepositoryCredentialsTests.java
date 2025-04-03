@@ -299,7 +299,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
             ProxyS3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-                super(environment, nodeSettings, resourceWatcherService);
+                super(environment, nodeSettings, resourceWatcherService, () -> null);
             }
 
             @Override

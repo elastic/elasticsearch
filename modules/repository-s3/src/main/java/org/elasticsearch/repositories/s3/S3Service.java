@@ -42,9 +42,11 @@ import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -55,7 +57,6 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -69,14 +70,14 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static software.amazon.awssdk.core.SdkSystemSetting.AWS_REGION;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_ROLE_ARN;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_ROLE_SESSION_NAME;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_WEB_IDENTITY_TOKEN_FILE;
 
-class S3Service implements Closeable {
+class S3Service extends AbstractLifecycleComponent {
     private static final Logger LOGGER = LogManager.getLogger(S3Service.class);
 
     static final Setting<TimeValue> REPOSITORY_S3_CAS_TTL_SETTING = Setting.timeSetting(
@@ -108,13 +109,21 @@ class S3Service implements Closeable {
      */
     private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
 
+    private final Runnable defaultRegionSetter;
+    private volatile Region defaultRegion;
+
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
 
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
     final boolean isStateless;
 
-    S3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+    S3Service(
+        Environment environment,
+        Settings nodeSettings,
+        ResourceWatcherService resourceWatcherService,
+        Supplier<Region> defaultRegionSupplier
+    ) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             System::getenv,
@@ -125,6 +134,7 @@ class S3Service implements Closeable {
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
         isStateless = DiscoveryNode.isStateless(nodeSettings);
+        defaultRegionSetter = new RunOnce(() -> defaultRegion = defaultRegionSupplier.get());
     }
 
     /**
@@ -230,18 +240,51 @@ class S3Service implements Closeable {
         if (clientSettings.pathStyleAccess) {
             s3clientBuilder.forcePathStyle(true);
         }
-        if (Strings.hasLength(clientSettings.region)) {
-            s3clientBuilder.region(Region.of(clientSettings.region));
-        } else if (AWS_REGION.getStringValue().isPresent() == false) {
-            // TODO NOMERGE: how we handle regions TBD, this allows testing to pass
-            // TODO NOMERGE: specifically we don't pick up the region from IMDS
-            s3clientBuilder.region(Region.of("us-east-1"));
-        }
+
+        s3clientBuilder.region(getClientRegion(clientSettings));
+
         if (Strings.hasLength(clientSettings.endpoint)) {
             s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint)); // TODO NOMERGE what if URI.create fails?
         }
 
         return s3clientBuilder;
+    }
+
+    // TODO NOMERGE test this logic
+    private Region getClientRegion(S3ClientSettings clientSettings) {
+        assert lifecycle.initialized() == false : lifecycle;
+
+        if (Strings.hasLength(clientSettings.region)) {
+            return Region.of(clientSettings.region);
+        }
+        if (Strings.hasLength(clientSettings.endpoint)) {
+            final var guessedRegion = RegionFromEndpointGuesser.guessRegion(clientSettings.endpoint);
+            if (guessedRegion != null) {
+                LOGGER.warn(
+                    """
+                        found S3 client with endpoint [{}] but no configured region, guessing it should use [{}]; \
+                        to suppress this warning, configure the [{}] setting on this node""",
+                    clientSettings.endpoint,
+                    guessedRegion,
+                    S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+                );
+                return Region.of(guessedRegion);
+            }
+        }
+        final var defaultRegion = this.defaultRegion;
+        if (defaultRegion != null) {
+            LOGGER.debug("""
+                found S3 client with no configured region, using region [{}] from SDK""", defaultRegion);
+            return defaultRegion;
+        }
+        LOGGER.warn(
+            """
+                found S3 client with no configured region, falling back to [{}]; \
+                to suppress this warning, configure the [{}] setting on this node""",
+            Region.US_EAST_1,
+            S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+        );
+        return Region.US_EAST_1;
     }
 
     @Nullable // in production, but exposed for tests to override
@@ -373,7 +416,15 @@ class S3Service implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    protected void doStart() {
+        defaultRegionSetter.run();
+    }
+
+    @Override
+    protected void doStop() {}
+
+    @Override
+    public void doClose() throws IOException {
         releaseCachedClients();
         webIdentityTokenCredentialsProvider.close();
     }

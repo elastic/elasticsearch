@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
@@ -20,6 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -42,6 +45,8 @@ import java.util.Map;
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+
+    private static final Logger logger = LogManager.getLogger(S3RepositoryPlugin.class);
 
     static {
         SpecialPermission.check();
@@ -87,11 +92,22 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public Collection<?> createComponents(PluginServices services) {
         service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
-        return List.of(service);
+        return List.of(service.get());
     }
 
     S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-        return new S3Service(environment, nodeSettings, resourceWatcherService);
+        return new S3Service(environment, nodeSettings, resourceWatcherService, S3RepositoryPlugin::getDefaultRegion);
+    }
+
+    private static Region getDefaultRegion() {
+        return AccessController.doPrivileged((PrivilegedAction<Region>) () -> {
+            try {
+                return DefaultAwsRegionProviderChain.builder().build().getRegion();
+            } catch (Exception e) {
+                logger.debug("failed to obtain region from default provider chain", e);
+                return null;
+            }
+        });
     }
 
     @Override

@@ -119,7 +119,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @Before
     public void setUp() throws Exception {
         shouldErrorOnDns = false;
-        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class)) {
+        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class), () -> null) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
                 assertEquals("127.0.0.1", host);
                 if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {
@@ -133,6 +133,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 return this::resolveHost;
             }
         };
+        service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();
         super.setUp();
     }

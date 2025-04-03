@@ -55,7 +55,7 @@ public class S3RepositoryTests extends ESTestCase {
     private static class DummyS3Service extends S3Service {
 
         DummyS3Service(Environment environment, ResourceWatcherService resourceWatcherService) {
-            super(environment, Settings.EMPTY, resourceWatcherService);
+            super(environment, Settings.EMPTY, resourceWatcherService, () -> null);
         }
 
         @Override
@@ -67,7 +67,9 @@ public class S3RepositoryTests extends ESTestCase {
         public void refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {}
 
         @Override
-        public void close() {}
+        public void doClose() {
+            // nothing to clean up
+        }
     }
 
     public void testInvalidChunkBufferSizeSettings() {

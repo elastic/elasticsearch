@@ -87,13 +87,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static fixture.aws.AwsCredentialsUtils.isValidAwsV4SignedAuthorizationHeader;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -102,7 +102,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
@@ -112,7 +111,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
 
     private String region;
-    private String signerOverride;
+    private S3ClientSettings.AwsSignerOverrideType signerOverride;
     private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
 
     @Override
@@ -121,9 +120,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             region = "test-region";
         }
         if (region != null && randomBoolean()) {
-            signerOverride = randomFrom("SDKV2_AWS_V4_SIGNER_TYPE", "SDKV2_AWS_S3_V4_SIGNER_TYPE");
+            signerOverride = randomFrom(
+                S3ClientSettings.AwsSignerOverrideType.SDKV2_AWS_V4_SIGNER_TYPE,
+                S3ClientSettings.AwsSignerOverrideType.SDKV2_AWS_S3_V4_SIGNER_TYPE
+            );
         } else if (randomBoolean()) {
-            signerOverride = "SDKV2_AWS_S3_V4_SIGNER_TYPE";
+            signerOverride = S3ClientSettings.AwsSignerOverrideType.SDKV2_AWS_V4_SIGNER_TYPE;
         }
         shouldFailCompleteMultipartUploadRequest.set(false);
         super.setUp();
@@ -648,22 +650,15 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         @Override
         public void handle(final HttpExchange exchange) throws IOException {
-            validateAuthHeader(exchange);
+            assertTrue(
+                isValidAwsV4SignedAuthorizationHeader(
+                    "test_access_key",
+                    Objects.requireNonNullElse(region, "us-east-1"),
+                    "s3",
+                    exchange.getRequestHeaders().getFirst("Authorization")
+                )
+            );
             super.handle(exchange);
-        }
-
-        private void validateAuthHeader(HttpExchange exchange) {
-            final String authorizationHeaderV4 = exchange.getRequestHeaders().getFirst("Authorization");
-            final String authorizationHeaderV3 = exchange.getRequestHeaders().getFirst("X-amzn-authorization");
-
-            if ("AWS3SignerType".equals(signerOverride)) {
-                assertThat(authorizationHeaderV3, startsWith("AWS3"));
-            } else if ("AWS4SignerType".equals(signerOverride)) {
-                assertThat(authorizationHeaderV4, containsString("aws4_request"));
-            }
-            if (region != null && authorizationHeaderV4 != null) {
-                assertThat(authorizationHeaderV4, containsString("/" + region + "/s3/"));
-            }
         }
     }
 

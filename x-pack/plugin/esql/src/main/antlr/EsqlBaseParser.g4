@@ -38,7 +38,7 @@ sourceCommand
     | rowCommand
     | showCommand
     // in development
-    | {this.isDevVersion()}? metricsCommand
+    | {this.isDevVersion()}? timeSeriesCommand
     ;
 
 processingCommand
@@ -88,8 +88,8 @@ fromCommand
     : FROM indexPatternAndMetadataFields
     ;
 
-metricsCommand
-    : DEV_METRICS indexPatternAndMetadataFields
+timeSeriesCommand
+    : DEV_TIME_SERIES indexPatternAndMetadataFields
     ;
 
 indexPatternAndMetadataFields:

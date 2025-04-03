@@ -275,12 +275,12 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         List<String> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
         String firstGenerationIndex = failureIndices.get(0);
-        assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 2));
+        assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 2, true));
 
         indexFailedDocs(dataStreamName, 1);
         failureIndices = waitForDataStreamIndices(dataStreamName, 2, true);
         String secondGenerationIndex = failureIndices.get(1);
-        assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 3));
+        assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 3, true));
 
         {
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(

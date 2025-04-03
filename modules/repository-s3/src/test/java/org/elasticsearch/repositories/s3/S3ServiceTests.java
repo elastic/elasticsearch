@@ -41,7 +41,7 @@ public class S3ServiceTests extends ESTestCase {
 
         // TODO NOMERGE: move to its own test.
         assertEquals(endpointOverride, reference.client().serviceClientConfiguration().endpointOverride().get().toString());
-        assertEquals("us-east-1", reference.client().serviceClientConfiguration().region().toString());
+        assertEquals("es-test-region", reference.client().serviceClientConfiguration().region().toString());
 
         reference.close();
         s3Service.close();

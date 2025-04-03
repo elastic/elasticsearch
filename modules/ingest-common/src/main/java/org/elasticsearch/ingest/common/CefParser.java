@@ -422,7 +422,6 @@ final class CefParser {
             case TimestampType -> toTimestamp(value);
             case MACAddressType -> toMACAddress(value);
             case IPType -> toIP(value);
-            case null -> value; // default to string if extension is not defined
         };
     }
 
@@ -559,5 +558,10 @@ final class CefParser {
         }
     }
 
-    private record ExtensionMapping(String key, DataType dataType, @Nullable String ecsKey) {}
+    private record ExtensionMapping(String key, DataType dataType, @Nullable String ecsKey) {
+        ExtensionMapping {
+            Objects.requireNonNull(key);
+            Objects.requireNonNull(dataType);
+        }
+    }
 }

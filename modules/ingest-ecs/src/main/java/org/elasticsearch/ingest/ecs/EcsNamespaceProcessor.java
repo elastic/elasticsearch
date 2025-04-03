@@ -263,7 +263,7 @@ public class EcsNamespaceProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
         @Override
         public Processor create(
-            Map<String, Processor.Factory> processorFactories,
+            Map<String, Processor.Factory> registry,
             String tag,
             String description,
             Map<String, Object> config,

@@ -110,20 +110,28 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         RankDoc[] rankDocResults = rankDocs.get();
         float effectiveMinScore = getEffectiveMinScore();
 
-        System.out.println("DEBUG: RankDocsRetrieverBuilder - extractToSearchSourceBuilder with " + 
-            (rankDocResults != null ? rankDocResults.length : 0) + " rank results");
-        System.out.println("DEBUG: RankDocsRetrieverBuilder - minScore=" + minScore() + 
-            ", effective minScore=" + effectiveMinScore);
-        
+        System.out.println(
+            "DEBUG: RankDocsRetrieverBuilder - extractToSearchSourceBuilder with "
+                + (rankDocResults != null ? rankDocResults.length : 0)
+                + " rank results"
+        );
+        System.out.println("DEBUG: RankDocsRetrieverBuilder - minScore=" + minScore() + ", effective minScore=" + effectiveMinScore);
+
         if (hasAggregations(searchSourceBuilder)
             || isExplainRequest(searchSourceBuilder)
             || isProfileRequest(searchSourceBuilder)
             || shouldTrackTotalHits(searchSourceBuilder)) {
-            System.out.println("DEBUG: RankDocsRetrieverBuilder - Building with explainQuery=" + isExplainRequest(searchSourceBuilder) +
-                ", hasAggs=" + hasAggregations(searchSourceBuilder) + 
-                ", isProfile=" + isProfileRequest(searchSourceBuilder) +
-                ", shouldTrackTotalHits=" + shouldTrackTotalHits(searchSourceBuilder));
-            
+            System.out.println(
+                "DEBUG: RankDocsRetrieverBuilder - Building with explainQuery="
+                    + isExplainRequest(searchSourceBuilder)
+                    + ", hasAggs="
+                    + hasAggregations(searchSourceBuilder)
+                    + ", isProfile="
+                    + isProfileRequest(searchSourceBuilder)
+                    + ", shouldTrackTotalHits="
+                    + shouldTrackTotalHits(searchSourceBuilder)
+            );
+
             if (false == isExplainRequest(searchSourceBuilder)) {
                 rankQuery = new RankDocsQueryBuilder(
                     rankDocResults,
@@ -136,14 +144,14 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
                     rankDocResults,
                     sources.stream().map(RetrieverBuilder::explainQuery).toArray(QueryBuilder[]::new),
                     false,
-                   effectiveMinScore
+                    effectiveMinScore
                 );
             }
         } else {
             System.out.println("DEBUG: RankDocsRetrieverBuilder - Building with simplified query");
             rankQuery = new RankDocsQueryBuilder(rankDocResults, null, false, effectiveMinScore);
         }
-        
+
         System.out.println("DEBUG: RankDocsRetrieverBuilder - Created rankQuery with minScore=" + effectiveMinScore);
         rankQuery.queryName(retrieverName());
         // ignore prefilters of this level, they were already propagated to children
@@ -151,37 +159,47 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         if (searchSourceBuilder.size() < 0) {
             searchSourceBuilder.size(rankWindowSize);
         }
-        
+
         // Set track total hits to equal the number of results, ensuring the correct count is returned
         boolean emptyResults = rankDocResults.length == 0;
         boolean shouldTrack = shouldTrackTotalHits(searchSourceBuilder);
-        
+
         if (shouldTrack) {
             int hitsToTrack = emptyResults ? Integer.MAX_VALUE : rankDocResults.length;
             System.out.println("DEBUG: RankDocsRetrieverBuilder - Setting trackTotalHitsUpTo to " + hitsToTrack);
             searchSourceBuilder.trackTotalHitsUpTo(hitsToTrack);
         }
-        
+
         // Always set minScore if it's meaningful (greater than default)
         boolean hasSignificantMinScore = effectiveMinScore > DEFAULT_MIN_SCORE;
-        
-        System.out.println("DEBUG: RankDocsRetrieverBuilder - sourceHasMinScore=" + sourceHasMinScore() + 
-            ", effectiveMinScore=" + effectiveMinScore + 
-            ", hasSignificantMinScore=" + hasSignificantMinScore);
-        
+
+        System.out.println(
+            "DEBUG: RankDocsRetrieverBuilder - sourceHasMinScore="
+                + sourceHasMinScore()
+                + ", effectiveMinScore="
+                + effectiveMinScore
+                + ", hasSignificantMinScore="
+                + hasSignificantMinScore
+        );
+
         if (hasSignificantMinScore) {
             // Set minScore on the search source builder - this ensures filtering happens
             searchSourceBuilder.minScore(effectiveMinScore);
         }
-        
+
         if (searchSourceBuilder.size() + searchSourceBuilder.from() > rankDocResults.length) {
             searchSourceBuilder.size(Math.max(0, rankDocResults.length - searchSourceBuilder.from()));
         }
-        
-        System.out.println("DEBUG: RankDocsRetrieverBuilder - Final searchSourceBuilder: " + 
-            "size=" + searchSourceBuilder.size() + 
-            ", minScore=" + searchSourceBuilder.minScore() + 
-            ", trackTotalHitsUpTo=" + searchSourceBuilder.trackTotalHitsUpTo());
+
+        System.out.println(
+            "DEBUG: RankDocsRetrieverBuilder - Final searchSourceBuilder: "
+                + "size="
+                + searchSourceBuilder.size()
+                + ", minScore="
+                + searchSourceBuilder.minScore()
+                + ", trackTotalHitsUpTo="
+                + searchSourceBuilder.trackTotalHitsUpTo()
+        );
     }
 
     private boolean hasAggregations(SearchSourceBuilder searchSourceBuilder) {
@@ -201,7 +219,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         if (minScore() != null && minScore() > DEFAULT_MIN_SCORE) {
             return true;
         }
-        
+
         // Check sources for minScore - if any have a significant minScore, we need to track hits
         for (RetrieverBuilder source : sources) {
             Float sourceMinScore = source.minScore();
@@ -209,10 +227,10 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
                 return true;
             }
         }
-        
+
         // Otherwise use default behavior
-        return searchSourceBuilder.trackTotalHitsUpTo() == null || 
-               (rankDocs.get() != null && searchSourceBuilder.trackTotalHitsUpTo() > rankDocs.get().length);
+        return searchSourceBuilder.trackTotalHitsUpTo() == null
+            || (rankDocs.get() != null && searchSourceBuilder.trackTotalHitsUpTo() > rankDocs.get().length);
     }
 
     /**
@@ -221,25 +239,29 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
      */
     private float getEffectiveMinScore() {
         System.out.println("DEBUG: RankDocsRetrieverBuilder.getEffectiveMinScore() - this.minScore=" + minScore);
-        
+
         if (minScore != null) {
             System.out.println("DEBUG: RankDocsRetrieverBuilder.getEffectiveMinScore() - using this.minScore=" + minScore);
             return minScore;
         }
-        
+
         // Check if any of the sources have a minScore
         System.out.println("DEBUG: RankDocsRetrieverBuilder.getEffectiveMinScore() - checking " + sources.size() + " sources");
         for (RetrieverBuilder source : sources) {
             Float sourceMinScore = source.minScore();
-            System.out.println("DEBUG: RankDocsRetrieverBuilder.getEffectiveMinScore() - source minScore=" + 
-                sourceMinScore + " for source " + source.getClass().getSimpleName());
-            
+            System.out.println(
+                "DEBUG: RankDocsRetrieverBuilder.getEffectiveMinScore() - source minScore="
+                    + sourceMinScore
+                    + " for source "
+                    + source.getClass().getSimpleName()
+            );
+
             if (sourceMinScore != null && sourceMinScore > DEFAULT_MIN_SCORE) {
                 System.out.println("DEBUG: RankDocsRetrieverBuilder.getEffectiveMinScore() - using source minScore=" + sourceMinScore);
                 return sourceMinScore;
             }
         }
-        
+
         System.out.println("DEBUG: RankDocsRetrieverBuilder.getEffectiveMinScore() - using DEFAULT_MIN_SCORE=" + DEFAULT_MIN_SCORE);
         return DEFAULT_MIN_SCORE;
     }

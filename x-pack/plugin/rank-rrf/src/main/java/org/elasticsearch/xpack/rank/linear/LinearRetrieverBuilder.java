@@ -25,20 +25,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
-import org.elasticsearch.action.search.SearchResponse;
-import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -156,13 +148,19 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         this.weights = weights;
         this.normalizers = normalizers;
         this.minScore = minScore;
-        
+
         // Set the parent class's minScore field so it propagates to RankDocsRetrieverBuilder
         super.minScore = minScore > 0 ? minScore : null;
 
         // Don't set minScore on inner retrievers anymore - we'll apply it after combining
-        System.out.println("DEBUG: Constructed LinearRetrieverBuilder with minScore=" + minScore +
-            ", rankWindowSize=" + rankWindowSize + ", retrievers=" + innerRetrievers.size());
+        System.out.println(
+            "DEBUG: Constructed LinearRetrieverBuilder with minScore="
+                + minScore
+                + ", rankWindowSize="
+                + rankWindowSize
+                + ", retrievers="
+                + innerRetrievers.size()
+        );
     }
 
     @Override
@@ -170,19 +168,19 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         LinearRetrieverBuilder clone = new LinearRetrieverBuilder(newChildRetrievers, rankWindowSize, weights, normalizers, minScore);
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
         clone.retrieverName = retrieverName;
-        
+
         // Ensure parent's minScore field is correctly set (should already be done in constructor but just to be safe)
         clone.minScore = this.minScore;
-        
+
         System.out.println("DEBUG: Cloned LinearRetrieverBuilder with minScore=" + minScore);
-        
+
         return clone;
     }
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         System.out.println("DEBUG: finalizeSourceBuilder - minScore=" + minScore);
-        
+
         sourceBuilder.trackScores(true);
         return sourceBuilder;
     }
@@ -192,12 +190,18 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean isExplain) {
-        System.out.println("DEBUG: combineInnerRetrieverResults START - minScore=" + minScore + 
-            ", rankWindowSize=" + rankWindowSize + ", isExplain=" + isExplain);
-            
+        System.out.println(
+            "DEBUG: combineInnerRetrieverResults START - minScore="
+                + minScore
+                + ", rankWindowSize="
+                + rankWindowSize
+                + ", isExplain="
+                + isExplain
+        );
+
         Map<RankDoc.RankKey, LinearRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
         final String[] normalizerNames = Arrays.stream(normalizers).map(ScoreNormalizer::getName).toArray(String[]::new);
-        
+
         // Process all inner retriever results
         for (int result = 0; result < rankResults.size(); result++) {
             ScoreDoc[] originalScoreDocs = rankResults.get(result);
@@ -205,22 +209,22 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 System.out.println("DEBUG: Inner retriever " + result + " returned null results");
                 continue;
             }
-            
+
             System.out.println("DEBUG: Inner retriever " + result + " has " + originalScoreDocs.length + " results");
-            
+
             final float weight = Float.isNaN(weights[result]) ? DEFAULT_WEIGHT : weights[result];
             final ScoreNormalizer normalizer = normalizers[result];
-            
+
             // Filter out any null or invalid score docs before normalization
             ScoreDoc[] validScoreDocs = Arrays.stream(originalScoreDocs)
                 .filter(doc -> doc != null && !Float.isNaN(doc.score))
                 .toArray(ScoreDoc[]::new);
-                
+
             if (validScoreDocs.length == 0) {
                 System.out.println("DEBUG: Inner retriever " + result + " has no valid score docs after filtering");
                 continue;
             }
-            
+
             // Store raw scores before normalization for explain mode
             float[] rawScores = null;
             if (isExplain) {
@@ -229,54 +233,46 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                     rawScores[i] = validScoreDocs[i].score;
                 }
             }
-            
+
             // Normalize scores for this retriever
             ScoreDoc[] normalizedScoreDocs = normalizer.normalizeScores(validScoreDocs);
-            
-            System.out.println("DEBUG: Inner retriever " + result + " - weight=" + weight + 
-                ", normalizer=" + normalizer.getName());
-            
+
+            System.out.println("DEBUG: Inner retriever " + result + " - weight=" + weight + ", normalizer=" + normalizer.getName());
+
             for (int i = 0; i < normalizedScoreDocs.length; i++) {
                 ScoreDoc scoreDoc = normalizedScoreDocs[i];
                 if (scoreDoc == null) {
                     continue;
                 }
-                
-                LinearRankDoc rankDoc = docsToRankResults.computeIfAbsent(
-                    new RankDoc.RankKey(scoreDoc.doc, scoreDoc.shardIndex),
-                    key -> {
-                        if (isExplain) {
-                            LinearRankDoc doc = new LinearRankDoc(key.doc(), 0f, key.shardIndex(), weights, normalizerNames);
-                            doc.normalizedScores = new float[rankResults.size()];
-                            return doc;
-                        } else {
-                            return new LinearRankDoc(key.doc(), 0f, key.shardIndex());
-                        }
+
+                LinearRankDoc rankDoc = docsToRankResults.computeIfAbsent(new RankDoc.RankKey(scoreDoc.doc, scoreDoc.shardIndex), key -> {
+                    if (isExplain) {
+                        LinearRankDoc doc = new LinearRankDoc(key.doc(), 0f, key.shardIndex(), weights, normalizerNames);
+                        doc.normalizedScores = new float[rankResults.size()];
+                        return doc;
+                    } else {
+                        return new LinearRankDoc(key.doc(), 0f, key.shardIndex());
                     }
-                );
-                
+                });
+
                 // Store the normalized score for this retriever
                 final float docScore = false == Float.isNaN(scoreDoc.score) ? scoreDoc.score : DEFAULT_SCORE;
                 if (isExplain) {
                     rankDoc.normalizedScores[result] = docScore;
                 }
-                
+
                 // Apply weight to the normalized score
                 rankDoc.score += weight * docScore;
             }
         }
 
-        LinearRankDoc[] filteredResults = docsToRankResults.values()
-            .stream()
-            .toArray(LinearRankDoc[]::new);
-            
+        LinearRankDoc[] filteredResults = docsToRankResults.values().stream().toArray(LinearRankDoc[]::new);
+
         System.out.println("DEBUG: Combined " + filteredResults.length + " unique documents from all retrievers");
 
         // sort the results based on the final score, tiebreaker based on smaller doc id
-        LinearRankDoc[] sortedResults = Arrays.stream(filteredResults)
-            .sorted()
-            .toArray(LinearRankDoc[]::new);
-            
+        LinearRankDoc[] sortedResults = Arrays.stream(filteredResults).sorted().toArray(LinearRankDoc[]::new);
+
         System.out.println("DEBUG: Sorted results before filtering:");
         for (LinearRankDoc doc : sortedResults) {
             System.out.println("DEBUG:   Doc ID: " + doc.doc + ", Sorted Score: " + doc.score);
@@ -284,24 +280,30 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
         // Apply minScore filtering if needed
         int originalResultCount = sortedResults.length;
-        
+
         // Store the TOTAL hits before filtering for search response
         filteredTotalHitsHolder.set(originalResultCount);
-        
+
         if (minScore > 0) {
             System.out.println("DEBUG: Filtering results with minScore=" + minScore);
-            
+
             LinearRankDoc[] filteredByMinScore = Arrays.stream(sortedResults)
                 .filter(doc -> doc.score >= minScore)
                 .toArray(LinearRankDoc[]::new);
-            
+
             int filteredResultCount = filteredByMinScore.length;
             sortedResults = filteredByMinScore;
-            
-            System.out.println("DEBUG: After minScore filtering: " + 
-                originalResultCount + " original results -> " + filteredResultCount + 
-                " filtered results (meeting minScore=" + minScore + ")");
-                
+
+            System.out.println(
+                "DEBUG: After minScore filtering: "
+                    + originalResultCount
+                    + " original results -> "
+                    + filteredResultCount
+                    + " filtered results (meeting minScore="
+                    + minScore
+                    + ")"
+            );
+
             // Store filtered count in thread local for rewrite method to access
             // This is critically important for the test that expects the total hits to reflect the filtered count
             filteredTotalHitsHolder.set(filteredResultCount);
@@ -309,21 +311,33 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
         // trim to rank window size
         int preWindowCount = sortedResults.length;
-        sortedResults = Arrays.stream(sortedResults)
-            .limit(rankWindowSize)
-            .toArray(LinearRankDoc[]::new);
-        
-        System.out.println("DEBUG: After window size limiting: " + 
-            preWindowCount + " results -> " + sortedResults.length + 
-            " results (rankWindowSize=" + rankWindowSize + ")");
-        
+        sortedResults = Arrays.stream(sortedResults).limit(rankWindowSize).toArray(LinearRankDoc[]::new);
+
+        System.out.println(
+            "DEBUG: After window size limiting: "
+                + preWindowCount
+                + " results -> "
+                + sortedResults.length
+                + " results (rankWindowSize="
+                + rankWindowSize
+                + ")"
+        );
+
         // trim the results if needed, otherwise each shard will always return `rank_window_size` results.
         for (int rank = 0; rank < sortedResults.length; ++rank) {
             sortedResults[rank].rank = rank + 1;
-            System.out.println("DEBUG: Final result [" + rank + "]: doc=" + sortedResults[rank].doc + 
-                ", score=" + sortedResults[rank].score + ", rank=" + sortedResults[rank].rank);
+            System.out.println(
+                "DEBUG: Final result ["
+                    + rank
+                    + "]: doc="
+                    + sortedResults[rank].doc
+                    + ", score="
+                    + sortedResults[rank].score
+                    + ", rank="
+                    + sortedResults[rank].rank
+            );
         }
-        
+
         System.out.println("DEBUG: combineInnerRetrieverResults END - returning " + sortedResults.length + " results");
         return sortedResults;
     }

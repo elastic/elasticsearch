@@ -126,7 +126,13 @@ public class RankDocsQuery extends Query {
                                     if (++upTo >= docBound) {
                                         return NO_MORE_DOCS;
                                     }
-                                    upTo = Arrays.binarySearch(docs, upTo, docBound, new RankDoc(target, Float.NaN, -1), Comparator.comparingInt(a -> a.doc));
+                                    upTo = Arrays.binarySearch(
+                                        docs,
+                                        upTo,
+                                        docBound,
+                                        new RankDoc(target, Float.NaN, -1),
+                                        Comparator.comparingInt(a -> a.doc)
+                                    );
                                     if (upTo < 0) {
                                         upTo = -1 - upTo;
                                         if (upTo >= docBound) {
@@ -379,4 +385,4 @@ public class RankDocsQuery extends Query {
         }
         return hasChanged ? new RankDocsQuery(docs, topRewrite, tailRewrite, onlyRankDocs, minScore) : this;
     }
-} 
+}

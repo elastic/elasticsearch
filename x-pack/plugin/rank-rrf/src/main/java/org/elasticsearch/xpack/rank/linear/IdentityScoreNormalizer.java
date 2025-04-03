@@ -25,7 +25,7 @@ public class IdentityScoreNormalizer extends ScoreNormalizer {
         if (docs == null || docs.length == 0) {
             return docs;
         }
-        
+
         // Create a new array to avoid modifying input
         ScoreDoc[] normalizedDocs = new ScoreDoc[docs.length];
         for (int i = 0; i < docs.length; i++) {

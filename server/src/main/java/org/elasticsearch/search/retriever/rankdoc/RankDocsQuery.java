@@ -245,7 +245,7 @@ public class RankDocsQuery extends Query {
      * Sets whether this query should count only documents that pass the min_score filter.
      * When true, the total hits count will reflect the number of documents meeting the minimum score threshold.
      * When false (default), the total hits count will include all matching documents regardless of score.
-     * 
+     *
      * @param countFilteredHits true to count only documents passing min_score, false to count all matches
      * @return this query
      */
@@ -367,20 +367,24 @@ public class RankDocsQuery extends Query {
             public int count(LeafReaderContext context) throws IOException {
                 // When minScore is set to a value higher than DEFAULT_MIN_SCORE, filter docs by score
                 if ((minScore > DEFAULT_MIN_SCORE) && countFilteredHits) {
-                    System.out.println("DEBUG: RankDocsQuery - count with minScore=" + minScore + 
-                        " > DEFAULT_MIN_SCORE=" + DEFAULT_MIN_SCORE + ", countFilteredHits=" + countFilteredHits);
+                    System.out.println(
+                        "DEBUG: RankDocsQuery - count with minScore="
+                            + minScore
+                            + " > DEFAULT_MIN_SCORE="
+                            + DEFAULT_MIN_SCORE
+                            + ", countFilteredHits="
+                            + countFilteredHits
+                    );
                     int count = 0;
                     for (RankDoc doc : docs) {
-                        if (doc.score >= minScore && 
-                            doc.doc >= context.docBase && 
-                            doc.doc < context.docBase + context.reader().maxDoc()) {
+                        if (doc.score >= minScore && doc.doc >= context.docBase && doc.doc < context.docBase + context.reader().maxDoc()) {
                             count++;
                         }
                     }
                     System.out.println("DEBUG: RankDocsQuery - filtered count=" + count + " from " + docs.length + " total docs");
                     return count;
                 }
-                
+
                 int combinedCount = combinedWeight.count(context);
                 System.out.println("DEBUG: RankDocsQuery - using combined weight count=" + combinedCount);
                 return combinedCount;
@@ -444,8 +448,8 @@ public class RankDocsQuery extends Query {
             return false;
         }
         RankDocsQuery other = (RankDocsQuery) obj;
-        return Objects.equals(topQuery, other.topQuery) 
-            && Objects.equals(tailQuery, other.tailQuery) 
+        return Objects.equals(topQuery, other.topQuery)
+            && Objects.equals(tailQuery, other.tailQuery)
             && onlyRankDocs == other.onlyRankDocs
             && minScore == other.minScore
             && countFilteredHits == other.countFilteredHits;

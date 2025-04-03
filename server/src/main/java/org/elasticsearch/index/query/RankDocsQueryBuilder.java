@@ -149,7 +149,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
             queries = new Query[0];
             queryNames = Strings.EMPTY_ARRAY;
         }
-        
+
         RankDocsQuery query = new RankDocsQuery(reader, shardRankDocs, queries, queryNames, onlyRankDocs, minScore);
         if (countFilteredHits) {
             query.setCountFilteredHits(true);
@@ -193,7 +193,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
      * Sets whether this query should count only documents that pass the min_score filter.
      * When true, the total hits count will reflect the number of documents meeting the minimum score threshold.
      * When false (default), the total hits count will include all matching documents regardless of score.
-     * 
+     *
      * @param countFilteredHits true to count only documents passing min_score, false to count all matches
      * @return this builder
      */

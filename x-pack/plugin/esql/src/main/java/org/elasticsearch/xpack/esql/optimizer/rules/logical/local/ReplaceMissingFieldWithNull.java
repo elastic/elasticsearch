@@ -43,14 +43,14 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
-        AttributeSet lookupFields = new AttributeSet();
+        var lookupFieldsBuilder = AttributeSet.builder();
         plan.forEachUp(EsRelation.class, esRelation -> {
             if (esRelation.indexMode() == IndexMode.LOOKUP) {
-                lookupFields.addAll(esRelation.output());
+                lookupFieldsBuilder.addAll(esRelation.output());
             }
         });
 
-        return plan.transformUp(p -> missingToNull(p, localLogicalOptimizerContext.searchStats(), lookupFields));
+        return plan.transformUp(p -> missingToNull(p, localLogicalOptimizerContext.searchStats(), lookupFieldsBuilder.build()));
     }
 
     private LogicalPlan missingToNull(LogicalPlan plan, SearchStats stats, AttributeSet lookupFields) {
@@ -118,9 +118,9 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
         return plan;
     }
 
-    private AttributeSet joinAttributes(Project project) {
-        var attributes = new AttributeSet();
-        project.forEachDown(Join.class, j -> j.right().forEachDown(EsRelation.class, p -> attributes.addAll(p.output())));
-        return attributes;
+    private static AttributeSet joinAttributes(Project project) {
+        var attributesBuilder = AttributeSet.builder();
+        project.forEachDown(Join.class, j -> j.right().forEachDown(EsRelation.class, p -> attributesBuilder.addAll(p.output())));
+        return attributesBuilder.build();
     }
 }

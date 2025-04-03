@@ -215,7 +215,7 @@ class S3BlobStore implements BlobStore {
             requests.add(responseCount); // requests that didn't get a HTTP status code assumed not to have reached S3 at all
             s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
             operations.increment();
-            if (overallSuccess) {
+            if (overallSuccess == false) {
                 s3RepositoriesMetrics.common().unsuccessfulOperationCounter().incrementBy(1, attributes);
             }
 

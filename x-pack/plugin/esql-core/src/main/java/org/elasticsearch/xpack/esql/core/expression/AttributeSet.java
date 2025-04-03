@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -182,6 +184,24 @@ public class AttributeSet implements Set<Attribute> {
             mapBuilder.put(a, PRESENT);
         }
         return new AttributeSet(mapBuilder.build());
+    }
+
+    public static <T> AttributeSet of(Collection<T> sources, Function<T, Collection<Attribute>> mapper) {
+        if (sources.isEmpty()) {
+            return AttributeSet.EMPTY;
+        }
+        var size = 0;
+        var attributeSets = new ArrayList<Collection<Attribute>>(sources.size());
+        for (T source : sources) {
+            var attrs = mapper.apply(source);
+            size += attrs.size();
+            attributeSets.add(attrs);
+        }
+        var builder = AttributeSet.builder(size);
+        for (Collection<Attribute> attributeSet : attributeSets) {
+            builder.addAll(attributeSet);
+        }
+        return builder.build();
     }
 
     public static Builder builder() {

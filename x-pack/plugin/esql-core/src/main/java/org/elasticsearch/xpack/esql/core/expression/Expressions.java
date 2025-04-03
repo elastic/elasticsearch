@@ -105,23 +105,7 @@ public final class Expressions {
     }
 
     public static AttributeSet references(List<? extends Expression> exps) {
-        if (exps.isEmpty()) {
-            return AttributeSet.EMPTY;
-        }
-
-        var size = 0;
-        var references = new ArrayList<AttributeSet>(exps.size());
-        for (Expression exp : exps) {
-            var refs = exp.references();
-            size += refs.size();
-            references.add(refs);
-        }
-
-        var builder = AttributeSet.builder(size);
-        for (AttributeSet refs : references) {
-            builder.addAll(refs);
-        }
-        return builder.build();
+        return AttributeSet.of(exps, Expression::references);
     }
 
     public static String name(Expression e) {

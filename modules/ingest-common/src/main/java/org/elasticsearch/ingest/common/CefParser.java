@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
@@ -508,7 +509,7 @@ final class CefParser {
     }
 
     private static void removeEmptyValue(Map<String, String> map) {
-        map.entrySet().removeIf(entry -> Objects.isNull(entry.getValue()) || entry.getValue().isEmpty());
+        map.values().removeIf(Strings::isEmpty);
     }
 
     private static String convertArrayLikeKey(String key) {

@@ -124,6 +124,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestCurrent = in.readVLong();
 
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                dfsFailure = in.readVLong();
                 queryFailure = in.readVLong();
                 fetchFailure = in.readVLong();
             }

@@ -140,6 +140,8 @@ public class SearchStatsIT extends ESIntegTestCase {
 
         indicesStats = indicesAdmin().prepareStats().setGroups("group1").get();
         assertThat(indicesStats.getTotal().getSearch().getGroupStats(), notNullValue());
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getDfsCount(), equalTo(0L));
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getDfsTimeInMillis(), equalTo(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryTimeInMillis(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchCount(), greaterThan(0L));

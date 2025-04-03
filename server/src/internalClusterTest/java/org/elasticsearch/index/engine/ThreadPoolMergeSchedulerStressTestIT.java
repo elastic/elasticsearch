@@ -79,12 +79,6 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         final Semaphore runMergeSemaphore = new Semaphore(initialRunMergesCount);
         final int waitMergesEnqueuedCount = randomIntBetween(50, 100);
 
-        void allowAllMerging() {
-            // even when indexing is done, queued and backlogged merges can themselves trigger further merging
-            // don't let this test be bothered by that, and simply let all merging run unhindered
-            runMergeSemaphore.release(Integer.MAX_VALUE - initialRunMergesCount);
-        }
-
         class TestInternalEngine extends org.elasticsearch.index.engine.InternalEngine {
 
             TestInternalEngine(EngineConfig engineConfig) {
@@ -265,10 +259,13 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         for (Thread indexingThread : indexingThreads) {
             indexingThread.join();
         }
-        // unblock merge threads
-        testEnginePlugin.allowAllMerging();
+        // even when indexing is done, queued and backlogged merges can themselves trigger further merging
+        // don't let this test be bothered by that, and simply unblock all merges
+        // 100k is a fudge value, but there's no easy way to find a smartest one here
+        testEnginePlugin.runMergeSemaphore.release(100_000);
         // await all merging to catch up
         assertBusy(() -> {
+            assert testEnginePlugin.runMergeSemaphore.availablePermits() > 0 : "some merges are blocked, test is broken";
             assertThat(testEnginePlugin.runningMergesSet.size(), is(0));
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), is(0));
             testEnginePlugin.mergeExecutorServiceReference.get().allDone();

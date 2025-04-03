@@ -39,6 +39,7 @@ tasks.named("yamlRestTest").configure {
     '^cat.snapshots/*/*',
     '^cluster.desired_balance/10_basic/*',
     '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
+    '^data_stream/230_data_stream_options/*', // updating data stream options does not yet support multi project
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
     '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security

@@ -252,8 +252,6 @@ class S3Service extends AbstractLifecycleComponent {
 
     // TODO NOMERGE test this logic
     private Region getClientRegion(S3ClientSettings clientSettings) {
-        assert lifecycle.initialized() == false : lifecycle;
-
         if (Strings.hasLength(clientSettings.region)) {
             return Region.of(clientSettings.region);
         }

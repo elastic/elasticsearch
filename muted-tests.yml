@@ -380,21 +380,18 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTerminateAfter
   issue: https://github.com/elastic/elasticsearch/issues/126085
-- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
-  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
-  issue: https://github.com/elastic/elasticsearch/issues/126088
 - class: org.elasticsearch.search.sort.GeoDistanceIT
   method: testDistanceSortingWithUnmappedField
   issue: https://github.com/elastic/elasticsearch/issues/126118
-- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
-  method: testBlockLoader {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
-  issue: https://github.com/elastic/elasticsearch/issues/126121
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
 - class: org.elasticsearch.xpack.security.authz.RBACEngineTests
   method: testBuildUserPrivilegeResponseCombinesIndexPrivileges
   issue: https://github.com/elastic/elasticsearch/issues/126130
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/126139
 
 # Examples:
 #

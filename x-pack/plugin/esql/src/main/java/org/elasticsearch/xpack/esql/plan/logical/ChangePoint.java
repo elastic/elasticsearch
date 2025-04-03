@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetectorImpl;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +30,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Plan that detects change points in a list of values. See also:
  * <ul>
  * <li> {@link org.elasticsearch.compute.operator.ChangePointOperator}
- * <li> {@link ChangePointDetectorImpl}
+ * <li> {@link org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangePointDetector}
  * </ul>
  *
  * ChangePoint should always run on the coordinating node after the data is collected

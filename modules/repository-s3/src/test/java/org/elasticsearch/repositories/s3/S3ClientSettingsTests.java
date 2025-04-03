@@ -24,7 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.Mockito;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;

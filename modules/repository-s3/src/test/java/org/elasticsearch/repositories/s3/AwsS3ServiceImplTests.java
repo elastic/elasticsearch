@@ -16,18 +16,20 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,10 +60,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(DefaultCredentialsProvider.class));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
     public void testSupportsWebIdentityTokenCredentials() {
-        Mockito.when(webIdentityTokenCredentialsProvider.resolveCredentials())
-            .thenReturn(AwsBasicCredentials.create("sts_access_key_id", "sts_secret_key"));
+        AwsBasicCredentials credentials = AwsBasicCredentials.create("sts_access_key_id", "sts_secret_key");
+        Mockito.when(webIdentityTokenCredentialsProvider.resolveCredentials()).thenReturn(credentials);
+        // Mockito has difficulty with #resolveIdentity()'s generic return type. Using #thenAnswer (instead of #thenReturn) provides a
+        // workaround.
+        Answer<CompletableFuture<? extends AwsCredentialsIdentity>> answer = invocation -> CompletableFuture.completedFuture(credentials);
+        Mockito.when(webIdentityTokenCredentialsProvider.resolveIdentity()).thenAnswer(answer);
         Mockito.when(webIdentityTokenCredentialsProvider.isActive()).thenReturn(true);
 
         AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(
@@ -72,9 +77,9 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
         var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) credentialsProvider;
         assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(AwsCredentialsProviderChain.class));
-        AwsCredentials credentials = privilegedAWSCredentialsProvider.resolveCredentials();
-        assertEquals("sts_access_key_id", credentials.accessKeyId());
-        assertEquals("sts_secret_key", credentials.secretAccessKey());
+        AwsCredentials resolvedCredentials = privilegedAWSCredentialsProvider.resolveCredentials();
+        assertEquals("sts_access_key_id", resolvedCredentials.accessKeyId());
+        assertEquals("sts_secret_key", resolvedCredentials.secretAccessKey());
     }
 
     public void testAwsCredentialsFromKeystore() {

@@ -234,7 +234,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(clientSettings.endpoint, is(expectedEndpoint));
     }
 
-    public void testLoggingCredentialsProviderCatchesErrors() {
+    public void testLoggingCredentialsProviderCatchesErrorsOnResolveCredentials() {
         var mockProvider = Mockito.mock(AwsCredentialsProvider.class);
         String mockProviderErrorMessage = "mockProvider failed to generate credentials";
         Mockito.when(mockProvider.resolveCredentials()).thenThrow(new IllegalStateException(mockProviderErrorMessage));
@@ -252,5 +252,24 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
     }
 
-    // TODO NOMERGE: refresh() is gone in V2, but resolveIdentity was added. Do we want to test anything about that?
+    public void testLoggingCredentialsProviderCatchesErrorsOnResolveIdentity() {
+        // Set up #resolveIdentity() to throw a fake exception.
+        var mockCredentialsProvider = Mockito.mock(AwsCredentialsProvider.class);
+        String mockProviderErrorMessage = "mockProvider failed to generate credentials";
+        Mockito.when(mockCredentialsProvider.resolveIdentity()).thenThrow(new IllegalStateException(mockProviderErrorMessage));
+
+        var mockLogger = Mockito.mock(Logger.class);
+        var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockCredentialsProvider, mockLogger);
+
+        // The S3Service.ErrorLoggingCredentialsProvider should log the error.
+        var exception = expectThrows(IllegalStateException.class, credentialsProvider::resolveIdentity);
+        assertEquals(mockProviderErrorMessage, exception.getMessage());
+
+        var messageSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
+        var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
+        Mockito.verify(mockLogger).error(messageSupplierCaptor.capture(), throwableCaptor.capture());
+
+        assertThat(messageSupplierCaptor.getValue().get().toString(), startsWith("Unable to resolve identity from"));
+        assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
+    }
 }

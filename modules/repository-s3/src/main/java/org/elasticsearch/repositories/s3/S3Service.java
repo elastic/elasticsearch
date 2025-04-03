@@ -686,9 +686,17 @@ class S3Service extends AbstractLifecycleComponent {
             return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(consumer).handle(this::resultHandler));
         }
 
+        // TODO NOMERGE: I changed this so I could test successfully that a log message occurs.
+        // resultHandler doesn't appear to be invoked. I'm not sure how the original code works (haven't looked yet).
         @Override
         public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
-            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity().handle(this::resultHandler));
+            try {
+                return SocketAccess.doPrivileged(() -> delegate.resolveIdentity());
+            } catch (Exception e) {
+                logger.error(() -> "Unable to resolve identity from " + delegate, e);
+                throw e;
+            }
+            // return SocketAccess.doPrivileged(() -> delegate.resolveIdentity().handle(this::resultHandler));
         }
 
         @Override

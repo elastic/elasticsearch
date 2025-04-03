@@ -275,115 +275,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
         @Override
         public void run() {
-            estimateMemoryUsage();
             executeNext(0);
-        }
-
-        private void estimateMemoryUsage() {
-            IndexingPressure.Coordinating coordinatingIndexingPressure = coordinatingWrapper.coordinating();
-            if (coordinatingIndexingPressure == null) {
-                return;
-            }
-
-            for (BulkItemRequest item : bulkShardRequest.items()) {
-                final IndexRequest indexRequest;
-                if (item.request() instanceof IndexRequest ir) {
-                    indexRequest = ir;
-                } else if (item.request() instanceof UpdateRequest updateRequest) {
-                    if (updateRequest.script() != null) {
-                        // Skip script updates, we will error out on those later
-                        continue;
-                    }
-
-                    indexRequest = updateRequest.doc();
-                } else {
-                    // Ignore delete requests
-                    continue;
-                }
-
-                // TODO: Don't know how to avoid getting the doc map here, we need it to determine if the doc has any inference fields in it
-                // and if so, what they are
-                long estimatedEmbeddingBytes = 0;
-                final Map<String, Object> docMap = indexRequest.sourceAsMap();
-                for (InferenceFieldMetadata inferenceFieldMetadata : fieldInferenceMap.values()) {
-                    String inferenceId = inferenceFieldMetadata.getInferenceId();
-                    MinimalServiceSettings minimalServiceSettings = null;
-
-                    if (isInferenceRequired(inferenceFieldMetadata, docMap) == false) {
-                        continue;
-                    }
-
-                    for (String sourceField : inferenceFieldMetadata.getSourceFields()) {
-                        var valueObj = XContentMapValues.extractValue(sourceField, docMap);
-                        if (valueObj == null) {
-                            continue;
-                        }
-
-                        final List<String> values;
-                        try {
-                            values = SemanticTextUtils.nodeStringValues(sourceField, valueObj);
-                        } catch (Exception exc) {
-                            // Skip this source field for now, the invalid value will be surfaced during field inference request generation
-                            continue;
-                        }
-
-                        for (String v : values) {
-                            if (v.isBlank() == false) {
-                                if (minimalServiceSettings == null) {
-                                    minimalServiceSettings = getMinimalServiceSettings(inferenceId, inferenceFieldMetadata.getName());
-                                }
-
-                                // TODO: Estimate chunk count based on string length
-                                estimatedEmbeddingBytes += switch (minimalServiceSettings.taskType()) {
-                                    case SPARSE_EMBEDDING -> 128; // TODO: Estimate sparse embedding size
-                                    case TEXT_EMBEDDING -> minimalServiceSettings.elementType()
-                                        .getNumBytes(minimalServiceSettings.dimensions());
-                                    default -> throw new IllegalStateException(
-                                        "Inference ID ["
-                                            + inferenceId
-                                            + "] uses unsupported task type ["
-                                            + minimalServiceSettings.taskType()
-                                            + "]"
-                                    );
-                                };
-                            }
-                        }
-                    } // sourceField loop
-                } // inferenceFieldMetadata loop
-
-                // TODO: Verify that ramBytesUsed is what to use here
-                if (estimatedEmbeddingBytes > 0) {
-                    long estimatedMemoryUsage = estimatedEmbeddingBytes + indexRequest.source().ramBytesUsed();
-                    estimatedInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
-
-                    try {
-                        // TODO: How to track operation count? I see two options:
-                        // - One operation per item in the bulk request
-                        // - One operation per inference request
-                        // Currently using the former
-                        coordinatingIndexingPressure.increment(1, estimatedMemoryUsage);
-                    } catch (EsRejectedExecutionException e) {
-                        // We don't run the rest of the action filter chain in this case, so explicitly close the coordinating indexing
-                        // pressure here
-                        coordinatingWrapper.close();
-                        throw new InferenceException("Insufficient memory available to perform inference on bulk request", e);
-                    }
-                }
-            } // BulkItemRequest loop
-        }
-
-        private MinimalServiceSettings getMinimalServiceSettings(String inferenceId, String field) {
-            MinimalServiceSettings minimalServiceSettings;
-            try {
-                minimalServiceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
-                if (minimalServiceSettings == null) {
-                    throw new ResourceNotFoundException("Inference id [{}] not found for field [{}]", inferenceId, field);
-                }
-            } catch (ResourceNotFoundException e) {
-                throw new ResourceNotFoundException("Inference id [{}] not found for field [{}]", e, inferenceId, field);
-            }
-
-            return minimalServiceSettings;
         }
 
         private void executeNext(int itemOffset) {
@@ -589,6 +481,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
             final Map<String, Object> docMap = indexRequest.sourceAsMap();
             long inputLength = 0;
+            boolean indexingPressureIncremented = false;
             for (var entry : fieldInferenceMap.values()) {
                 String field = entry.getName();
                 String inferenceId = entry.getInferenceId();
@@ -648,13 +541,32 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     List<FieldInferenceRequest> requests = requestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                     int offsetAdjustment = 0;
                     for (String v : values) {
-                        inputLength += v.length();
                         if (v.isBlank()) {
                             slot.addOrUpdateResponse(
                                 new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                             );
                         } else {
+                            if (indexingPressureIncremented == false) {
+                                try {
+                                    incrementIndexingPressure(indexRequest.source().ramBytesUsed());
+                                } catch (EsRejectedExecutionException e) {
+                                    // TODO: Safe to assume ID is set/generated at this point?
+                                    addInferenceResponseFailure(
+                                        itemIndex,
+                                        new InferenceException(
+                                            "Insufficient memory available to perform inference on document [" + indexRequest.id() + "]",
+                                            e
+                                        )
+                                    );
+
+                                    return inputLength;
+                                }
+
+                                indexingPressureIncremented = true;
+                            }
+
                             requests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+                            inputLength += v.length();
                         }
 
                         // When using the inference metadata fields format, all the input values are concatenated so that the
@@ -664,7 +576,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
                 }
             }
+
             return inputLength;
+        }
+
+        private void incrementIndexingPressure(long sourceSize) throws EsRejectedExecutionException {
+            IndexingPressure.Coordinating coordinatingIndexingPressure = coordinatingWrapper.coordinating();
+            if (coordinatingIndexingPressure != null) {
+                // Track operation count as one operation per document source update
+                coordinatingIndexingPressure.increment(1, sourceSize);
+            }
         }
 
         private boolean isInferenceRequired(InferenceFieldMetadata inferenceFieldMetadata, Map<String, Object> docMap) {

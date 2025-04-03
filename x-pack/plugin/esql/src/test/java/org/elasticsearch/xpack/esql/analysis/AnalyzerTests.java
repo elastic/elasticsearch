@@ -2325,7 +2325,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRateRequiresCounterTypes() {
         assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var query = "METRICS test | STATS avg(rate(network.connections))";
+        var query = "TS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
         assertThat(
             error.getMessage(),
@@ -2545,10 +2545,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNamedDoubleParamsForIdentifiers() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         assertProjectionWithMapping(
             """
                 from test
@@ -2659,10 +2656,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testInvalidNamedDoubleParamsForIdentifiers() {
-        assumeTrue(
-            "double parameters markers for identifiers requires snapshot build",
-            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
-        );
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         // missing field
         assertError(
             """

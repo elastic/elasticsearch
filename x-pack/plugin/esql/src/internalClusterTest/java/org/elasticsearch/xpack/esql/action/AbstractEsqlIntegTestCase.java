@@ -166,6 +166,10 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
+        return run(esqlCommands, pragmas, filter, null);
+    }
+
+    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter, Boolean allowPartialResults) {
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(esqlCommands);
         if (pragmas != null) {
@@ -173,6 +177,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         }
         if (filter != null) {
             request.filter(filter);
+        }
+        if (allowPartialResults != null) {
+            request.allowPartialResults(allowPartialResults);
         }
         return run(request);
     }

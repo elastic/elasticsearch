@@ -30,7 +30,7 @@ public class DiscoveryEc2KeystoreSessionCredentialsIT extends DiscoveryEc2Cluste
     private static final String SESSION_TOKEN = PREFIX + "-session-token";
 
     private static final AwsEc2HttpFixture ec2ApiFixture = new AwsEc2HttpFixture(
-        fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN),
+        fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN, REGION, "ec2"),
         DiscoveryEc2KeystoreSessionCredentialsIT::getAvailableTransportEndpoints
     );
 

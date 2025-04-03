@@ -87,15 +87,15 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     }
 
     @Override
-    SubscribableListener<IndexAuthorizationResult> void authorizeIndexAction(
+    public SubscribableListener<IndexAuthorizationResult> authorizeIndexAction(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
         ProjectMetadata project
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
-            ActionListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
-            indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+            SubscribableListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
+            indicesAsyncSupplier.getAsync().addListener(ActionListener.wrap(resolvedIndices -> {
                 Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
                 for (String name : resolvedIndices.getLocal()) {
                     indexAccessControlMap.put(name, new IndexAccessControl(FieldPermissions.DEFAULT, null));
@@ -106,7 +106,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
             }, listener::onFailure));
             return listener;
         } else {
-            return SubscribableListener.succcess(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
+            return SubscribableListener.newSucceeded(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
         }
     }
 
@@ -120,7 +120,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(new AuthorizedIndices() {
                 public Set<String> all(IndexComponentSelector selector) {
-                    return () -> indicesLookup.keySet();
+                    return indicesLookup.keySet();
                 }
                 public boolean check(String name, IndexComponentSelector selector) {
                     return indicesLookup.containsKey(name);
@@ -129,7 +129,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         } else {
             listener.onResponse(new AuthorizedIndices() {
                 public Set<String> all(IndexComponentSelector selector) {
-                    return () -> Set.of();
+                    return Set.of();
                 }
                 public boolean check(String name, IndexComponentSelector selector) {
                     return false;

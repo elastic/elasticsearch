@@ -149,7 +149,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
     }
 

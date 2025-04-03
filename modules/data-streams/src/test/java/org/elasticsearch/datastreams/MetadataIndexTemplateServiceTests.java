@@ -144,12 +144,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         // One lifecycle results to this lifecycle as the final
         {
-            DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
-                .dataRetention(randomRetention())
-                .downsampling(randomDownsampling())
-                .build();
+            DataStreamLifecycle.Template lifecycle = new DataStreamLifecycle.Template(true, randomRetention(), randomDownsampling());
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle);
-            DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             // Defaults to true
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
@@ -158,31 +155,19 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
         // Enabled is always true unless it's explicitly set to false
         {
-            DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
-                .enabled(false)
-                .dataRetention(randomPositiveTimeValue())
-                .downsampling(randomRounds())
-                .build();
+            DataStreamLifecycle.Template lifecycle = new DataStreamLifecycle.Template(false, randomPositiveTimeValue(), randomRounds());
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DEFAULT);
-            DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
             assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
         {
-            DataStreamLifecycle.Template lifecycle1 = DataStreamLifecycle.Template.builder()
-                .enabled(false)
-                .dataRetention(randomPositiveTimeValue())
-                .downsampling(randomRounds())
-                .build();
-            DataStreamLifecycle.Template lifecycle2 = DataStreamLifecycle.Template.builder()
-                .enabled(true)
-                .dataRetention(randomPositiveTimeValue())
-                .downsampling(randomRounds())
-                .build();
+            DataStreamLifecycle.Template lifecycle1 = new DataStreamLifecycle.Template(false, randomPositiveTimeValue(), randomRounds());
+            DataStreamLifecycle.Template lifecycle2 = new DataStreamLifecycle.Template(true, randomPositiveTimeValue(), randomRounds());
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle1, lifecycle2);
-            DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(lifecycle2.enabled()));
             assertThat(result.dataRetention(), equalTo(lifecycle2.dataRetention().get()));
             assertThat(result.downsampling(), equalTo(lifecycle2.downsampling().get()));

@@ -214,3 +214,85 @@ x:keyword
 Facello
 Simmel
 ;
+
+swappingNames
+required_capability: rename_sequential_processing
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name
+| RENAME first_name AS last_name, last_name AS first_name, first_name as name
+| LIMIT 2
+;
+
+name:keyword
+Georgi
+Bezalel
+;
+
+complexSwappingNames
+required_capability: rename_sequential_processing
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name, emp_no
+| RENAME first_name AS last_name, last_name AS first_name, first_name as emp_no, emp_no AS first_name
+| LIMIT 2
+;
+
+first_name:keyword
+Georgi
+Bezalel
+;
+
+
+reuseRenamedAlias
+required_capability: rename_sequential_processing
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name
+| LIMIT 2
+| RENAME first_name AS x, x AS y, last_name as x
+;
+
+y:keyword   | x:keyword
+Georgi      | Facello
+Bezalel     | Simmel
+;
+
+
+multipleRenamesToSameAliasLastOnePrevails
+required_capability: rename_sequential_processing
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name
+| LIMIT 2
+| RENAME first_name AS x, last_name as x
+;
+
+x:keyword
+Facello
+Simmel
+;
+
+
+swapNames
+required_capability: rename_sequential_processing
+ROW a="keyword", b=5
+| RENAME a AS temp, b AS a, temp AS b
+;
+
+b:keyword | a:integer
+keyword   | 5
+;
+
+
+multipleRenames
+required_capability: rename_sequential_processing
+ROW a="keyword", b=5, c=null
+| RENAME a AS c, b AS a
+| RENAME c AS b
+| RENAME a AS b, b AS a
+;
+
+a:integer
+5
+;

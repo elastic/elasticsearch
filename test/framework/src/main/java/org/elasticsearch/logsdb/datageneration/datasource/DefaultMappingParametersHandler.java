@@ -199,6 +199,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             if (ESTestCase.randomDouble() <= 0.1) {
                 var keywordMultiFieldMapping = keywordMapping(request, commonMappingParameters()).get();
                 keywordMultiFieldMapping.put("type", "keyword");
+                keywordMultiFieldMapping.remove("copy_to");
 
                 injected.put("fields", Map.of("kwd", keywordMultiFieldMapping));
 

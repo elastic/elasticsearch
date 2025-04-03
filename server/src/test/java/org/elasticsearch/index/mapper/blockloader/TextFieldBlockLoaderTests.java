@@ -13,11 +13,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
     public TextFieldBlockLoaderTests(Params params) {
@@ -52,10 +53,25 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
             // Synthetic source is actually different from keyword field block loader results
             // because synthetic source includes values exceeding ignore_above and block loader doesn't.
             // TODO ideally this logic should be in some kind of KeywordFieldSyntheticSourceTest that uses same infra as
-            //  KeywordFieldBlockLoaderTest
+            // KeywordFieldBlockLoaderTest
             // It is here since KeywordFieldBlockLoaderTest does not really need it
             if (params.syntheticSource() && testContext.forceFallbackSyntheticSource() == false && usingSyntheticSourceDelegate) {
+                var nullValue = (String) keywordMultiFieldMapping.get("null_value");
+
+                // Due to how TextFieldMapper#blockReaderDisiLookup works this is complicated.
+                // If we are using lookupMatchingAll() then we'll see all docs, generate synthetic source using syntheticSourceDelegate,
+                // parse it and see null_value inside.
+                // But if we are using lookupFromNorms() we will skip the document (since the text field itself does not exist).
+                // Same goes for lookupFromFieldNames().
+                boolean textFieldIndexed = (boolean) fieldMapping.getOrDefault("index", true);
+
                 if (value == null) {
+                    if (textFieldIndexed == false
+                        && nullValue != null
+                        && (ignoreAbove == null || nullValue.length() <= (int) ignoreAbove)) {
+                        return new BytesRef(nullValue);
+                    }
+
                     return null;
                 }
 
@@ -63,8 +79,12 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
                     return new BytesRef(s);
                 }
 
-                var nullValue = (String) keywordMultiFieldMapping.get("null_value");
                 var values = (List<String>) value;
+
+                // See note above about TextFieldMapper#blockReaderDisiLookup.
+                if (textFieldIndexed && values.stream().allMatch(Objects::isNull)) {
+                    return null;
+                }
 
                 var indexed = values.stream()
                     .map(s -> s == null ? nullValue : s)
@@ -75,6 +95,7 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
 
                 if (store == false) {
                     // using doc_values for synthetic source
+                    indexed = new ArrayList<>(new HashSet<>(indexed));
                     indexed.sort(BytesRef::compareTo);
                 }
 
@@ -94,7 +115,7 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
             }
         }
 
-        // Either "store": "true" or loading from _ignored_source or loading from stored _source
+        // Loading from _ignored_source or stored _source
         return valuesInSourceOrder(value);
     }
 

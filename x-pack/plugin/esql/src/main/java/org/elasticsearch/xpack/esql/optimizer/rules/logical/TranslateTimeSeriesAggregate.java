@@ -157,6 +157,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             }
         }
         if (rateAggs.isEmpty()) {
+            // no time-series aggregations, run a regular aggregation instead.
             return new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), aggregate.aggregates());
         }
         Holder<Attribute> tsid = new Holder<>();

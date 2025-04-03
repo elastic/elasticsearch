@@ -103,6 +103,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             .map(ChunkingSettings::getChunkingStrategy)
             .distinct()
             .collect(Collectors.toMap(chunkingStrategy -> chunkingStrategy, ChunkerBuilder::fromChunkingStrategy));
+        Chunker defaultChunker = ChunkerBuilder.fromChunkingStrategy(defaultChunkingSettings.getChunkingStrategy());
 
         List<Request> allRequests = new ArrayList<>();
         for (int inputIndex = 0; inputIndex < inputs.size(); inputIndex++) {
@@ -110,7 +111,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             if (chunkingSettings == null) {
                 chunkingSettings = defaultChunkingSettings;
             }
-            Chunker chunker = chunkers.get(chunkingSettings.getChunkingStrategy());
+            Chunker chunker = chunkers.getOrDefault(chunkingSettings.getChunkingStrategy(), defaultChunker);
             List<ChunkOffset> chunks = chunker.chunk(inputs.get(inputIndex).input(), chunkingSettings);
             int resultCount = Math.min(chunks.size(), MAX_CHUNKS);
             resultEmbeddings.add(new AtomicReferenceArray<>(resultCount));

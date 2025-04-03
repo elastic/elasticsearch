@@ -499,20 +499,17 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         private static Query createCharacterClassQuery(RegExp r) {
+            // TODO: consider expanding this to allow for character ranges as well (need additional tests and performance eval)
             List<Query> queries = new ArrayList<>();
-            int maxClauseCount = 0;
+            if (r.from.length > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                return new MatchAllDocsQuery();
+            }
             for (int i = 0; i < r.from.length; i++) {
-                // TODO: consider expanding this to allow for character ranges as well (need additional tests and performance eval)
+                // only handle character classes for now not ranges
                 if (r.from[i] == r.to[i]) {
-                    maxClauseCount += r.to[i] - r.from[i];
-                    if (maxClauseCount > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                        return new MatchAllDocsQuery();
-                    }
-                    for (int j = r.from[i]; j <= r.to[i]; j++) {
-                        String cs = Character.toString(j);
-                        String normalizedChar = toLowerCase(cs);
-                        queries.add(new TermQuery(new Term("", normalizedChar)));
-                    }
+                    String cs = Character.toString(r.from[i]);
+                    String normalizedChar = toLowerCase(cs);
+                    queries.add(new TermQuery(new Term("", normalizedChar)));
                 } else {
                     // immediately exit because we can't currently optimize a combination of range and classes
                     return new MatchAllDocsQuery();

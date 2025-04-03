@@ -132,6 +132,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.junit.BeforeClass;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -6718,6 +6719,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
         assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
+        assertNull(aggsByTsid.timeBucket());
         as(aggsByTsid.child(), EsRelation.class);
 
         assertThat(finalAggs.aggregates(), hasSize(1));
@@ -6738,6 +6740,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
         assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
+        assertNull(aggsByTsid.timeBucket());
         as(aggsByTsid.child(), EsRelation.class);
 
         assertThat(finalAggs.aggregates(), hasSize(2));
@@ -6768,6 +6771,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(finalAggs.aggregates(), hasSize(2));
         TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2));
+        assertNull(aggsByTsid.timeBucket());
         Eval addEval = as(aggsByTsid.child(), Eval.class);
         assertThat(addEval.fields(), hasSize(1));
         Add add = as(Alias.unwrap(addEval.fields().get(0)), Add.class);
@@ -6800,6 +6804,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggsByCluster.aggregates(), hasSize(2));
         TimeSeriesAggregate aggsByTsid = as(aggsByCluster.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
+        assertNull(aggsByTsid.timeBucket());
         as(aggsByTsid.child(), EsRelation.class);
 
         Sum sum = as(Alias.unwrap(aggsByCluster.aggregates().get(0)), Sum.class);
@@ -6826,6 +6831,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(finalAggs.aggregates(), hasSize(4));
         TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // _tsid is dropped
+        assertNull(aggsByTsid.timeBucket());
         as(aggsByTsid.child(), EsRelation.class);
 
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
@@ -6861,6 +6867,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(finalAgg.aggregates(), hasSize(2));
         TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval eval = as(aggsByTsid.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         as(eval.child(), EsRelation.class);
@@ -6894,6 +6902,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         Eval bucket = as(aggsByTsid.child(), Eval.class);
         as(bucket.child(), EsRelation.class);
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
@@ -6933,6 +6943,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         Eval bucket = as(aggsByTsid.child(), Eval.class);
         as(bucket.child(), EsRelation.class);
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
@@ -6992,6 +7004,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         TimeSeriesAggregate aggsByTsid = as(evalRound.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // rate, cluster, bucket
         assertThat(aggsByTsid.groupings(), hasSize(2));
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
 
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));

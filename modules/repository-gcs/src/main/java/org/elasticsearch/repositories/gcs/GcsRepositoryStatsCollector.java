@@ -21,11 +21,11 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import java.io.IOException;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Stats collector class that performs metrics initialization and propagation through GCS client
@@ -56,7 +56,7 @@ public class GcsRepositoryStatsCollector {
     /**
      * Track operations for billing and REST API
      */
-    private final EnumMap<StorageOperation, OpsCollector> restMetering;
+    private final EnumMap<OperationPurpose, EnumMap<StorageOperation, OpsCollector>> restMetering;
     /**
      * Telemetry (APM)
      */
@@ -74,9 +74,13 @@ public class GcsRepositoryStatsCollector {
     GcsRepositoryStatsCollector(LongSupplier timer, RepositoryMetadata metadata, RepositoriesMetrics repositoriesMetrics) {
         this.timer = timer;
         this.telemetry = repositoriesMetrics;
-        this.restMetering = new EnumMap<>(StorageOperation.class);
-        for (var op : StorageOperation.values()) {
-            restMetering.put(op, new OpsCollector(new LongAdder(), new LongAdder()));
+        this.restMetering = new EnumMap<>(OperationPurpose.class);
+        for (var purpose : OperationPurpose.values()) {
+            var operationsMap = new EnumMap<StorageOperation, OpsCollector>(StorageOperation.class);
+            for (var op : StorageOperation.values()) {
+                operationsMap.put(op, new OpsCollector(new LongAdder(), new LongAdder()));
+            }
+            restMetering.put(purpose, operationsMap);
         }
         this.telemetryAttributes = new EnumMap<>(OperationPurpose.class);
         if (repositoriesMetrics != RepositoriesMetrics.NOOP) {
@@ -202,10 +206,11 @@ public class GcsRepositoryStatsCollector {
         if (stats.reqAtt == 0) {
             return; // nothing happened
         }
-        var op = stats.operation;
+        var purpose = stats.purpose;
+        var operation = stats.operation;
         var opOk = 0;
         var opErr = 0;
-        switch (op) {
+        switch (operation) {
             case GET, LIST -> {
                 opOk = stats.reqAtt - stats.reqErr + stats.reqBillableErr;
                 opErr = stats.reqBillableErr;
@@ -216,7 +221,8 @@ public class GcsRepositoryStatsCollector {
             }
         }
         if (opOk > 0) {
-            var opStats = restMetering.get(op);
+            var opStats = restMetering.get(purpose).get(operation);
+            assert opStats != null;
             opStats.operations.add(opOk);
             opStats.requests.add(stats.reqAtt - stats.reqErr + stats.reqBillableErr);
         }
@@ -236,14 +242,37 @@ public class GcsRepositoryStatsCollector {
         }
     }
 
-    public Map<String, BlobStoreActionStats> operationsStats() {
-        return restMetering.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().key, e -> {
-            var ops = e.getValue().operations.sum();
-            // TODO this test assumes requests, but need operations, azure does not like it
-            // org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase.testRequestStats
-            // var reqs = e.getValue().requests.sum();
-            return new BlobStoreActionStats(ops, ops);
-        }));
+    public Map<String, BlobStoreActionStats> operationsStats(boolean isServerless) {
+        var out = new HashMap<String, BlobStoreActionStats>();
+        if (isServerless) {
+            // Map<'Purpose_Operation', <operations, requests>
+            for (var purposeKv : restMetering.entrySet()) {
+                for (var operationKv : restMetering.get(purposeKv.getKey()).entrySet()) {
+                    var stat = operationKv.getValue();
+                    var ops = stat.operations.sum();
+                    var req = stat.requests.sum();
+                    out.put(purposeKv.getKey() + "_" + operationKv.getKey(), new BlobStoreActionStats(ops, req));
+                }
+            }
+        } else {
+            // Map<'Operation', <operations, requests>
+            for (var purposeKv : restMetering.entrySet()) {
+                for (var operationKv : purposeKv.getValue().entrySet()) {
+                    out.compute(operationKv.getKey().key(), (k, v) -> {
+                        var stat = operationKv.getValue();
+                        var ops = stat.operations.sum();
+                        // TODO update map with (ops,req) when azure ready
+                        // var req = stat.requests.sum();
+                        if (v == null) {
+                            return new BlobStoreActionStats(ops, ops);
+                        } else {
+                            return new BlobStoreActionStats(v.operations() + ops, v.operations() + ops);
+                        }
+                    });
+                }
+            }
+        }
+        return out;
     }
 
     record OpsCollector(LongAdder operations, LongAdder requests) {}

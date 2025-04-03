@@ -229,7 +229,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        protected GoogleCloudStorageService createStorageService() {
+        protected GoogleCloudStorageService createStorageService(boolean isServerless) {
             return new GoogleCloudStorageService() {
                 @Override
                 StorageOptions createStorageOptions(

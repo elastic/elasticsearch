@@ -55,6 +55,20 @@ public class GoogleCloudStorageService {
 
     private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
 
+    private final boolean isServerless;
+
+    public GoogleCloudStorageService() {
+        this.isServerless = false;
+    }
+
+    public GoogleCloudStorageService(boolean isServerless) {
+        this.isServerless = isServerless;
+    }
+
+    public boolean isServerless() {
+        return isServerless;
+    }
+
     private record ClientKey(String repositoryName) {}
 
     /**

@@ -629,7 +629,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public Map<String, BlobStoreActionStats> stats() {
-        return statsCollector.operationsStats();
+        return statsCollector.operationsStats(storageService.isServerless());
     }
 
     private static final class WritableBlobChannel implements WritableByteChannel {

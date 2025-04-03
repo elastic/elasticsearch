@@ -9,14 +9,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 
@@ -73,58 +68,48 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
     }
 
     @Override
-    public PartitionedCluster create(
-        WriteLoadForecaster writeLoadForecaster,
-        ClusterInfo clusterInfo,
-        Metadata metadata,
-        RoutingNodes routingNodes
-    ) {
-        return new TieredPartitionedCluster(writeLoadForecaster, clusterInfo, metadata, routingNodes);
+    public PartitionedCluster create() {
+        return new TieredPartitionedCluster();
     }
 
     private class TieredPartitionedCluster implements PartitionedCluster {
 
-        private final TieredClusterPartition searchPartition;
-        private final TieredClusterPartition indexingPartition;
-        private final float avgShardsPerNode;
-        private final double avgWriteLoadPerNode;
-        private final double avgDiskUsageInBytesPerNode;
-        private final Metadata metadata;
-        private final RoutingNodes routingNodes;
+        private final WeightFunction searchWeightFunction;
+        private final WeightFunction indexingWeightFunction;
 
-        private TieredPartitionedCluster(
-            WriteLoadForecaster writeLoadForecaster,
-            ClusterInfo clusterInfo,
-            Metadata metadata,
-            RoutingNodes routingNodes
-        ) {
-            this.metadata = metadata;
-            this.routingNodes = routingNodes;
-            avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
-            avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
-            avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(clusterInfo, metadata, routingNodes);
-            this.searchPartition = new TieredClusterPartition(searchTierShardBalanceFactor, 0.0f);
-            this.indexingPartition = new TieredClusterPartition(indexingTierShardBalanceFactor, indexingTierWriteLoadBalanceFactor);
+        private TieredPartitionedCluster() {
+            this.searchWeightFunction = new WeightFunction(
+                searchTierShardBalanceFactor,
+                balancerSettings.getIndexBalanceFactor(),
+                0.0f,
+                balancerSettings.getDiskUsageBalanceFactor()
+            );
+            this.indexingWeightFunction = new WeightFunction(
+                indexingTierShardBalanceFactor,
+                balancerSettings.getIndexBalanceFactor(),
+                indexingTierWriteLoadBalanceFactor,
+                balancerSettings.getDiskUsageBalanceFactor()
+            );
         }
 
         @Override
-        public ClusterPartition partitionForShard(ShardRouting shard) {
+        public WeightFunction weightFunctionForShard(ShardRouting shard) {
             if (shard.role() == ShardRouting.Role.SEARCH_ONLY) {
-                return searchPartition;
+                return searchWeightFunction;
             } else if (shard.role() == ShardRouting.Role.INDEX_ONLY) {
-                return indexingPartition;
+                return indexingWeightFunction;
             } else {
                 throw new IllegalArgumentException("Unsupported shard role [" + shard.role() + "]");
             }
         }
 
         @Override
-        public ClusterPartition partitionForNode(RoutingNode node) {
+        public WeightFunction weightFunctionForNode(RoutingNode node) {
             Set<DiscoveryNodeRole> roles = node.node().getRoles();
             if (roles.contains(DiscoveryNodeRole.SEARCH_ROLE)) {
-                return searchPartition;
+                return searchWeightFunction;
             } else if (roles.contains(DiscoveryNodeRole.INDEX_ROLE)) {
-                return indexingPartition;
+                return indexingWeightFunction;
             } else {
                 throw new IllegalArgumentException("Node is neither indexing or search node, roles = " + roles);
             }
@@ -136,10 +121,6 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
             BalancedShardsAllocator.Balancer balancer
         ) {
             return new TieredPartitionedNodeSorter(modelNodes, balancer);
-        }
-
-        private IndexMetadata indexMetadata(BalancedShardsAllocator.ProjectIndex index) {
-            return metadata.getProject(index.project()).index(index.indexName());
         }
 
         private class TieredPartitionedNodeSorter implements PartitionedNodeSorter {
@@ -154,8 +135,8 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
                 final BalancedShardsAllocator.ModelNode[] indexingNodes = Arrays.stream(allNodes)
                     .filter(n -> n.getRoutingNode().node().hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()))
                     .toArray(BalancedShardsAllocator.ModelNode[]::new);
-                searchNodeSorter = new BalancedShardsAllocator.NodeSorter(searchNodes, searchPartition, balancer);
-                indexingNodeSorter = new BalancedShardsAllocator.NodeSorter(indexingNodes, searchPartition, balancer);
+                searchNodeSorter = new BalancedShardsAllocator.NodeSorter(searchNodes, searchWeightFunction, balancer);
+                indexingNodeSorter = new BalancedShardsAllocator.NodeSorter(indexingNodes, indexingWeightFunction, balancer);
             }
 
             @Override
@@ -172,46 +153,6 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
                 } else {
                     throw new IllegalArgumentException("Unsupported shard role [" + shard.role() + "]");
                 }
-            }
-        }
-
-        private class TieredClusterPartition implements ClusterPartition {
-
-            private final WeightFunction weightFunction;
-
-            private TieredClusterPartition(float shardBalanceFactor, float writeLoadBalanceFactor) {
-                this.weightFunction = new WeightFunction(
-                    this,
-                    shardBalanceFactor,
-                    balancerSettings.getIndexBalanceFactor(),
-                    writeLoadBalanceFactor,
-                    balancerSettings.getDiskUsageBalanceFactor()
-                );
-            }
-
-            @Override
-            public WeightFunction weightFunction() {
-                return weightFunction;
-            }
-
-            @Override
-            public float avgShardsPerNode(BalancedShardsAllocator.ProjectIndex index) {
-                return ((float) indexMetadata(index).getTotalNumberOfShards()) / routingNodes.size();
-            }
-
-            @Override
-            public float avgShardsPerNode() {
-                return avgShardsPerNode;
-            }
-
-            @Override
-            public double avgWriteLoadPerNode() {
-                return avgWriteLoadPerNode;
-            }
-
-            @Override
-            public double avgDiskUsageInBytesPerNode() {
-                return avgDiskUsageInBytesPerNode;
             }
         }
     }

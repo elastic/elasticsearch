@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 
 public interface PartitionedCluster {
 
-    ClusterPartition partitionForShard(ShardRouting shard);
+    WeightFunction weightFunctionForShard(ShardRouting shard);
 
-    ClusterPartition partitionForNode(RoutingNode node);
+    WeightFunction weightFunctionForNode(RoutingNode node);
 
     PartitionedNodeSorter createPartitionedNodeSorter(
         BalancedShardsAllocator.ModelNode[] modelNodes,

@@ -44,20 +44,12 @@ import org.elasticsearch.index.shard.ShardId;
  */
 public class WeightFunction {
 
-    private final ClusterPartition partition;
     private final float theta0;
     private final float theta1;
     private final float theta2;
     private final float theta3;
 
-    public WeightFunction(
-        ClusterPartition partition,
-        float shardBalance,
-        float indexBalance,
-        float writeLoadBalance,
-        float diskUsageBalance
-    ) {
-        this.partition = partition;
+    public WeightFunction(float shardBalance, float indexBalance, float writeLoadBalance, float diskUsageBalance) {
         float sum = shardBalance + indexBalance + writeLoadBalance + diskUsageBalance;
         if (sum <= 0.0f) {
             throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
@@ -68,16 +60,34 @@ public class WeightFunction {
         theta3 = diskUsageBalance / sum;
     }
 
-    float calculateNodeWeightWithIndex(BalancedShardsAllocator.ModelNode node, ProjectIndex index) {
-        final float weightIndex = node.numShards(index) - partition.avgShardsPerNode(index);
-        final float nodeWeight = calculateNodeWeight(node.numShards(), node.writeLoad(), node.diskUsageInBytes());
+    float calculateNodeWeightWithIndex(
+        BalancedShardsAllocator.Balancer balancer,
+        BalancedShardsAllocator.ModelNode node,
+        ProjectIndex index
+    ) {
+        final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
+        final float nodeWeight = calculateNodeWeight(
+            node.numShards(),
+            balancer.avgShardsPerNode(),
+            node.writeLoad(),
+            balancer.avgWriteLoadPerNode(),
+            node.diskUsageInBytes(),
+            balancer.avgDiskUsageInBytesPerNode()
+        );
         return nodeWeight + theta1 * weightIndex;
     }
 
-    public float calculateNodeWeight(int nodeNumShards, double nodeWriteLoad, double diskUsageInBytes) {
-        final float weightShard = nodeNumShards - partition.avgShardsPerNode();
-        final float ingestLoad = (float) (nodeWriteLoad - partition.avgWriteLoadPerNode());
-        final float diskUsage = (float) (diskUsageInBytes - partition.avgDiskUsageInBytesPerNode());
+    public float calculateNodeWeight(
+        int nodeNumShards,
+        float avgShardsPerNode,
+        double nodeWriteLoad,
+        double avgWriteLoadPerNode,
+        double diskUsageInBytes,
+        double avgDiskUsageInBytesPerNode
+    ) {
+        final float weightShard = nodeNumShards - avgShardsPerNode;
+        final float ingestLoad = (float) (nodeWriteLoad - avgWriteLoadPerNode);
+        final float diskUsage = (float) (diskUsageInBytes - avgDiskUsageInBytesPerNode);
         return theta0 * weightShard + theta2 * ingestLoad + theta3 * diskUsage;
     }
 

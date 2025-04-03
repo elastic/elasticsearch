@@ -9,12 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
-
 /**
  * A partitioned cluster factory must be able to divide all shards and nodes into mutually
  * disjoint partitions. Allocation balancing will then be conducted sequentially for each partition.
@@ -24,14 +18,5 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
  */
 public interface PartitionedClusterFactory {
 
-    PartitionedCluster create(
-        WriteLoadForecaster writeLoadForecaster,
-        ClusterInfo clusterInfo,
-        Metadata metadata,
-        RoutingNodes routingNodes
-    );
-
-    default PartitionedCluster create(WriteLoadForecaster writeLoadForecaster, RoutingAllocation allocation) {
-        return create(writeLoadForecaster, allocation.clusterInfo(), allocation.metadata(), allocation.routingNodes());
-    }
+    PartitionedCluster create();
 }

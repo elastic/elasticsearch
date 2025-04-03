@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import java.util.Collection;
 
 /**
- * Partitioned node sorter is just a cache for
+ * Partitioned node sorter is just a cache of
  * {@link org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.NodeSorter}
- * instances for each {@link ClusterPartition}
+ * instances for each cluster partition
  */
 public interface PartitionedNodeSorter {
 

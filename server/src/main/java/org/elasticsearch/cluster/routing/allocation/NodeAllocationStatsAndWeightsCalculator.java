@@ -15,10 +15,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.allocator.ClusterPartition;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.PartitionedCluster;
 import org.elasticsearch.cluster.routing.allocation.allocator.PartitionedClusterFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
@@ -64,11 +64,14 @@ public class NodeAllocationStatsAndWeightsCalculator {
             // must not use licensed features when just starting up
             writeLoadForecaster.refreshLicense();
         }
-        PartitionedCluster partitionedCluster = partitionedClusterFactory.create(writeLoadForecaster, clusterInfo, metadata, routingNodes);
+        final PartitionedCluster partitionedCluster = partitionedClusterFactory.create();
+        var avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
+        var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
+        var avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(clusterInfo, metadata, routingNodes);
 
         var nodeAllocationStatsAndWeights = Maps.<String, NodeAllocationStatsAndWeight>newMapWithExpectedSize(routingNodes.size());
         for (RoutingNode node : routingNodes) {
-            ClusterPartition partition = partitionedCluster.partitionForNode(node);
+            WeightFunction weightFunction = partitionedCluster.weightFunctionForNode(node);
             int shards = 0;
             int undesiredShards = 0;
             double forecastedWriteLoad = 0.0;
@@ -89,7 +92,14 @@ public class NodeAllocationStatsAndWeightsCalculator {
                 forecastedDiskUsage += Math.max(indexMetadata.getForecastedShardSizeInBytes().orElse(0), shardSize);
                 currentDiskUsage += shardSize;
             }
-            float currentNodeWeight = partition.calculateNodeWeight(shards, forecastedWriteLoad, currentDiskUsage);
+            float currentNodeWeight = weightFunction.calculateNodeWeight(
+                shards,
+                avgShardsPerNode,
+                forecastedWriteLoad,
+                avgWriteLoadPerNode,
+                currentDiskUsage,
+                avgDiskUsageInBytesPerNode
+            );
             nodeAllocationStatsAndWeights.put(
                 node.nodeId(),
                 new NodeAllocationStatsAndWeight(

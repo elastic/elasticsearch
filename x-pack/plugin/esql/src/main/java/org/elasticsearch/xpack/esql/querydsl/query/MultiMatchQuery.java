@@ -107,4 +107,9 @@ public class MultiMatchQuery extends Query {
         // Use a TreeMap so we get the fields in a predictable order.
         return new TreeMap<>(fields) + ":" + query;
     }
+
+    @Override
+    public boolean scorable() {
+        return true;
+    }
 }

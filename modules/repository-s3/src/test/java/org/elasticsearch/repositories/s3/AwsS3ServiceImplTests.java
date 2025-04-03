@@ -183,6 +183,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSConfigurationTest(settings, null, -1, null, null, null, 5, 50000);
     }
 
+    // TODO NOMERGE unused params
     private void launchAWSConfigurationTest(
         Settings settings,
         String expectedProxyHost,

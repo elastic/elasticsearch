@@ -259,9 +259,9 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
         RepositoryStats repositoryStats = statsSnapshot.getRepositoryStats();
         Map<String, BlobStoreActionStats> actionStats = repositoryStats.actionStats;
         for (String readCounterKey : readCounterKeys()) {
-            assertThat(readCounterKey, actionStats.get(readCounterKey), is(notNullValue()));
-            assertThat(readCounterKey, actionStats.get(readCounterKey).operations(), is(greaterThan(0L)));
-            assertThat(readCounterKey, actionStats.get(readCounterKey).requests(), is(greaterThan(0L)));
+            assertThat(actionStats.get(readCounterKey), is(notNullValue()));
+            assertThat(actionStats.get(readCounterKey).operations(), is(greaterThan(0L)));
+            assertThat(actionStats.get(readCounterKey).requests(), is(greaterThan(0L)));
         }
     }
 
@@ -269,9 +269,9 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
         RepositoryStats repositoryStats = statsSnapshot.getRepositoryStats();
         Map<String, BlobStoreActionStats> actionStats = repositoryStats.actionStats;
         for (String writeCounterKey : writeCounterKeys()) {
-            assertThat(writeCounterKey, actionStats.get(writeCounterKey), is(notNullValue()));
-            assertThat(writeCounterKey, actionStats.get(writeCounterKey).operations(), is(greaterThan(0L)));
-            assertThat(writeCounterKey, actionStats.get(writeCounterKey).requests(), is(greaterThan(0L)));
+            assertThat(actionStats.get(writeCounterKey), is(notNullValue()));
+            assertThat(actionStats.get(writeCounterKey).operations(), is(greaterThan(0L)));
+            assertThat(actionStats.get(writeCounterKey).requests(), is(greaterThan(0L)));
         }
     }
 

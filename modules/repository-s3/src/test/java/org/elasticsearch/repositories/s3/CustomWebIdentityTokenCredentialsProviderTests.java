@@ -110,7 +110,8 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                         """,
                     ROLE_ARN,
                     ROLE_NAME,
-                    ZonedDateTime.now(Clock.systemUTC()).plusSeconds(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"))
+                    ZonedDateTime.now(Clock.systemUTC()).plusSeconds(1L) // short expiry to force a reload
+                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"))
                 ).getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
@@ -216,6 +217,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             });
             Files.writeString(environment.configDir().resolve("repository-s3/aws-web-identity-token-file"), newWebIdentityToken);
             do {
+                // re-resolve credentials in order to trigger a refresh
                 assertCredentials(awsCredentialsProvider.resolveCredentials());
             } while (latch.await(500, TimeUnit.MILLISECONDS) == false);
             assertCredentials(awsCredentialsProvider.resolveCredentials());

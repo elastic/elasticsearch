@@ -170,8 +170,7 @@ class S3Service extends AbstractLifecycleComponent {
             if (existing != null && existing.tryIncRef()) {
                 return existing;
             }
-            // TODO NOMERGE: consider alternative methods of retaining an httpClient reference for an explicit close() call.
-            SdkHttpClient httpClient = buildHttpClient(clientSettings, getCustomDnsResolver());
+            final SdkHttpClient httpClient = buildHttpClient(clientSettings, getCustomDnsResolver());
             Releasable toRelease = httpClient::close;
             try {
                 final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings, httpClient), httpClient);
@@ -308,6 +307,7 @@ class S3Service extends AbstractLifecycleComponent {
         return httpClientBuilder.build();
     }
 
+    // TODO NOMERGE naming
     static boolean RETRYABLE_403_RETRY_PREDICATE(Throwable e) {
         if (e instanceof AwsServiceException ase) {
             return ase.statusCode() == RestStatus.FORBIDDEN.getStatus() && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
@@ -596,7 +596,6 @@ class S3Service extends AbstractLifecycleComponent {
                     webIdentityTokenFileSymlink
                 );
             }
-
         }
 
         boolean isActive() {

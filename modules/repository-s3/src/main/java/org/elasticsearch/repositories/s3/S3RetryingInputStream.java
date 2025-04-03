@@ -418,8 +418,7 @@ class S3RetryingInputStream extends InputStream {
 
     // package-private for tests
     boolean isAborted() {
-        // TODO NOMERGE: doesn't seem to be a way to detect abort any more
-        // -dianna: we use this for tests. It seems ok-ish to ascertain whether abort() was called, and leave reality to the SDK API.
+        // just expose whether abort() was called, we cannot tell if the stream is really aborted
         return aborted;
     }
 }

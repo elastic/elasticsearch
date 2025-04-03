@@ -127,7 +127,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -145,7 +144,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
                 entry("message", message)
             )
-
         );
     }
 
@@ -158,7 +156,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -175,7 +172,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("destination", Map.of("ip", "12.121.122.82")),
                 entry("message", message)
             )
-
         );
     }
 
@@ -189,7 +185,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -209,7 +204,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("destination", Map.of("ip", "12.121.122.82")),
                 entry("message", message)
             )
-
         );
     }
 
@@ -222,7 +216,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -242,7 +235,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("destination", Map.of("ip", "12.121.122.82")),
                 entry("message", message)
             )
-
         );
     }
 
@@ -255,7 +247,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -274,7 +265,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
                 entry("message", message)
             )
-
         );
     }
 
@@ -287,7 +277,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -307,7 +296,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("destination", Map.of("ip", "12.121.122.82")),
                 entry("message", message)
             )
-
         );
     }
 
@@ -360,7 +348,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -381,7 +368,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("source", Map.of("port", 1232)),
                 entry("message", message)
             )
-
         );
     }
 
@@ -394,7 +380,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -413,7 +398,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
                 entry("message", "a+b=c")
             )
-
         );
     }
 
@@ -428,7 +412,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -453,7 +436,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("user_agent", Map.of("original", "'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='")),
                 entry("message", message)
             )
-
         );
     }
 
@@ -467,7 +449,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -486,7 +467,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("observer", Map.of("product", "product", "vendor", "vendor", "version", "version")),
                 entry("message", "Hello World")
             )
-
         );
     }
 
@@ -500,7 +480,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -519,7 +498,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("source", Map.of("ip", "10.0.0.192", "port", 1232)),
                 entry("message", "Trailing space in non-final extensions is  preserved")
             )
-
         );
     }
 
@@ -533,7 +511,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -553,7 +530,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("message", "Trailing space in final extensions is not preserved"),
                 entry("destination", Map.of("port", 1234))
             )
-
         );
     }
 
@@ -567,7 +543,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -586,7 +561,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("source", Map.of("port", 1232, "ip", "127.0.0.1")),
                 entry("message", "Tabs\tand\rcontrol\ncharacters are preserved")
             )
-
         );
     }
 
@@ -599,7 +573,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -618,7 +591,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("source", Map.of("port", 1232, "ip", "127.0.0.1")),
                 entry("message", "Tab is not a separator")
             )
-
         );
     }
 
@@ -632,7 +604,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -657,7 +628,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("message", "Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=."),
                 entry("destination", Map.of("port", 4432))
             )
-
         );
     }
 
@@ -671,7 +641,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -696,7 +665,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("message", message),
                 entry("error", Map.of("message", Set.of("incomplete CEF header")))
             )
-
         );
     }
 
@@ -709,7 +677,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -728,7 +695,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("destination", Map.of("ip", "12.121.122.82")),
                 entry("message", message)
             )
-
         );
     }
 
@@ -741,7 +707,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -760,7 +725,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
                 entry("message", message)
             )
-
         );
     }
 
@@ -808,7 +772,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(document);
         assertMapsEqual(
             document.getSource(),
-
             Map.ofEntries(
                 entry(
                     "cef",
@@ -1005,7 +968,6 @@ public class CefProcessorTests extends ESTestCase {
                 entry("user_agent", Map.of("original", "Mozilla")),
                 entry("http", Map.of("request", Map.of("referrer", "referrer", "method", "GET")))
             )
-
         );
     }
 

@@ -2027,6 +2027,84 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrowsWithApiKey(apiKey, new Search("test1"), 403);
     }
 
+    public void testFieldCapabilities() throws Exception {
+        setupDataStream();
+
+        final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        final String dataIndexName = backingIndices.v1();
+        final String failureIndexName = backingIndices.v2();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""", "role");
+
+        {
+            expectThrows(
+                () -> performRequest("user", new Request("POST", Strings.format("/%s/_field_caps?fields=name", "test1::failures"))),
+                403
+            );
+            Response fieldCapsResponse = performRequest(
+                "user",
+                new Request("POST", Strings.format("/%s/_field_caps?fields=name", "test1"))
+            );
+            assertOK(fieldCapsResponse);
+            ObjectPath objectPath = ObjectPath.createFromResponse(fieldCapsResponse);
+
+            List<String> indices = objectPath.evaluate("indices");
+            assertThat(indices, containsInAnyOrder(dataIndexName));
+
+            Map<String, Object> fields = objectPath.evaluate("fields");
+            assertThat(fields.keySet(), containsInAnyOrder("name"));
+        }
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }""", "role");
+
+        {
+            expectThrows(() -> performRequest("user", new Request("POST", Strings.format("/%s/_field_caps?fields=name", "test1"))), 403);
+            Response fieldCapsResponse = performRequest(
+                "user",
+                new Request("POST", Strings.format("/%s/_field_caps?fields=error.*", "test1::failures"))
+            );
+            assertOK(fieldCapsResponse);
+            ObjectPath objectPath = ObjectPath.createFromResponse(fieldCapsResponse);
+
+            List<String> indices = objectPath.evaluate("indices");
+            assertThat(indices, containsInAnyOrder(failureIndexName));
+
+            Map<String, Object> fields = objectPath.evaluate("fields");
+            assertThat(
+                fields.keySet(),
+                containsInAnyOrder(
+                    "error.message",
+                    "error.pipeline_trace",
+                    "error.processor_type",
+                    "error.type",
+                    "error.processor_tag",
+                    "error.pipeline",
+                    "error.stack_trace",
+                    "error"
+                )
+            );
+        }
+    }
+
     public void testPit() throws Exception {
         List<String> docIds = setupDataStream();
         String dataDocId = "1";

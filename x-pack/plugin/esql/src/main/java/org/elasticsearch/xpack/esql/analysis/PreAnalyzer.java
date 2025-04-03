@@ -31,13 +31,13 @@ public class PreAnalyzer {
 
         public final List<IndexPattern> indices;
         public final List<Enrich> enriches;
-        public final List<InferencePlan> inferencePlans;
+        public final List<InferencePlan<?>> inferencePlans;
         public final List<IndexPattern> lookupIndices;
 
         public PreAnalysis(
             List<IndexPattern> indices,
             List<Enrich> enriches,
-            List<InferencePlan> inferencePlans,
+            List<InferencePlan<?>> inferencePlans,
             List<IndexPattern> lookupIndices
         ) {
             this.indices = indices;
@@ -60,7 +60,7 @@ public class PreAnalyzer {
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
-        List<InferencePlan> unresolvedInferencePlans = new ArrayList<>();
+        List<InferencePlan<?>> unresolvedInferencePlans = new ArrayList<>();
 
         plan.forEachUp(UnresolvedRelation.class, p -> (p.indexMode() == IndexMode.LOOKUP ? lookupIndices : indices).add(p.indexPattern()));
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);

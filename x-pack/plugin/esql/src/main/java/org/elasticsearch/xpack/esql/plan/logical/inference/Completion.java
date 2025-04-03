@@ -28,7 +28,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Completion extends InferencePlan implements GeneratingPlan<Completion>, SortAgnostic{
+public class Completion extends InferencePlan<Completion> implements GeneratingPlan<Completion>, SortAgnostic{
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Completion", Completion::new);
     private final Expression prompt;

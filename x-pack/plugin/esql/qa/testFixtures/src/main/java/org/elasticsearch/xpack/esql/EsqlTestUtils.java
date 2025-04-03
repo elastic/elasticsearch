@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -132,6 +133,7 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassificatio
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
@@ -391,6 +393,14 @@ public final class EsqlTestUtils {
     public static <T> T as(Object node, Class<T> type) {
         Assert.assertThat(node, instanceOf(type));
         return type.cast(node);
+    }
+
+    public static Limit asLimit(Object node, Integer limitLiteral) {
+        Limit limit = as(node, Limit.class);
+        if (limitLiteral != null) {
+            assertEquals(as(limit.limit(), Literal.class).value(), limitLiteral);
+        }
+        return limit;
     }
 
     public static Map<String, EsField> loadMapping(String name) {

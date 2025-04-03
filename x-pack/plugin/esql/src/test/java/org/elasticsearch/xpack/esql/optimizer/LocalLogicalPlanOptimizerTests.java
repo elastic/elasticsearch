@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -65,6 +64,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -73,9 +73,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -139,7 +139,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Project[[last_name{r}#6]]
+     * Project[[last_name{f}#6]]
      * \_Eval[[null[KEYWORD] AS last_name]]
      *  \_Limit[10000[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen..]
@@ -156,7 +156,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var project = as(localPlan, Project.class);
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("last_name"));
-        as(projections.get(0), ReferenceAttribute.class);
+        as(projections.get(0), FieldAttribute.class);
         var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("last_name"));
         var alias = as(eval.fields().get(0), Alias.class);
@@ -166,6 +166,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
+        assertThat(Expressions.names(source.output()), not(contains("last_name")));
     }
 
     /**
@@ -190,14 +191,18 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(project.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
+        assertThat(Expressions.names(source.output()), not(contains("last_name")));
     }
 
     /**
      * Expects
-     * EsqlProject[[first_name{f}#9, last_name{r}#18]]
-     * \_MvExpand[last_name{f}#12,last_name{r}#18,1000]
-     *   \_Limit[1000[INTEGER]]
-     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * EsqlProject[[first_name{f}#7, last_name{r}#16]]
+     * \_MvExpand[last_name{f}#10,last_name{r}#16,1000]
+     *   \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, languages{f}#9, last_
+     * name{r}#10, long_noidx{f}#15, salary{f}#11]]
+     *     \_Eval[[null[KEYWORD] AS last_name]]
+     *       \_Limit[1000[INTEGER]]
+     *         \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testMissingFieldInMvExpand() {
         var plan = plan("""
@@ -209,14 +214,23 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var testStats = statsForMissingField("last_name");
         var localPlan = localPlan(plan, testStats);
 
+        // It'd be much better if this project was pushed down past the MvExpand, because MvExpand's cost scales with the number of
+        // involved attributes/columns.
         var project = as(localPlan, EsqlProject.class);
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("first_name", "last_name"));
 
         var mvExpand = as(project.child(), MvExpand.class);
-        assertThat(mvExpand.limit(), equalTo(1000));
-        var limit2 = as(mvExpand.child(), Limit.class);
-        as(limit2.child(), EsRelation.class);
+        assertEquals(1000, (int) mvExpand.limit());
+        var project2 = as(mvExpand.child(), Project.class);
+        var eval = as(project2.child(), Eval.class);
+        assertEquals(eval.fields().size(), 1);
+        var lastName = eval.fields().get(0);
+        assertEquals(lastName.name(), "last_name");
+        assertEquals(lastName.child(), new Literal(EMPTY, null, DataType.KEYWORD));
+        var limit = asLimit(eval.child(), 1000);
+        var relation = as(limit.child(), EsRelation.class);
+        assertThat(Expressions.names(relation.output()), not(contains("last_name")));
     }
 
     public static class MockFieldAttributeCommand extends UnaryPlan {
@@ -278,6 +292,39 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             ),
             testStats
         );
+
+        var plan = plan("""
+              from test
+            """);
+        var initialRelation = plan.collectLeaves().get(0);
+        FieldAttribute lastName = null;
+        for (Attribute attr : initialRelation.output()) {
+            if (attr.name().equals("last_name")) {
+                lastName = (FieldAttribute) attr;
+            }
+        }
+
+        // Expects
+        // MockFieldAttributeCommand[last_name{f}#7]
+        // \_Project[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+        // ages{f}#6, last_name{r}#7, long_noidx{f}#13, salary{f}#8]]
+        // \_Eval[[null[KEYWORD] AS last_name]]
+        // \_Limit[1000[INTEGER],false]
+        // \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+        LogicalPlan localPlan = localPlan(new MockFieldAttributeCommand(EMPTY, plan, lastName), testStats);
+
+        var mockCommand = as(localPlan, MockFieldAttributeCommand.class);
+        var project = as(mockCommand.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var limit = asLimit(eval.child(), 1000);
+        var relation = as(limit.child(), EsRelation.class);
+
+        assertThat(Expressions.names(eval.fields()), contains("last_name"));
+        var literal = as(eval.fields().get(0), Alias.class);
+        assertEquals(literal.child(), new Literal(EMPTY, null, DataType.KEYWORD));
+        assertThat(Expressions.names(relation.output()), not(contains("last_name")));
+
+        assertEquals(Expressions.names(initialRelation.output()), Expressions.names(project.output()));
     }
 
     /**

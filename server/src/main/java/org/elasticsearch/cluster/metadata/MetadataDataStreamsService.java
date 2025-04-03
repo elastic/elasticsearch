@@ -119,7 +119,15 @@ public class MetadataDataStreamsService {
                 ClusterState clusterState
             ) {
                 return new Tuple<>(
-                    updateDataStreamOptions(clusterState, modifyOptionsTask.getDataStreamNames(), modifyOptionsTask.getOptions()),
+                    ClusterState.builder(clusterState)
+                        .putProjectMetadata(
+                            updateDataStreamOptions(
+                                clusterState.projectState(modifyOptionsTask.projectId).metadata(),
+                                modifyOptionsTask.getDataStreamNames(),
+                                modifyOptionsTask.getOptions()
+                            )
+                        )
+                        .build(),
                     modifyOptionsTask
                 );
             }
@@ -195,6 +203,7 @@ public class MetadataDataStreamsService {
      * Submits the task to set the provided data stream options to the requested data streams.
      */
     public void setDataStreamOptions(
+        final ProjectId projectId,
         final List<String> dataStreamNames,
         DataStreamOptions options,
         TimeValue ackTimeout,
@@ -203,7 +212,7 @@ public class MetadataDataStreamsService {
     ) {
         updateOptionsTaskQueue.submitTask(
             "set-data-stream-options",
-            new UpdateOptionsTask(dataStreamNames, options, ackTimeout, listener),
+            new UpdateOptionsTask(projectId, dataStreamNames, options, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -212,6 +221,7 @@ public class MetadataDataStreamsService {
      * Submits the task to remove the data stream options from the requested data streams.
      */
     public void removeDataStreamOptions(
+        ProjectId projectId,
         List<String> dataStreamNames,
         TimeValue ackTimeout,
         TimeValue masterTimeout,
@@ -219,7 +229,7 @@ public class MetadataDataStreamsService {
     ) {
         updateOptionsTaskQueue.submitTask(
             "delete-data-stream-options",
-            new UpdateOptionsTask(dataStreamNames, null, ackTimeout, listener),
+            new UpdateOptionsTask(projectId, dataStreamNames, null, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -308,18 +318,17 @@ public class MetadataDataStreamsService {
      * Creates an updated cluster state in which the requested data streams have the data stream options provided.
      * Visible for testing.
      */
-    ClusterState updateDataStreamOptions(
-        ClusterState currentState,
+    ProjectMetadata updateDataStreamOptions(
+        ProjectMetadata project,
         List<String> dataStreamNames,
         @Nullable DataStreamOptions dataStreamOptions
     ) {
-        Metadata metadata = currentState.metadata();
-        Metadata.Builder builder = Metadata.builder(metadata);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
         for (var dataStreamName : dataStreamNames) {
-            var dataStream = validateDataStream(metadata.getProject(), dataStreamName);
+            var dataStream = validateDataStream(project, dataStreamName);
             builder.put(dataStream.copy().setDataStreamOptions(dataStreamOptions).build());
         }
-        return ClusterState.builder(currentState).metadata(builder.build()).build();
+        return builder.build();
     }
 
     /**
@@ -525,19 +534,25 @@ public class MetadataDataStreamsService {
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
     static class UpdateOptionsTask extends AckedBatchedClusterStateUpdateTask {
-
+        ProjectId projectId;
         private final List<String> dataStreamNames;
         private final DataStreamOptions options;
 
         UpdateOptionsTask(
+            ProjectId projectId,
             List<String> dataStreamNames,
             @Nullable DataStreamOptions options,
             TimeValue ackTimeout,
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(ackTimeout, listener);
+            this.projectId = projectId;
             this.dataStreamNames = dataStreamNames;
             this.options = options;
+        }
+
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         public List<String> getDataStreamNames() {

@@ -3197,7 +3197,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                    ( LIMIT 5 )
             """);
         var fork = as(plan, Fork.class);
-        var subPlans = fork.subPlans();
+        var subPlans = fork.children();
 
         // first subplan
         var eval = as(subPlans.get(0), Eval.class);

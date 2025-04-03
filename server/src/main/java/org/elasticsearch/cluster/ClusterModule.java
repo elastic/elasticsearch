@@ -40,8 +40,8 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
-import org.elasticsearch.cluster.routing.allocation.allocator.GlobalNodeSorterFactory;
-import org.elasticsearch.cluster.routing.allocation.allocator.NodeSorterFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalPartitionedClusterFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.PartitionedClusterFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -149,7 +149,10 @@ public class ClusterModule extends AbstractModule {
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
         final BalancerSettings balancerSettings = new BalancerSettings(clusterService.getClusterSettings());
-        var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(writeLoadForecaster, balancerSettings);
+        var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
+            writeLoadForecaster,
+            new GlobalPartitionedClusterFactory(balancerSettings)
+        );
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
@@ -452,13 +455,16 @@ public class ClusterModule extends AbstractModule {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        final NodeSorterFactory nodeSorterFactory = new GlobalNodeSorterFactory(balancerSettings);
-        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, nodeSorterFactory));
+        final PartitionedClusterFactory partitionedClusterFactory = new GlobalPartitionedClusterFactory(balancerSettings);
+        allocators.put(
+            BALANCED_ALLOCATOR,
+            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, partitionedClusterFactory)
+        );
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
                 clusterSettings,
-                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, nodeSorterFactory),
+                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, partitionedClusterFactory),
                 threadPool,
                 clusterService,
                 reconciler,

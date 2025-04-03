@@ -9,7 +9,17 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-public interface NodeSorterFactory {
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 
-    PartitionedNodeSorter create(BalancedShardsAllocator.ModelNode[] allNodes, BalancedShardsAllocator.Balancer balancer);
+public interface PartitionedCluster {
+
+    ClusterPartition partitionForShard(ShardRouting shard);
+
+    ClusterPartition partitionForNode(RoutingNode node);
+
+    PartitionedNodeSorter createPartitionedNodeSorter(
+        BalancedShardsAllocator.ModelNode[] modelNodes,
+        BalancedShardsAllocator.Balancer balancer
+    );
 }

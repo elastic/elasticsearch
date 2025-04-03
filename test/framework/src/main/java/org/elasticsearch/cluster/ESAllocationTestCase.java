@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalPartitionedClusterFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -443,7 +444,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static final NodeAllocationStatsAndWeightsCalculator EMPTY_NODE_ALLOCATION_STATS =
-        new NodeAllocationStatsAndWeightsCalculator(WriteLoadForecaster.DEFAULT, BalancerSettings.DEFAULT) {
+        new NodeAllocationStatsAndWeightsCalculator(
+            WriteLoadForecaster.DEFAULT,
+            new GlobalPartitionedClusterFactory(BalancerSettings.DEFAULT)
+        ) {
             @Override
             public Map<String, NodeAllocationStatsAndWeight> nodesAllocationStatsAndWeights(
                 Metadata metadata,

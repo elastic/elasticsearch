@@ -14,11 +14,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import java.util.Collection;
 
 /**
- * A partitioned node sorter must be able to divider all shards and nodes into mutually
- * disjoint partitions. Allocation balancing is then conducted sequentially for each partition.
- * <p>
- * If you can't partition your shards and nodes in this way, use
- * {@link org.elasticsearch.cluster.routing.allocation.allocator.GlobalNodeSorterFactory}
+ * Partitioned node sorter is just a cache for
+ * {@link org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.NodeSorter}
+ * instances for each {@link ClusterPartition}
  */
 public interface PartitionedNodeSorter {
 
@@ -31,9 +29,4 @@ public interface PartitionedNodeSorter {
      * Get the {@link BalancedShardsAllocator.NodeSorter} for the specified shard
      */
     BalancedShardsAllocator.NodeSorter sorterForShard(ShardRouting shard);
-
-    /**
-     * Get the {@link BalancedShardsAllocator.NodeSorter} for the specified node
-     */
-    BalancedShardsAllocator.NodeSorter sorterForNode(BalancedShardsAllocator.ModelNode node);
 }

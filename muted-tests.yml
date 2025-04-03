@@ -475,3 +475,6 @@ tests:
 - class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
   method: testUpgradeModels {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/125535
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/126124

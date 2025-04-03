@@ -17,11 +17,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceAuthorizationRequest;
 import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.Locale;
@@ -29,6 +29,7 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
 /**
@@ -108,8 +109,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                 requestCompleteLatch.countDown();
             });
 
-            var productOrigin = threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
-            var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo(), productOrigin);
+            var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
+            var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo(), requestMetadata);
 
             sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, newListener);
         } catch (Exception e) {

@@ -68,7 +68,6 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
@@ -273,14 +272,12 @@ public class SearchPhaseControllerTests extends ESTestCase {
             try {
                 SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
                     queryResults.asList(),
-                    new ArrayList<>(),
+                    InternalAggregations.EMPTY,
                     new ArrayList<>(),
                     new TopDocsStats(trackTotalHits),
                     0,
                     true,
-                    InternalAggregationTestCase.emptyReduceContextBuilder(),
-                    null,
-                    true
+                    null
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
                     .stream()
@@ -363,12 +360,11 @@ public class SearchPhaseControllerTests extends ESTestCase {
             try {
                 SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
                     queryResults.asList(),
-                    new ArrayList<>(),
+                    InternalAggregations.EMPTY,
                     new ArrayList<>(),
                     new TopDocsStats(trackTotalHits),
                     0,
                     true,
-                    InternalAggregationTestCase.emptyReduceContextBuilder(),
                     new QueryPhaseRankCoordinatorContext(windowSize) {
                         @Override
                         public ScoreDoc[] rankQueryPhaseResults(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats) {
@@ -395,8 +391,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                             topDocStats.fetchHits = topResults.length;
                             return topResults;
                         }
-                    },
-                    true
+                    }
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
                     .stream()

@@ -6,7 +6,7 @@
 FROM sample_data
 | WHERE message != "Connection error"
 | EVAL md5 = md5(message)
-| KEEP message, md5;
+| KEEP message, md5
 ```
 
 | message:keyword | md5:keyword |

@@ -26,7 +26,7 @@ public class EntitlementsDeniedNonModularIT extends AbstractEntitlementsIT {
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-        return RestEntitlementsCheckAction.getAllCheckActions().stream().map(action -> new Object[] { action }).toList();
+        return RestEntitlementsCheckAction.getDeniableCheckActions().stream().map(action -> new Object[] { action }).toList();
     }
 
     @Override

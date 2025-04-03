@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -100,6 +101,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -709,6 +711,30 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig() {
 
+        // Parsing a persistent configuration using model_version succeeds
+        {
+            var service = createService(mock(Client.class));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        "model_version",
+                        ".elser_model_2"
+                    )
+                )
+            );
+
+            var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings);
+            assertThat(model, instanceOf(ElserInternalModel.class));
+            ElserInternalModel elserInternalModel = (ElserInternalModel) model;
+            assertThat(elserInternalModel.getServiceSettings().modelId(), is(".elser_model_2"));
+        }
+
         // Null model variant
         {
             var service = createService(mock(Client.class));
@@ -727,11 +753,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
 
-            expectThrows(
+            var exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> service.parsePersistedConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings)
             );
 
+            assertThat(exception.getMessage(), containsString(randomInferenceEntityId));
         }
 
         // Invalid model variant
@@ -896,20 +923,20 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
             assertThat(result1.chunks(), hasSize(1));
-            assertThat(result1.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
                 ((MlTextEmbeddingResults) mlTrainedModelResults.get(0)).getInferenceAsFloat(),
-                ((TextEmbeddingFloatResults.Chunk) result1.chunks().get(0)).embedding(),
+                ((TextEmbeddingFloatResults.Embedding) result1.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
             assertThat(result2.chunks(), hasSize(1));
-            assertThat(result2.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
                 ((MlTextEmbeddingResults) mlTrainedModelResults.get(1)).getInferenceAsFloat(),
-                ((TextEmbeddingFloatResults.Chunk) result2.chunks().get(0)).embedding(),
+                ((TextEmbeddingFloatResults.Embedding) result2.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
@@ -972,18 +999,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertThat(chunkedResponse, hasSize(2));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
-            assertThat(result1.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result1.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result1.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
-            assertThat(result2.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result2.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result2.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
             gotResults.set(true);
@@ -1044,18 +1071,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertThat(chunkedResponse, hasSize(2));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
-            assertThat(result1.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result1.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result1.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
-            assertThat(result2.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result2.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result2.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
             gotResults.set(true);
@@ -1397,7 +1424,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     public void testBuildInferenceRequest() {
         var id = randomAlphaOfLength(5);
         var inputs = randomList(1, 3, () -> randomAlphaOfLength(4));
-        var inputType = randomFrom(InputType.SEARCH, InputType.INGEST);
+        var inputType = InputTypeTests.randomWithoutUnspecified();
         var timeout = randomTimeValue();
         var request = ElasticsearchInternalService.buildInferenceRequest(
             id,
@@ -1409,10 +1436,14 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         assertEquals(id, request.getId());
         assertEquals(inputs, request.getTextInput());
-        assertEquals(
-            inputType == InputType.INGEST ? TrainedModelPrefixStrings.PrefixType.INGEST : TrainedModelPrefixStrings.PrefixType.SEARCH,
-            request.getPrefixType()
-        );
+        if (inputType == InputType.INTERNAL_INGEST || inputType == InputType.INGEST) {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
+        } else if (inputType == InputType.INTERNAL_SEARCH || inputType == InputType.SEARCH) {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
+        } else {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.NONE, request.getPrefixType());
+        }
+
         assertEquals(timeout, request.getInferenceTimeout());
         assertEquals(false, request.isChunked());
     }

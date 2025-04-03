@@ -29,6 +29,7 @@ import org.junit.After;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.IntStream;
 
@@ -133,10 +134,12 @@ public class BlockMultiValuedTests extends ESTestCase {
         if (elementType != ElementType.BOOLEAN) {
             return;
         }
-        int positionCount = randomIntBetween(1, 16 * 1024);
+        int positionCount = randomIntBetween(0, 16 * 1024);
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 2, 10, 0, 0);
         try (ToMask mask = ((BooleanBlock) b.block()).toMask()) {
-            assertThat(mask.hadMultivaluedFields(), equalTo(true));
+            var anyNonNullValue = b.values().stream().anyMatch(Objects::nonNull);
+            assertThat(mask.hadMultivaluedFields(), equalTo(anyNonNullValue));
+
             for (int p = 0; p < b.values().size(); p++) {
                 List<Object> v = b.values().get(p);
                 if (v == null) {

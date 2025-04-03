@@ -15,8 +15,8 @@ import org.elasticsearch.logsdb.datageneration.FieldType;
 import java.util.Map;
 
 public class LongFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Long> {
-    public LongFieldBlockLoaderTests() {
-        super(FieldType.LONG);
+    public LongFieldBlockLoaderTests(Params params) {
+        super(FieldType.LONG, params);
     }
 
     @Override

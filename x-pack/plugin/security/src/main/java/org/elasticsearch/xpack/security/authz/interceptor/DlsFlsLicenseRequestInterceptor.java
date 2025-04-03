@@ -101,6 +101,6 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                 }
             }
         }
-        return SubscribableListener.newSucceeded(null);
+        return SubscribableListener.nullSuccess();
     }
 }

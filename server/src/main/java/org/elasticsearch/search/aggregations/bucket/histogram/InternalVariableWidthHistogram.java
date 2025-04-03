@@ -539,14 +539,11 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalVariableWidthHistogram(
-            getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
-            emptyBucketInfo,
-            targetNumBuckets,
-            format,
-            getMetadata()
-        );
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
+        return new InternalVariableWidthHistogram(getName(), buckets, emptyBucketInfo, targetNumBuckets, format, getMetadata());
     }
 
     @Override

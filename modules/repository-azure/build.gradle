@@ -63,7 +63,7 @@ dependencies {
   api "com.github.stephenc.jcip:jcip-annotations:1.0-1"
   api "com.nimbusds:content-type:2.3"
   api "com.nimbusds:lang-tag:1.7"
-  api("com.nimbusds:nimbus-jose-jwt:10.0.1"){
+  api("com.nimbusds:nimbus-jose-jwt:10.0.2"){
     exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
   api("com.nimbusds:oauth2-oidc-sdk:11.22.2"){

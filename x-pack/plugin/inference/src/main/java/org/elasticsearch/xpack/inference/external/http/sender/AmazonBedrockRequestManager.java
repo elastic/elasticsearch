@@ -43,7 +43,7 @@ public abstract class AmazonBedrockRequestManager implements RequestManager {
 
             var awsSecretSettings = model.getSecretSettings();
 
-            return new RateLimitGrouping(Objects.hash(awsSecretSettings.accessKey, awsSecretSettings.secretKey));
+            return new RateLimitGrouping(Objects.hash(awsSecretSettings.accessKey(), awsSecretSettings.secretKey()));
         }
     }
 

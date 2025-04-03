@@ -240,7 +240,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             Metadata metadata = currentState.metadata();
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
             for (Index index : indices) {
-                IndexMetadata indexMetadata = metadata.getProject().index(index);
+                IndexMetadata indexMetadata = metadata.indexMetadata(index);
                 final boolean shouldBeSystem = shouldBeSystem(indexMetadata);
                 IndexMetadata updatedIndexMetadata = updateIndexIfNecessary(indexMetadata, shouldBeSystem);
                 if (updatedIndexMetadata != null) {

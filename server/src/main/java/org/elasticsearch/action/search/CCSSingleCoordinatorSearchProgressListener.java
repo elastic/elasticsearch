@@ -188,7 +188,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
-            int successfulCount = entry.getValue().intValue();
+            int successfulCount = entry.getValue();
 
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 SearchResponse.Cluster.Status status = v.getStatus();
@@ -231,7 +231,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
-            int successfulCount = entry.getValue().intValue();
+            int successfulCount = entry.getValue();
 
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 SearchResponse.Cluster.Status status = v.getStatus();

@@ -55,7 +55,7 @@ if (buildParams.snapshotBuild == false) {
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 tasks.named("yamlRestTest").configure {
@@ -111,6 +111,19 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/40_tsdb/from index pattern unsupported counter", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
+  task.skipTest("ml/3rd_party_deployment/Test clear deployment cache", "Deprecated route removed")
+  task.skipTest("ml/3rd_party_deployment/Test start and stop deployment with cache", "Deprecated route removed")
+  task.skipTest("ml/3rd_party_deployment/Test start and stop multiple deployments", "Deprecated route removed")
+  task.skipTest("ml/3rd_party_deployment/Test update model alias on pytorch model to undeployed model", "Deprecated route removed")
+  task.skipTest("ml/job_cat_apis/Test cat anomaly detector jobs", "Flush API is deprecated")
+  task.skipTest("ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats", "Flush API is deprecated")
+  task.skipTest("ml/jobs_get_stats/Test get job stats for closed job", "Flush API is deprecated")
+  task.skipTest("ml/inference_crud/Test deprecation of include model definition param", "Query parameter removed")
+  task.skipTest("ml/post_data/Test flush and close job WITHOUT sending any data", "Flush API is deprecated")
+  task.skipTest("ml/post_data/Test flush with skip_time", "Flush API is deprecated")
+  task.skipTest("ml/post_data/Test POST data job api, flush, close and verify DataCounts doc", "Flush API is deprecated")
+  task.replaceValueInMatch("Size", 49, "Test flamegraph from profiling-events")
+  task.replaceValueInMatch("Size", 49, "Test flamegraph from test-events")
 })
 
 tasks.named('yamlRestCompatTest').configure {

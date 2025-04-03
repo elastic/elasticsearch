@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -96,7 +98,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
-import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -151,19 +152,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public static final List<Attribute> NO_FIELDS = List.of(
         new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
     );
-    private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
-    static {
-        var init = new Batch<>(
-            "Initialize",
-            Limiter.ONCE,
-            new ResolveTable(),
-            new ResolveEnrich(),
-            new ResolveLookupTables(),
-            new ResolveFunctions(),
-            new ResolveForkFunctions()
-        );
-        var resolution = new Batch<>(
+    private static final List<Batch<LogicalPlan>> RULES = List.of(
+        new Batch<>("Initialize", Limiter.ONCE, new ResolveTable(), new ResolveEnrich(), new ResolveLookupTables(), new ResolveFunctions()),
+        new Batch<>(
             "Resolution",
             /*
              * ImplicitCasting must be before ResolveRefs. Because a reference is created for a Bucket in Aggregate's aggregates,
@@ -171,19 +163,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
              * attempts to resolve this reference.
              */
             new ImplicitCasting(),
-            new ImplicitForkCasting(),
             new ResolveRefs(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
-        );
-        var finish = new Batch<>(
-            "Finish Analysis",
-            Limiter.ONCE,
-            new AddImplicitLimit(),
-            new AddImplicitForkLimit(),
-            new UnionTypesCleanup()
-        );
-        rules = List.of(init, resolution, finish);
-    }
+        ),
+        new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
+    );
 
     private final Verifier verifier;
 
@@ -206,8 +190,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     @Override
-    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
-        return rules;
+    protected List<Batch<LogicalPlan>> batches() {
+        return RULES;
     }
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
@@ -452,6 +436,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             final List<Attribute> childrenOutput = new ArrayList<>();
 
+            // Gather all the children's output in case of non-unary plans; even for unaries, we need to copy because we may mutate this to
+            // simplify resolution of e.g. RENAME.
             for (LogicalPlan child : plan.children()) {
                 var output = child.output();
                 childrenOutput.addAll(output);
@@ -497,8 +483,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveInsist(i, childrenOutput, context.indexResolution());
             }
 
-            if (plan instanceof Fork f) {
-                return resolveFork(f, context);
+            if (plan instanceof Dedup dedup) {
+                return resolveDedup(dedup, childrenOutput);
+            }
+
+            if (plan instanceof RrfScoreEval rrf) {
+                return resolveRrfScoreEval(rrf, childrenOutput);
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
@@ -680,16 +670,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return join;
         }
 
-        private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {
-            List<LogicalPlan> subPlans = fork.subPlans();
-
-            List<LogicalPlan> newSubPlans = new ArrayList<>();
-            for (var logicalPlan : subPlans) {
-                newSubPlans.add(logicalPlan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : rule(p, context)));
-            }
-            return new Fork(fork.source(), fork.child(), newSubPlans);
-        }
-
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
             List<Attribute> resolved = new ArrayList<>(cols.size());
             for (Attribute col : cols) {
@@ -751,6 +731,54 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static FieldAttribute insistKeyword(Attribute attribute) {
             return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
+        }
+
+        private LogicalPlan resolveDedup(Dedup dedup, List<Attribute> childrenOutput) {
+            List<NamedExpression> aggregates = dedup.finalAggs();
+            List<Attribute> groupings = dedup.groupings();
+            List<NamedExpression> newAggs = new ArrayList<>();
+            List<Attribute> newGroupings = new ArrayList<>();
+
+            for (NamedExpression agg : aggregates) {
+                var newAgg = (NamedExpression) agg.transformUp(UnresolvedAttribute.class, ua -> {
+                    Expression ne = ua;
+                    Attribute maybeResolved = maybeResolveAttribute(ua, childrenOutput);
+                    if (maybeResolved != null) {
+                        ne = maybeResolved;
+                    }
+                    return ne;
+                });
+                newAggs.add(newAgg);
+            }
+
+            for (Attribute attr : groupings) {
+                if (attr instanceof UnresolvedAttribute ua) {
+                    newGroupings.add(resolveAttribute(ua, childrenOutput));
+                } else {
+                    newGroupings.add(attr);
+                }
+            }
+
+            return new Dedup(dedup.source(), dedup.child(), newAggs, newGroupings);
+        }
+
+        private LogicalPlan resolveRrfScoreEval(RrfScoreEval rrf, List<Attribute> childrenOutput) {
+            Attribute scoreAttr = rrf.scoreAttribute();
+            Attribute forkAttr = rrf.forkAttribute();
+
+            if (scoreAttr instanceof UnresolvedAttribute ua) {
+                scoreAttr = resolveAttribute(ua, childrenOutput);
+            }
+
+            if (forkAttr instanceof UnresolvedAttribute ua) {
+                forkAttr = resolveAttribute(ua, childrenOutput);
+            }
+
+            if (forkAttr != rrf.forkAttribute() || scoreAttr != rrf.scoreAttribute()) {
+                return new RrfScoreEval(rrf.source(), rrf.child(), scoreAttr, forkAttr);
+            }
+
+            return rrf;
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
@@ -916,6 +944,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new EsqlProject(rename.source(), rename.child(), projections);
         }
 
+        /**
+         * This will turn a {@link Rename} into an equivalent {@link Project}.
+         * Can mutate {@code childrenOutput}; hand this a copy if you want to avoid mutation.
+         */
         public static List<NamedExpression> projectionsForRename(Rename rename, List<Attribute> childrenOutput, Logger logger) {
             List<NamedExpression> projections = new ArrayList<>(childrenOutput);
 
@@ -928,6 +960,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (alias.child() instanceof UnresolvedAttribute ua && alias.name().equals(ua.name()) == false) {
                     // remove attributes overwritten by a renaming: `| keep a, b, c | rename a as b`
                     projections.removeIf(x -> x.name().equals(alias.name()));
+                    childrenOutput.removeIf(x -> x.name().equals(alias.name()));
 
                     var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
                     if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
@@ -1098,23 +1131,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveForkFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
-        private final ResolveFunctions resolveFunctions = new ResolveFunctions();
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformUp(Fork.class, fork -> resolveFunctionsInForkSubQueries(fork, context));
-        }
-
-        private LogicalPlan resolveFunctionsInForkSubQueries(Fork fork, AnalyzerContext ctx) {
-            List<LogicalPlan> newSubPlans = new ArrayList<>();
-            for (var subPlan : fork.subPlans()) {
-                newSubPlans.add(resolveFunctions.apply(subPlan, ctx));
-            }
-            return fork.replaceSubPlans(newSubPlans);
-        }
-    }
-
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
@@ -1144,7 +1160,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan addImplicitLimitToForkSubQueries(Fork fork, AnalyzerContext ctx) {
             List<LogicalPlan> newSubPlans = new ArrayList<>();
-            for (var subPlan : fork.subPlans()) {
+            for (var subPlan : fork.children()) {
                 newSubPlans.add(addImplicitLimit.apply(subPlan, ctx));
             }
             return fork.replaceSubPlans(newSubPlans);
@@ -1402,23 +1418,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ImplicitForkCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-        private final ImplicitCasting implicitCasting = new ImplicitCasting();
-
-        @Override
-        public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
-            return logicalPlan.transformUp(Fork.class, fork -> implicitCastForkSubQueries(fork, context));
-        }
-
-        private LogicalPlan implicitCastForkSubQueries(Fork fork, AnalyzerContext ctx) {
-            List<LogicalPlan> newSubPlans = new ArrayList<>();
-            for (var subPlan : fork.subPlans()) {
-                newSubPlans.add(implicitCasting.apply(subPlan, ctx));
-            }
-            return fork.replaceSubPlans(newSubPlans);
-        }
-    }
-
     /**
      * The EsqlIndexResolver will create InvalidMappedField instances for fields that are ambiguous (i.e. have multiple mappings).
      * During {@link ResolveRefs} we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
@@ -1595,7 +1594,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         static Attribute checkUnresolved(FieldAttribute fa) {
             if (fa.field() instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-                String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
+                List<String> types = imf.getTypesToIndices().keySet().stream().toList();
                 return new UnsupportedAttribute(
                     fa.source(),
                     fa.name(),

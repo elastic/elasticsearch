@@ -11,12 +11,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.cohere.CohereResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.cohere.CohereEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.cohere.CohereResponseHandler;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 
 import java.util.List;
@@ -49,8 +50,11 @@ public class CohereEmbeddingsRequestManager extends CohereRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
-        CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(docsInput, model);
+        EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
+        List<String> docsInput = input.getInputs();
+        InputType inputType = input.getInputType();
+
+        CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(docsInput, inputType, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

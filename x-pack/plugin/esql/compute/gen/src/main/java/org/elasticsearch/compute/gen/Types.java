@@ -61,6 +61,7 @@ public class Types {
 
     static final ClassName BOOLEAN_VECTOR = ClassName.get(DATA_PACKAGE, "BooleanVector");
     static final ClassName BYTES_REF_VECTOR = ClassName.get(DATA_PACKAGE, "BytesRefVector");
+    static final ClassName ORDINALS_BYTES_REF_VECTOR = ClassName.get(DATA_PACKAGE, "OrdinalBytesRefVector");
     static final ClassName INT_VECTOR = ClassName.get(DATA_PACKAGE, "IntVector");
     static final ClassName LONG_VECTOR = ClassName.get(DATA_PACKAGE, "LongVector");
     static final ClassName DOUBLE_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleVector");

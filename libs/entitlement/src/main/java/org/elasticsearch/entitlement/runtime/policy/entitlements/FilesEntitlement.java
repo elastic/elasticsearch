@@ -9,12 +9,14 @@
 
 package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.FileUtils;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Platform;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,6 +31,8 @@ import java.util.stream.Stream;
  * Describes a file entitlement with a path and mode.
  */
 public record FilesEntitlement(List<FileData> filesData) implements Entitlement {
+
+    public static final String SEPARATOR = FileSystems.getDefault().getSeparator();
 
     public static final FilesEntitlement EMPTY = new FilesEntitlement(List.of());
 
@@ -57,6 +61,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         Platform platform();
 
         FileData withPlatform(Platform platform);
+
+        String description();
 
         static FileData ofPath(Path path, Mode mode) {
             return new AbsolutePathFileData(path, mode, null, false);
@@ -125,6 +131,11 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             }
             return new AbsolutePathFileData(path, mode, platform, exclusive);
         }
+
+        @Override
+        public String description() {
+            return Strings.format("[%s] %s%s", mode, path.toAbsolutePath().normalize(), exclusive ? " (exclusive)" : "");
+        }
     }
 
     private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
@@ -149,6 +160,11 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             }
             return new RelativePathFileData(relativePath, baseDir, mode, platform, exclusive);
         }
+
+        @Override
+        public String description() {
+            return Strings.format("[%s] <%s>%s%s%s", mode, baseDir, SEPARATOR, relativePath, exclusive ? " (exclusive)" : "");
+        }
     }
 
     private record PathSettingFileData(String setting, BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
@@ -164,7 +180,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
             Stream<String> result = pathLookup.settingResolver()
                 .apply(setting)
-                .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false);
+                .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false)
+                .distinct();
             return result.map(Path::of);
         }
 
@@ -174,6 +191,11 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 return this;
             }
             return new PathSettingFileData(setting, baseDir, mode, platform, exclusive);
+        }
+
+        @Override
+        public String description() {
+            return Strings.format("[%s] <%s>%s<%s>%s", mode, baseDir, SEPARATOR, setting, exclusive ? " (exclusive)" : "");
         }
     }
 

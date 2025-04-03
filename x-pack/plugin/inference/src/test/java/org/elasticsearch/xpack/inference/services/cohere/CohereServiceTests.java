@@ -67,6 +67,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -75,7 +76,6 @@ import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.c
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
@@ -788,6 +788,8 @@ public class CohereServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -855,6 +857,8 @@ public class CohereServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1147,6 +1151,8 @@ public class CohereServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 false,
                 new HashMap<>(),
@@ -1206,6 +1212,8 @@ public class CohereServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1281,6 +1289,8 @@ public class CohereServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 false,
                 CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH, null),
@@ -1352,6 +1362,8 @@ public class CohereServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1468,7 +1480,7 @@ public class CohereServiceTests extends ESTestCase {
                 assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
-                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1479,7 +1491,7 @@ public class CohereServiceTests extends ESTestCase {
                 assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
                 assertArrayEquals(
                     new float[] { 0.223f, -0.223f },
-                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1565,16 +1577,22 @@ public class CohereServiceTests extends ESTestCase {
                 var byteResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(byteResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 1), byteResult.chunks().get(0).offset());
-                assertThat(byteResult.chunks().get(0), instanceOf(TextEmbeddingByteResults.Chunk.class));
-                assertArrayEquals(new byte[] { 23, -23 }, ((TextEmbeddingByteResults.Chunk) byteResult.chunks().get(0)).embedding());
+                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingByteResults.Embedding.class));
+                assertArrayEquals(
+                    new byte[] { 23, -23 },
+                    ((TextEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
+                );
             }
             {
                 assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var byteResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(byteResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 2), byteResult.chunks().get(0).offset());
-                assertThat(byteResult.chunks().get(0), instanceOf(TextEmbeddingByteResults.Chunk.class));
-                assertArrayEquals(new byte[] { 24, -24 }, ((TextEmbeddingByteResults.Chunk) byteResult.chunks().get(0)).embedding());
+                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingByteResults.Embedding.class));
+                assertArrayEquals(
+                    new byte[] { 24, -24 },
+                    ((TextEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
+                );
             }
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
@@ -1599,9 +1617,9 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testDefaultSimilarity_NotBinaryEmbedding() {
-        assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity(CohereEmbeddingType.FLOAT));
-        assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity(CohereEmbeddingType.BYTE));
-        assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity(CohereEmbeddingType.INT8));
+        assertEquals(SimilarityMeasure.COSINE, CohereService.defaultSimilarity(CohereEmbeddingType.FLOAT));
+        assertEquals(SimilarityMeasure.COSINE, CohereService.defaultSimilarity(CohereEmbeddingType.BYTE));
+        assertEquals(SimilarityMeasure.COSINE, CohereService.defaultSimilarity(CohereEmbeddingType.INT8));
     }
 
     public void testInfer_StreamRequest() throws Exception {
@@ -1622,6 +1640,8 @@ public class CohereServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 true,

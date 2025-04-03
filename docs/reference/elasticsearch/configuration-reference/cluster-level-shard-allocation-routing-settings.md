@@ -1,6 +1,10 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Cluster-level shard allocation and routing settings [modules-cluster]
@@ -15,6 +19,7 @@ There are a number of settings available to control the shard allocation process
 * [Disk-based shard allocation settings](#disk-based-shard-allocation) explains how Elasticsearch takes available disk space into account, and the related settings.
 * [Shard allocation awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md) and [Forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness) control how shards can be distributed across different racks or availability zones.
 * [Cluster-level shard allocation filtering](#cluster-shard-allocation-filtering) allows certain nodes or groups of nodes excluded from allocation so that they can be decommissioned.
+* [Cluster-level node allocation stats cache settings](#node-allocation-stats-cache) control the node allocation statistics cache on the master node.
 
 Besides these, there are a few other [miscellaneous cluster-level settings](/reference/elasticsearch/configuration-reference/miscellaneous-cluster-settings.md).
 
@@ -165,12 +170,12 @@ You can use the following settings to control disk-based allocation:
 
 $$$cluster-routing-disk-threshold$$$
 
-`cluster.routing.allocation.disk.threshold_enabled`
+`cluster.routing.allocation.disk.threshold_enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Defaults to `true`. Set to `false` to disable the disk allocation decider. Upon disabling, it will also remove any existing `index.blocks.read_only_allow_delete` index blocks.
 
 $$$cluster-routing-watermark-low$$$
 
-`cluster.routing.allocation.disk.watermark.low` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`cluster.routing.allocation.disk.watermark.low` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the low watermark for disk usage. It defaults to `85%`, meaning that {{es}} will not allocate shards to nodes that have more than 85% disk used. It can alternatively be set to a ratio value, e.g., `0.85`. It can also be set to an absolute byte value (like `500mb`) to prevent {{es}} from allocating shards if less than the specified amount of space is available. This setting has no effect on the primary shards of newly-created indices but will prevent their replicas from being allocated.
 
 `cluster.routing.allocation.disk.watermark.low.max_headroom`
@@ -178,7 +183,7 @@ $$$cluster-routing-watermark-low$$$
 
 $$$cluster-routing-watermark-high$$$
 
-`cluster.routing.allocation.disk.watermark.high` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`cluster.routing.allocation.disk.watermark.high` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the high watermark. It defaults to `90%`, meaning that {{es}} will attempt to relocate shards away from a node whose disk usage is above 90%. It can alternatively be set to a ratio value, e.g., `0.9`. It can also be set to an absolute byte value (similarly to the low watermark) to relocate shards away from a node if it has less than the specified amount of free space. This setting affects the allocation of all shards, whether previously allocated or not.
 
 `cluster.routing.allocation.disk.watermark.high.max_headroom`
@@ -189,7 +194,7 @@ $$$cluster-routing-watermark-high$$$
 
 $$$cluster-routing-flood-stage$$$
 
-`cluster.routing.allocation.disk.watermark.flood_stage` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`cluster.routing.allocation.disk.watermark.flood_stage` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the flood stage watermark, which defaults to 95%. {{es}} enforces a read-only index block ([`index.blocks.read_only_allow_delete`](/reference/elasticsearch/index-settings/index-block.md)) on every index that has one or more shards allocated on the node, and that has at least one disk exceeding the flood stage. This setting is a last resort to prevent nodes from running out of disk space. The index block is automatically released when the disk utilization falls below the high watermark. Similarly to the low and high watermark values, it can alternatively be set to a ratio value, e.g., `0.95`, or an absolute byte value.
 
 
@@ -203,10 +208,10 @@ You can’t mix the usage of percentage/ratio values and byte values across the 
 
 $$$cluster-routing-flood-stage-frozen$$$
 
-`cluster.routing.allocation.disk.watermark.flood_stage.frozen` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`cluster.routing.allocation.disk.watermark.flood_stage.frozen` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the flood stage watermark for dedicated frozen nodes, which defaults to 95%.
 
-`cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the max headroom for the flood stage watermark (in case of a percentage/ratio value) for dedicated frozen nodes. Defaults to 20GB when `cluster.routing.allocation.disk.watermark.flood_stage.frozen` is not explicitly set. This caps the amount of free space required on dedicated frozen nodes.
 
 `cluster.info.update.interval`
@@ -229,7 +234,7 @@ You can use [custom node attributes](/reference/elasticsearch/configuration-refe
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The shard allocation awareness values that must exist for shards to be reallocated in case of location failure. Learn more about [forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness).
 
 
-## Cluster-level shard allocation filterin [cluster-shard-allocation-filtering]
+## Cluster-level shard allocation filtering [cluster-shard-allocation-filtering]
 
 You can use cluster-level shard allocation filters to control where {{es}} allocates shards from any index. These cluster wide filters are applied in conjunction with [per-index allocation filtering](/reference/elasticsearch/index-settings/shard-allocation.md) and [allocation awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md).
 
@@ -299,4 +304,7 @@ PUT _cluster/settings
 ```
 
 
+## Node Allocation Stats Cache [node-allocation-stats-cache]
 
+`cluster.routing.allocation.stats.cache.ttl`
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Calculating the node allocation stats for a [Get node statistics API call](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-stats) can become expensive on the master for clusters with a high number of nodes. To prevent overloading the master the node allocation stats are cached on the master for 1 minute `1m` by default.  This setting can be used to adjust the cache time to live value, if necessary, keeping in mind the tradeoff between the freshness of the statistics and the processing costs on the master.  The cache can be disabled (not recommended) by setting the value to `0s` (the minimum value). The maximum value is 10 minutes `10m`.

@@ -15,8 +15,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceInferenceRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 
 import java.util.List;
@@ -60,7 +60,7 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getInputs();
         var truncatedInput = truncate(docsInput, model.getTokenLimit());
         var request = new HuggingFaceInferenceRequest(truncator, truncatedInput, model);
 

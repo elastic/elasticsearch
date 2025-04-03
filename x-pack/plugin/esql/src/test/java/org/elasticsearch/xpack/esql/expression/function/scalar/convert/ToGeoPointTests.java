@@ -36,7 +36,7 @@ public class ToGeoPointTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         final String attribute = "Attribute[channel=0]";
-        final Function<String, String> evaluatorName = s -> "ToGeoPoint" + s + "Evaluator[field=" + attribute + "]";
+        final Function<String, String> evaluatorName = s -> "ToGeoPoint" + s + "Evaluator[in=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, DataType.GEO_POINT, v -> v, List.of());

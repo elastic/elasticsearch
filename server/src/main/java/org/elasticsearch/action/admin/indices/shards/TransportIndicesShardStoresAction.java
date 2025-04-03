@@ -238,7 +238,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             Iterator<ShardRequestContext> getShardRequestContexts() {
                 try (var shardListeners = new RefCountingListener(1, outerListener.acquire(ignored -> putResults()))) {
                     final var customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
-                        metadata.getProject().index(indexRoutingTable.getIndex()).getSettings()
+                        metadata.indexMetadata(indexRoutingTable.getIndex()).getSettings()
                     );
                     final var shardRequestContexts = new ArrayList<ShardRequestContext>(indexRoutingTable.size());
                     for (int shardNum = 0; shardNum < indexRoutingTable.size(); shardNum++) {

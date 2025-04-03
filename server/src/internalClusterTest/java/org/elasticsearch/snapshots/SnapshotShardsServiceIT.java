@@ -9,17 +9,29 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TestTransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,5 +100,72 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
             assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
             assertThat(snapshotInfo.successfulShards(), equalTo(shards));
         }, 30L, TimeUnit.SECONDS);
+    }
+
+    @TestLogging(
+        reason = "verifying debug logging",
+        value = "org.elasticsearch.snapshots.SnapshotShardsService.ShardStatusConsistencyChecker:DEBUG"
+    )
+    public void testConsistencyCheckerLogging() {
+        final var masterNode = internalCluster().startMasterOnlyNode();
+        final var dataNode = internalCluster().startDataOnlyNode();
+
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "fs");
+
+        final var indexName = randomIdentifier();
+        assertAcked(prepareCreate(indexName, 0, indexSettingsNoReplicas(between(1, 5))));
+        indexRandomDocs(indexName, scaledRandomIntBetween(50, 100));
+
+        // allow cluster states to go through normally until we see a shard snapshot update
+        final var shardUpdateSeen = new AtomicBoolean();
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, (handler, request, channel, task) -> {
+                shardUpdateSeen.set(true);
+                handler.messageReceived(request, channel, task);
+            });
+
+        // then, after the shard snapshot update, delay cluster state update commits on the data node until we see the
+        // ShardStatusConsistencyChecker log an inconsistency.
+        final var logMessageSeenListener = new SubscribableListener<Void>();
+        MockTransportService.getInstance(dataNode)
+            .addRequestHandlingBehavior(Coordinator.COMMIT_STATE_ACTION_NAME, (handler, request, channel, task) -> {
+                if (shardUpdateSeen.get() == false || logMessageSeenListener.isDone()) {
+                    handler.messageReceived(request, channel, task);
+                } else {
+                    // delay the commit ...
+                    logMessageSeenListener.addListener(
+                        ActionTestUtils.assertNoFailureListener(
+                            ignored -> ActionListener.run(
+                                ActionListener.<TransportResponse>noop(),
+                                l -> handler.messageReceived(request, new TestTransportChannel(l), task)
+                            )
+                        )
+                    );
+                    // ... and send a failure straight back to the master so it applies and acks the state update anyway
+                    channel.sendResponse(new ElasticsearchException("simulated"));
+                }
+            });
+
+        MockLog.awaitLogger(
+            () -> createSnapshot(repoName, randomIdentifier(), List.of(indexName)),
+            SnapshotShardsService.ShardStatusConsistencyChecker.class,
+            new MockLog.SeenEventExpectation(
+                "debug log",
+                SnapshotShardsService.ShardStatusConsistencyChecker.class.getCanonicalName(),
+                Level.DEBUG,
+                "*unexpectedly still in state [*INIT*] after notifying master"
+            ) {
+                @Override
+                public boolean innerMatch(LogEvent event) {
+                    if (event.getMessage().getFormattedMessage().contains("after notifying master")) {
+                        // now that the inconsistency was logged, release the cluster state commits on the data node
+                        logMessageSeenListener.onResponse(null);
+                    }
+                    return true;
+                }
+            }
+        );
+
     }
 }

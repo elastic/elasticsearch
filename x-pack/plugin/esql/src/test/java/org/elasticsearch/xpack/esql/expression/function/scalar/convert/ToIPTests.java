@@ -34,7 +34,7 @@ public class ToIPTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         String read = "Attribute[channel=0]";
-        String stringEvaluator = "ToIPFromStringEvaluator[field=" + read + "]";
+        String stringEvaluator = "ToIPFromStringEvaluator[asString=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         // convert from IP to IP

@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
-import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.createOrgHeader;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.createOrgHeader;
 
 public class OpenAiEmbeddingsRequest implements Request {
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -26,14 +26,12 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
-import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Look for any fields used in the plan that are missing locally and replace them with null.
@@ -43,84 +41,85 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
-        AttributeSet lookupFields = new AttributeSet();
+        var lookupFieldsBuilder = AttributeSet.builder();
         plan.forEachUp(EsRelation.class, esRelation -> {
+            // Looking only for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index
+            // is used in the FROM command, it will not be marked with LOOKUP mode there - but STANDARD.
+            // It seems like we could instead just look for JOINs and walk down their right hand side to find lookup fields - but this does
+            // not work as this rule also gets called just on the right hand side of a JOIN, which means that we don't always know that
+            // we're inside the right (or left) branch of a JOIN node. (See PlannerUtils.localPlan - this looks for FragmentExecs and
+            // performs local logical optimization of the fragments; the right hand side of a LookupJoinExec can be a FragmentExec.)
             if (esRelation.indexMode() == IndexMode.LOOKUP) {
-                lookupFields.addAll(esRelation.output());
+                lookupFieldsBuilder.addAll(esRelation.output());
             }
         });
+        AttributeSet lookupFields = lookupFieldsBuilder.build();
 
-        return plan.transformUp(p -> missingToNull(p, localLogicalOptimizerContext.searchStats(), lookupFields));
+        // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
+        // Also retain fields from lookup indices because we do not have stats for these.
+        Predicate<FieldAttribute> shouldBeRetained = f -> f.field() instanceof PotentiallyUnmappedKeywordEsField
+            || (localLogicalOptimizerContext.searchStats().exists(f.fieldName()) || lookupFields.contains(f));
+
+        return plan.transformUp(p -> missingToNull(p, shouldBeRetained));
     }
 
-    private LogicalPlan missingToNull(LogicalPlan plan, SearchStats stats, AttributeSet lookupFields) {
-        if (plan instanceof EsRelation || plan instanceof LocalRelation) {
-            return plan;
-        }
-
-        if (plan instanceof Aggregate a) {
-            // don't do anything (for now)
-            return a;
-        }
-        // keep the aliased name
-        else if (plan instanceof Project project) {
-            var projections = project.projections();
-            List<NamedExpression> newProjections = new ArrayList<>(projections.size());
-            Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
-            AttributeSet joinAttributes = joinAttributes(project);
-
-            for (NamedExpression projection : projections) {
-                // Do not use the attribute name, this can deviate from the field name for union types.
-                if (projection instanceof FieldAttribute f
-                    && stats.exists(f.fieldName()) == false
-                    && joinAttributes.contains(f) == false
-                    && f.field() instanceof PotentiallyUnmappedKeywordEsField == false) {
-                    // TODO: Should do a searchStats lookup for join attributes instead of just ignoring them here
-                    // See TransportSearchShardsAction
+    private LogicalPlan missingToNull(LogicalPlan plan, Predicate<FieldAttribute> shouldBeRetained) {
+        if (plan instanceof EsRelation relation) {
+            // Remove missing fields from the EsRelation because this is not where we will obtain them from; replace them by an Eval right
+            // after, instead. This allows us to safely re-use the attribute ids of the corresponding FieldAttributes.
+            // This means that an EsRelation[field1, field2, field3] where field1 and field 3 are missing will be replaced by
+            // Project[field1, field2, field3] <- keeps the ordering intact
+            // \_Eval[field1 = null, field3 = null]
+            // \_EsRelation[field2]
+            List<Attribute> relationOutput = relation.output();
+            Map<DataType, Alias> nullLiterals = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
+            List<NamedExpression> newProjections = new ArrayList<>(relationOutput.size());
+            for (int i = 0, size = relationOutput.size(); i < size; i++) {
+                Attribute attr = relationOutput.get(i);
+                NamedExpression projection;
+                if (attr instanceof FieldAttribute f && (shouldBeRetained.test(f) == false)) {
                     DataType dt = f.dataType();
-                    Alias nullAlias = nullLiteral.get(f.dataType());
+                    Alias nullAlias = nullLiterals.get(dt);
                     // save the first field as null (per datatype)
                     if (nullAlias == null) {
+                        // Keep the same id so downstream query plans don't need updating
+                        // NOTE: THIS IS BRITTLE AND CAN LEAD TO BUGS.
+                        // In case some optimizer rule or so inserts a plan node that requires the field BEFORE the Eval that we're adding
+                        // on top of the EsRelation, this can trigger a field extraction in the physical optimizer phase, causing wrong
+                        // layouts due to a duplicate name id.
+                        // If someone reaches here AGAIN when debugging e.g. ClassCastExceptions NPEs from wrong layouts, we should probably
+                        // give up on this approach and instead insert EvalExecs in InsertFieldExtraction.
                         Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), f.id());
-                        nullLiteral.put(dt, alias);
+                        nullLiterals.put(dt, alias);
                         projection = alias.toAttribute();
                     }
-                    // otherwise point to it
+                    // otherwise point to it since this avoids creating field copies
                     else {
-                        // since avoids creating field copies
                         projection = new Alias(f.source(), f.name(), nullAlias.toAttribute(), f.id());
                     }
+                } else {
+                    projection = attr;
                 }
-
                 newProjections.add(projection);
             }
-            // add the first found field as null
-            if (nullLiteral.size() > 0) {
-                plan = new Eval(project.source(), project.child(), new ArrayList<>(nullLiteral.values()));
-                plan = new Project(project.source(), plan, newProjections);
+
+            if (nullLiterals.size() == 0) {
+                return plan;
             }
-        } else if (plan instanceof Eval
+
+            Eval eval = new Eval(plan.source(), relation, new ArrayList<>(nullLiterals.values()));
+            // This projection is redundant if there's another projection downstream (and no commands depend on the order until we hit it).
+            return new Project(plan.source(), eval, newProjections);
+        }
+
+        if (plan instanceof Eval
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof RegexExtract
             || plan instanceof TopN) {
-                plan = plan.transformExpressionsOnlyUp(
-                    FieldAttribute.class,
-                    // Do not use the attribute name, this can deviate from the field name for union types.
-                    // Also skip fields from lookup indices because we do not have stats for these.
-                    // TODO: We do have stats for lookup indices in case they are being used in the FROM clause; this can be refined.
-                    f -> f.field() instanceof PotentiallyUnmappedKeywordEsField || (stats.exists(f.fieldName()) || lookupFields.contains(f))
-                        ? f
-                        : Literal.of(f, null)
-                );
-            }
+            return plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> shouldBeRetained.test(f) ? f : Literal.of(f, null));
+        }
 
         return plan;
-    }
-
-    private AttributeSet joinAttributes(Project project) {
-        var attributes = new AttributeSet();
-        project.forEachDown(Join.class, j -> j.right().forEachDown(EsRelation.class, p -> attributes.addAll(p.output())));
-        return attributes;
     }
 }

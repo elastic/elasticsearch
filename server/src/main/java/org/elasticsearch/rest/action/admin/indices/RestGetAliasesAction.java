@@ -84,19 +84,28 @@ public class RestGetAliasesAction extends BaseRestHandler {
     ) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
-        for (final Map.Entry<String, List<AliasMetadata>> cursor : responseAliasMap.entrySet()) {
-            for (final AliasMetadata aliasMetadata : cursor.getValue()) {
-                if (aliasesExplicitlyRequested) {
-                    // only display indices that have aliases
-                    indicesToDisplay.add(cursor.getKey());
+        if (aliasesExplicitlyRequested || requestedAliases.length > 0) {
+            for (final Map.Entry<String, List<AliasMetadata>> cursor : responseAliasMap.entrySet()) {
+                final var aliases = cursor.getValue();
+                if (aliases.isEmpty() == false) {
+                    if (aliasesExplicitlyRequested) {
+                        // only display indices that have aliases
+                        indicesToDisplay.add(cursor.getKey());
+                    }
+                    if (requestedAliases.length > 0) {
+                        for (final AliasMetadata aliasMetadata : aliases) {
+                            returnedAliasNames.add(aliasMetadata.alias());
+                        }
+                    }
                 }
-                returnedAliasNames.add(aliasMetadata.alias());
             }
         }
-        dataStreamAliases.entrySet()
-            .stream()
-            .flatMap(entry -> entry.getValue().stream())
-            .forEach(dataStreamAlias -> returnedAliasNames.add(dataStreamAlias.getName()));
+        if (requestedAliases.length > 0) {
+            dataStreamAliases.entrySet()
+                .stream()
+                .flatMap(entry -> entry.getValue().stream())
+                .forEach(dataStreamAlias -> returnedAliasNames.add(dataStreamAlias.getName()));
+        }
 
         // compute explicitly requested aliases that have are not returned in the result
         final SortedSet<String> missingAliases = new TreeSet<>();

@@ -221,9 +221,6 @@ tests:
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testEnrichExplosionManyMatches
-  issue: https://github.com/elastic/elasticsearch/issues/122913
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testHistoryIsWrittenWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/123203
@@ -245,9 +242,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testSourceThrottling
   issue: https://github.com/elastic/elasticsearch/issues/123680
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionNoFetch
-  issue: https://github.com/elastic/elasticsearch/issues/123432
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testDuplicatePrunedPaths
   issue: https://github.com/elastic/elasticsearch/issues/124006
@@ -278,9 +272,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
   issue: https://github.com/elastic/elasticsearch/issues/124518
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
-  method: "testGroupingAggregate {TestCase=<<no alt geo_shape>s> #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/124571
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=data_stream/150_tsdb/created the data stream}
   issue: https://github.com/elastic/elasticsearch/issues/124575
@@ -311,9 +302,6 @@ tests:
 - class: org.elasticsearch.index.shard.StoreRecoveryTests
   method: testAddIndices
   issue: https://github.com/elastic/elasticsearch/issues/124104
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testInvalidJoinPatterns
-  issue: https://github.com/elastic/elasticsearch/issues/125536
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_crud/Test get stats on newly created config}
   issue: https://github.com/elastic/elasticsearch/issues/121726

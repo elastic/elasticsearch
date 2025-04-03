@@ -500,24 +500,16 @@ public class WildcardFieldMapper extends FieldMapper {
 
         private static Query createCharacterClassQuery(RegExp r) {
             List<Query> queries = new ArrayList<>();
+            int maxClauseCount = 0;
             for (int i = 0; i < r.from.length; i++) {
-                if (r.from[i] == r.to[i]) {
-                    String cs = Character.toString(r.from[i]);
+                maxClauseCount += r.to[i] - r.from[i];
+                if (maxClauseCount > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                    return new MatchAllDocsQuery();
+                }
+                for (int j = r.from[i]; j <= r.to[i]; j++) {
+                    String cs = Character.toString(j);
                     String normalizedChar = toLowerCase(cs);
                     queries.add(new TermQuery(new Term("", normalizedChar)));
-                } else {
-                    for (int j = r.from[i]; j <= r.to[i]; j++) {
-                        String cs = Character.toString(j);
-                        String normalizedChar = toLowerCase(cs);
-                        queries.add(new TermQuery(new Term("", normalizedChar)));
-                        if (queries.size() > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                            break;
-                        }
-                    }
-                    queries.add(new MatchAllDocsQuery());
-                }
-                if (queries.size() > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                    break;
                 }
             }
             return formQuery(queries);

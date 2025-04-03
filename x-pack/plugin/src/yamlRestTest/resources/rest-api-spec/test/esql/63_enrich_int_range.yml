@@ -198,7 +198,7 @@ teardown:
           - method: POST
             path: /_query
             parameters: [ ]
-            capabilities: [ esql_allow_partial_results ]
+            capabilities: [ support_partial_results ]
         reason: "disable partial_results"
   - do:
       catch: /ENRICH range and input types are incompatible. range\[INTEGER\], input\[DOUBLE\]/

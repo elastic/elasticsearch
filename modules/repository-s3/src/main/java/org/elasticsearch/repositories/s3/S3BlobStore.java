@@ -41,7 +41,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -166,7 +165,6 @@ class S3BlobStore implements BlobStore {
 
         @Override
         public void publish(MetricCollection metricCollection) {
-            logPublication(metricCollection);
             assert operation.assertConsistentOperationName(metricCollection);
 
             boolean overallSuccess = false;
@@ -238,55 +236,6 @@ class S3BlobStore implements BlobStore {
                     .httpRequestTimeInMillisHistogram()
                     .record(TimeUnit.NANOSECONDS.toMillis(totalTimeNanoseconds), attributes);
             }
-        }
-
-        /**
-         * TODO NOMERGE remove this
-         */
-        private void logPublication(MetricCollection metricCollection) {
-            logger.info("--> MetricPublisher#publish called:\n{}", Strings.toString((builder, params) -> {
-                builder.startObject("publish");
-                builder.field("operation", operation.toString());
-                builder.startObject("attributes");
-                for (final var attributesEntry : attributes.entrySet()) {
-                    builder.field(attributesEntry.getKey(), attributesEntry.getValue().toString());
-                }
-                builder.endObject();
-                renderMetricCollection(metricCollection, builder);
-                builder.field("stack trace", ExceptionsHelper.stackTrace(new ElasticsearchException("stack trace")));
-                builder.endObject();
-                return builder;
-            }, false, true));
-        }
-
-        /**
-         * TODO NOMERGE remove this
-         */
-        private void renderMetricCollection(MetricCollection metricCollection, XContentBuilder builder) throws IOException {
-            builder.field("name", metricCollection.name());
-            builder.field("creationTime", metricCollection.creationTime().toString());
-            builder.startArray("records");
-            for (final var metricRecord : metricCollection) {
-                builder.startObject();
-                builder.field("name", metricRecord.metric().name());
-                builder.field("level", metricRecord.metric().level().toString());
-                builder.startArray("categories");
-                for (final var category : metricRecord.metric().categories()) {
-                    builder.value(category.toString());
-                }
-                builder.endArray();
-                builder.field("valueClass", metricRecord.metric().valueClass().getCanonicalName());
-                builder.field("value", metricRecord.value().toString());
-                builder.endObject();
-            }
-            builder.endArray();
-            builder.startArray("children");
-            for (final var child : metricCollection.children()) {
-                builder.startObject();
-                renderMetricCollection(child, builder);
-                builder.endObject();
-            }
-            builder.endArray();
         }
 
         @Override

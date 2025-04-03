@@ -113,7 +113,7 @@ public class MeteredStorage {
     public MeteredWriteChannel meteredWriter(OperationPurpose purpose, BlobInfo blobInfo, Storage.BlobWriteOption... writeOptions)
         throws IOException {
         var initStats = new OperationStats(purpose, INSERT);
-        return statsCollector.continueAndCollect(
+        return statsCollector.continueWithStats(
             initStats,
             () -> new MeteredWriteChannel(statsCollector, initStats, storage.writer(blobInfo, writeOptions))
         );
@@ -182,7 +182,7 @@ public class MeteredStorage {
 
         @Override
         public int write(ByteBuffer src) throws IOException {
-            return statsCollector.continueAndCollect(stats, () -> writeChannel.write(src));
+            return statsCollector.continueWithStats(stats, () -> writeChannel.write(src));
         }
 
         @Override
@@ -218,7 +218,7 @@ public class MeteredStorage {
 
         @Override
         public void seek(long position) throws IOException {
-            statsCollector.continueAndCollect(stats, () -> readChannel.seek(position));
+            statsCollector.continueWithStats(stats, () -> readChannel.seek(position));
         }
 
         @Override
@@ -244,7 +244,7 @@ public class MeteredStorage {
 
         @Override
         public int read(ByteBuffer dst) throws IOException {
-            return statsCollector.continueAndCollect(stats, () -> readChannel.read(dst));
+            return statsCollector.continueWithStats(stats, () -> readChannel.read(dst));
         }
 
         @Override

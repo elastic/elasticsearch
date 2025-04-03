@@ -371,9 +371,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 trackRequest(StorageOperation.GET.key());
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
                 trackRequest(StorageOperation.LIST.key());
-            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*uploadType=resumable*", request) && isLastPart(requestHeaders)) {
-                // Resumable uploads are billed as a single operation, that's the reason we're tracking
-                // the request only when it's the last part.
+            } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=resumable*", request)) {
+                // Resumable uploads are billed as a single operation, that's the reason we're tracking the request only first part
                 // See https://cloud.google.com/storage/docs/resumable-uploads#introduction
                 trackRequest(StorageOperation.INSERT.key());
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {

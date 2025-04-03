@@ -122,19 +122,8 @@ public record RepositoriesMetrics(
     /**
      * Create the map of attributes we expect to see on repository metrics
      */
-    public static Map<String, Object> createAttributesMap(
-        RepositoryMetadata repositoryMetadata,
-        OperationPurpose purpose,
-        String operation
-    ) {
-        return createAttributesMap(repositoryMetadata.type(), repositoryMetadata.name(), purpose, operation);
-    }
-
-    /**
-     * Create the map of attributes we expect to see on repository metrics
-     */
-    public static Map<String, Object> createAttributesMap(String repoType, String repoName, OperationPurpose purpose, String operation) {
-        return Map.of("repo_type", repoType, "repo_name", repoName, "operation", operation, "purpose", purpose.getKey());
+    public static Map<String, Object> createAttributesMap(RepositoryMetadata meta, OperationPurpose purpose, String operation) {
+        return Map.of("repo_type", meta.type(), "repo_name", meta.name(), "operation", operation, "purpose", purpose.getKey());
     }
 
 }

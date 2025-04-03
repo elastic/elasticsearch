@@ -57,4 +57,27 @@ public class OperationStats {
         this.startTimeMs = 0;
     }
 
+    @Override
+    public String toString() {
+        return "OperationStats{"
+            + "purpose="
+            + purpose
+            + ", operation="
+            + operation
+            + ", startTimeMs="
+            + startTimeMs
+            + ", isSuccess="
+            + isSuccess
+            + ", reqAtt="
+            + reqAtt
+            + ", reqErr="
+            + reqErr
+            + ", reqBillableErr="
+            + reqBillableErr
+            + ", reqErrThrottle="
+            + reqErrThrottle
+            + ", reqErrRange="
+            + reqErrRange
+            + '}';
+    }
 }

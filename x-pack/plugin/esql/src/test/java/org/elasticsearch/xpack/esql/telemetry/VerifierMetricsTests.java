@@ -441,6 +441,31 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, rename(c));
     }
 
+    public void testCategorize() {
+        Counters c = esql("""
+            from employees
+            | keep emp_no, languages, gender
+            | where languages is null or emp_no <= 10030
+            | STATS COUNT() BY CATEGORIZE(gender)""");
+        assertEquals(0, dissect(c));
+        assertEquals(0, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(1L, stats(c));
+        assertEquals(1L, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(1L, from(c));
+        assertEquals(0, drop(c));
+        assertEquals(1L, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(1, function("count", c));
+        assertEquals(1, function("categorize", c));
+    }
+
     private long dissect(Counters c) {
         return c.get(FPREFIX + DISSECT);
     }

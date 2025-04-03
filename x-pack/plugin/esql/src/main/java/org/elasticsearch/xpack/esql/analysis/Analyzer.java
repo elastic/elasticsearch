@@ -98,7 +98,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
-import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -153,19 +152,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public static final List<Attribute> NO_FIELDS = List.of(
         new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
     );
-    private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
-    static {
-        var init = new Batch<>(
-            "Initialize",
-            Limiter.ONCE,
-            new ResolveTable(),
-            new ResolveEnrich(),
-            new ResolveLookupTables(),
-            new ResolveFunctions(),
-            new ResolveForkFunctions()
-        );
-        var resolution = new Batch<>(
+    private static final List<Batch<LogicalPlan>> RULES = List.of(
+        new Batch<>("Initialize", Limiter.ONCE, new ResolveTable(), new ResolveEnrich(), new ResolveLookupTables(), new ResolveFunctions()),
+        new Batch<>(
             "Resolution",
             /*
              * ImplicitCasting must be before ResolveRefs. Because a reference is created for a Bucket in Aggregate's aggregates,
@@ -173,19 +163,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
              * attempts to resolve this reference.
              */
             new ImplicitCasting(),
-            new ImplicitForkCasting(),
             new ResolveRefs(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
-        );
-        var finish = new Batch<>(
-            "Finish Analysis",
-            Limiter.ONCE,
-            new AddImplicitLimit(),
-            new AddImplicitForkLimit(),
-            new UnionTypesCleanup()
-        );
-        rules = List.of(init, resolution, finish);
-    }
+        ),
+        new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
+    );
 
     private final Verifier verifier;
 
@@ -208,8 +190,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     @Override
-    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
-        return rules;
+    protected List<Batch<LogicalPlan>> batches() {
+        return RULES;
     }
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
@@ -501,10 +483,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveInsist(i, childrenOutput, context.indexResolution());
             }
 
-            if (plan instanceof Fork f) {
-                return resolveFork(f, context);
-            }
-
             if (plan instanceof Dedup dedup) {
                 return resolveDedup(dedup, childrenOutput);
             }
@@ -690,16 +668,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
             }
             return join;
-        }
-
-        private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {
-            List<LogicalPlan> subPlans = fork.subPlans();
-
-            List<LogicalPlan> newSubPlans = new ArrayList<>();
-            for (var logicalPlan : subPlans) {
-                newSubPlans.add(logicalPlan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : rule(p, context)));
-            }
-            return new Fork(fork.source(), fork.child(), newSubPlans);
         }
 
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
@@ -1163,23 +1131,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveForkFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
-        private final ResolveFunctions resolveFunctions = new ResolveFunctions();
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformUp(Fork.class, fork -> resolveFunctionsInForkSubQueries(fork, context));
-        }
-
-        private LogicalPlan resolveFunctionsInForkSubQueries(Fork fork, AnalyzerContext ctx) {
-            List<LogicalPlan> newSubPlans = new ArrayList<>();
-            for (var subPlan : fork.subPlans()) {
-                newSubPlans.add(resolveFunctions.apply(subPlan, ctx));
-            }
-            return fork.replaceSubPlans(newSubPlans);
-        }
-    }
-
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
@@ -1209,7 +1160,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan addImplicitLimitToForkSubQueries(Fork fork, AnalyzerContext ctx) {
             List<LogicalPlan> newSubPlans = new ArrayList<>();
-            for (var subPlan : fork.subPlans()) {
+            for (var subPlan : fork.children()) {
                 newSubPlans.add(addImplicitLimit.apply(subPlan, ctx));
             }
             return fork.replaceSubPlans(newSubPlans);
@@ -1464,23 +1415,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             } catch (Exception e) {
                 return unresolvedAttribute(from, target.toString(), e);
             }
-        }
-    }
-
-    private static class ImplicitForkCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-        private final ImplicitCasting implicitCasting = new ImplicitCasting();
-
-        @Override
-        public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
-            return logicalPlan.transformUp(Fork.class, fork -> implicitCastForkSubQueries(fork, context));
-        }
-
-        private LogicalPlan implicitCastForkSubQueries(Fork fork, AnalyzerContext ctx) {
-            List<LogicalPlan> newSubPlans = new ArrayList<>();
-            for (var subPlan : fork.subPlans()) {
-                newSubPlans.add(implicitCasting.apply(subPlan, ctx));
-            }
-            return fork.replaceSubPlans(newSubPlans);
         }
     }
 

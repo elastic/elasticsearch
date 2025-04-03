@@ -311,6 +311,7 @@ public final class OutboundHandler {
             variableHeaderLength = -1;
         }
         BytesReference message = serializeMessageBody(
+            messageDirection,
             writeable,
             compressionScheme,
             version,
@@ -338,6 +339,7 @@ public final class OutboundHandler {
     }
 
     private static BytesReference serializeMessageBody(
+        MessageDirection messageDirection,
         Writeable writeable,
         Compression.Scheme compressionScheme,
         TransportVersion version,
@@ -353,7 +355,7 @@ public final class OutboundHandler {
             stream.setTransportVersion(version);
             if (variableHeaderLength == -1) {
                 threadContext.writeTo(stream);
-                if (requestAction != null) {
+                if (messageDirection == MessageDirection.REQUEST) {
                     stream.writeStringArray(Strings.EMPTY_ARRAY);
                     stream.writeString(requestAction);
                 }

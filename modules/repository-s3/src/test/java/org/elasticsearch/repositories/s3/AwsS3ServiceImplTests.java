@@ -41,10 +41,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         S3Service.CustomWebIdentityTokenCredentialsProvider.class
     );
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
-    public void testAWSCredentialsDefaultToInstanceProviders() {
-        final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
-        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName);
+    /**
+     * {@code webIdentityTokenCredentialsProvider} is not set up, so {@link S3Service#buildCredentials} should not use it and should instead
+     * fall through to a {@link DefaultCredentialsProvider}.
+     */
+    public void testAwsCredentialsFallsThroughToDefaultCredentialsProvider() {
+        final String nonExistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, nonExistentClientName);
         final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(
             logger,
             clientSettings,
@@ -74,8 +77,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertEquals("sts_secret_key", credentials.secretAccessKey());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
-    public void testAWSCredentialsFromKeystore() {
+    // TODO NOMERGE: passes, but does it make sense anymore?
+    public void testAwsCredentialsFromKeystore() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final String clientNamePrefix = "some_client_name_";
         final int clientsCount = randomIntBetween(0, 4);
@@ -112,7 +115,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(DefaultCredentialsProvider.class));
     }
 
-    public void testSetDefaultCredential() {
+    public void testBasicAccessKeyAndSecretKeyCredentials() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final String awsAccessKey = randomAlphaOfLength(8);
         final String awsSecretKey = randomAlphaOfLength(8);

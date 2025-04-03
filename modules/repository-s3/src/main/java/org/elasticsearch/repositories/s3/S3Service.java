@@ -13,8 +13,7 @@ import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
-import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
@@ -369,25 +368,22 @@ class S3Service extends AbstractLifecycleComponent {
             if (webIdentityTokenCredentialsProvider.isActive()) {
                 logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials"); // TODO: fix comment?
                 return new PrivilegedAwsCredentialsProvider(
+                    // Wrap the credential providers in ErrorLoggingCredentialsProvider so that we get log info if/when the STS
+                    // (in CustomWebIdentityTokenCredentialsProvider) is unavailable to the ES server, before falling back to a standard
+                    // credential provider.
                     AwsCredentialsProviderChain.builder()
+                        // If credentials are refreshed, we want to look around for different forms of credentials again.
                         .reuseLastProviderEnabled(false)
                         .addCredentialsProvider(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER))
-                        // TODO NOMERGE: revisit whether this conversion makes sense
-                        // Consider using DefaultCredentialsProvider rather than these two particular providers.
-                        // .addCredentialsProvider(new ErrorLoggingCredentialsProvider(DefaultCredentialsProvider.create(), LOGGER))
-                        .addCredentialsProvider(new ErrorLoggingCredentialsProvider(ContainerCredentialsProvider.create(), LOGGER))
-                        .addCredentialsProvider(new ErrorLoggingCredentialsProvider(InstanceProfileCredentialsProvider.create(), LOGGER))
+                        // TODO NOMERGE: the V1 equivalent would use ContainerCredentialsProvider & InstanceProfileCredentialsProvider.
+                        // However, is there any reason to restrict credential sources to those providers? DefaultCredentialsProvider
+                        // provides those sources and several more.
+                        .addCredentialsProvider(new ErrorLoggingCredentialsProvider(DefaultCredentialsProvider.create(), LOGGER))
                         .build()
                 );
             } else {
-                logger.debug("Using instance profile credentials"); // TODO NOMERGE: fix comment
-                return new PrivilegedAwsCredentialsProvider(
-                    AwsCredentialsProviderChain.builder()
-                        .reuseLastProviderEnabled(false)
-                        .addCredentialsProvider(ContainerCredentialsProvider.create())
-                        .addCredentialsProvider(InstanceProfileCredentialsProvider.create())
-                        .build()
-                );
+                logger.debug("Using DefaultCredentialsProvider for credentials");
+                return new PrivilegedAwsCredentialsProvider(DefaultCredentialsProvider.create());
             }
         } else {
             logger.debug("Using basic key/secret credentials");

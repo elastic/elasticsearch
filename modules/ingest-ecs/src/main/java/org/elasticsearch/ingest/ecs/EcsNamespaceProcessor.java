@@ -268,7 +268,7 @@ public class EcsNamespaceProcessor extends AbstractProcessor {
             String description,
             Map<String, Object> config,
             ProjectId projectId
-        ) throws Exception {
+        ) {
             return new EcsNamespaceProcessor(tag, description);
         }
     }

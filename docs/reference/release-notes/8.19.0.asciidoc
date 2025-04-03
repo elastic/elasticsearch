@@ -6,3 +6,16 @@ coming[8.19.0]
 Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
 
 
+[[breaking-changes-8.19]]
+[float]
+=== Breaking changes
+
+ES|QL::
+* In earlier versions of {es}, ES|QL would fail the entire query if it encountered any error.
+  ES|QL now returns partial results instead of failing when encountering errors.
+  Callers should check the `is_partial` flag returned in the response to determine
+  if the result is partial or complete. If returning partial results is not desired,
+  this option can be overridden per request via an `allow_partial_results` parameter
+   in the query URL or globally via the cluster setting `esql.query.allow_partial_results`.
+  {es-pull}125060[#125060] (issue: {es-issue}122802[#122802])
+

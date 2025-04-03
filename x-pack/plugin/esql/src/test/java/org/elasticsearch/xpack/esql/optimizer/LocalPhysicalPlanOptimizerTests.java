@@ -1680,8 +1680,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .maxExpansions(10)
             .minimumShouldMatch("3")
             .prefixLength(20)
-            .tieBreaker(1.0f)
-            .boost(0.0f); // TODO: why are we getting boost=0.0 in the actual above?
+            .tieBreaker(1.0f);
         assertThat(expectedQuery.toString(), is(planStr.get()));
     }
 

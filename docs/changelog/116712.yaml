@@ -2,8 +2,7 @@ pr: 116712
 summary: Remove apm_user role
 area: Security
 type: breaking
-issues:
-  - 116712
+issues: []
 breaking:
   title: Remove apm_user role
   area: Authorization

@@ -52,11 +52,16 @@ import static org.hamcrest.Matchers.nullValue;
  * For each pair of types being tested, it builds a main index called "index" containing a single document with as many fields as
  * types being tested on the left of the pair, and then creates that many other lookup indexes, each with a single document containing
  * exactly two fields: the field to join on, and a field to return.
+ * The assertion is that for valid combinations, the return result should exist, and for invalid combinations an exception should be thrown.
+ * If no exception is thrown, and no result is returned, our validation rules are not aligned with the internal behaviour (ie. a bug).
+ * Since the `LOOKUP JOIN` command requires the match field name to be the same between the main index and the lookup index,
+ * we will have field names that correctly represent the type of the field in the main index, but not the type of the field
+ * in the lookup index. This can be confusing, but it is important to remember that the field names are not the same as the types.
  * For example, if we are testing the pairs (double, double), (double, float), (float, double) and (float, float),
  * we will create the following indexes:
  * <dl>
- *     <dt>index_double_double: containing</dt>
- *     <dd>Index containing da single document with a field of type 'double' like: <pre>
+ *     <dt>index_double_double</dt>
+ *     <dd>Index containing a single document with a field of type 'double' like: <pre>
  *         {
  *             "field_double": 1.0,  // this is mapped as type 'double'
  *             "other": "value"
@@ -65,14 +70,14 @@ import static org.hamcrest.Matchers.nullValue;
  *     <dt>index_double_float</dt>
  *     <dd>Index containing a single document with a field of type 'float' like: <pre>
  *         {
- *             "field_double": 1.0,  // this is mapped as type 'float'
+ *             "field_double": 1.0,  // this is mapped as type 'float' (a float with the name of the main index field)
  *             "other": "value"
  *         }
  *     </pre></dd>
  *     <dt>index_float_double</dt>
  *     <dd>Index containing a single document with a field of type 'double' like: <pre>
  *         {
- *             "field_float": 1.0,  // this is mapped as type 'double'
+ *             "field_float": 1.0,  // this is mapped as type 'double' (a double with the name of the main index field)
  *             "other": "value"
  *         }
  *     </pre></dd>
@@ -86,8 +91,8 @@ import static org.hamcrest.Matchers.nullValue;
  *     <dt>index</dt>
  *     <dd>Index containing document like: <pre>
  *         {
- *             "field_double": 1.0,
- *             "field_float": 1.0
+ *             "field_double": 1.0,  // this is mapped as type 'double'
+ *             "field_float": 1.0    // this is mapped as type 'float'
  *         }
  *     </pre></dd>
  * </dl>

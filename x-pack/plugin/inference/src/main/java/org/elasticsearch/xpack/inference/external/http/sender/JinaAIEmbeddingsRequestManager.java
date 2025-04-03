@@ -15,9 +15,9 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.jinaai.JinaAIResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.jinaai.JinaAIEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIResponseHandler;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 
 import java.util.List;

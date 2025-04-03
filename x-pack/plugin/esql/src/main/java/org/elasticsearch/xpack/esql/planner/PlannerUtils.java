@@ -209,12 +209,12 @@ public class PlannerUtils {
                     var conjunctions = Predicates.splitAnd(f.condition());
                     // look only at expressions that contain literals and the target field
                     for (var exp : conjunctions) {
-                        var refs = new AttributeSet(exp.references());
+                        var refsBuilder = AttributeSet.builder().addAll(exp.references());
                         // remove literals or attributes that match by name
-                        boolean matchesField = refs.removeIf(e -> fieldName.test(e.name()));
+                        boolean matchesField = refsBuilder.removeIf(e -> fieldName.test(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refs.isEmpty() && canPushToSource(exp)) {
+                        if (matchesField && refsBuilder.isEmpty() && canPushToSource(exp)) {
                             matches.add(exp);
                         }
                     }
@@ -258,7 +258,7 @@ public class PlannerUtils {
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
-            case KEYWORD, TEXT, IP, SOURCE, VERSION, SEMANTIC_TEXT, UNSUPPORTED -> ElementType.BYTES_REF;
+            case KEYWORD, TEXT, IP, SOURCE, VERSION, UNSUPPORTED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;
             case BOOLEAN -> ElementType.BOOLEAN;
             case DOC_DATA_TYPE -> ElementType.DOC;

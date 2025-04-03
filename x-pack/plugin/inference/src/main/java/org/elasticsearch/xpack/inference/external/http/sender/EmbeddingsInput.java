@@ -14,6 +14,7 @@ import org.elasticsearch.inference.InputType;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class EmbeddingsInput extends InferenceInputs {
@@ -26,12 +27,17 @@ public class EmbeddingsInput extends InferenceInputs {
         return (EmbeddingsInput) inferenceInputs;
     }
 
-    private final List<ChunkInferenceInput> input;
-
+    private final Supplier<List<ChunkInferenceInput>> listSupplier;
     private final InputType inputType;
 
     public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType) {
         this(input, inputType, false);
+    }
+
+    public EmbeddingsInput(Supplier<List<ChunkInferenceInput>> inputSupplier, @Nullable InputType inputType) {
+        super(false);
+        this.listSupplier = Objects.requireNonNull(inputSupplier);
+        this.inputType = inputType;
     }
 
     public EmbeddingsInput(List<String> input, @Nullable ChunkingSettings chunkingSettings, @Nullable InputType inputType) {
@@ -40,27 +46,31 @@ public class EmbeddingsInput extends InferenceInputs {
 
     public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType, boolean stream) {
         super(stream);
-        this.input = Objects.requireNonNull(input);
+        Objects.requireNonNull(input);
+        this.listSupplier = () -> input;
         this.inputType = inputType;
+    }
+
+    public List<ChunkInferenceInput> getInputs() {
+        return this.listSupplier.get();
     }
 
     public static EmbeddingsInput fromStrings(List<String> input, @Nullable InputType inputType) {
         return new EmbeddingsInput(input, null, inputType);
     }
 
-    public List<ChunkInferenceInput> getInputs() {
-        return this.input;
-    }
-
     public List<String> getStringInputs() {
-        return this.input.stream().map(ChunkInferenceInput::input).collect(Collectors.toList());
+        return getInputs().stream().map(ChunkInferenceInput::input).collect(Collectors.toList());
     }
 
     public InputType getInputType() {
         return this.inputType;
     }
 
-    public int inputSize() {
-        return input.size();
+    @Override
+    public boolean isSingleInput() {
+        // We can't measure the size of the input list without executing
+        // the supplier.
+        return false;
     }
 }

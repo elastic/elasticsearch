@@ -27,6 +27,7 @@ public class SourceMatcherTests extends ESTestCase {
         );
 
         var sut = new SourceMatcher(
+            Map.of(),
             XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject(),
             Settings.builder(),
             XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject(),
@@ -49,6 +50,7 @@ public class SourceMatcherTests extends ESTestCase {
         );
 
         var sut = new SourceMatcher(
+            Map.of(),
             XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject(),
             Settings.builder(),
             XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject(),
@@ -77,7 +79,7 @@ public class SourceMatcherTests extends ESTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), values, values, false);
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), values, values, false);
         assertTrue(sut.match().isMatch());
     }
 
@@ -102,7 +104,7 @@ public class SourceMatcherTests extends ESTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
         assertFalse(sut.match().isMatch());
     }
 
@@ -119,7 +121,7 @@ public class SourceMatcherTests extends ESTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
         assertTrue(sut.match().isMatch());
     }
 
@@ -136,7 +138,7 @@ public class SourceMatcherTests extends ESTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
         assertFalse(sut.match().isMatch());
     }
 }

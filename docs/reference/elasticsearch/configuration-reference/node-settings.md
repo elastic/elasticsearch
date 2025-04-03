@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Node settings [modules-node]

@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -20,7 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class RrfScoreEval extends UnaryPlan implements PostAnalysisVerificationAware {
+public class RrfScoreEval extends UnaryPlan implements PostAnalysisVerificationAware, LicenseAware {
     private final Attribute forkAttr;
     private final Attribute scoreAttr;
 
@@ -92,5 +95,10 @@ public class RrfScoreEval extends UnaryPlan implements PostAnalysisVerificationA
 
         RrfScoreEval rrf = (RrfScoreEval) obj;
         return child().equals(rrf.child()) && scoreAttr.equals(rrf.scoreAttribute()) && forkAttr.equals(forkAttribute());
+    }
+
+    @Override
+    public boolean licenseCheck(XPackLicenseState state) {
+        return state.isAllowedByLicense(License.OperationMode.ENTERPRISE);
     }
 }

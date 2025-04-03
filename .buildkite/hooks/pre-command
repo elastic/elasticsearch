@@ -94,6 +94,14 @@ if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
   fi
 fi
 
+# Authenticate to the Docker Hub public read-only registry
+if which docker > /dev/null 2>&1; then
+  DOCKERHUB_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+  DOCKERHUB_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+
+  echo "$DOCKERHUB_REGISTRY_PASSWORD" | docker login --username "$DOCKERHUB_REGISTRY_USERNAME" --password-stdin docker.io
+fi
+
 if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
   # Run in the background, while the job continues
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &

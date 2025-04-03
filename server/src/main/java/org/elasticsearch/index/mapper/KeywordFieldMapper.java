@@ -770,7 +770,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
             var nullValueBytes = nullValue != null ? new BytesRef(nullValue) : null;
-            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<BytesRef>(nullValueBytes) {
+            return new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(nullValueBytes) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
                     String stringValue = ((BytesRef) value).utf8ToString();
@@ -1279,7 +1279,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
         assert fieldType.stored() || hasDocValues;
 
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
         if (fieldType.stored()) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {
                 @Override

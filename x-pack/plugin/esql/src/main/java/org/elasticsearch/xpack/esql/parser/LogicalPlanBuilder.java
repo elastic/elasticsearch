@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
@@ -267,9 +268,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
-    @Override
-    public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
-        Source source = source(ctx);
+    private UnresolvedRelation visitRelation(Source source, IndexMode indexMode, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
         IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
@@ -285,15 +284,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        return new UnresolvedRelation(
-            source,
-            table,
-            false,
-            List.of(metadataMap.values().toArray(Attribute[]::new)),
-            IndexMode.STANDARD,
-            null,
-            "FROM"
-        );
+        List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
+        final String commandName = indexMode == IndexMode.TIME_SERIES ? "TS" : "FROM";
+        return new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
+    }
+
+    @Override
+    public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
+        return visitRelation(source(ctx), IndexMode.STANDARD, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -516,26 +514,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public LogicalPlan visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx) {
+    public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
         if (Build.current().isSnapshot() == false) {
-            throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
+            throw new IllegalArgumentException("TS command currently requires a snapshot build");
         }
-        Source source = source(ctx);
-        IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
-
-        if (ctx.aggregates == null && ctx.grouping == null) {
-            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null, "METRICS");
-        }
-        final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
-        var relation = new UnresolvedRelation(
-            source,
-            table,
-            false,
-            List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
-            IndexMode.TIME_SERIES,
-            null
-        );
-        return new Aggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
+        return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -583,6 +566,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(
                 source(target),
                 "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
+                rightPattern
+            );
+        }
+        if (rightPattern.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
+            throw new ParsingException(
+                source(target),
+                "invalid index pattern [{}], index pattern selectors are not supported in LOOKUP JOIN",
                 rightPattern
             );
         }

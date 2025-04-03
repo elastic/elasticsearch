@@ -9,51 +9,28 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.util.EC2MetadataUtils;
-
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
-import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.InetAddress;
-import java.net.URL;
-import java.net.URLConnection;
-import java.nio.charset.StandardCharsets;
-
-import static org.elasticsearch.discovery.ec2.AwsEc2Utils.X_AWS_EC_2_METADATA_TOKEN;
 
 /**
- * Resolves certain ec2 related 'meta' hostnames into an actual hostname
- * obtained from ec2 meta-data.
+ * Resolves certain EC2 related 'meta' hostnames into an actual hostname
+ * obtained from the EC2 instance metadata service
  * <p>
  * Valid config values for {@link Ec2HostnameType}s are -
  * <ul>
- * <li>_ec2_ - maps to privateIpv4</li>
- * <li>_ec2:privateIp_ - maps to privateIpv4</li>
- * <li>_ec2:privateIpv4_</li>
- * <li>_ec2:privateDns_</li>
- * <li>_ec2:publicIp_ - maps to publicIpv4</li>
- * <li>_ec2:publicIpv4_</li>
- * <li>_ec2:publicDns_</li>
+ * <li>{@code _ec2_} (maps to privateIpv4)</li>
+ * <li>{@code _ec2:privateIp_} (maps to privateIpv4)</li>
+ * <li>{@code _ec2:privateIpv4_}</li>
+ * <li>{@code _ec2:privateDns_}</li>
+ * <li>{@code _ec2:publicIp_} (maps to publicIpv4)</li>
+ * <li>{@code _ec2:publicIpv4_}</li>
+ * <li>{@code _ec2:publicDns_}</li>
  * </ul>
- *
- * @author Paul_Loy (keteracel)
  */
 class Ec2NameResolver implements CustomNameResolver {
 
-    private static final Logger logger = LogManager.getLogger(Ec2NameResolver.class);
-
-    /**
-     * enum that can be added to over time with more meta-data types (such as ipv6 when this is available)
-     *
-     * @author Paul_Loy
-     */
     private enum Ec2HostnameType {
 
         PRIVATE_IPv4("ec2:privateIpv4", "local-ipv4"),
@@ -75,51 +52,24 @@ class Ec2NameResolver implements CustomNameResolver {
         }
     }
 
-    /**
-     * @param type the ec2 hostname type to discover.
-     * @return the appropriate host resolved from ec2 meta-data, or null if it cannot be obtained.
-     * @see CustomNameResolver#resolveIfPossible(String)
-     */
-    @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
-    public static InetAddress[] resolve(Ec2HostnameType type) throws IOException {
-        InputStream in = null;
-        String metadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/meta-data/" + type.ec2Name;
-        String metadataTokenUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/api/token";
-        try {
-            URL url = new URL(metadataUrl);
-            logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
-            URLConnection urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
-            urlConnection.setConnectTimeout(2000);
-            AwsEc2Utils.getMetadataToken(metadataTokenUrl)
-                .ifPresent(token -> urlConnection.setRequestProperty(X_AWS_EC_2_METADATA_TOKEN, token));
-
-            in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
-            BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-
-            String metadataResult = urlReader.readLine();
-            if (metadataResult == null || metadataResult.length() == 0) {
-                throw new IOException("no gce metadata returned from [" + url + "] for [" + type.configName + "]");
-            }
-            // only one address: because we explicitly ask for only one via the Ec2HostnameType
-            return new InetAddress[] { InetAddress.getByName(metadataResult) };
-        } catch (IOException e) {
-            throw new IOException("IOException caught when fetching InetAddress from [" + metadataUrl + "]", e);
-        } finally {
-            IOUtils.closeWhileHandlingException(in);
-        }
-    }
-
     @Override
     public InetAddress[] resolveDefault() {
         return null; // using this, one has to explicitly specify _ec2_ in network setting
-        // return resolve(Ec2HostnameType.DEFAULT, false);
     }
+
+    private static final String IMDS_ADDRESS_PATH_PREFIX = "/latest/meta-data/";
 
     @Override
     public InetAddress[] resolveIfPossible(String value) throws IOException {
         for (Ec2HostnameType type : Ec2HostnameType.values()) {
             if (type.configName.equals(value)) {
-                return resolve(type);
+                final var metadataPath = IMDS_ADDRESS_PATH_PREFIX + type.ec2Name;
+                try {
+                    // only one address: IMDS returns just one address/name, and if it's a name then it should resolve to one address
+                    return new InetAddress[] { InetAddress.getByName(AwsEc2Utils.getInstanceMetadata(metadataPath)) };
+                } catch (Exception e) {
+                    throw new IOException("Exception caught when resolving EC2 address from [" + metadataPath + "]", e);
+                }
             }
         }
         return null;

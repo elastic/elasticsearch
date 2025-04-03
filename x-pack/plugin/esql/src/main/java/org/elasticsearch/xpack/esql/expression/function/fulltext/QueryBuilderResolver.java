@@ -12,8 +12,10 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -22,6 +24,8 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
@@ -34,11 +38,7 @@ public final class QueryBuilderResolver {
     private QueryBuilderResolver() {}
 
     public static void resolveQueryBuilders(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
-        var hasFullTextFunctions = plan.anyMatch(p -> {
-            Holder<Boolean> hasFullTextFunction = new Holder<>(false);
-            p.forEachExpression(FullTextFunction.class, unused -> hasFullTextFunction.set(true));
-            return hasFullTextFunction.get();
-        });
+        var hasFullTextFunctions = hasFullTextFunctions(plan);
         if (hasFullTextFunctions) {
             Rewriteable.rewriteAndFetch(
                 new FullTextFunctionsRewritable(plan),
@@ -69,14 +69,31 @@ public final class QueryBuilderResolver {
         return indexNames;
     }
 
+    private static boolean hasFullTextFunctions(LogicalPlan plan) {
+        return plan.anyMatch(p -> {
+            Holder<Boolean> hasFullTextFunction = new Holder<>(false);
+            p.forEachExpression(FullTextFunction.class, unused -> hasFullTextFunction.set(true));
+
+            if (p instanceof Fork fork) {
+                fork.subPlans().forEach(subPlan -> {
+                    if (hasFullTextFunctions(subPlan)) {
+                        hasFullTextFunction.set(true);
+                    }
+                });
+            }
+
+            return hasFullTextFunction.get();
+        });
+    }
+
     private record FullTextFunctionsRewritable(LogicalPlan plan) implements Rewriteable<QueryBuilderResolver.FullTextFunctionsRewritable> {
         @Override
         public FullTextFunctionsRewritable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
-            LogicalPlan newPlan = plan.transformExpressionsDown(FullTextFunction.class, f -> {
+            LogicalPlan newPlan = transformPlan(plan, f -> {
                 QueryBuilder builder = f.queryBuilder(), initial = builder;
-                builder = builder == null ? f.asQuery(TranslatorHandler.TRANSLATOR_HANDLER).asBuilder() : builder;
+                builder = builder == null ? f.asQuery(TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder() : builder;
                 try {
                     builder = builder.rewrite(ctx);
                 } catch (IOException e) {
@@ -90,6 +107,16 @@ public final class QueryBuilderResolver {
                 throw exceptionHolder.get();
             }
             return updated.get() ? new FullTextFunctionsRewritable(newPlan) : this;
+        }
+
+        private LogicalPlan transformPlan(LogicalPlan plan, Function<FullTextFunction, ? extends Expression> rule) {
+            return plan.transformExpressionsDown(FullTextFunction.class, rule).transformDown(Fork.class, fork -> {
+                var subPlans = fork.subPlans()
+                    .stream()
+                    .map(subPlan -> subPlan.transformExpressionsDown(FullTextFunction.class, rule))
+                    .collect(Collectors.toList());
+                return new Fork(fork.source(), fork.child(), subPlans);
+            });
         }
     }
 }

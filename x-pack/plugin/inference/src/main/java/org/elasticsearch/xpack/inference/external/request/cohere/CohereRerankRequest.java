@@ -11,9 +11,10 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 
@@ -28,16 +29,26 @@ public class CohereRerankRequest extends CohereRequest {
     private final CohereAccount account;
     private final String query;
     private final List<String> input;
+    private final Boolean returnDocuments;
+    private final Integer topN;
     private final CohereRerankTaskSettings taskSettings;
     private final String model;
     private final String inferenceEntityId;
 
-    public CohereRerankRequest(String query, List<String> input, CohereRerankModel model) {
+    public CohereRerankRequest(
+        String query,
+        List<String> input,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
+        CohereRerankModel model
+    ) {
         Objects.requireNonNull(model);
 
         this.account = CohereAccount.of(model, CohereRerankRequest::buildDefaultUri);
         this.input = Objects.requireNonNull(input);
         this.query = Objects.requireNonNull(query);
+        this.returnDocuments = returnDocuments;
+        this.topN = topN;
         taskSettings = model.getTaskSettings();
         this.model = model.getServiceSettings().modelId();
         inferenceEntityId = model.getInferenceEntityId();
@@ -48,7 +59,8 @@ public class CohereRerankRequest extends CohereRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new CohereRerankRequestEntity(query, input, taskSettings, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new CohereRerankRequestEntity(query, input, returnDocuments, topN, taskSettings, model))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

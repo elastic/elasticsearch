@@ -153,9 +153,11 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             TaskType.RERANK,
             inferenceId,
             inferenceText,
+            null,
+            null,
             docFeatures,
             Map.of(),
-            InputType.SEARCH,
+            InputType.INTERNAL_SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             false
         );

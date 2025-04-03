@@ -415,7 +415,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testUpdateLifecycle() {
         String dataStream = randomAlphaOfLength(5);
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build();
         final var projectId = randomProjectIdOrDefault();
         ProjectMetadata before = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
@@ -432,7 +432,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             ProjectMetadata after = service.updateDataLifecycle(before, List.of(dataStream), null);
             DataStream updatedDataStream = after.dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
-            assertThat(updatedDataStream.getLifecycle(), nullValue());
+            assertThat(updatedDataStream.getDataLifecycle(), nullValue());
             before = after;
         }
 
@@ -441,7 +441,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             ProjectMetadata after = service.updateDataLifecycle(before, List.of(dataStream), lifecycle);
             DataStream updatedDataStream = after.dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
-            assertThat(updatedDataStream.getLifecycle(), equalTo(lifecycle));
+            assertThat(updatedDataStream.getDataLifecycle(), equalTo(lifecycle));
         }
     }
 

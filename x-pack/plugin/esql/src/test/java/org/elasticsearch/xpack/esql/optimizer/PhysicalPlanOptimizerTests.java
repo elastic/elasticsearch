@@ -174,6 +174,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -866,7 +867,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(existsQuery("emp_no")));
+        assertThat(query.query(), is(unscore(existsQuery("emp_no"))));
     }
 
     /**
@@ -901,7 +902,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(existsQuery("emp_no")));
+        assertThat(query.query(), is(unscore(existsQuery("emp_no"))));
     }
 
     public void testQueryForStatWithMultiAgg() {
@@ -922,7 +923,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no, salary*/));
-        assertThat(query.query(), is(boolQuery().should(existsQuery("emp_no")).should(existsQuery("salary"))));
+        assertThat(query.query(), is(boolQuery().should(unscore(existsQuery("emp_no"))).should(unscore(existsQuery("salary")))));
     }
 
     /**
@@ -1947,7 +1948,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                   "term" : {
                     "first_name" : {
                       "value" : "FOO",
-                      "case_insensitive" : true
+                      "case_insensitive" : true,
+                      "boost": 0.0
                     }
                   }
                 },
@@ -1991,7 +1993,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                   "term" : {
                     "first_name" : {
                       "value" : "foo",
-                      "case_insensitive" : true
+                      "case_insensitive" : true,
+                      "boost": 0.0
                     }
                   }
                 },
@@ -2015,12 +2018,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "term" : {
                           "first_name" : {
                             "value" : "FOO",
-                            "case_insensitive" : true
+                            "case_insensitive" : true,
+                            "boost": 0.0
                           }
                         }
                       }
                     ],
-                    "boost" : 1.0
+                    "boost": 0.0
                   }
                 },
                 "source" : "to_upper(first_name) != \\"FOO\\"@2:9"
@@ -2043,12 +2047,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "term" : {
                           "first_name" : {
                             "value" : "foo",
-                            "case_insensitive" : true
+                            "case_insensitive" : true,
+                            "boost": 0.0
                           }
                         }
                       }
                     ],
-                    "boost" : 1.0
+                    "boost" : 0.0
                   }
                 },
                 "source" : "to_lower(first_name) != \\"foo\\"@2:9"
@@ -2074,12 +2079,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                               "term" : {
                                 "first_name" : {
                                   "value" : "foo",
-                                  "case_insensitive" : true
+                                  "case_insensitive" : true,
+                                  "boost": 0.0
                                 }
                               }
                             }
                           ],
-                          "boost" : 1.0
+                          "boost": 0.0
                         }
                       },
                       "source" : "to_lower(first_name) != \\"foo\\"@2:9"
@@ -2092,7 +2098,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "term" : {
                           "first_name" : {
                             "value" : "FOO",
-                            "case_insensitive" : true
+                            "case_insensitive" : true,
+                            "boost": 0.0
                           }
                         }
                       },
@@ -2106,7 +2113,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "range" : {
                           "emp_no" : {
                             "gt" : 10,
-                            "boost" : 1.0
+                            "boost" : 0.0
                           }
                         }
                       },
@@ -2144,7 +2151,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                   "term" : {
                     "first_name" : {
                       "value" : "foo",
-                      "case_insensitive" : true
+                      "case_insensitive" : true,
+                      "boost" : 0.0
                     }
                   }
                 },

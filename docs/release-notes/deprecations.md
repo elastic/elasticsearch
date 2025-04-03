@@ -1,11 +1,12 @@
 ---
-navigation_title: "Elasticsearch"
+navigation_title: "Deprecations"
 ---
 
 # {{es}} deprecations [elasticsearch-deprecations]
-Review the deprecated functionality for your {{es}} version. While deprecations have no immediate impact, we strongly encourage you update your implementation after you upgrade.
 
-To learn how to upgrade, check out <uprade docs>.
+Over time, certain Elastic functionality becomes outdated and is replaced or removed. To help with the transition, Elastic deprecates functionality for a period before removal, giving you time to update your applications.
+
+Review the deprecated functionality for Elasticsearch. While deprecations have no immediate impact, we strongly encourage you update your implementation after you upgrade. To learn how to upgrade, check out [Upgrade](docs-content://deploy-manage/upgrade.md).
 
 To give you insight into what deprecated features you’re using, {{es}}:
 
@@ -14,10 +15,8 @@ To give you insight into what deprecated features you’re using, {{es}}:
 * [Provides a deprecation info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-deprecations) that scans a cluster’s configuration and mappings for deprecated functionality.
 
 % ## Next version
-% **Release date:** Month day, year
 
 ## 9.0.0 [elasticsearch-900-deprecations]
-**Release date:** March 25, 2025
 
 Ingest Node
 :   * Fix `_type` deprecation on simulate pipeline API [#116259](https://github.com/elastic/elasticsearch/pull/116259)

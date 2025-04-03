@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -27,11 +28,19 @@ public class GoogleAiStudioEmbeddingsRequest implements GoogleAiStudioRequest {
 
     private final Truncator.TruncationResult truncationResult;
 
+    private final InputType inputType;
+
     private final GoogleAiStudioEmbeddingsModel model;
 
-    public GoogleAiStudioEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, GoogleAiStudioEmbeddingsModel model) {
+    public GoogleAiStudioEmbeddingsRequest(
+        Truncator truncator,
+        Truncator.TruncationResult input,
+        InputType inputType,
+        GoogleAiStudioEmbeddingsModel model
+    ) {
         this.truncator = Objects.requireNonNull(truncator);
         this.truncationResult = Objects.requireNonNull(input);
+        this.inputType = inputType;
         this.model = Objects.requireNonNull(model);
     }
 
@@ -43,6 +52,7 @@ public class GoogleAiStudioEmbeddingsRequest implements GoogleAiStudioRequest {
             Strings.toString(
                 new GoogleAiStudioEmbeddingsRequestEntity(
                     truncationResult.input(),
+                    inputType,
                     model.getServiceSettings().modelId(),
                     model.getServiceSettings().dimensions()
                 )
@@ -71,7 +81,7 @@ public class GoogleAiStudioEmbeddingsRequest implements GoogleAiStudioRequest {
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
-        return new GoogleAiStudioEmbeddingsRequest(truncator, truncatedInput, model);
+        return new GoogleAiStudioEmbeddingsRequest(truncator, truncatedInput, inputType, model);
     }
 
     @Override

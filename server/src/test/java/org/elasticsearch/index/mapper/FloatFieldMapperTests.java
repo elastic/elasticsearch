@@ -56,6 +56,12 @@ public class FloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new NumberSyntheticSourceSupportForKeepTests(Number::floatValue, ignoreMalformed, sourceKeepMode);
+
+    }
+
+    @Override
     protected Function<Object, Object> loadBlockExpected() {
         return v -> {
             // The test converts the float into a string so we do do

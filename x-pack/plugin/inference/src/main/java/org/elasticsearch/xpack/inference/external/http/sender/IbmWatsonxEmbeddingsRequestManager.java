@@ -15,9 +15,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.ibmwatsonx.IbmWatsonxResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.ibmwatsonx.IbmWatsonxEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxResponseHandler;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 
 import java.util.List;

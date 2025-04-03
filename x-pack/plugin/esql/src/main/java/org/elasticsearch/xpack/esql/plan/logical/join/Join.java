@@ -140,7 +140,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
             // right side becomes nullable and overrides left except for join keys, which we preserve from the left
-            AttributeSet rightKeys = new AttributeSet(config.rightFields());
+            AttributeSet rightKeys = AttributeSet.of(config.rightFields());
             List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
             output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
         } else {

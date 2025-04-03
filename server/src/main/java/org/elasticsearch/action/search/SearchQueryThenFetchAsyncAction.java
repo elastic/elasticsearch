@@ -559,7 +559,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         final int searchPoolMax = threadPool.info(ThreadPool.Names.SEARCH).getMax();
         transportService.registerRequestHandler(
             NODE_SEARCH_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             NodeQueryRequest::new,
             (request, channel, task) -> {
                 final CancellableTask cancellableTask = (CancellableTask) task;

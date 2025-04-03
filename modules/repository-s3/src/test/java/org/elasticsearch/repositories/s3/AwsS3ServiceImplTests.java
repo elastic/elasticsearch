@@ -77,8 +77,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertEquals("sts_secret_key", credentials.secretAccessKey());
     }
 
-    // TODO NOMERGE: passes, but does it make sense anymore?
     public void testAwsCredentialsFromKeystore() {
+        /** Create a random number of clients that use basic access key + secret key credentials */
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final String clientNamePrefix = "some_client_name_";
         final int clientsCount = randomIntBetween(0, 4);
@@ -103,7 +103,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             assertThat(credentialsProvider.resolveCredentials().accessKeyId(), is(clientName + "_aws_access_key"));
             assertThat(credentialsProvider.resolveCredentials().secretAccessKey(), is(clientName + "_aws_secret_key"));
         }
-        // test default exists and is an Instance provider
+
+        /** Test that the default client, without basic access + secret keys, will fall back to using the DefaultCredentialsProvider */
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
         final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(
             logger,

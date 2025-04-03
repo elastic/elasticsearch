@@ -38,7 +38,6 @@ dependencies {
   clusterModules project(':modules:analysis-common')
   clusterModules project(':modules:legacy-geo')
   clusterModules project(':modules:lang-painless')
-  clusterModules project(':test:external-modules:test-error-query')
 }
 
 tasks.named("thirdPartyAudit").configure {

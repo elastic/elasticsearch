@@ -52,7 +52,6 @@ public class VectorTileRestIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("vector-tile")
-        .module("test-error-query")
         .setting("xpack.license.self_generated.type", "trial")
         .build();
 

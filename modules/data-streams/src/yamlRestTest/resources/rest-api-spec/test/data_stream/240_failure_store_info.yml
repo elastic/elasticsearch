@@ -102,12 +102,9 @@ teardown:
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.0.template: 'my-template1' }
-  - is_true: data_streams.0.failure_store.enabled
-  - is_true: data_streams.0.failure_store.lifecycle.enabled
+  - match: { data_streams.0.failure_store.enabled: true }
+  - match: { data_streams.0.failure_store.lifecycle.enabled: true}
   - match: { data_streams.0.failure_store.indices: [] }
-
-  # save the backing index names for later use
-  - set: { data_streams.0.indices.0.index_name: idx0name }
 
   # Initialize failure store
   - do:
@@ -127,13 +124,13 @@ teardown:
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.0.template: 'my-template1' }
-  - is_true: data_streams.0.failure_store.enabled
-  - is_true: data_streams.0.failure_store.lifecycle.enabled
+  - match: { data_streams.0.failure_store.enabled: true }
+  - match: { data_streams.0.failure_store.lifecycle.enabled: true }
   - length: { data_streams.0.failure_store.indices: 1 }
   - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
 
 ---
-"Get failure store info from implicitly enabled failure store":
+"Get failure store info from cluster setting enabled failure store":
   - do:
       indices.create_data_stream:
         name: fs-default-data-stream
@@ -148,12 +145,9 @@ teardown:
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.0.template: 'my-template2' }
-  - is_true: data_streams.0.failure_store.enabled
-  - is_true: data_streams.0.failure_store.lifecycle.enabled
+  - match: { data_streams.0.failure_store.enabled: true }
+  - match: { data_streams.0.failure_store.lifecycle.enabled: true }
   - match: { data_streams.0.failure_store.indices: [] }
-
-  # save the backing index names for later use
-  - set: { data_streams.0.indices.0.index_name: idx0name }
 
   # Initialize failure store
   - do:
@@ -173,8 +167,8 @@ teardown:
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.0.template: 'my-template2' }
-  - is_true: data_streams.0.failure_store.enabled
-  - is_true: data_streams.0.failure_store.lifecycle.enabled
+  - match: { data_streams.0.failure_store.enabled: true }
+  - match: { data_streams.0.failure_store.lifecycle.enabled: true }
   - length: { data_streams.0.failure_store.indices: 1 }
   - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
 
@@ -194,32 +188,6 @@ teardown:
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-no-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.0.template: 'my-template3' }
-  - is_false: data_streams.0.failure_store.enabled
+  - match: { data_streams.0.failure_store.enabled: false }
   - is_false: data_streams.0.failure_store.lifecycle
   - match: { data_streams.0.failure_store.indices: [] }
-
-  # save the backing index names for later use
-  - set: { data_streams.0.indices.0.index_name: idx0name }
-
-  # Initialize failure store
-  - do:
-      index:
-        index: fs-default-data-stream
-        refresh: true
-        body:
-          '@timestamp': '2020-12-12'
-          count: 'invalid value'
-
-  - do:
-      indices.get_data_stream:
-        name: "fs-default-data-stream"
-  - match: { data_streams.0.name: fs-default-data-stream }
-  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
-  - match: { data_streams.0.generation: 2 }
-  - length: { data_streams.0.indices: 1 }
-  - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - match: { data_streams.0.template: 'my-template2' }
-  - is_true: data_streams.0.failure_store.enabled
-  - is_true: data_streams.0.failure_store.lifecycle.enabled
-  - length: { data_streams.0.failure_store.indices: 1 }
-  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }

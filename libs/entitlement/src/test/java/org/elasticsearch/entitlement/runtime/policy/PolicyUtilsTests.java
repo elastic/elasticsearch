@@ -353,7 +353,11 @@ public class PolicyUtilsTests extends ESTestCase {
             )
         );
         Set<String> actual = PolicyUtils.getEntitlementsDescriptions(policy);
-        assertThat(actual, containsInAnyOrder("files [READ_WRITE] " + pathAB, "files [READ] <DATA>/c/d", "files [READ] <DATA>/<setting>"));
+        var pathABString = pathAB.toAbsolutePath().toString();
+        assertThat(
+            actual,
+            containsInAnyOrder("files [READ_WRITE] " + pathABString, "files [READ] <DATA>/c/d", "files [READ] <DATA>/<setting>")
+        );
     }
 
     /** Test that we can format some simple files entitlement properly */

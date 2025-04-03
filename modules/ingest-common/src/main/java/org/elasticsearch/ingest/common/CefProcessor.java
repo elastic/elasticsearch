@@ -14,7 +14,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.common.CefParser.CEFEvent;
+import org.elasticsearch.ingest.common.CefParser.CefEvent;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
@@ -59,7 +59,7 @@ public final class CefProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
         ZoneId timezone = getTimezone(document);
-        try (CEFEvent event = new CefParser(timezone, removeEmptyValue).process(line)) {
+        try (CefEvent event = new CefParser(timezone, removeEmptyValue).process(line)) {
             event.getRootMappings().forEach(document::setFieldValue);
             event.getCefMappings().forEach((k, v) -> document.setFieldValue(targetField + "." + k, v));
         }

@@ -312,7 +312,7 @@ final class CefParser {
         TimestampType;
     }
 
-    CEFEvent process(String cefString) {
+    CefEvent process(String cefString) {
         List<String> headers = new ArrayList<>();
         Matcher matcher = HEADER_NEXT_FIELD_PATTERN.matcher(cefString);
         int extensionStart = 0;
@@ -325,7 +325,7 @@ final class CefParser {
         }
 
         if (headers.isEmpty() == false && headers.getFirst().startsWith("CEF:")) {
-            CEFEvent event = new CEFEvent();
+            CefEvent event = new CefEvent();
             // Add error message if there are not enough header fields
             if (headers.size() != 7) {
                 event.addRootMapping("error.message", new HashSet<>(ERROR_MESSAGE_INCOMPLETE_CEF_HEADER));
@@ -338,7 +338,7 @@ final class CefParser {
         }
     }
 
-    private static void processHeaders(List<String> headers, CEFEvent event) {
+    private static void processHeaders(List<String> headers, CefEvent event) {
         for (int i = 0; i < headers.size(); i++) {
             final String value = headers.get(i);
             switch (i) {
@@ -365,7 +365,7 @@ final class CefParser {
         }
     }
 
-    private void processExtensions(String cefString, int extensionStart, CEFEvent event) {
+    private void processExtensions(String cefString, int extensionStart, CefEvent event) {
         String extensionString = cefString.substring(extensionStart);
         final Map<String, String> parsedExtensions = parseExtensions(extensionString);
         // Cleanup empty values in extensions
@@ -534,7 +534,7 @@ final class CefParser {
         return desanitized;
     }
 
-    static class CEFEvent implements AutoCloseable {
+    static class CefEvent implements AutoCloseable {
         private Map<String, Object> rootMappings = new HashMap<>();
         private Map<String, Object> cefMappings = new HashMap<>();
 

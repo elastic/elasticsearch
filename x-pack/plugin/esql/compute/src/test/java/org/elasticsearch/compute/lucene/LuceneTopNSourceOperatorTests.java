@@ -114,17 +114,17 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        var s = scoring ? "COMPLETE" : "TOP_DOCS";
-        return matchesRegex("LuceneTopNSourceOperator\\[maxPageSize = \\d+, limit = 100, scoreMode = " + s + ", sorts = \\[\\{.+}]]");
+        return matchesRegex(
+            "LuceneTopNSourceOperator\\[maxPageSize = \\d+, limit = 100, needsScore = " + scoring + ", sorts = \\[\\{.+}]]"
+        );
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        var s = scoring ? "COMPLETE" : "TOP_DOCS";
         return matchesRegex(
             "LuceneTopNSourceOperator"
-                + "\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, scoreMode = "
-                + s
+                + "\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, needsScore = "
+                + scoring
                 + ", sorts = \\[\\{.+}]]"
         );
     }

@@ -277,7 +277,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    new RepositoryStatsCollector()
+                    new GcsRepositoryStatsCollector()
                 ) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {

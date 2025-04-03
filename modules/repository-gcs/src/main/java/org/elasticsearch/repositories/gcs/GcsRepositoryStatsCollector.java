@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  * Stats collector class that performs metrics initialization and propagation through GCS client
  * calls. This class encapsulates ThreadLocal metrics access.
  */
-public class RepositoryStatsCollector {
+public class GcsRepositoryStatsCollector {
 
     private static final ThreadLocal<OperationStats> OPERATION_STATS = new ThreadLocal<>();
 
@@ -53,33 +53,30 @@ public class RepositoryStatsCollector {
             }
         }
     };
-
     /**
      * Track operations for billing and REST API
      */
-    private final EnumMap<StorageOperation, LongAdder> restMetering;
-
+    private final EnumMap<StorageOperation, OpsCollector> restMetering;
     /**
      * Telemetry (APM)
      */
     private final RepositoriesMetrics telemetry;
     private final EnumMap<OperationPurpose, EnumMap<StorageOperation, Map<String, Object>>> telemetryAttributes;
-
     /**
      * track request duration
      */
     private final LongSupplier timer;
 
-    RepositoryStatsCollector() {
+    GcsRepositoryStatsCollector() {
         this(() -> 0L, new RepositoryMetadata(GoogleCloudStorageRepository.TYPE, "", Settings.EMPTY), RepositoriesMetrics.NOOP);
     }
 
-    RepositoryStatsCollector(LongSupplier timer, RepositoryMetadata metadata, RepositoriesMetrics repositoriesMetrics) {
+    GcsRepositoryStatsCollector(LongSupplier timer, RepositoryMetadata metadata, RepositoriesMetrics repositoriesMetrics) {
         this.timer = timer;
         this.telemetry = repositoriesMetrics;
         this.restMetering = new EnumMap<>(StorageOperation.class);
         for (var op : StorageOperation.values()) {
-            restMetering.put(op, new LongAdder());
+            restMetering.put(op, new OpsCollector(new LongAdder(), new LongAdder()));
         }
         this.telemetryAttributes = new EnumMap<>(OperationPurpose.class);
         if (repositoriesMetrics != RepositoriesMetrics.NOOP) {
@@ -215,7 +212,9 @@ public class RepositoryStatsCollector {
                 opErr = stats.isSuccess ? 0 : 1;
             }
         }
-        restMetering.get(op).add(opOk);
+        var opStats = restMetering.get(op);
+        opStats.operations.add(opOk);
+        opStats.requests.add(stats.reqAtt - stats.reqErr + stats.reqBillableErr);
 
         if (telemetry != RepositoriesMetrics.NOOP) {
             var attr = telemetryAttributes.get(stats.purpose).get(stats.operation);
@@ -234,8 +233,11 @@ public class RepositoryStatsCollector {
 
     public Map<String, BlobStoreActionStats> operationsStats() {
         return restMetering.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().key, e -> {
-            var ops = e.getValue().sum();
-            return new BlobStoreActionStats(ops, ops);
+            var ops = e.getValue().operations.sum();
+            var reqs = e.getValue().requests.sum();
+            return new BlobStoreActionStats(ops, reqs);
         }));
     }
+
+    record OpsCollector(LongAdder operations, LongAdder requests) {}
 }

@@ -85,7 +85,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final TimeValue retryThrottledCasDelayIncrement;
     private final int retryThrottledCasMaxNumberOfRetries;
     private final TimeValue retryThrottledCasMaxDelay;
-    private final RepositoryStatsCollector statsCollector;
+    private final GcsRepositoryStatsCollector statsCollector;
 
     GoogleCloudStorageRepository(
         final RepositoryMetadata metadata,
@@ -94,7 +94,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final RepositoryStatsCollector statsCollector
+        final GcsRepositoryStatsCollector statsCollector
     ) {
         super(
             metadata,
@@ -152,7 +152,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         return chunkSize;
     }
 
-    RepositoryStatsCollector statsCollector() {
+    GcsRepositoryStatsCollector statsCollector() {
         return statsCollector;
     }
 

@@ -109,7 +109,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final String clientName;
     private final String repositoryName;
     private final GoogleCloudStorageService storageService;
-    private final RepositoryStatsCollector statsCollector;
+    private final GcsRepositoryStatsCollector statsCollector;
     private final int bufferSize;
     private final BigArrays bigArrays;
     private final BackoffPolicy casBackoffPolicy;
@@ -122,7 +122,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BigArrays bigArrays,
         int bufferSize,
         BackoffPolicy casBackoffPolicy,
-        RepositoryStatsCollector statsCollector
+        GcsRepositoryStatsCollector statsCollector
     ) {
         this.bucketName = bucketName;
         this.clientName = clientName;
@@ -462,10 +462,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                  */
                 org.elasticsearch.core.Streams.copy(inputStream, Channels.newOutputStream(new WritableBlobChannel(writeChannel)), buffer);
                 SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                // We don't track this operation on the http layer as
-                // we do with the GET/LIST operations since this operations
-                // can trigger multiple underlying http requests but only one
-                // operation is billed.
                 return;
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();

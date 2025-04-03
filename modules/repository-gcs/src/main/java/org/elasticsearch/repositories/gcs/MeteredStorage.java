@@ -48,16 +48,16 @@ import static org.elasticsearch.repositories.gcs.StorageOperation.LIST;
 public class MeteredStorage {
     private final Storage storage;
     private final com.google.api.services.storage.Storage storageRpc;
-    private final RepositoryStatsCollector statsCollector;
+    private final GcsRepositoryStatsCollector statsCollector;
 
-    public MeteredStorage(Storage storage, RepositoryStatsCollector statsCollector) {
+    public MeteredStorage(Storage storage, GcsRepositoryStatsCollector statsCollector) {
         this.storage = storage;
         SpecialPermission.check();
         this.storageRpc = getStorageRpc(storage);
         this.statsCollector = statsCollector;
     }
 
-    MeteredStorage(Storage storage, com.google.api.services.storage.Storage storageRpc, RepositoryStatsCollector statsCollector) {
+    MeteredStorage(Storage storage, com.google.api.services.storage.Storage storageRpc, GcsRepositoryStatsCollector statsCollector) {
         this.storage = storage;
         this.storageRpc = storageRpc;
         this.statsCollector = statsCollector;
@@ -128,12 +128,12 @@ public class MeteredStorage {
      * A delegating Objects.Get requests with metrics collection
      */
     public static class MeteredObjectsGetRequest {
-        private final RepositoryStatsCollector statsCollector;
+        private final GcsRepositoryStatsCollector statsCollector;
         private final OperationPurpose purpose;
         private final com.google.api.services.storage.Storage.Objects.Get get;
 
         MeteredObjectsGetRequest(
-            RepositoryStatsCollector statsCollector,
+            GcsRepositoryStatsCollector statsCollector,
             OperationPurpose purpose,
             com.google.api.services.storage.Storage.Objects.Get get
         ) {
@@ -160,11 +160,11 @@ public class MeteredStorage {
      */
     @SuppressForbidden(reason = "wraps GCS channel")
     public static class MeteredWriteChannel implements WriteChannel {
-        private final RepositoryStatsCollector statsCollector;
+        private final GcsRepositoryStatsCollector statsCollector;
         private final WriteChannel writeChannel;
         private final OperationStats stats;
 
-        public MeteredWriteChannel(RepositoryStatsCollector statsCollector, OperationStats initStats, WriteChannel readChannel) {
+        public MeteredWriteChannel(GcsRepositoryStatsCollector statsCollector, OperationStats initStats, WriteChannel readChannel) {
             this.statsCollector = statsCollector;
             this.writeChannel = readChannel;
             this.stats = initStats;
@@ -201,11 +201,11 @@ public class MeteredStorage {
      */
     @SuppressForbidden(reason = "wraps GCS channel")
     public static class MeteredReadChannel implements ReadChannel {
-        private final RepositoryStatsCollector statsCollector;
+        private final GcsRepositoryStatsCollector statsCollector;
         private final ReadChannel readChannel;
         private final OperationStats stats;
 
-        MeteredReadChannel(RepositoryStatsCollector statsCollector, OperationStats initStats, ReadChannel readChannel) {
+        MeteredReadChannel(GcsRepositoryStatsCollector statsCollector, OperationStats initStats, ReadChannel readChannel) {
             this.statsCollector = statsCollector;
             this.readChannel = readChannel;
             this.stats = initStats;
@@ -255,11 +255,11 @@ public class MeteredStorage {
     }
 
     public static class MeteredBlobPage implements Page<Blob> {
-        private final RepositoryStatsCollector statsCollector;
+        private final GcsRepositoryStatsCollector statsCollector;
         private final OperationPurpose purpose;
         private final Page<Blob> pages;
 
-        public MeteredBlobPage(RepositoryStatsCollector statsCollector, OperationPurpose purpose, Page<Blob> pages) {
+        public MeteredBlobPage(GcsRepositoryStatsCollector statsCollector, OperationPurpose purpose, Page<Blob> pages) {
             this.statsCollector = statsCollector;
             this.purpose = purpose;
             this.pages = pages;

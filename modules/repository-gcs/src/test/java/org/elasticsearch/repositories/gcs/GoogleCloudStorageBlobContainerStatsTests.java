@@ -155,7 +155,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         // the +1 means a POST request with metadata without PAYLOAD
         final int totalRequests = parts + 1;
         final StatsMap wantStats = new StatsMap(purpose);
-        assertStatsEquals(wantStats.add(INSERT, 1), store.stats());
+        assertStatsEquals(wantStats.add(INSERT, 1, totalRequests), store.stats());
 
         try (InputStream is = container.readBlob(purpose, blobName)) {
             assertEquals(blobContents, Streams.readFully(is));
@@ -258,7 +258,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             Math.toIntExact(BUFFER_SIZE.getBytes()),
             BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(10), 10),
-            new RepositoryStatsCollector()
+            new GcsRepositoryStatsCollector()
         );
         final GoogleCloudStorageBlobContainer googleCloudStorageBlobContainer = new GoogleCloudStorageBlobContainer(
             BlobPath.EMPTY,
@@ -295,7 +295,15 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         StatsMap add(StorageOperation operation, long ops) {
             compute(operation.key(), (k, v) -> {
                 assert v != null;
-                return new BlobStoreActionStats(v.operations() + ops, v.operations() + ops);
+                return new BlobStoreActionStats(v.operations() + ops, v.requests() + ops);
+            });
+            return this;
+        }
+
+        StatsMap add(StorageOperation operation, long ops, long reqs) {
+            compute(operation.key(), (k, v) -> {
+                assert v != null;
+                return new BlobStoreActionStats(v.operations() + ops, v.requests() + reqs);
             });
             return this;
         }

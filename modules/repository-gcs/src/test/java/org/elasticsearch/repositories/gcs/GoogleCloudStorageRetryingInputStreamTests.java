@@ -69,7 +69,7 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
                 .setRetrySettings(RetrySettings.newBuilder().setMaxAttempts(randomIntBetween(1, 3)).build())
                 .build()
         );
-        meteredStorage = new MeteredStorage(storage, storageRpc, new RepositoryStatsCollector());
+        meteredStorage = new MeteredStorage(storage, storageRpc, new GcsRepositoryStatsCollector());
     }
 
     public void testReadWithinBlobLength() throws IOException {

@@ -78,7 +78,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             }
         };
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
-        var statsCollector = new RepositoryStatsCollector();
+        var statsCollector = new GcsRepositoryStatsCollector();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> service.client("another_client", "repo", statsCollector)
@@ -114,7 +114,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
-            var statsCollector = new RepositoryStatsCollector();
+            var statsCollector = new GcsRepositoryStatsCollector();
             final var client11 = storageService.client("gcs1", "repo1", statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
             final var client12 = storageService.client("gcs2", "repo2", statsCollector);
@@ -153,9 +153,9 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
 
-            final MeteredStorage repo1Client = storageService.client("gcs1", "repo1", new RepositoryStatsCollector());
-            final MeteredStorage repo2Client = storageService.client("gcs1", "repo2", new RepositoryStatsCollector());
-            final MeteredStorage repo1ClientSecondInstance = storageService.client("gcs1", "repo1", new RepositoryStatsCollector());
+            final MeteredStorage repo1Client = storageService.client("gcs1", "repo1", new GcsRepositoryStatsCollector());
+            final MeteredStorage repo2Client = storageService.client("gcs1", "repo2", new GcsRepositoryStatsCollector());
+            final MeteredStorage repo1ClientSecondInstance = storageService.client("gcs1", "repo1", new GcsRepositoryStatsCollector());
 
             assertNotSame(repo1Client, repo2Client);
             assertSame(repo1Client, repo1ClientSecondInstance);

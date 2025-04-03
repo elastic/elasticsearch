@@ -62,7 +62,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                new RepositoryStatsCollector(() -> clusterService.threadPool().absoluteTimeInMillis(), metadata, repositoriesMetrics)
+                new GcsRepositoryStatsCollector(() -> clusterService.threadPool().absoluteTimeInMillis(), metadata, repositoriesMetrics)
             )
         );
     }

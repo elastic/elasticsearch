@@ -89,7 +89,7 @@ public class GoogleCloudStorageService {
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
-    public MeteredStorage client(final String clientName, final String repositoryName, final RepositoryStatsCollector statsCollector)
+    public MeteredStorage client(final String clientName, final String repositoryName, final GcsRepositoryStatsCollector statsCollector)
         throws IOException {
         ClientKey clientKey = new ClientKey(repositoryName);
         {
@@ -137,7 +137,7 @@ public class GoogleCloudStorageService {
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private MeteredStorage createClient(GoogleCloudStorageClientSettings gcsClientSettings, RepositoryStatsCollector statsCollector)
+    private MeteredStorage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GcsRepositoryStatsCollector statsCollector)
         throws IOException {
         final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
@@ -171,7 +171,7 @@ public class GoogleCloudStorageService {
 
                 return (httpRequest) -> {
                     if (requestInitializer != null) requestInitializer.initialize(httpRequest);
-                    httpRequest.setResponseInterceptor(RepositoryStatsCollector.METERING_INTERCEPTOR);
+                    httpRequest.setResponseInterceptor(GcsRepositoryStatsCollector.METERING_INTERCEPTOR);
                 };
             }
         };

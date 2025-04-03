@@ -14,7 +14,7 @@ stream. The exact impact varies by data set.
 [[how-to-use-logsds]]
 === Create a logs data stream
 
-IMPORTANT: Fleet integrations use <<index-templates,index templates>> managed by Elastic. To modify thsee backing templates, update their {observability-guide}/logs-index-template.html#custom-logs-template-edit[composite `custom` templates].
+IMPORTANT: Fleet integrations use <<index-templates,index templates>> managed by Elastic. To modify these backing templates, update their {observability-guide}/logs-index-template.html#custom-logs-template-edit[composite `custom` templates].
 
 To create a logs data stream, set your <<index-templates,template>> `index.mode` to `logsdb`:
 

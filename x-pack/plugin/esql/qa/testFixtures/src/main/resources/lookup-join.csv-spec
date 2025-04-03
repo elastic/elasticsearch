@@ -1453,6 +1453,10 @@ emp_no:integer | language_code:integer | language_name:keyword
 10093          | 3                     | Spanish
 ;
 
+###############################################
+# Bugfixes
+###############################################
+
 multipleBatchesWithSort
 required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
@@ -1538,4 +1542,22 @@ from *
 
 m:integer |birth_date:datetime
 null      |1952-02-27T00:00:00.000Z
+;
+
+// Regression test for https://github.com/elastic/elasticsearch/issues/126030
+// We had wrong layouts from ReplaceMissingFieldsWithNull
+
+enrichLookupStatsBug
+required_capability: join_lookup_v12
+required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
+
+from *
+| enrich languages_policy on cluster
+| rename languages.byte as language_code
+| lookup join languages_lookup on language_code
+| stats  salary_change.long = max(ratings), foo = max(num)
+;
+
+salary_change.long:double|foo:long
+5.0                      |1698069301543123456
 ;

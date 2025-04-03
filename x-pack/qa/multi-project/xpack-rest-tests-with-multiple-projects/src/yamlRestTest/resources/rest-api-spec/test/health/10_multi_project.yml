@@ -4,7 +4,7 @@ setup:
       capabilities:
         - method: GET
           path: /_health_report
-          capabilities: [ multi_project_shards_availability, multi_project_data_stream_lifecycle ]
+          capabilities: [ multi_project_shards_availability ]
       reason: Capability required to run test
 ---
 "Health indicator shards_availability for multi-project enabled cluster":

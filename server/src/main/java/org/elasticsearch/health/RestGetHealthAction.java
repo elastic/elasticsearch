@@ -32,7 +32,6 @@ public class RestGetHealthAction extends BaseRestHandler {
     private static final String SIZE_PARAM = "size";
 
     private static final String CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY = "multi_project_shards_availability";
-    private static final String CAPABILITY_MULTI_PROJECT_DATA_STREAM_LIFECYCLE = "multi_project_data_stream_lifecycle";
 
     @Override
     public String getName() {
@@ -65,9 +64,6 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Sets.union(
-            Set.of(CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY, CAPABILITY_MULTI_PROJECT_DATA_STREAM_LIFECYCLE),
-            super.supportedCapabilities()
-        );
+        return Sets.union(Set.of(CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY), super.supportedCapabilities());
     }
 }

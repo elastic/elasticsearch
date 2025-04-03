@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -312,7 +313,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
-        return input -> new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
+        return input -> {
+            if (input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
+                return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates);
+            } else {
+                return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
+            }
+        };
     }
 
     private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {}
@@ -362,10 +369,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
         // TODO: add support for filters
-        return input -> new InlineStats(
-            source(ctx),
-            new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, new ArrayList<>(groupings), aggregates)
-        );
+        return input -> new InlineStats(source(ctx), new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates));
     }
 
     @Override

@@ -120,6 +120,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -191,6 +192,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -6715,16 +6717,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
-        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
         as(aggsByTsid.child(), EsRelation.class);
 
-        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         assertThat(finalAggs.aggregates(), hasSize(1));
         Max max = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
         assertThat(Expressions.attribute(max.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(finalAggs.groupings(), empty());
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.TIME_SERIES));
         assertThat(aggsByTsid.aggregates(), hasSize(1)); // _tsid is dropped
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6736,10 +6737,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
-        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
         as(aggsByTsid.child(), EsRelation.class);
 
-        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         assertThat(finalAggs.aggregates(), hasSize(2));
         Max maxRate = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
         FromPartial maxCost = as(Alias.unwrap(finalAggs.aggregates().get(1)), FromPartial.class);
@@ -6747,7 +6748,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
         assertThat(finalAggs.groupings(), empty());
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.TIME_SERIES));
         assertThat(aggsByTsid.aggregates(), hasSize(2));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6765,8 +6765,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Mul mul = as(Alias.unwrap(mulEval.fields().get(0)), Mul.class);
         Limit limit = as(mulEval.child(), Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAggs.aggregates(), hasSize(2));
-        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2));
         Eval addEval = as(aggsByTsid.child(), Eval.class);
         assertThat(addEval.fields(), hasSize(1));
@@ -6776,14 +6777,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(finalAggs.aggregates().get(1).id()));
         assertThat(mul.right().fold(FoldContext.small()), equalTo(1.1));
 
-        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         Max maxRate = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
         FromPartial maxCost = as(Alias.unwrap(finalAggs.aggregates().get(1)), FromPartial.class);
         assertThat(Expressions.attribute(maxRate.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
         assertThat(finalAggs.groupings(), empty());
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.TIME_SERIES));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         ToPartial toPartialMaxCost = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), ToPartial.class);
@@ -6798,18 +6797,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         TopN topN = as(plan, TopN.class);
         Aggregate aggsByCluster = as(topN.child(), Aggregate.class);
+        assertThat(aggsByCluster, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(aggsByCluster.aggregates(), hasSize(2));
-        Aggregate aggsByTsid = as(aggsByCluster.child(), Aggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(aggsByCluster.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
         as(aggsByTsid.child(), EsRelation.class);
 
-        assertThat(aggsByCluster.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         Sum sum = as(Alias.unwrap(aggsByCluster.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(aggsByCluster.groupings(), hasSize(1));
         assertThat(Expressions.attribute(aggsByCluster.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.TIME_SERIES));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         Values values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
@@ -6825,8 +6823,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(eval.fields(), hasSize(1));
         Limit limit = as(eval.child(), Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAggs.aggregates(), hasSize(4));
-        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // _tsid is dropped
         as(aggsByTsid.child(), EsRelation.class);
 
@@ -6834,7 +6833,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAggs.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAggs.aggregates().get(1).id()));
 
-        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         Sum sum = as(Alias.unwrap(finalAggs.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         Count count = as(Alias.unwrap(finalAggs.aggregates().get(1)), Count.class);
@@ -6845,7 +6843,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(finalAggs.groupings(), hasSize(2));
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.TIME_SERIES));
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // rates, values(cluster), values(pod)
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6861,20 +6858,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAgg.aggregates(), hasSize(2));
-        Aggregate aggsByTsid = as(finalAgg.child(), Aggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
         Eval eval = as(aggsByTsid.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         as(eval.child(), EsRelation.class);
 
-        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(finalAgg.groupings(), hasSize(1));
         assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.TIME_SERIES));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(eval.fields().get(0).id()));
@@ -6897,13 +6893,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(eval.fields(), hasSize(1));
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
-        Aggregate aggsByTsid = as(finalAgg.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
         Eval bucket = as(aggsByTsid.child(), Eval.class);
         as(bucket.child(), EsRelation.class);
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
 
-        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         assertThat(finalAgg.aggregates(), hasSize(5)); // sum, count, pod, bucket, cluster
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         Count count = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
@@ -6912,7 +6908,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(finalAgg.groupings(), hasSize(3));
         assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.TIME_SERIES));
         assertThat(aggsByTsid.aggregates(), hasSize(4)); // rate, values(pod), values(cluster), bucket
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6937,13 +6932,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(eval.fields(), hasSize(2));
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
-        Aggregate aggsByTsid = as(finalAgg.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
         Eval bucket = as(aggsByTsid.child(), Eval.class);
         as(bucket.child(), EsRelation.class);
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
 
-        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         assertThat(finalAgg.aggregates(), hasSize(6)); // sum, count, sum, count, bucket, cluster
         Sum sumRate = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         Count countRate = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
@@ -6958,7 +6953,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(finalAgg.groupings(), hasSize(2));
         assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(3).id()));
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.TIME_SERIES));
         assertThat(aggsByTsid.aggregates(), hasSize(5)); // rate, to_partial(sum(cost)), to_partial(count(cost)), values(cluster), bucket
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6988,6 +6982,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Div div = as(Alias.unwrap(evalDiv.fields().get(0)), Div.class);
 
         Aggregate finalAgg = as(evalDiv.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAgg.aggregates(), hasSize(4)); // sum, count, bucket, cluster
         assertThat(finalAgg.groupings(), hasSize(2));
 
@@ -6995,7 +6990,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Round round = as(Alias.unwrap(evalRound.fields().get(0)), Round.class);
         Mul mul = as(round.field(), Mul.class);
 
-        Aggregate aggsByTsid = as(evalRound.child(), Aggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(evalRound.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // rate, cluster, bucket
         assertThat(aggsByTsid.groupings(), hasSize(2));
 
@@ -7006,8 +7001,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
-
-        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
 
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         Count count = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
@@ -7022,7 +7015,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(mul.right().fold(FoldContext.small()), equalTo(1.05));
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.TIME_SERIES));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         Values values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
@@ -7046,7 +7038,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         for (LogicalPlan plan : plans) {
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
-            assertThat(aggregate.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+            assertThat(aggregate, not(instanceOf(TimeSeriesAggregate.class)));
             assertThat(aggregate.aggregates(), hasSize(2));
             assertThat(aggregate.groupings(), hasSize(1));
             Eval eval = as(aggregate.child(), Eval.class);

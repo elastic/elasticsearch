@@ -246,7 +246,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         }
     }
 
-    public void testExplainFailureLifecycle() throws Exception {
+    public void testExplainfailuresLifecycle() throws Exception {
         // Failure indices are always managed unless explicitly disabled.
         putComposableIndexTemplate(
             "id1",

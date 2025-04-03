@@ -1,7 +1,7 @@
 setup:
   - requires:
       test_runner_features: [ capabilities, allowed_warnings ]
-      reason: "Data stream failure lifecycle config in templates was added in 9.1+"
+      reason: "Data stream failures lifecycle config in templates was added in 9.1+"
       capabilities:
         - method: GET
           path: /_data_stream/{target}

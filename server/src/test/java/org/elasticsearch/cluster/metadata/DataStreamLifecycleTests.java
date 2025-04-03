@@ -407,10 +407,10 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
     }
 
     /**
-     * Failure lifecycle does not support downsampling, this is why we have a dedicated method
+     * Failures lifecycle does not support downsampling, this is why we have a dedicated method
      * @return a random lifecycle without downsampling
      */
-    public static DataStreamLifecycle randomFailureLifecycle() {
+    public static DataStreamLifecycle randomFailuresLifecycle() {
         return DataStreamLifecycle.builder()
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
             .enabled(randomBoolean())

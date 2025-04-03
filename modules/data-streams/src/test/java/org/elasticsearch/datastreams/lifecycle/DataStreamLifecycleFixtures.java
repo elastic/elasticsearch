@@ -68,7 +68,7 @@ public class DataStreamLifecycleFixtures {
         int failureIndicesCount,
         Settings.Builder backingIndicesSettings,
         @Nullable DataStreamLifecycle dataLifecycle,
-        @Nullable DataStreamLifecycle failureLifecycle,
+        @Nullable DataStreamLifecycle failuresLifecycle,
         Long now
     ) {
         final List<Index> backingIndices = new ArrayList<>();
@@ -111,7 +111,7 @@ public class DataStreamLifecycleFixtures {
             false,
             dataLifecycle,
             failureIndices,
-            new DataStreamOptions(new DataStreamFailureStore(failureIndices.isEmpty() == false, failureLifecycle))
+            new DataStreamOptions(new DataStreamFailureStore(failureIndices.isEmpty() == false, failuresLifecycle))
         );
     }
 

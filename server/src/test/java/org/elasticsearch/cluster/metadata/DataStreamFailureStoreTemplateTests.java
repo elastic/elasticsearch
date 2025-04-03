@@ -43,7 +43,7 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
             case 1 -> lifecycle = lifecycle.get() != null && enabled.get() != null && randomBoolean()
                 ? randomEmptyResettableValue()
                 : ResettableValue.create(
-                    randomValueOtherThan(lifecycle.get(), DataStreamLifecycleTemplateTests::randomFailureLifecycleTemplate)
+                    randomValueOtherThan(lifecycle.get(), DataStreamLifecycleTemplateTests::randomfailuresLifecycleTemplate)
                 );
             default -> throw new IllegalArgumentException("illegal randomisation branch");
         }
@@ -61,7 +61,7 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
         return new DataStreamFailureStore.Template(
             enabledDefined ? ResettableValue.create(randomBoolean()) : randomEmptyResettableValue(),
             lifecycleDefined
-                ? ResettableValue.create(DataStreamLifecycleTemplateTests.randomFailureLifecycleTemplate())
+                ? ResettableValue.create(DataStreamLifecycleTemplateTests.randomfailuresLifecycleTemplate())
                 : randomEmptyResettableValue()
         );
     }
@@ -95,7 +95,7 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
         boolean enabled = randomBoolean();
         DataStreamFailureStore.Template template = new DataStreamFailureStore.Template(
             enabled,
-            randomBoolean() ? null : DataStreamLifecycleTemplateTests.randomFailureLifecycleTemplate()
+            randomBoolean() ? null : DataStreamLifecycleTemplateTests.randomfailuresLifecycleTemplate()
         );
         DataStreamFailureStore.Template result = DataStreamFailureStore.builder(template).composeTemplate(template).buildTemplate();
         assertThat(result, equalTo(template));
@@ -124,13 +124,13 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
         // Test reset
         DataStreamFailureStore.Template fullyFilledTemplate = DataStreamFailureStore.builder()
             .enabled(ResettableValue.create(randomBoolean()))
-            .lifecycle(DataStreamLifecycleTests.randomFailureLifecycle())
+            .lifecycle(DataStreamLifecycleTests.randomFailuresLifecycle())
             .buildTemplate();
         result = DataStreamFailureStore.builder(fullyFilledTemplate)
             .composeTemplate(
                 new DataStreamFailureStore.Template(
                     ResettableValue.reset(),
-                    ResettableValue.create(DataStreamLifecycleTemplateTests.randomFailureLifecycleTemplate())
+                    ResettableValue.create(DataStreamLifecycleTemplateTests.randomfailuresLifecycleTemplate())
                 )
             )
             .buildTemplate();

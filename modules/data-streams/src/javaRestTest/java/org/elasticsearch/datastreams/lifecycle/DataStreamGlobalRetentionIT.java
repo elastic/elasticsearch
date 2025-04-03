@@ -123,10 +123,10 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             assertThat(lifecycle.get("effective_retention"), is("10s"));
             assertThat(lifecycle.get("retention_determined_by"), is("data_stream_configuration"));
             assertThat(lifecycle.get("data_retention"), is("10s"));
-            Map<String, Object> failureLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
-            assertThat(failureLifecycle.get("effective_retention"), is("10s"));
-            assertThat(failureLifecycle.get("retention_determined_by"), is("data_stream_configuration"));
-            assertThat(failureLifecycle.get("data_retention"), is("10s"));
+            Map<String, Object> failuresLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
+            assertThat(failuresLifecycle.get("effective_retention"), is("10s"));
+            assertThat(failuresLifecycle.get("retention_determined_by"), is("data_stream_configuration"));
+            assertThat(failuresLifecycle.get("data_retention"), is("10s"));
         }
 
         // Verify that the first generation index was removed
@@ -161,10 +161,10 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             assertThat(lifecycle.get("effective_retention"), is("10s"));
             assertThat(lifecycle.get("retention_determined_by"), is("default_global_retention"));
             assertThat(lifecycle.get("data_retention"), nullValue());
-            Map<String, Object> failureLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
-            assertThat(failureLifecycle.get("effective_retention"), is("10s"));
-            assertThat(failureLifecycle.get("retention_determined_by"), is("default_global_retention"));
-            assertThat(failureLifecycle.get("data_retention"), nullValue());
+            Map<String, Object> failuresLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
+            assertThat(failuresLifecycle.get("effective_retention"), is("10s"));
+            assertThat(failuresLifecycle.get("retention_determined_by"), is("default_global_retention"));
+            assertThat(failuresLifecycle.get("data_retention"), nullValue());
         }
 
         // Verify that the first generation index was removed
@@ -238,13 +238,13 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             } else {
                 assertThat(lifecycle.get("data_retention"), nullValue());
             }
-            Map<String, Object> failureLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
-            assertThat(failureLifecycle.get("effective_retention"), is("10s"));
-            assertThat(failureLifecycle.get("retention_determined_by"), is("max_global_retention"));
+            Map<String, Object> failuresLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
+            assertThat(failuresLifecycle.get("effective_retention"), is("10s"));
+            assertThat(failuresLifecycle.get("retention_determined_by"), is("max_global_retention"));
             if (withDataStreamLevelRetention) {
-                assertThat(failureLifecycle.get("data_retention"), is("30d"));
+                assertThat(failuresLifecycle.get("data_retention"), is("30d"));
             } else {
-                assertThat(failureLifecycle.get("data_retention"), nullValue());
+                assertThat(failuresLifecycle.get("data_retention"), nullValue());
             }
         }
 

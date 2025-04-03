@@ -1029,7 +1029,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamLifecycle.Template dataLifecycle,
-        @Nullable DataStreamLifecycle.Template failureLifecycle,
+        @Nullable DataStreamLifecycle.Template failuresLifecycle,
         boolean withFailureStore
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
@@ -1042,7 +1042,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                         .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
                         .lifecycle(dataLifecycle)
                         .dataStreamOptions(
-                            new DataStreamOptions.Template(new DataStreamFailureStore.Template(withFailureStore, failureLifecycle))
+                            new DataStreamOptions.Template(new DataStreamFailureStore.Template(withFailureStore, failuresLifecycle))
                         )
                 )
                 .metadata(metadata)

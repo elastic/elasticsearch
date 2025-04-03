@@ -366,9 +366,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         for (DataStream dataStream : project.dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(project, dataStream);
             var dataLifecycleDisabled = dataStream.getDataLifecycle() == null || dataStream.getDataLifecycle().enabled() == false;
-            var failureLifecycleDisabled = dataStream.getFailureIndices().isEmpty()
+            var failuresLifecycleDisabled = dataStream.getFailureIndices().isEmpty()
                 || dataStream.getFailuresLifecycle() != null && dataStream.getFailuresLifecycle().enabled() == false;
-            if (dataLifecycleDisabled && failureLifecycleDisabled) {
+            if (dataLifecycleDisabled && failuresLifecycleDisabled) {
                 continue;
             }
 
@@ -928,7 +928,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
         Set<Index> indicesToBeRemoved = new HashSet<>();
         if (backingIndicesOlderThanRetention.isEmpty() == false) {
-            assert dataStream.getDataLifecycle() != null : "data stream should have failure lifecycle if we have 'old' indices";
+            assert dataStream.getDataLifecycle() != null : "data stream should have failures lifecycle if we have 'old' indices";
             for (Index index : backingIndicesOlderThanRetention) {
                 if (indicesToExcludeForRemainingRun.contains(index) == false) {
                     IndexMetadata backingIndex = project.index(index);
@@ -961,7 +961,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
         }
         if (failureIndicesOlderThanRetention.isEmpty() == false) {
-            assert dataStream.getFailuresLifecycle() != null : "data stream should have failure lifecycle if we have 'old' indices";
+            assert dataStream.getFailuresLifecycle() != null : "data stream should have failures lifecycle if we have 'old' indices";
             for (Index index : failureIndicesOlderThanRetention) {
                 if (indicesToExcludeForRemainingRun.contains(index) == false) {
                     IndexMetadata failureIndex = project.index(index);

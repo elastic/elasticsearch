@@ -1804,11 +1804,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .build();
         assertThat(withFailureIndices.getFailuresLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycleTests.randomFailureLifecycle();
-        DataStream withFailureLifecycle = DataStream.builder("with-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
+        DataStreamLifecycle lifecycle = DataStreamLifecycleTests.randomFailuresLifecycle();
+        DataStream withfailuresLifecycle = DataStream.builder("with-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
             .setDataStreamOptions(new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), lifecycle)))
             .build();
-        assertThat(withFailureLifecycle.getFailuresLifecycle(), equalTo(lifecycle));
+        assertThat(withfailuresLifecycle.getFailuresLifecycle(), equalTo(lifecycle));
     }
 
     private DataStream createDataStream(
@@ -1904,7 +1904,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         if (failureStore) {
             failureIndices = randomNonEmptyIndexInstances();
         }
-        var failureLifecycle = randomBoolean() ? null : DataStreamLifecycleTests.randomFailureLifecycle();
+        var failuresLifecycle = randomBoolean() ? null : DataStreamLifecycleTests.randomFailuresLifecycle();
 
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         boolean isSystem = randomBoolean();
@@ -1919,7 +1919,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             lifecycle,
-            new DataStreamOptions(new DataStreamFailureStore(failureStore, failureLifecycle)),
+            new DataStreamOptions(new DataStreamFailureStore(failureStore, failuresLifecycle)),
             failureIndices,
             false,
             null

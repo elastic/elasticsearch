@@ -37,7 +37,7 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
             case 0 -> enabled = enabled != null && lifecycle != null && randomBoolean() ? null : Boolean.FALSE.equals(enabled);
             case 1 -> lifecycle = lifecycle != null && enabled != null && randomBoolean()
                 ? null
-                : randomValueOtherThan(lifecycle, DataStreamLifecycleTests::randomFailureLifecycle);
+                : randomValueOtherThan(lifecycle, DataStreamLifecycleTests::randomFailuresLifecycle);
             default -> throw new IllegalArgumentException("illegal randomisation branch");
         }
         return new DataStreamFailureStore(enabled, lifecycle);
@@ -53,7 +53,7 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
         boolean lifecycleDefined = enabledDefined == false || randomBoolean();
         return new DataStreamFailureStore(
             enabledDefined ? randomBoolean() : null,
-            lifecycleDefined ? DataStreamLifecycleTests.randomFailureLifecycle() : null
+            lifecycleDefined ? DataStreamLifecycleTests.randomFailuresLifecycle() : null
         );
     }
 

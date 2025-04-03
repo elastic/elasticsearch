@@ -308,9 +308,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test012SecurityCanBeDisabled
   issue: https://github.com/elastic/elasticsearch/issues/116636
-- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
-  method: testSchedulerCloseWaitsForRunningMerge
-  issue: https://github.com/elastic/elasticsearch/issues/125236
 - class: org.elasticsearch.index.shard.StoreRecoveryTests
   method: testAddIndices
   issue: https://github.com/elastic/elasticsearch/issues/124104
@@ -377,15 +374,9 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTerminateAfter
   issue: https://github.com/elastic/elasticsearch/issues/126085
-- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
-  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
-  issue: https://github.com/elastic/elasticsearch/issues/126088
 - class: org.elasticsearch.search.sort.GeoDistanceIT
   method: testDistanceSortingWithUnmappedField
   issue: https://github.com/elastic/elasticsearch/issues/126118
-- class: org.elasticsearch.index.mapper.blockloader.KeywordFieldBlockLoaderTests
-  method: testBlockLoader {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
-  issue: https://github.com/elastic/elasticsearch/issues/126121
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707

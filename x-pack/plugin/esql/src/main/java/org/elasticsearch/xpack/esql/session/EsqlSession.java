@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
-import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -356,14 +355,14 @@ public class EsqlSession {
                 )
             )
             .collect(Collectors.toSet());
-        final List<TableInfo> indices = preAnalysis.indices;
+        final List<IndexPattern> indices = preAnalysis.indices;
 
         EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, configuredClusters, verifier.licenseState());
 
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
             configuredClusters,
             indices.stream()
-                .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().indexPattern())))
+                .flatMap(index -> Arrays.stream(Strings.commaDelimitedListToStringArray(index.indexPattern())))
                 .toArray(String[]::new)
         ).keySet();
 
@@ -371,8 +370,8 @@ public class EsqlSession {
             l -> enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, l)
         ).<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l));
         // first resolve the lookup indices, then the main indices
-        for (TableInfo lookupIndex : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(lookupIndex, preAnalysisResult, l); });
+        for (var index : preAnalysis.lookupIndices) {
+            listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(index, preAnalysisResult, l); });
         }
         listener.<PreAnalysisResult>andThen((l, result) -> {
             // resolve the main indices
@@ -415,8 +414,7 @@ public class EsqlSession {
         }).addListener(logicalPlanListener);
     }
 
-    private void preAnalyzeLookupIndex(TableInfo tableInfo, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
-        IndexPattern table = tableInfo.id();
+    private void preAnalyzeLookupIndex(IndexPattern table, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
         Set<String> fieldNames = result.wildcardJoinIndices().contains(table.indexPattern()) ? IndexResolver.ALL_FIELDS : result.fieldNames;
         // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
@@ -429,7 +427,7 @@ public class EsqlSession {
     }
 
     private void preAnalyzeIndices(
-        List<TableInfo> indices,
+        List<IndexPattern> indices,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
@@ -442,8 +440,7 @@ public class EsqlSession {
         } else if (indices.size() == 1) {
             // known to be unavailable from the enrich policy API call
             Map<String, Exception> unavailableClusters = result.enrichResolution.getUnavailableClusters();
-            TableInfo tableInfo = indices.get(0);
-            IndexPattern table = tableInfo.id();
+            IndexPattern table = indices.getFirst();
 
             Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
                 configuredClusters,
@@ -604,55 +601,55 @@ public class EsqlSession {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
-        AttributeSet references = new AttributeSet();
+        var referencesBuilder = AttributeSet.builder();
         // "keep" attributes are special whenever a wildcard is used in their name
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
-        AttributeSet keepCommandReferences = new AttributeSet();
-        AttributeSet keepJoinReferences = new AttributeSet();
+        var keepCommandRefsBuilder = AttributeSet.builder();
+        var keepJoinRefsBuilder = AttributeSet.builder();
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
-                    references.removeIf(attr -> matchByName(attr, extracted.name(), false));
+                    referencesBuilder.removeIf(attr -> matchByName(attr, extracted.name(), false));
                 }
                 // but keep the inputs needed by Grok/Dissect
-                references.addAll(re.input().references());
+                referencesBuilder.addAll(re.input().references());
             } else if (p instanceof Enrich enrich) {
-                AttributeSet enrichRefs = Expressions.references(enrich.enrichFields());
-                enrichRefs = enrichRefs.combine(enrich.matchField().references());
+                AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
+                AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
                 // Enrich adds an EmptyAttribute if no match field is specified
                 // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
-                references.addAll(enrichRefs);
+                referencesBuilder.addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
-                    keepJoinReferences.addAll(usingJoinType.columns());
+                    keepJoinRefsBuilder.addAll(usingJoinType.columns());
                 }
-                if (keepCommandReferences.isEmpty()) {
+                if (keepCommandRefsBuilder.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
                 } else {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                    keepJoinReferences.addAll(keepCommandReferences);
+                    keepJoinRefsBuilder.addAll(keepCommandRefsBuilder);
                 }
             } else {
-                references.addAll(p.references());
+                referencesBuilder.addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    references.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    referencesBuilder.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
                 }
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
-                    references.add(ua);
+                    referencesBuilder.add(ua);
                     if (p instanceof Keep) {
-                        keepCommandReferences.add(ua);
+                        keepCommandRefsBuilder.add(ua);
                     }
                 });
                 if (p instanceof Keep) {
-                    keepCommandReferences.addAll(p.references());
+                    keepCommandRefsBuilder.addAll(p.references());
                 }
             }
 
@@ -667,11 +664,11 @@ public class EsqlSession {
                 if (fieldNames.contains(alias.name())) {
                     return;
                 }
-                references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));
+                referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
             });
         });
         // Add JOIN ON column references afterward to avoid Alias removal
-        references.addAll(keepJoinReferences);
+        referencesBuilder.addAll(keepJoinRefsBuilder);
         // If any JOIN commands need wildcard field-caps calls, persist the index names
         if (wildcardJoinIndices.isEmpty() == false) {
             result = result.withWildcardJoinIndices(wildcardJoinIndices);
@@ -679,8 +676,8 @@ public class EsqlSession {
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
-        references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
-        Set<String> fieldNames = references.names();
+        referencesBuilder.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
+        Set<String> fieldNames = referencesBuilder.build().names();
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index

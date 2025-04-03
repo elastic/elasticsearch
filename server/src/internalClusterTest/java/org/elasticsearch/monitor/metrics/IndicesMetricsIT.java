@@ -68,6 +68,9 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String STANDARD_INDEX_COUNT = "es.indices.standard.total";
     static final String STANDARD_BYTES_SIZE = "es.indices.standard.size";
     static final String STANDARD_DOCS_COUNT = "es.indices.standard.docs.total";
+    static final String STANDARD_DFS_COUNT = "es.indices.standard.dfs.total";
+    static final String STANDARD_DFS_TIME = "es.indices.standard.dfs.time";
+    static final String STANDARD_DFS_FAILURE = "es.indices.standard.dfs.failure.total";
     static final String STANDARD_QUERY_COUNT = "es.indices.standard.query.total";
     static final String STANDARD_QUERY_TIME = "es.indices.standard.query.time";
     static final String STANDARD_QUERY_FAILURE = "es.indices.standard.query.failure.total";
@@ -245,6 +248,10 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             telemetry,
             1,
             Map.of(
+                STANDARD_DFS_COUNT,
+                equalTo(search1.getDfsCount()),
+                STANDARD_DFS_TIME,
+                equalTo(search1.getDfsTimeInMillis()),
                 STANDARD_QUERY_COUNT,
                 equalTo(numStandardIndices),
                 STANDARD_QUERY_TIME,
@@ -265,6 +272,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 equalTo(0L)
             )
         );
+
 
         client(searchNode).prepareSearch("time*").setPreference(preference).setSize(100).get().decRef();
         var search2 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
@@ -334,6 +342,8 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             telemetry,
             4,
             Map.of(
+                STANDARD_DFS_FAILURE,
+                equalTo(0L),
                 STANDARD_QUERY_FAILURE,
                 equalTo(0L),
                 STANDARD_FETCH_FAILURE,

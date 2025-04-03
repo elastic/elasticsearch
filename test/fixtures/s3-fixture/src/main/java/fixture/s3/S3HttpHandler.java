@@ -224,6 +224,7 @@ public class S3HttpHandler implements HttpHandler {
                 if (delimiter != null) {
                     list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
                 }
+                list.append("<IsTruncated>false</IsTruncated>");
                 for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
                     if (prefix != null && blob.getKey().startsWith("/" + bucket + "/" + prefix) == false) {
                         continue;
@@ -245,10 +246,6 @@ public class S3HttpHandler implements HttpHandler {
                 commonPrefixes.forEach(
                     commonPrefix -> list.append("<CommonPrefixes><Prefix>").append(commonPrefix).append("</Prefix></CommonPrefixes>")
                 );
-                if (listType.equals("2")) {
-                    // TODO test pagination here too
-                    list.append("<IsTruncated>false</IsTruncated>");
-                }
                 list.append("</ListBucketResult>");
 
                 byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);

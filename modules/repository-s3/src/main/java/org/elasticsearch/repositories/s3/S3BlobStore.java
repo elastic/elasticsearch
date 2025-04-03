@@ -221,6 +221,7 @@ class S3BlobStore implements BlobStore {
 
             s3RepositoriesMetrics.common().requestCounter().incrementBy(requestCount, attributes);
             if (awsErrorCount > 0) {
+                // TODO NOMERGE document this change (see S3BlobStoreRepositoryMetricsTests changes)
                 s3RepositoriesMetrics.common().exceptionCounter().incrementBy(awsErrorCount, attributes);
                 s3RepositoriesMetrics.common().exceptionHistogram().record(awsErrorCount, attributes);
             }

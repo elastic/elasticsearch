@@ -105,9 +105,8 @@ public class CommunityIdProcessorFactoryTests extends ESTestCase {
     }
 
     public void testRequiredFields() throws Exception {
-        HashMap<String, Object> config = new HashMap<>();
         String tag = randomAlphaOfLength(10);
-        CommunityIdProcessor processor = factory.create(null, tag, null, config, null);
+        CommunityIdProcessor processor = factory.create(null, tag, null, new HashMap<>(), null);
         assertThat(processor.getTag(), equalTo(tag));
         assertThat(processor.getSourceIpField(), equalTo(DEFAULT_SOURCE_IP));
         assertThat(processor.getSourcePortField(), equalTo(DEFAULT_SOURCE_PORT));

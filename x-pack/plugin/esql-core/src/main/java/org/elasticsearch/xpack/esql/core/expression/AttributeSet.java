@@ -213,6 +213,7 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public static class Builder {
+
         private final AttributeMap.Builder<Object> mapBuilder;
 
         private Builder(AttributeMap.Builder<Object> mapBuilder) {

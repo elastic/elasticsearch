@@ -406,7 +406,7 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
 
         private final AttributeMap<E> map;
 
-        public Builder(AttributeMap<E> map) {
+        private Builder(AttributeMap<E> map) {
             this.map = map;
         }
 

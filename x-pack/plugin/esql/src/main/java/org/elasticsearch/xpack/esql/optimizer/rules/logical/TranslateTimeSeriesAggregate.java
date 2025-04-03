@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * Rate aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -235,6 +234,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         List<? extends NamedExpression> aggregates,
         List<Expression> groupings
     ) {
-        return Stream.concat(aggregates.stream(), groupings.stream().map(Expressions::attribute)).toList();
+        List<Attribute> merged = new ArrayList<>(aggregates.size() + groupings.size());
+        aggregates.forEach(a -> merged.add(Expressions.attribute(a)));
+        groupings.forEach(g -> merged.add(Expressions.attribute(g)));
+        return merged;
     }
 }

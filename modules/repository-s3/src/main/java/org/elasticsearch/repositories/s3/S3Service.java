@@ -337,8 +337,7 @@ class S3Service extends AbstractLifecycleComponent {
     static Optional<ProxyConfiguration> buildProxyConfiguration(S3ClientSettings clientSettings) {
         // If proxy settings are provided
         if (Strings.hasText(clientSettings.proxyHost)) {
-            final URIBuilder uriBuilder = new URIBuilder();
-            uriBuilder.setScheme(clientSettings.proxyScheme.getSchemeString())
+            final URIBuilder uriBuilder = new URIBuilder().setScheme(clientSettings.proxyScheme.getSchemeString())
                 .setHost(clientSettings.proxyHost)
                 .setPort(clientSettings.proxyPort);
             final URI proxyUri;
@@ -350,8 +349,7 @@ class S3Service extends AbstractLifecycleComponent {
 
             return Optional.of(
                 ProxyConfiguration.builder()
-                    .endpoint(proxyUri)
-                    .scheme(clientSettings.proxyScheme.getSchemeString()) // TODO NOMERGE do we need this again?
+                    .endpoint(proxyUri) // no need to set scheme, ProxyConfiguration populates the scheme from endpoint resolution
                     .username(clientSettings.proxyUsername)
                     .password(clientSettings.proxyPassword)
                     .build()

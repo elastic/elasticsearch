@@ -170,12 +170,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         secureSettings.setString("s3.client.default.proxy.password", "aws_proxy_password");
         final Settings settings = Settings.builder()
             .setSecureSettings(secureSettings)
-            .put("s3.client.default.proxy.host", "aws_proxy_host")
+            // NB: URI #getHost returns null if host string contains underscores: don't do it. Underscores are invalid in URL host strings.
+            .put("s3.client.default.proxy.host", "aws-proxy-host")
             .put("s3.client.default.proxy.port", 8080)
             .put("s3.client.default.proxy.scheme", "http")
             .put("s3.client.default.read_timeout", "10s")
             .build();
-        launchAWSConfigurationTest(settings, "aws_proxy_host", 8080, "http", "aws_proxy_username", "aws_proxy_password", 3, 10000);
+        launchAWSConfigurationTest(settings, "aws-proxy-host", 8080, "http", "aws_proxy_username", "aws_proxy_password", 3, 10000);
     }
 
     public void testRepositoryMaxRetries() {
@@ -202,11 +203,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             assertThat(proxyConfig.username(), is(expectedProxyUsername));
             assertThat(proxyConfig.password(), is(expectedProxyPassword));
             assertThat(proxyConfig.scheme(), is(expectedHttpScheme));
-            // TODO NOMERGE: something about URI is broken here.
-            // In S3Service, URI proxyUri returns the right endpoint, but not host and port pieces.
-            // Can't get endpoint here (though toString() surfaces it).
-            // assertThat(proxyConfig.host(), is(expectedProxyHost));
-            // assertThat(proxyConfig.port(), is(expectedProxyPort));
+            assertThat(proxyConfig.host(), is(expectedProxyHost));
+            assertThat(proxyConfig.port(), is(expectedProxyPort));
         }
 
         final ClientOverrideConfiguration configuration = S3Service.buildConfiguration(clientSettings, false);

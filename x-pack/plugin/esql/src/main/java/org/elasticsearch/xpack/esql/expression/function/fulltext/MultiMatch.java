@@ -135,7 +135,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         entry(OPERATOR_FIELD.getPreferredName(), KEYWORD),
         entry(PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
         entry(TIE_BREAKER_FIELD.getPreferredName(), FLOAT),
-        entry(TYPE_FIELD.getPreferredName(), OBJECT)
+        entry(TYPE_FIELD.getPreferredName(), KEYWORD)
     );
 
     @FunctionInfo(

@@ -171,7 +171,7 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
         delegate = new LinkedHashMap<>();
     }
 
-    public AttributeMap(int expectedSize) {
+    private AttributeMap(int expectedSize) {
         delegate = Maps.newLinkedHashMapWithExpectedSize(expectedSize);
     }
 
@@ -184,7 +184,6 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
         AttributeMap<E> combine = new AttributeMap<>(this.size() + other.size());
         combine.addAll(this);
         combine.addAll(other);
-
         return combine;
     }
 
@@ -195,7 +194,6 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
                 diff.delegate.put(entry.getKey(), entry.getValue());
             }
         }
-
         return diff;
     }
 
@@ -397,13 +395,20 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     public static <E> Builder<E> builder() {
-        return new Builder<>();
+        return new Builder<>(new AttributeMap<>());
+    }
+
+    public static <E> Builder<E> builder(int expectedSize) {
+        return new Builder<>(new AttributeMap<>(expectedSize));
     }
 
     public static class Builder<E> {
-        private final AttributeMap<E> map = new AttributeMap<>();
 
-        private Builder() {}
+        private final AttributeMap<E> map;
+
+        public Builder(AttributeMap<E> map) {
+            this.map = map;
+        }
 
         public E put(Attribute attr, E value) {
             return map.add(attr, value);

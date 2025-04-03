@@ -291,7 +291,7 @@ final class CefParser {
         "MMM dd yyyy HH:mm:ss"
     );
 
-    private final List<ChronoField> CHRONO_FIELDS = List.of(
+    private static final List<ChronoField> CHRONO_FIELDS = List.of(
         NANO_OF_SECOND,
         SECOND_OF_DAY,
         MINUTE_OF_DAY,

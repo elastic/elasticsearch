@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.aws.DynamicAwsCredentials;
+import fixture.aws.DynamicRegionSupplier;
 import fixture.aws.sts.AwsStsHttpFixture;
 import fixture.s3.S3HttpFixture;
 
@@ -36,16 +37,11 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "sts_credentials_client";
 
-    // Lazy-initialized so we can generate it randomly, which is not possible in static context.
-    private static final Supplier<String> regionSupplier = new LazyInitializable<>(
-        () -> "region-" + ESTestCase.randomIdentifier()
-    )::getOrCompute;
-
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
 
     private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
 
-    // TODO NOMERGE also add an end-to-end test to check if this file is changed then it's reloaded and we get new creds
     private static final String WEB_IDENTITY_TOKEN_FILE_CONTENTS = """
         Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDans\
         FBmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHhFO\

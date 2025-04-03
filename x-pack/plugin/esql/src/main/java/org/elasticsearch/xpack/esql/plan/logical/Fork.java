@@ -11,29 +11,29 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
- * A Fork is a {@code Plan} with one child, but holds several logical subplans, e.g.
+ * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
  */
-public class Fork extends UnaryPlan implements SurrogateLogicalPlan {
+public class Fork extends LogicalPlan {
     public static final String FORK_FIELD = "_fork";
-
-    private final List<LogicalPlan> subPlans;
     List<Attribute> lazyOutput;
 
-    public Fork(Source source, LogicalPlan child, List<LogicalPlan> subPlans) {
-        super(source, child);
-        if (subPlans.size() < 2) {
-            throw new IllegalArgumentException("requires more than two subqueries, got:" + subPlans.size());
+    public Fork(Source source, List<LogicalPlan> children) {
+        super(source, children);
+        if (children.size() < 2) {
+            throw new IllegalArgumentException("requires more than two subqueries, got:" + children.size());
         }
-        this.subPlans = subPlans;
+    }
+
+    @Override
+    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+        return new Fork(source(), newChildren);
     }
 
     @Override
@@ -46,55 +46,31 @@ public class Fork extends UnaryPlan implements SurrogateLogicalPlan {
         throw new UnsupportedOperationException("not serialized");
     }
 
-    public List<LogicalPlan> subPlans() {
-        return subPlans;
-    }
-
-    @Override
-    public LogicalPlan surrogate() {
-        var newChildren = subPlans.stream().map(p -> Merge.replaceStub(child(), p)).toList();
-        return new Merge(source(), newChildren);
-    }
-
     @Override
     public boolean expressionsResolved() {
-        return child().resolved() && subPlans.stream().allMatch(LogicalPlan::resolved);
+        return children().stream().allMatch(LogicalPlan::resolved);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Fork::new, child(), subPlans);
-    }
-
-    static List<LogicalPlan> replaceEmptyStubs(List<LogicalPlan> subQueries, LogicalPlan newChild) {
-        List<Attribute> attributes = List.copyOf(newChild.output());
-        return subQueries.stream().map(subquery -> {
-            var newStub = new StubRelation(subquery.source(), attributes);
-            return subquery.transformUp(StubRelation.class, stubRelation -> newStub);
-        }).toList();
-    }
-
-    @Override
-    public Fork replaceChild(LogicalPlan newChild) {
-        var newSubQueries = replaceEmptyStubs(subPlans, newChild);
-        return new Fork(source(), newChild, newSubQueries);
+        return NodeInfo.create(this, Fork::new, children());
     }
 
     public Fork replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new Fork(source(), child(), subPlans);
+        return new Fork(source(), subPlans);
     }
 
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = Stream.concat(children().getFirst().output().stream(), subPlans.getFirst().output().stream()).distinct().toList();
+            lazyOutput = children().getFirst().output();
         }
         return lazyOutput;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subPlans);
+        return Objects.hash(Fork.class, children());
     }
 
     @Override
@@ -105,10 +81,8 @@ public class Fork extends UnaryPlan implements SurrogateLogicalPlan {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (super.equals(o) == false) {
-            return false;
-        }
         Fork other = (Fork) o;
-        return Objects.equals(subPlans, other.subPlans);
+
+        return Objects.equals(children(), other.children());
     }
 }

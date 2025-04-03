@@ -56,9 +56,4 @@ public class TimeSeriesAggregate extends Aggregate {
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
         return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates);
     }
-
-    @Override
-    public String telemetryLabel() {
-        return "TIME_SERIES";
-    }
 }

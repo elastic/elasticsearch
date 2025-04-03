@@ -2681,7 +2681,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testMultiProjectXContent() throws IOException {
         final long lastAllocationId = randomNonNegativeLong();
-        final List<ProjectMetadata> projects = randomList(1, 5, () -> randomProject(randomUniqueProjectId(), randomIntBetween(1, 3)));
+        final List<ProjectMetadata> projects = randomList(1, 5, () -> randomProject(randomUniqueProjectId(), randomIntBetween(1, 3)))
             .stream()
             .map(
                 project -> ProjectMetadata.builder(project)

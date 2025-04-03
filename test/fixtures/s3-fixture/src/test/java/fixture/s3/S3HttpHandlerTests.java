@@ -76,8 +76,26 @@ public class S3HttpHandlerTests extends ESTestCase {
             handleRequest(handler, "GET", "/bucket/?prefix=path/other")
         );
 
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/subpath1/blob", randomAlphaOfLength(50)).status());
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/subpath2/blob", randomAlphaOfLength(50)).status());
+        assertEquals(new TestHttpResponse(RestStatus.OK, """
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix>\
+            <Delimiter>/</Delimiter><Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <CommonPrefixes><Prefix>path/subpath1/</Prefix></CommonPrefixes>\
+            <CommonPrefixes><Prefix>path/subpath2/</Prefix></CommonPrefixes>\
+            </ListBucketResult>"""), handleRequest(handler, "GET", "/bucket/?delimiter=/&prefix=path/"));
+
         assertEquals(RestStatus.OK, handleRequest(handler, "DELETE", "/bucket/path/blob").status());
         assertEquals(RestStatus.NO_CONTENT, handleRequest(handler, "DELETE", "/bucket/path/blob").status());
+
+        assertEquals(new TestHttpResponse(RestStatus.OK, """
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix>\
+            <Contents><Key>path/subpath1/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/subpath2/blob</Key><Size>50</Size></Contents>\
+            </ListBucketResult>"""), handleRequest(handler, "GET", "/bucket/?prefix="));
+
+        assertEquals(RestStatus.OK, handleRequest(handler, "DELETE", "/bucket/path/subpath1/blob").status());
+        assertEquals(RestStatus.OK, handleRequest(handler, "DELETE", "/bucket/path/subpath2/blob").status());
 
         assertEquals(
             new TestHttpResponse(RestStatus.OK, """

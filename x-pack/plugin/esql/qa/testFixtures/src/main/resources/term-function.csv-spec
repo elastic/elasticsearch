@@ -8,9 +8,11 @@ required_capability: term_function
 // tag::term-with-field[]
 FROM books 
 | WHERE TERM(author, "gabriel")  
-| KEEP book_no, title
-| LIMIT 3;
 // end::term-with-field[]
+| KEEP book_no, title
+// end::term-with-field[]
+| LIMIT 3
+;
 ignoreOrder:true
 
 book_no:keyword | title:text

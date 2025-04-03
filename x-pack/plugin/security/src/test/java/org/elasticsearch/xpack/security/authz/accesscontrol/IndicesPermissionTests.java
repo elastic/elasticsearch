@@ -364,6 +364,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAuthorizeDataStreamFailureIndices() {
+        assumeTrue("failure store required", DataStream.isFailureStoreFeatureFlagEnabled());
         Metadata.Builder builder = Metadata.builder();
         String dataStreamName = randomAlphaOfLength(6);
         int numBackingIndices = randomIntBetween(1, 3);

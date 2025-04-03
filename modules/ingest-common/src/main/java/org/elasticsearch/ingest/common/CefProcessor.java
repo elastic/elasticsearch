@@ -90,37 +90,23 @@ public final class CefProcessor extends AbstractProcessor {
 
         @Override
         public CefProcessor create(
-            Map<String, Processor.Factory> processorFactories,
-            String processorTag,
+            Map<String, Processor.Factory> registry,
+            String tag,
             String description,
             Map<String, Object> config,
             ProjectId projectId
         ) {
-            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            boolean ignoreEmptyValues = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_values", true);
-            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "cef");
-            String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
+            String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
+            boolean ignoreEmptyValues = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_empty_values", true);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field", "cef");
+            String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "timezone");
             TemplateScript.Factory compiledTimezoneTemplate = null;
             if (timezoneString != null) {
-                compiledTimezoneTemplate = ConfigurationUtils.compileTemplate(
-                    TYPE,
-                    processorTag,
-                    "timezone",
-                    timezoneString,
-                    scriptService
-                );
+                compiledTimezoneTemplate = ConfigurationUtils.compileTemplate(TYPE, tag, "timezone", timezoneString, scriptService);
             }
 
-            return new CefProcessor(
-                processorTag,
-                description,
-                field,
-                targetField,
-                ignoreMissing,
-                ignoreEmptyValues,
-                compiledTimezoneTemplate
-            );
+            return new CefProcessor(tag, description, field, targetField, ignoreMissing, ignoreEmptyValues, compiledTimezoneTemplate);
         }
     }
 }

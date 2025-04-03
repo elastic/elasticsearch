@@ -34,4 +34,9 @@ public class GenerativeIT extends GenerativeRestTest {
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
+
+    @Override
+    protected boolean supportsSourceFieldMapping() {
+        return cluster.getNumNodes() == 1;
+    }
 }

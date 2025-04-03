@@ -164,10 +164,14 @@ setup:
 
 ---
 "Get /_settings with local flag":
+ - requires:
+    test_runner_features: ["allowed_warnings"]
 
  - do:
     indices.get_settings:
         local: true
+    allowed_warnings:
+      - "the [?local] query parameter to this API has no effect, is now deprecated, and will be removed in a future version"
 
  - is_true: test_1
  - is_true: test_2

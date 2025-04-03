@@ -67,9 +67,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     @Before
     public void setup() throws IOException {
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client(), true, true);
+            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping());
         }
     }
+
+    protected abstract boolean supportsSourceFieldMapping();
 
     @AfterClass
     public static void wipeTestData() throws IOException {

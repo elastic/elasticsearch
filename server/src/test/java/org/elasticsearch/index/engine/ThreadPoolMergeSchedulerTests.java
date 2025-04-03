@@ -508,18 +508,21 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 )
             ) {
                 CountDownLatch mergeDoneLatch = new CountDownLatch(1);
+                CountDownLatch mergeRunningLatch = new CountDownLatch(1);
                 MergeSource mergeSource = mock(MergeSource.class);
                 OneMerge oneMerge = mock(OneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                 when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
                 doAnswer(invocation -> {
+                    mergeRunningLatch.countDown();
                     OneMerge merge = (OneMerge) invocation.getArguments()[0];
                     assertFalse(merge.isAborted());
                     // wait to be signalled before completing the merge
                     mergeDoneLatch.await();
                     return null;
                 }).when(mergeSource).merge(any(OneMerge.class));
+                // submit the merge
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
                 Thread t = new Thread(() -> {
                     try {
@@ -531,6 +534,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 t.start();
                 try {
                     assertTrue(t.isAlive());
+                    // wait for the merge to actually run
+                    mergeRunningLatch.await();
                     // ensure the merge scheduler is effectively "closed"
                     assertBusy(() -> {
                         MergeSource mergeSource2 = mock(MergeSource.class);

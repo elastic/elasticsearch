@@ -70,7 +70,7 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static QueryRuleRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {

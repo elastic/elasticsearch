@@ -29,7 +29,7 @@ public class DiscoveryEc2SystemPropertyCredentialsIT extends DiscoveryEc2Cluster
     private static final String ACCESS_KEY = PREFIX + "-access-key";
 
     private static final AwsEc2HttpFixture ec2ApiFixture = new AwsEc2HttpFixture(
-        fixedAccessKey(ACCESS_KEY),
+        fixedAccessKey(ACCESS_KEY, REGION, "ec2"),
         DiscoveryEc2SystemPropertyCredentialsIT::getAvailableTransportEndpoints
     );
 
@@ -41,7 +41,7 @@ public class DiscoveryEc2SystemPropertyCredentialsIT extends DiscoveryEc2Cluster
         .setting(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), ec2ApiFixture::getAddress)
         .environment("AWS_REGION", REGION)
         .systemProperty("aws.accessKeyId", ACCESS_KEY)
-        .systemProperty("aws.secretKey", ESTestCase::randomSecretKey)
+        .systemProperty("aws.secretAccessKey", ESTestCase::randomSecretKey)
         .build();
 
     private static List<String> getAvailableTransportEndpoints() {

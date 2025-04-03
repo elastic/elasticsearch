@@ -12,7 +12,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 
-public class AggregateMetricFieldSerializer implements DownsampleFieldSerializer {
+final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer {
     private final Collection<AbstractDownsampleFieldProducer> producers;
     private final String name;
 
@@ -22,7 +22,7 @@ public class AggregateMetricFieldSerializer implements DownsampleFieldSerializer
      * @param producers a collection of {@link AbstractDownsampleFieldProducer} instances with the subfields
      *                  of the aggregate_metric_double field.
      */
-    public AggregateMetricFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer> producers) {
+    AggregateMetricFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer> producers) {
         this.name = name;
         this.producers = producers;
     }
@@ -38,10 +38,22 @@ public class AggregateMetricFieldSerializer implements DownsampleFieldSerializer
             assert name.equals(fieldProducer.name()) : "producer has a different name";
             if (fieldProducer.isEmpty() == false) {
                 if (fieldProducer instanceof MetricFieldProducer metricFieldProducer) {
-                    for (MetricFieldProducer.Metric metric : metricFieldProducer.metrics()) {
-                        if (metric.get() != null) {
-                            builder.field(metric.name(), metric.get());
+                    if (metricFieldProducer instanceof MetricFieldProducer.GaugeMetricFieldProducer gaugeProducer) {
+                        builder.field("max", gaugeProducer.max);
+                        builder.field("min", gaugeProducer.min);
+                        builder.field("sum", gaugeProducer.sum.value());
+                        builder.field("value_count", gaugeProducer.count);
+                    } else if (metricFieldProducer instanceof MetricFieldProducer.CounterMetricFieldProducer counterProducer) {
+                        builder.field("last_value", counterProducer.lastValue);
+                    } else if (metricFieldProducer instanceof MetricFieldProducer.AggregatedGaugeMetricFieldProducer producer) {
+                        switch (producer.metric) {
+                            case max -> builder.field("max", producer.max);
+                            case min -> builder.field("min", producer.min);
+                            case sum -> builder.field("sum", producer.sum.value());
+                            case value_count -> builder.field("value_count", producer.count);
                         }
+                    } else {
+                        throw new IllegalStateException();
                     }
                 } else if (fieldProducer instanceof LabelFieldProducer labelFieldProducer) {
                     LabelFieldProducer.Label label = labelFieldProducer.label();

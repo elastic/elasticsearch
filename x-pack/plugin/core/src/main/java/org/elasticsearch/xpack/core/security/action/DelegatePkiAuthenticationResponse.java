@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,12 +41,9 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     }
 
     public DelegatePkiAuthenticationResponse(StreamInput input) throws IOException {
-        super(input);
         accessToken = input.readString();
         expiresIn = input.readTimeValue();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            authentication = new Authentication(input);
-        }
+        authentication = new Authentication(input);
     }
 
     public String getAccessToken() {
@@ -66,9 +62,7 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(accessToken);
         out.writeTimeValue(expiresIn);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            authentication.writeTo(out);
-        }
+        authentication.writeTo(out);
     }
 
     @Override

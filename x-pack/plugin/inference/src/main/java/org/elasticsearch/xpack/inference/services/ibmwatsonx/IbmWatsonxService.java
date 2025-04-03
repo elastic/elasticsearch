@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -29,8 +30,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
@@ -271,7 +272,6 @@ public class IbmWatsonxService extends SenderService {
         Model model,
         InferenceInputs input,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -282,8 +282,13 @@ public class IbmWatsonxService extends SenderService {
 
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
 
-        var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings, inputType);
+        var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings);
         action.execute(input, timeout, listener);
+    }
+
+    @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
     }
 
     @Override
@@ -299,7 +304,7 @@ public class IbmWatsonxService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput input,
+        EmbeddingsInput input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -307,14 +312,14 @@ public class IbmWatsonxService extends SenderService {
     ) {
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
 
-        var batchedRequests = new EmbeddingRequestChunker(
+        var batchedRequests = new EmbeddingRequestChunker<>(
             input.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             model.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
-            var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings, inputType);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+            var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings);
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 

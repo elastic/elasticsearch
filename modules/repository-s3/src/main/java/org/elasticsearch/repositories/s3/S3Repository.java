@@ -376,10 +376,10 @@ class S3Repository extends MeteredBlobStoreRepository {
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
                 wrapWithWeakConsistencyProtection(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
-                info -> metadataDone.addListener(new ActionListener<>() {
+                () -> metadataDone.addListener(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
-                        finalizeSnapshotContext.onDone(info);
+                        finalizeSnapshotContext.onDone();
                     }
 
                     @Override

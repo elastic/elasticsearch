@@ -28,8 +28,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.concurrent.Executor;
-
 import static org.elasticsearch.core.Strings.format;
 
 public class TransportShardMultiTermsVectorAction extends TransportSingleShardAction<
@@ -111,13 +109,5 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         }
 
         return response;
-    }
-
-    @Override
-    protected Executor getExecutor(MultiTermVectorsShardRequest request, ShardId shardId) {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().isSearchThrottled()
-            ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
-            : super.getExecutor(request, shardId);
     }
 }

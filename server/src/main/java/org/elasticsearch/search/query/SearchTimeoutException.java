@@ -18,7 +18,7 @@ import java.io.IOException;
 
 /**
  * Specific instance of {@link SearchException} that indicates that a search timeout occurred.
- * Always returns http status 504 (Gateway Timeout)
+ * Always returns http status 429 (Too Many Requests)
  */
 public class SearchTimeoutException extends SearchException {
     public SearchTimeoutException(SearchShardTarget shardTarget, String msg) {
@@ -32,6 +32,11 @@ public class SearchTimeoutException extends SearchException {
     @Override
     public RestStatus status() {
         return RestStatus.TOO_MANY_REQUESTS;
+    }
+
+    @Override
+    public boolean isTimeout() {
+        return true;
     }
 
     /**

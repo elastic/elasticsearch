@@ -30,7 +30,7 @@ public class AlibabaCloudSearchEmbeddingsModelTests extends ESTestCase {
             DefaultSecretSettingsTests.createRandom()
         );
 
-        var overriddenModel = AlibabaCloudSearchEmbeddingsModel.of(model, Map.of(), taskSettings.getInputType());
+        var overriddenModel = AlibabaCloudSearchEmbeddingsModel.of(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 

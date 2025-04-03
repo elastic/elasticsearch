@@ -24,7 +24,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -32,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
@@ -181,6 +184,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(
@@ -213,6 +217,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(
@@ -266,6 +271,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(
@@ -307,6 +313,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
 
@@ -341,6 +348,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getGlobalRetention(), nullValue());
@@ -367,6 +375,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             withGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getGlobalRetention(), equalTo(globalRetention));
@@ -394,6 +403,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
@@ -423,6 +433,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
@@ -457,9 +468,63 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                         .build()
                 )
             ),
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
         assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(true));
+    }
+
+    public void testProvidersAffectMode() {
+        ClusterState state;
+        var projectId = randomProjectIdOrDefault();
+        {
+            state = DataStreamTestHelper.getClusterStateWithDataStreams(
+                projectId,
+                List.of(Tuple.tuple("data-stream-1", 2)),
+                List.of(),
+                System.currentTimeMillis(),
+                Settings.EMPTY,
+                0,
+                false,
+                false
+            );
+        }
+
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            state.projectState(projectId),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(
+                Set.of(
+                    (
+                        indexName,
+                        dataStreamName,
+                        templateIndexMode,
+                        metadata,
+                        resolvedAt,
+                        indexTemplateAndCreateRequestSettings,
+                        combinedTemplateMappings) -> Settings.builder().put("index.mode", IndexMode.LOOKUP).build()
+                )
+            ),
+            null
+        );
+        assertThat(response.getDataStreams().getFirst().getIndexModeName(), equalTo("lookup"));
+        assertThat(
+            response.getDataStreams()
+                .getFirst()
+                .getIndexSettingsValues()
+                .values()
+                .stream()
+                .findFirst()
+                .map(GetDataStreamAction.Response.IndexProperties::indexMode)
+                .orElse("bad"),
+            equalTo("standard")
+        );
     }
 }

@@ -741,7 +741,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "coordinating_rejections": 0,
                         "primary_rejections": 0,
                         "replica_rejections": 0,
-                        "primary_document_rejections": 0
+                        "primary_document_rejections": 0,
+                        "large_operation_rejections":0
                       },
                       "limit_in_bytes": 0
                     }

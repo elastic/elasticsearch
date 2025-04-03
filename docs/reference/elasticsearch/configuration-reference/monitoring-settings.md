@@ -2,6 +2,10 @@
 navigation_title: "Monitoring settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/monitoring-settings.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Monitoring settings in {{es}} [monitoring-settings]
@@ -39,7 +43,7 @@ The `xpack.monitoring.collection` settings control how data is collected from yo
 
 $$$xpack-monitoring-collection-interval$$$
 
-`xpack.monitoring.collection.interval` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`xpack.monitoring.collection.interval` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   [6.3.0] ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Setting to `-1` to disable data collection is no longer supported beginning with 7.0.0.
 
     Controls how often data samples are collected. Defaults to `10s`. If you modify the collection interval, set the `xpack.monitoring.min_interval_seconds` option in `kibana.yml` to the same value.
@@ -66,9 +70,14 @@ $$$xpack-monitoring-collection-interval$$$
 `xpack.monitoring.collection.index.recovery.timeout`
 :   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0] Timeout for collecting the recovery information, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
 
+`xpack.monitoring.collection.min_interval_seconds` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   Specifies the minimum number of seconds that a time bucket in a chart can represent. If you modify the `xpack.monitoring.collection.interval`, use the same value in this setting.
+
+    Defaults to `10` (10 seconds).
+
 $$$xpack-monitoring-history-duration$$$
 
-`xpack.monitoring.history.duration` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`xpack.monitoring.history.duration` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0] Retention duration beyond which the indices created by a monitoring exporter are automatically deleted, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `7d` (7 days).
 
     This setting has a minimum value of `1d` (1 day) to ensure that something is being monitored and it cannot be disabled.

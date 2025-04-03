@@ -11,14 +11,17 @@ package org.elasticsearch.entitlement.qa;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.entitlement.qa.EntitlementsTestRule.PolicyBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractEntitlementsIT extends ESRestTestCase {
@@ -69,8 +72,34 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
             Response result = executeCheck();
             assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
         } else {
-            var exception = expectThrows(IOException.class, this::executeCheck);
-            assertThat(exception.getMessage(), containsString("not_entitled_exception"));
+            var exception = expectThrows(ResponseException.class, this::executeCheck);
+            assertThat(exception, statusCodeMatcher(403));
         }
+    }
+
+    private static Matcher<ResponseException> statusCodeMatcher(int statusCode) {
+        return new TypeSafeMatcher<>() {
+            String expectedException = null;
+
+            @Override
+            protected boolean matchesSafely(ResponseException item) {
+                Response resp = item.getResponse();
+                expectedException = resp.getHeader("expectedException");
+                return resp.getStatusLine().getStatusCode() == statusCode && expectedException != null;
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendValue(statusCode).appendText(" due to ").appendText(expectedException);
+            }
+
+            @Override
+            protected void describeMismatchSafely(ResponseException item, Description description) {
+                description.appendText("was ")
+                    .appendValue(item.getResponse().getStatusLine().getStatusCode())
+                    .appendText("\n")
+                    .appendValue(item.getMessage());
+            }
+        };
     }
 }

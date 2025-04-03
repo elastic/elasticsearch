@@ -56,7 +56,7 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), SEED_FIELD);
 
-        RetrieverBuilder.declareBaseParserFields(RandomRankBuilder.NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static RandomRankRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {

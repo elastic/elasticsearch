@@ -3,10 +3,12 @@
 **Example**
 
 ```esql
-row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
-| eval ip4_prefix = ip_prefix(ip4, 24, 0), ip6_prefix = ip_prefix(ip6, 0, 112);
+ROW ip4 = to_ip("1.2.3.4"), ip6 = TO_IP("fe80::cae2:65ff:fece:feb9")
+| EVAL ip4_prefix = IP_PREFIX(ip4, 24, 0), ip6_prefix = IP_PREFIX(ip6, 0, 112);
 ```
 
 | ip4:ip | ip6:ip | ip4_prefix:ip | ip6_prefix:ip |
 | --- | --- | --- | --- |
 | 1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 1.2.3.0 | fe80::cae2:65ff:fece:0000 |
+
+

@@ -32,7 +32,7 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "sts_credentials_client";
 
-    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials();
+    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials("*", "s3");
 
     private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
 

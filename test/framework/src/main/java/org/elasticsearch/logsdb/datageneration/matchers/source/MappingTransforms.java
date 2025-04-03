@@ -26,7 +26,7 @@ class MappingTransforms {
 
     /**
      * Normalize mapping to have the same structure as normalized source and enable field mapping lookup.
-     * Similar to {@link SourceTransforms#normalize(Map)} but needs to get rid of intermediate nodes
+     * Similar to {@link SourceTransforms#normalize(Map, Map)} but needs to get rid of intermediate nodes
      * and collect results into a different data structure.
      *
      * @param map raw mapping document converted to map

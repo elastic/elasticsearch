@@ -22,8 +22,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
 
 public class IndexAbstractionResolver {
 
@@ -37,8 +37,8 @@ public class IndexAbstractionResolver {
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
-        Supplier<Set<String>> allAuthorizedAndAvailable,
-        Predicate<String> isAuthorized,
+        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
         boolean includeDataStreams
     ) {
         List<String> finalIndices = new ArrayList<>();
@@ -64,6 +64,7 @@ public class IndexAbstractionResolver {
                 );
             }
             indexAbstraction = expressionAndSelector.v1();
+            IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
 
             // we always need to check for date math expressions
             indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
@@ -71,7 +72,7 @@ public class IndexAbstractionResolver {
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : allAuthorizedAndAvailable.get()) {
+                for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
@@ -102,7 +103,7 @@ public class IndexAbstractionResolver {
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
                     finalIndices.removeAll(resolvedIndices);
-                } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
+                } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction, selector)) {
                     // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
                     // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
                     // handler, see: https://github.com/elastic/elasticsearch/issues/90215
@@ -156,7 +157,11 @@ public class IndexAbstractionResolver {
         final boolean isHidden = indexAbstraction.isHidden();
         boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-            if (indexAbstraction.isSystem()) {
+            // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
+            // it's complicated to support those options with aliases pointing to multiple indices...
+            isVisible = isVisible && indicesOptions.ignoreAliases() == false;
+
+            if (isVisible && indexAbstraction.isSystem()) {
                 // check if it is net new
                 if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
                     // don't give this code any particular credit for being *correct*. it's just trying to resolve a combination of
@@ -182,9 +187,6 @@ public class IndexAbstractionResolver {
                 }
             }
 
-            // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
-            // complicated to support those options with aliases pointing to multiple indices...
-            isVisible = isVisible && indicesOptions.ignoreAliases() == false;
             if (isVisible && selectorString != null) {
                 // Check if a selector was present, and if it is, check if this alias is applicable to it
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);

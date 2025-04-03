@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettings;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.Alib
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettings;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
@@ -58,8 +58,9 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalTextEmbeddingServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticRerankerServiceSettings;
@@ -145,6 +146,7 @@ public class InferenceNamedWriteablesProvider {
         addCustomElandWriteables(namedWriteables);
         addAnthropicNamedWritables(namedWriteables);
         addAmazonBedrockNamedWriteables(namedWriteables);
+        addAwsNamedWriteables(namedWriteables);
         addEisNamedWriteables(namedWriteables);
         addAlibabaCloudSearchNamedWriteables(namedWriteables);
         addJinaAINamedWriteables(namedWriteables);
@@ -153,6 +155,7 @@ public class InferenceNamedWriteablesProvider {
         addUnifiedNamedWriteables(namedWriteables);
 
         namedWriteables.addAll(StreamingTaskManager.namedWriteables());
+        namedWriteables.addAll(DeepSeekChatCompletionModel.namedWriteables());
 
         return namedWriteables;
     }
@@ -163,14 +166,6 @@ public class InferenceNamedWriteablesProvider {
     }
 
     private static void addAmazonBedrockNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                AmazonBedrockSecretSettings.class,
-                AmazonBedrockSecretSettings.NAME,
-                AmazonBedrockSecretSettings::new
-            )
-        );
-
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,
@@ -195,6 +190,10 @@ public class InferenceNamedWriteablesProvider {
                 AmazonBedrockChatCompletionTaskSettings::new
             )
         );
+    }
+
+    private static void addAwsNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(AwsSecretSettings.class, AwsSecretSettings.NAME, AwsSecretSettings::new));
     }
 
     private static void addMistralNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

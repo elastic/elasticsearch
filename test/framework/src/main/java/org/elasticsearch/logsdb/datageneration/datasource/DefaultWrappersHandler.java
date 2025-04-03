@@ -9,9 +9,12 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -37,9 +40,19 @@ public class DefaultWrappersHandler implements DataSourceHandler {
         return new DataSourceResponse.MalformedWrapper(injectMalformed(request.malformedValues()));
     }
 
+    @Override
+    public DataSourceResponse.TransformWrapper handle(DataSourceRequest.TransformWrapper request) {
+        return new DataSourceResponse.TransformWrapper(transform(request.transformedProportion(), request.transformation()));
+    }
+
+    @Override
+    public DataSourceResponse.TransformWeightedWrapper handle(DataSourceRequest.TransformWeightedWrapper<?> request) {
+        return new DataSourceResponse.TransformWeightedWrapper(transformWeighted(request.transformations()));
+    }
+
     private static Function<Supplier<Object>, Supplier<Object>> injectNulls() {
         // Inject some nulls but majority of data should be non-null (as it likely is in reality).
-        return (values) -> () -> ESTestCase.randomDouble() <= 0.05 ? null : values.get();
+        return transform(0.05, ignored -> null);
     }
 
     private static Function<Supplier<Object>, Supplier<Object>> wrapInArray() {
@@ -69,6 +82,45 @@ public class DefaultWrappersHandler implements DataSourceHandler {
     }
 
     private static Function<Supplier<Object>, Supplier<Object>> injectMalformed(Supplier<Object> malformedValues) {
-        return (values) -> () -> ESTestCase.randomDouble() <= 0.1 ? malformedValues.get() : values.get();
+        return transform(0.1, ignored -> malformedValues.get());
+    }
+
+    private static Function<Supplier<Object>, Supplier<Object>> transform(
+        double transformedProportion,
+        Function<Object, Object> transformation
+    ) {
+        return (values) -> () -> ESTestCase.randomDouble() <= transformedProportion ? transformation.apply(values.get()) : values.get();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> Function<Supplier<Object>, Supplier<Object>> transformWeighted(
+        List<Tuple<Double, Function<T, Object>>> transformations
+    ) {
+        double totalWeight = transformations.stream().mapToDouble(Tuple::v1).sum();
+        if (totalWeight != 1.0) {
+            throw new IllegalArgumentException("Sum of weights must be equal to 1");
+        }
+
+        List<Tuple<Double, Double>> lookup = new ArrayList<>();
+
+        Double leftBound = 0d;
+        for (var tuple : transformations) {
+            lookup.add(Tuple.tuple(leftBound, leftBound + tuple.v1()));
+            leftBound += tuple.v1();
+        }
+
+        return values -> {
+            var roll = ESTestCase.randomDouble();
+            for (int i = 0; i < lookup.size(); i++) {
+                var bounds = lookup.get(i);
+                if (roll >= bounds.v1() && roll <= bounds.v2()) {
+                    var transformation = transformations.get(i).v2();
+                    return () -> transformation.apply((T) values.get());
+                }
+            }
+
+            assert false : "Should not get here if weights add up to 1";
+            return null;
+        };
     }
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -31,16 +32,23 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Handles data stream modification requests.
  */
 public class MetadataDataStreamsService {
-
+    private static final Logger LOGGER = LogManager.getLogger(MetadataDataStreamsService.class);
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
@@ -111,7 +119,15 @@ public class MetadataDataStreamsService {
                 ClusterState clusterState
             ) {
                 return new Tuple<>(
-                    updateDataStreamOptions(clusterState, modifyOptionsTask.getDataStreamNames(), modifyOptionsTask.getOptions()),
+                    ClusterState.builder(clusterState)
+                        .putProjectMetadata(
+                            updateDataStreamOptions(
+                                clusterState.projectState(modifyOptionsTask.projectId).metadata(),
+                                modifyOptionsTask.getDataStreamNames(),
+                                modifyOptionsTask.getOptions()
+                            )
+                        )
+                        .build(),
                     modifyOptionsTask
                 );
             }
@@ -187,6 +203,7 @@ public class MetadataDataStreamsService {
      * Submits the task to set the provided data stream options to the requested data streams.
      */
     public void setDataStreamOptions(
+        final ProjectId projectId,
         final List<String> dataStreamNames,
         DataStreamOptions options,
         TimeValue ackTimeout,
@@ -195,7 +212,7 @@ public class MetadataDataStreamsService {
     ) {
         updateOptionsTaskQueue.submitTask(
             "set-data-stream-options",
-            new UpdateOptionsTask(dataStreamNames, options, ackTimeout, listener),
+            new UpdateOptionsTask(projectId, dataStreamNames, options, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -204,6 +221,7 @@ public class MetadataDataStreamsService {
      * Submits the task to remove the data stream options from the requested data streams.
      */
     public void removeDataStreamOptions(
+        ProjectId projectId,
         List<String> dataStreamNames,
         TimeValue ackTimeout,
         TimeValue masterTimeout,
@@ -211,7 +229,7 @@ public class MetadataDataStreamsService {
     ) {
         updateOptionsTaskQueue.submitTask(
             "delete-data-stream-options",
-            new UpdateOptionsTask(dataStreamNames, null, ackTimeout, listener),
+            new UpdateOptionsTask(projectId, dataStreamNames, null, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -300,18 +318,17 @@ public class MetadataDataStreamsService {
      * Creates an updated cluster state in which the requested data streams have the data stream options provided.
      * Visible for testing.
      */
-    ClusterState updateDataStreamOptions(
-        ClusterState currentState,
+    ProjectMetadata updateDataStreamOptions(
+        ProjectMetadata project,
         List<String> dataStreamNames,
         @Nullable DataStreamOptions dataStreamOptions
     ) {
-        Metadata metadata = currentState.metadata();
-        Metadata.Builder builder = Metadata.builder(metadata);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
         for (var dataStreamName : dataStreamNames) {
-            var dataStream = validateDataStream(metadata.getProject(), dataStreamName);
+            var dataStream = validateDataStream(project, dataStreamName);
             builder.put(dataStream.copy().setDataStreamOptions(dataStreamOptions).build());
         }
-        return ClusterState.builder(currentState).metadata(builder.build()).build();
+        return builder.build();
     }
 
     /**
@@ -433,6 +450,52 @@ public class MetadataDataStreamsService {
     }
 
     /**
+     * Removes the given data stream and their backing indices from the Project State.
+     *
+     * @param projectState The project state
+     * @param dataStreams  The data streams to remove
+     * @param settings     The settings
+     * @return The updated Project State
+     */
+    public static ClusterState deleteDataStreams(ProjectState projectState, Set<DataStream> dataStreams, Settings settings) {
+        if (dataStreams.isEmpty()) {
+            return projectState.cluster();
+        }
+
+        Set<String> dataStreamNames = dataStreams.stream().map(DataStream::getName).collect(Collectors.toSet());
+        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(projectState, dataStreamNames);
+        if (snapshottingDataStreams.isEmpty() == false) {
+            throw new SnapshotInProgressException(
+                "Cannot delete data streams that are being snapshotted: ["
+                    + String.join(", ", snapshottingDataStreams)
+                    + "]. Try again after snapshot finishes or cancel the currently running snapshot."
+            );
+        }
+
+        Set<Index> backingIndicesToRemove = new HashSet<>();
+        for (DataStream dataStream : dataStreams) {
+            assert dataStream != null;
+            if (projectState.metadata().dataStreams().get(dataStream.getName()) == null) {
+                throw new ResourceNotFoundException("data stream [" + dataStream.getName() + "] not found");
+            }
+            backingIndicesToRemove.addAll(dataStream.getIndices());
+            backingIndicesToRemove.addAll(dataStream.getFailureIndices());
+        }
+
+        // first delete the data streams and then the indices:
+        // (this to avoid data stream validation from failing when deleting an index that is part of a data stream
+        // without updating the data stream)
+        // TODO: change order when "delete index api" also updates the data stream the "index to be removed" is a member of
+        ClusterState newState = projectState.updatedState(builder -> {
+            for (DataStream ds : dataStreams) {
+                LOGGER.info("removing data stream [{}]", ds.getName());
+                builder.removeDataStream(ds.getName());
+            }
+        });
+        return MetadataDeleteIndexService.deleteIndices(newState.projectState(projectState.projectId()), backingIndicesToRemove, settings);
+    }
+
+    /**
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
     static class UpdateLifecycleTask extends AckedBatchedClusterStateUpdateTask {
@@ -471,19 +534,25 @@ public class MetadataDataStreamsService {
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
     static class UpdateOptionsTask extends AckedBatchedClusterStateUpdateTask {
-
+        ProjectId projectId;
         private final List<String> dataStreamNames;
         private final DataStreamOptions options;
 
         UpdateOptionsTask(
+            ProjectId projectId,
             List<String> dataStreamNames,
             @Nullable DataStreamOptions options,
             TimeValue ackTimeout,
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(ackTimeout, listener);
+            this.projectId = projectId;
             this.dataStreamNames = dataStreamNames;
             this.options = options;
+        }
+
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         public List<String> getDataStreamNames() {

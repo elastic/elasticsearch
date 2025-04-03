@@ -9,12 +9,12 @@ mapped_pages:
 
 The `shape` data type facilitates the indexing of and searching with arbitrary `x, y` cartesian shapes such as rectangles and polygons. It can be used to index and query geometries whose coordinates fall in a 2-dimensional planar coordinate system.
 
-You can query documents using this type using [shape Query](/reference/query-languages/query-dsl-shape-query.md).
+You can query documents using this type using [shape Query](/reference/query-languages/query-dsl/query-dsl-shape-query.md).
 
 
 ## Mapping Options [shape-mapping-options]
 
-Like the [`geo_shape`](/reference/elasticsearch/mapping-reference/geo-shape.md) field type, the `shape` field mapping maps [GeoJSON](http://geojson.org) or [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md) (WKT) geometry objects to the shape type. To enable it, users must explicitly map fields to the shape type.
+Like the [`geo_shape`](/reference/elasticsearch/mapping-reference/geo-shape.md) field type, the `shape` field mapping maps [GeoJSON](http://geojson.org) or [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) (WKT) geometry objects to the shape type. To enable it, users must explicitly map fields to the shape type.
 
 | Option | Description | Default |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ This mapping definition maps the geometry field to the shape type. The indexer u
 
 ## Input Structure [shape-input-structure]
 
-Shapes can be represented using either the [GeoJSON](http://geojson.org) or [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md) (WKT) format. The following table provides a mapping of GeoJSON and WKT to Elasticsearch types:
+Shapes can be represented using either the [GeoJSON](http://geojson.org) or [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) (WKT) format. The following table provides a mapping of GeoJSON and WKT to Elasticsearch types:
 
 | GeoJSON Type | WKT Type | Elasticsearch Type | Description |
 | --- | --- | --- | --- |
@@ -75,7 +75,7 @@ In GeoJSON and WKT, and therefore Elasticsearch, the correct **coordinate order 
 
 
 
-### [Point](http://geojson.org/geojson-spec.md#id2) [point-shape]
+### [Point](http://geojson.org/geojson-spec.html#id2) [point-shape]
 
 A point is a single coordinate in cartesian `x, y` space. It may represent the location of an item of interest in a virtual world or projected space. The following is an example of a point in GeoJSON.
 
@@ -99,7 +99,7 @@ POST /example/_doc
 ```
 
 
-### [LineString](http://geojson.org/geojson-spec.md#id3) [linestring]
+### [LineString](http://geojson.org/geojson-spec.html#id3) [linestring]
 
 A `linestring` defined by an array of two or more positions. By specifying only two points, the `linestring` will represent a straight line. Specifying more than two points creates an arbitrary path. The following is an example of a LineString in GeoJSON.
 
@@ -123,7 +123,7 @@ POST /example/_doc
 ```
 
 
-### [Polygon](http://geojson.org/geojson-spec.md#id4) [polygon]
+### [Polygon](http://geojson.org/geojson-spec.html#id4) [polygon]
 
 A polygon is defined by a list of a list of points. The first and last points in each (outer) list must be the same (the polygon must be closed). The following is an example of a Polygon in GeoJSON.
 
@@ -192,7 +192,7 @@ POST /example/_doc
 ```
 
 
-### [MultiPoint](http://geojson.org/geojson-spec.md#id5) [multipoint]
+### [MultiPoint](http://geojson.org/geojson-spec.html#id5) [multipoint]
 
 The following is an example of a list of GeoJSON points:
 
@@ -218,7 +218,7 @@ POST /example/_doc
 ```
 
 
-### [MultiLineString](http://geojson.org/geojson-spec.md#id6) [multilinestring]
+### [MultiLineString](http://geojson.org/geojson-spec.html#id6) [multilinestring]
 
 The following is an example of a list of GeoJSON linestrings:
 
@@ -246,7 +246,7 @@ POST /example/_doc
 ```
 
 
-### [MultiPolygon](http://geojson.org/geojson-spec.md#id7) [multipolygon]
+### [MultiPolygon](http://geojson.org/geojson-spec.html#id7) [multipolygon]
 
 The following is an example of a list of GeoJSON polygons (second polygon contains a hole):
 

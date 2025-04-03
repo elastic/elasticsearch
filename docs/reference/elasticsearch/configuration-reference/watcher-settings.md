@@ -2,6 +2,10 @@
 navigation_title: "{{watcher}} settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/notification-settings.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # {{watcher}} settings in Elasticsearch [notification-settings]
@@ -19,7 +23,7 @@ All of these settings can be added to the `elasticsearch.yml` configuration file
 
 $$$xpack-watcher-encrypt-sensitive-data$$$
 
-`xpack.watcher.encrypt_sensitive_data` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`xpack.watcher.encrypt_sensitive_data` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Set to `true` to encrypt sensitive data. If this setting is enabled, you must also specify the `xpack.watcher.encryption_key` setting. For more information, see [*Encrypting sensitive data in {{watcher}}*](docs-content://explore-analyze/alerts-cases/watcher/encrypting-data.md).
 
 `xpack.watcher.encryption_key`
@@ -27,6 +31,12 @@ $$$xpack-watcher-encrypt-sensitive-data$$$
 
 `xpack.watcher.max.history.record.size`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The maximum size watcher history record that can be written into the watcher history index. Any larger history record will have some of its larger fields removed. Defaults to 10mb.
+
+`xpack.watcher.trigger.schedule.engine` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   Defines when the watch should start, based on date and time [Learn more](docs-content://explore-analyze/alerts-cases/watcher/schedule-types.md).
+
+`xpack.watcher.history.cleaner_service.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   Controls [whether old watcher indices are automatically deleted](/reference/elasticsearch/configuration-reference/watcher-settings.md#general-notification-settings).
 
 `xpack.http.proxy.host`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the address of the proxy server to use to connect to HTTP services.
@@ -94,7 +104,7 @@ You can configure the following TLS/SSL settings.
     Defaults to `full`.
 
 
-`xpack.http.ssl.cipher_suites`
+`xpack.http.ssl.cipher_suites` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
     For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
@@ -274,7 +284,7 @@ $$$email-account-attributes$$$
 `smtp.wait_on_quit`
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) If set to false the QUIT command is sent and the connection closed. If set to true, the QUIT command is sent and a reply is waited for. True by default.
 
-`xpack.notification.email.html.sanitization.allow`
+`xpack.notification.email.html.sanitization.allow` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies the HTML elements that are allowed in email notifications. For more information, see [Configuring HTML sanitization options](docs-content://explore-analyze/alerts-cases/watcher/actions-email.md#email-html-sanitization). You can specify individual HTML elements and the following HTML feature groups:
 
     $$$html-feature-groups$$$
@@ -302,10 +312,10 @@ $$$email-account-attributes$$$
     :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Only embedded images. Embedded images can only use the `cid:` URL protocol in their `src` attribute.
 
 
-`xpack.notification.email.html.sanitization.disallow`
+`xpack.notification.email.html.sanitization.disallow` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the HTML elements that are NOT allowed in email notifications. You can specify individual HTML elements and [HTML feature groups](#html-feature-groups).
 
-`xpack.notification.email.html.sanitization.enabled`
+`xpack.notification.email.html.sanitization.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Set to `false` to completely disable HTML sanitation. Not recommended. Defaults to `true`.
 
 `xpack.notification.reporting.warning.kbn-csv-contains-formulas.text`
@@ -452,7 +462,10 @@ PKCS#12 files are configured in the same way as Java keystore files:
 
 You can configure the following Slack notification settings in `elasticsearch.yml`. For more information about sending notifications via Slack, see [Configuring Slack actions](docs-content://explore-analyze/alerts-cases/watcher/actions-slack.md#configuring-slack-actions).
 
-`xpack.notification.slack.default_account`
+`xpack.notification.slack` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   Configures [Slack notification settings](docs-content://explore-analyze/alerts-cases/watcher/actions-slack.md). Note that you need to add `secure_url` as a [secret value to the keystore](docs-content://deploy-manage/security/secure-settings.md).
+
+`xpack.notification.slack.default_account` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Default Slack account to use.
 
     If you configure multiple Slack accounts, you must either configure this setting or specify the Slack account to use in the [`slack`](docs-content://explore-analyze/alerts-cases/watcher/actions-slack.md) action. See [Configuring Slack Accounts](docs-content://explore-analyze/alerts-cases/watcher/actions-slack.md#configuring-slack).
@@ -460,7 +473,7 @@ You can configure the following Slack notification settings in `elasticsearch.ym
 
 $$$slack-account-attributes$$$
 
-`xpack.notification.slack.account`
+`xpack.notification.slack.account` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies account information for sending notifications via Slack. You can specify the following Slack account attributes:
 
     `secure_url`
@@ -522,7 +535,10 @@ $$$jira-account-attributes$$$
 
 You can configure the following PagerDuty notification settings in `elasticsearch.yml`. For more information about sending notifications via PagerDuty, see [Configuring PagerDuty actions](docs-content://explore-analyze/alerts-cases/watcher/actions-pagerduty.md#configuring-pagerduty-actions).
 
-`xpack.notification.pagerduty.default_account`
+`xpack.notification.pagerduty` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   Configures [PagerDuty notification settings](docs-content://explore-analyze/alerts-cases/watcher/actions-pagerduty.md#configuring-pagerduty).
+
+`xpack.notification.pagerduty.default_account` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Default PagerDuty account to use.
 
     If you configure multiple PagerDuty accounts, you must either configure this setting or specify the PagerDuty account to use in the [`pagerduty`](docs-content://explore-analyze/alerts-cases/watcher/actions-pagerduty.md) action. See [Configuring PagerDuty accounts](docs-content://explore-analyze/alerts-cases/watcher/actions-pagerduty.md#configuring-pagerduty).
@@ -530,7 +546,7 @@ You can configure the following PagerDuty notification settings in `elasticsearc
 
 $$$pagerduty-account-attributes$$$
 
-`xpack.notification.pagerduty.account`
+`xpack.notification.pagerduty.account` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies account information for sending notifications via PagerDuty. You can specify the following PagerDuty account attributes:
 
     `name`
@@ -560,6 +576,13 @@ $$$pagerduty-account-attributes$$$
 
     `attach_payload`
     :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Whether or not to provide the watch payload as context for the event by default. Valid values: `true`, `false`.
+
+`xpack.notification.webhook.additional_token_enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   When set to `true`, {{es}} automatically sets a token which enables the bypassing of traffic filters for calls initiated by Watcher towards {{es}} or {{kib}}. The default is `false` and the feature is available starting with {{es}} version 8.7.1 and later.
+
+    ::::{important}
+    This setting only applies to the Watcher `webhook` action, not the `http` input action.
+    ::::
 
 
 

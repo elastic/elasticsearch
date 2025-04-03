@@ -28,6 +28,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
@@ -60,6 +61,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * This class main focus is to resolve multi-syntax target expressions to resources or concrete indices. This resolution is influenced
@@ -1001,6 +1003,14 @@ public class IndexNameExpressionResolver {
         return expression.contains(SelectorResolver.SELECTOR_SEPARATOR);
     }
 
+    public static boolean hasSelector(@Nullable String expression, IndexComponentSelector selector) {
+        Objects.requireNonNull(selector, "null selectors not supported");
+        if (expression == null) {
+            return false;
+        }
+        return expression.endsWith(SelectorResolver.SELECTOR_SEPARATOR + selector.getKey());
+    }
+
     /**
      * @return If the specified string is a selector expression then this method returns the base expression and its selector part.
      */
@@ -1020,6 +1030,14 @@ public class IndexNameExpressionResolver {
         return selectorExpression == null || IndexComponentSelector.DATA.getKey().equals(selectorExpression)
             ? baseExpression
             : (baseExpression + SelectorResolver.SELECTOR_SEPARATOR + selectorExpression);
+    }
+
+    public static void assertExpressionHasNullOrDataSelector(String expression) {
+        if (Assertions.ENABLED) {
+            var tuple = splitSelectorExpression(expression);
+            assert tuple.v2() == null || IndexComponentSelector.DATA.getKey().equals(tuple.v2())
+                : "Expected expression [" + expression + "] to have a data selector but found [" + tuple.v2() + "]";
+        }
     }
 
     /**
@@ -2347,19 +2365,29 @@ public class IndexNameExpressionResolver {
             int lastDoubleColon = expression.lastIndexOf(SELECTOR_SEPARATOR);
             if (lastDoubleColon >= 0) {
                 String suffix = expression.substring(lastDoubleColon + SELECTOR_SEPARATOR.length());
-                IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
-                if (selector == null) {
-                    throw new InvalidIndexNameException(
-                        expression,
-                        "invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
-                    );
-                }
+                IndexComponentSelector selector = resolveAndValidateSelectorString(() -> expression, suffix);
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
+                ensureNotMixingRemoteClusterExpressionWithSelectorSeparator(expressionBase, selector, expression);
                 return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
             return bindFunction.apply(expression, null);
+        }
+
+        public static void validateIndexSelectorString(String indexName, String suffix) {
+            resolveAndValidateSelectorString(() -> indexName + SELECTOR_SEPARATOR + suffix, suffix);
+        }
+
+        private static IndexComponentSelector resolveAndValidateSelectorString(Supplier<String> expression, String suffix) {
+            IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
+            if (selector == null) {
+                throw new InvalidIndexNameException(
+                    expression.get(),
+                    "invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
+                );
+            }
+            return selector;
         }
 
         /**
@@ -2388,6 +2416,22 @@ public class IndexNameExpressionResolver {
                     originalExpression,
                     "Invalid usage of :: separator, only one :: separator is allowed per expression"
                 );
+            }
+        }
+
+        /**
+         * Checks the expression for remote cluster pattern and throws an exception if it is combined with :: selectors.
+         * @throws InvalidIndexNameException if remote cluster pattern is detected after parsing the selector expression
+         */
+        private static void ensureNotMixingRemoteClusterExpressionWithSelectorSeparator(
+            String expressionWithoutSelector,
+            IndexComponentSelector selector,
+            String originalExpression
+        ) {
+            if (selector != null) {
+                if (RemoteClusterAware.isRemoteIndexName(expressionWithoutSelector)) {
+                    throw new InvalidIndexNameException(originalExpression, "Selectors are not yet supported on remote cluster patterns");
+                }
             }
         }
     }

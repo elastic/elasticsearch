@@ -98,6 +98,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                     request.getInferenceEntityId(),
                     request.getTaskType(),
                     request.getTimeout(),
+                    request.getContext(),
                     parser
                 );
             }
@@ -115,6 +116,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
             inferenceActionRequestBuilder = InferenceAction.Request.parseRequest(
                 request.getInferenceEntityId(),
                 request.getTaskType(),
+                request.getContext(),
                 parser
             );
             inferenceActionRequestBuilder.setInferenceTimeout(request.getTimeout()).setStream(request.isStreaming());

@@ -19,3 +19,5 @@ FROM sample_data
 
 | @timestamp:date | client_ip:ip | event_duration:long | message:keyword |
 | --- | --- | --- | --- |
+
+

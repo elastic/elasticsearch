@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -176,8 +175,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             toAsStr = in.readOptionalString();
             from = in.readDouble();
             to = in.readDouble();
-            originalFrom = in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(from);
-            originalTo = in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(to);
+            originalFrom = in.readOptionalDouble();
+            originalTo = in.readOptionalDouble();
         }
 
         @Override
@@ -187,10 +186,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             out.writeOptionalString(toAsStr);
             out.writeDouble(from);
             out.writeDouble(to);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
-                out.writeOptionalDouble(originalFrom);
-                out.writeOptionalDouble(originalTo);
-            }
+            out.writeOptionalDouble(originalFrom);
+            out.writeOptionalDouble(originalTo);
         }
 
         public double getFrom() {

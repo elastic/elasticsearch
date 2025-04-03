@@ -60,9 +60,8 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-
         return new DataSourceResponse.FieldTypeGenerator(
-            () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(FieldType.values()))
+            () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(FieldType.values()).toString())
         );
     }
 

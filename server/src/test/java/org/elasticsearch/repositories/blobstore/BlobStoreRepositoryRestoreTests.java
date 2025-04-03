@@ -193,7 +193,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                         ),
                         IndexVersion.current(),
                         listener,
-                        info -> {}
+                        () -> {}
                     )
                 )
             );

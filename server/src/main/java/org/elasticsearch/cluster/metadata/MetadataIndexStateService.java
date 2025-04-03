@@ -1194,8 +1194,6 @@ public class MetadataIndexStateService {
                 Strings.collectionToDelimitedStringWithLimit(
                     indicesToOpen.stream().map(i -> (CharSequence) i.v2().getIndex().toString()).toList(),
                     ",",
-                    "",
-                    "",
                     512,
                     indexNames
                 );

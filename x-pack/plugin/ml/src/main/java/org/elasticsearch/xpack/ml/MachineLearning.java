@@ -422,7 +422,6 @@ import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasActi
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelAction;
-import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelDefinitionPartAction;
@@ -1503,7 +1502,6 @@ public class MachineLearning extends Plugin
             if (machineLearningExtension.get().isNlpEnabled()) {
                 restHandlers.add(new RestStartTrainedModelDeploymentAction(machineLearningExtension.get().disableInferenceProcessCache()));
                 restHandlers.add(new RestStopTrainedModelDeploymentAction());
-                restHandlers.add(new RestInferTrainedModelDeploymentAction());
                 restHandlers.add(new RestUpdateTrainedModelDeploymentAction());
                 restHandlers.add(new RestPutTrainedModelVocabularyAction());
                 restHandlers.add(new RestClearDeploymentCacheAction());

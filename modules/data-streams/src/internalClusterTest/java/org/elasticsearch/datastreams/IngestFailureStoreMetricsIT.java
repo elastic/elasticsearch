@@ -403,9 +403,9 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
             Map<String, Processor.Factory> processors = new HashMap<>();
             processors.put(
                 "drop",
-                (factories, tag, description, config) -> new TestProcessor(tag, "drop", description, ingestDocument -> null)
+                (factories, tag, description, config, projectId) -> new TestProcessor(tag, "drop", description, ingestDocument -> null)
             );
-            processors.put("reroute", (factories, tag, description, config) -> {
+            processors.put("reroute", (factories, tag, description, config, projectId) -> {
                 String destination = (String) config.remove("destination");
                 return new TestProcessor(
                     tag,
@@ -416,7 +416,12 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
             });
             processors.put(
                 "fail",
-                (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail", description, new RuntimeException())
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(
+                    tag,
+                    "fail",
+                    description,
+                    new RuntimeException()
+                )
             );
             return processors;
         }

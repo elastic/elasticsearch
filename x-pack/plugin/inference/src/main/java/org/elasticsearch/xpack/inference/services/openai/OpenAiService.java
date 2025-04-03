@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -31,16 +32,19 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.http.sender.OpenAiUnifiedCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
@@ -55,7 +59,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
-import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator.COMPLETION_ERROR_PREFIX;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -67,6 +70,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.useChatCompletionUrlMessage;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
+import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.COMPLETION_ERROR_PREFIX;
 
 public class OpenAiService extends SenderService {
     public static final String NAME = "openai";
@@ -82,6 +86,10 @@ public class OpenAiService extends SenderService {
      * The task types that the {@link InferenceAction.Request} can accept.
      */
     private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
+        "openai completion",
+        OpenAiChatCompletionResponseEntity::fromResponse
+    );
 
     public OpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -255,7 +263,6 @@ public class OpenAiService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -281,6 +288,11 @@ public class OpenAiService extends SenderService {
     }
 
     @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
+    }
+
+    @Override
     public void doUnifiedCompletionInfer(
         Model model,
         UnifiedChatInput inputs,
@@ -295,9 +307,17 @@ public class OpenAiService extends SenderService {
         OpenAiChatCompletionModel openAiModel = (OpenAiChatCompletionModel) model;
 
         var overriddenModel = OpenAiChatCompletionModel.of(openAiModel, inputs.getRequest());
-        var requestCreator = OpenAiUnifiedCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool());
+
+        var manager = new GenericRequestManager<>(
+            getServiceComponents().threadPool(),
+            overriddenModel,
+            UNIFIED_CHAT_COMPLETION_HANDLER,
+            (unifiedChatInput) -> new OpenAiUnifiedChatCompletionRequest(unifiedChatInput, overriddenModel),
+            UnifiedChatInput.class
+        );
+
         var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
-        var action = new SenderExecutableAction(getSender(), requestCreator, errorMessage);
+        var action = new SenderExecutableAction(getSender(), manager, errorMessage);
 
         action.execute(inputs, timeout, listener);
     }
@@ -305,7 +325,7 @@ public class OpenAiService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -319,7 +339,7 @@ public class OpenAiService extends SenderService {
         OpenAiModel openAiModel = (OpenAiModel) model;
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             openAiModel.getConfigurations().getChunkingSettings()
@@ -327,7 +347,7 @@ public class OpenAiService extends SenderService {
 
         for (var request : batchedRequests) {
             var action = openAiModel.accept(actionCreator, taskSettings);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 

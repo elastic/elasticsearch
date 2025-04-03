@@ -113,7 +113,7 @@ public class ModelAliasMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_13_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -163,7 +163,7 @@ public class ModelAliasMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_13_0;
+            return TransportVersions.ZERO;
         }
 
     }

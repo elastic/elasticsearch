@@ -9,115 +9,88 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseInterceptor;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 
-import static java.lang.String.format;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.StatsTracker;
 
 final class GoogleCloudStorageHttpStatsCollector implements HttpResponseInterceptor {
-    // The specification for the current API (v1) endpoints can be found at:
-    // https://cloud.google.com/storage/docs/json_api/v1
-    private static final List<Function<String, HttpRequestTracker>> trackerFactories = List.of(
-        (bucket) -> HttpRequestTracker.get(
-            format(Locale.ROOT, "/download/storage/v1/b/%s/o/.+", bucket),
-            GoogleCloudStorageOperationsStats::trackGetOperation
-        ),
 
-        (bucket) -> HttpRequestTracker.get(
-            format(Locale.ROOT, "/storage/v1/b/%s/o/.+", bucket),
-            GoogleCloudStorageOperationsStats::trackGetOperation
-        ),
+    private static final Logger logger = LogManager.getLogger("GcpHttpStats");
 
-        (bucket) -> HttpRequestTracker.get(
-            format(Locale.ROOT, "/storage/v1/b/%s/o", bucket),
-            GoogleCloudStorageOperationsStats::trackListOperation
-        )
-    );
+    private final StatsTracker stats;
+    private final OperationPurpose purpose;
+    private final Pattern getObjPattern;
+    private final Pattern insertObjPattern;
+    private final Pattern listObjPattern;
 
-    private final GoogleCloudStorageOperationsStats gcsOperationStats;
-    private final OperationPurpose operationPurpose;
-    private final List<HttpRequestTracker> trackers;
+    GoogleCloudStorageHttpStatsCollector(final GoogleCloudStorageOperationsStats stats, OperationPurpose purpose) {
+        this.stats = stats.tracker();
+        this.purpose = purpose;
+        var bucket = stats.bucketName();
 
-    GoogleCloudStorageHttpStatsCollector(final GoogleCloudStorageOperationsStats gcsOperationStats, OperationPurpose operationPurpose) {
-        this.gcsOperationStats = gcsOperationStats;
-        this.operationPurpose = operationPurpose;
-        this.trackers = trackerFactories.stream()
-            .map(trackerFactory -> trackerFactory.apply(gcsOperationStats.getTrackedBucket()))
-            .toList();
+        // The specification for the current API (v1) endpoints can be found at:
+        // https://cloud.google.com/storage/docs/json_api/v1
+        this.getObjPattern = Pattern.compile("(/download)?/storage/v1/b/" + bucket + "/o/.+");
+        this.insertObjPattern = Pattern.compile("(/upload)?/storage/v1/b/" + bucket + "/o");
+        this.listObjPattern = Pattern.compile("/storage/v1/b/" + bucket + "/o");
+    }
+
+    private void trackRequest(Operation operation) {
+        stats.trackRequest(purpose, operation);
+    }
+
+    private void trackRequestAndOperation(Operation operation) {
+        stats.trackOperationAndRequest(purpose, operation);
     }
 
     @Override
     public void interceptResponse(final HttpResponse response) {
-        // TODO keep track of unsuccessful requests in different entries
-        if (response.isSuccessStatusCode() == false) return;
+        var respCode = response.getStatusCode();
+        // Some of the intermediate and error codes are still counted as "good" requests
+        if (((respCode >= 200 && respCode < 300) || respCode == 308 || respCode == 404) == false) {
+            return;
+        }
+        var request = response.getRequest();
 
-        final HttpRequest request = response.getRequest();
-        for (HttpRequestTracker tracker : trackers) {
-            if (tracker.track(request, gcsOperationStats)) {
-                return;
+        var path = request.getUrl().getRawPath();
+        var ignored = false;
+        switch (request.getRequestMethod()) {
+            case "GET" -> {
+                // https://cloud.google.com/storage/docs/json_api/v1/objects/get
+                if (getObjPattern.matcher(path).matches()) {
+                    trackRequestAndOperation(Operation.GET_OBJECT);
+                } else if (listObjPattern.matcher(path).matches()) {
+                    trackRequestAndOperation(Operation.LIST_OBJECTS);
+                } else {
+                    ignored = true;
+                }
             }
+            case "POST", "PUT" -> {
+                // https://cloud.google.com/storage/docs/json_api/v1/objects/insert
+                if (insertObjPattern.matcher(path).matches()) {
+                    trackRequest(Operation.INSERT_OBJECT);
+                } else {
+                    ignored = true;
+                }
+            }
+            default -> ignored = true;
         }
-    }
-
-    /**
-     * Http request tracker that allows to track certain HTTP requests based on the following criteria:
-     * <ul>
-     *     <li>The HTTP request method</li>
-     *     <li>An URI path regex expression</li>
-     * </ul>
-     *
-     * The requests that match the previous criteria are tracked using the {@code statsTracker} function.
-     */
-    private static final class HttpRequestTracker {
-        private final String method;
-        private final Pattern pathPattern;
-        private final Consumer<GoogleCloudStorageOperationsStats> statsTracker;
-
-        private HttpRequestTracker(
-            final String method,
-            final String pathPattern,
-            final Consumer<GoogleCloudStorageOperationsStats> statsTracker
-        ) {
-            this.method = method;
-            this.pathPattern = Pattern.compile(pathPattern);
-            this.statsTracker = statsTracker;
-        }
-
-        private static HttpRequestTracker get(final String pathPattern, final Consumer<GoogleCloudStorageOperationsStats> statsConsumer) {
-            return new HttpRequestTracker("GET", pathPattern, statsConsumer);
-        }
-
-        /**
-         * Tracks the provided http request if it matches the criteria defined by this tracker.
-         *
-         * @param httpRequest the http request to be tracked
-         * @param stats the operation tracker
-         *
-         * @return {@code true} if the http request was tracked, {@code false} otherwise.
-         */
-        private boolean track(final HttpRequest httpRequest, final GoogleCloudStorageOperationsStats stats) {
-            if (matchesCriteria(httpRequest) == false) return false;
-
-            statsTracker.accept(stats);
-            return true;
-        }
-
-        private boolean matchesCriteria(final HttpRequest httpRequest) {
-            return method.equalsIgnoreCase(httpRequest.getRequestMethod()) && pathMatches(httpRequest.getUrl());
-        }
-
-        private boolean pathMatches(final GenericUrl url) {
-            return pathPattern.matcher(url.getRawPath()).matches();
+        if (ignored) {
+            logger.debug(
+                "not handling request:{} {} response:{} {}",
+                request.getRequestMethod(),
+                path,
+                response.getStatusCode(),
+                response.getStatusMessage()
+            );
         }
     }
 }

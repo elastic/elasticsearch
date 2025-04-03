@@ -13,6 +13,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -89,6 +90,7 @@ public final class EnrichCache {
      * @param searchResponseFetcher The function used to compute the value to be put in the cache, if there is no value in the cache already
      * @param listener A listener to be notified of the value in the cache
      */
+    @FixForMultiProject(description = "The enrich cache will currently leak data between projects. We need to either disable or fix it.")
     public void computeIfAbsent(
         String enrichIndex,
         Object lookupValue,

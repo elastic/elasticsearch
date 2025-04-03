@@ -49,6 +49,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
@@ -81,6 +82,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -132,6 +134,7 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -213,6 +216,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
@@ -848,6 +852,64 @@ public abstract class ESIntegTestCase extends ESTestCase {
         String exclude = String.join(",", internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
+    }
+
+    /**
+     * Waits for the specified data stream to have the expected number of backing indices.
+     */
+    public static List<String> waitForDataStreamBackingIndices(String dataStreamName, int expectedSize) {
+        return waitForDataStreamIndices(dataStreamName, expectedSize, false);
+    }
+
+    /**
+     * Waits for the specified data stream to have the expected number of backing or failure indices.
+     */
+    public static List<String> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
+        // We listen to the cluster state on the master node to ensure all other nodes have already acked the new cluster state.
+        // This avoids inconsistencies in subsequent API calls which might hit a non-master node.
+        final var listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            final var dataStream = clusterState.metadata().getProject().dataStreams().get(dataStreamName);
+            if (dataStream == null) {
+                return false;
+            }
+            return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
+        });
+        safeAwait(listener);
+        final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
+        assertEquals(
+            Strings.format(
+                "Retrieved number of data stream indices doesn't match expectation for data stream [%s]. Expected %d but got %s",
+                dataStreamName,
+                expectedSize,
+                backingIndexNames
+            ),
+            expectedSize,
+            backingIndexNames.size()
+        );
+        return backingIndexNames;
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    public static List<String> getDataStreamBackingIndexNames(String dataStreamName) {
+        return getDataStreamBackingIndexNames(dataStreamName, false);
+    }
+
+    /**
+     * Returns a list of the data stream's backing or failure index names.
+     */
+    public static List<String> getDataStreamBackingIndexNames(String dataStreamName, boolean failureStore) {
+        GetDataStreamAction.Response response = safeGet(
+            client().execute(
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+            )
+        );
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        DataStream dataStream = response.getDataStreams().getFirst().getDataStream();
+        assertThat(dataStream.getName(), equalTo(dataStreamName));
+        return dataStream.getDataStreamIndices(failureStore).getIndices().stream().map(Index::getName).toList();
     }
 
     /**
@@ -1616,10 +1678,37 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Waits for all relocations and force merge all indices in the cluster to 1 segment.
      */
     protected BroadcastResponse forceMerge() {
+        return forceMerge(randomBoolean());
+    }
+
+    /**
+     * Waits for all relocations and force merge all indices in the cluster to 1 segment.
+     */
+    protected BroadcastResponse forceMerge(boolean assertOneSegment) {
         waitForRelocation();
         BroadcastResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(actionGet);
+        if (assertOneSegment) {
+            // after a force merge there should only be 1 segment per shard
+            var shardsWithMultipleSegments = getShardSegments().stream()
+                .filter(shardSegments -> shardSegments.getSegments().size() > 1)
+                .toList();
+            assertTrue("there are shards with multiple segments " + shardsWithMultipleSegments, shardsWithMultipleSegments.isEmpty());
+        }
         return actionGet;
+    }
+
+    /**
+     * Returns the segments of the shards of the indices.
+     */
+    protected List<ShardSegments> getShardSegments(String... indices) {
+        IndicesSegmentResponse indicesSegmentResponse = indicesAdmin().prepareSegments(indices).get();
+        return indicesSegmentResponse.getIndices()
+            .values()
+            .stream()
+            .flatMap(indexSegments -> indexSegments.getShards().values().stream())
+            .flatMap(indexShardSegments -> Stream.of(indexShardSegments.shards()))
+            .toList();
     }
 
     /**
@@ -1887,16 +1976,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {
-            int waitFor = between(0, inFlightAsyncOperations.size() - 1);
-            try {
-                assertTrue(
-                    "operation did not complete within timeout",
-                    inFlightAsyncOperations.remove(waitFor).await(60, TimeUnit.SECONDS)
-                );
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                fail(e, "interrupted while waiting for operation to complete");
-            }
+            // longer-than-usual timeout, see #112908
+            safeAwait(inFlightAsyncOperations.remove(between(0, inFlightAsyncOperations.size() - 1)), timeValueSeconds(60));
         }
     }
 
@@ -2065,6 +2146,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), randomFrom("1KB", "16KB", "64KB"));
             builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "256B");
         }
+        builder.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean());
         return builder.build();
     }
 

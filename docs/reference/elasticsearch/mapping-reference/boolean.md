@@ -48,7 +48,7 @@ GET my-index-000001/_search
 2. Searching for documents with a JSON `true`.
 
 
-Aggregations like the [`terms` aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md)  use `1` and `0` for the `key`, and the strings `"true"` and `"false"` for the `key_as_string`. Boolean fields when used in scripts, return `true` and `false`:
+Aggregations like the [`terms` aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md)  use `1` and `0` for the `key`, and the strings `"true"` and `"false"` for the `key_as_string`. Boolean fields when used in scripts, return `true` and `false`:
 
 ```console
 POST my-index-000001/_doc/1?refresh

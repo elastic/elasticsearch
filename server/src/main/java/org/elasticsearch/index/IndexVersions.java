@@ -85,6 +85,7 @@ public class IndexVersions {
     public static final IndexVersion V_8_3_0 = def(8_03_00_99, Version.LUCENE_9_2_0);
     public static final IndexVersion V_8_4_0 = def(8_04_00_99, Version.LUCENE_9_3_0);
     public static final IndexVersion V_8_5_0 = def(8_05_00_99, Version.LUCENE_9_4_1);
+    public static final IndexVersion V_8_5_3 = def(8_05_03_99, Version.LUCENE_9_4_2);
     public static final IndexVersion V_8_6_0 = def(8_06_00_99, Version.LUCENE_9_4_2);
     public static final IndexVersion V_8_7_0 = def(8_07_00_99, Version.LUCENE_9_5_0);
     public static final IndexVersion V_8_8_0 = def(8_08_00_99, Version.LUCENE_9_6_0);
@@ -135,7 +136,7 @@ public class IndexVersions {
     public static final IndexVersion INFERENCE_METADATA_FIELDS_BACKPORT = def(8_524_0_00, parseUnchecked("9.12.1"));
     public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT = def(8_525_0_00, parseUnchecked("9.12.1"));
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT = def(8_526_0_00, parseUnchecked("9.12.1"));
-    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD_BACKPORT_8_X = def(8_527_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BACKPORT_8_X = def(8_527_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_0_00, Version.LUCENE_10_0_0);
@@ -151,6 +152,12 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX = def(9_012_0_00, Version.LUCENE_10_1_0);
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD = def(9_013_0_00, Version.LUCENE_10_1_0);
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP = def(9_014_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS = def(9_015_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER = def(9_016_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN = def(9_017_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS = def(9_018_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_UNSIGNED_LONG = def(9_019_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_SCALED_FLOAT = def(9_020_0_00, Version.LUCENE_10_1_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

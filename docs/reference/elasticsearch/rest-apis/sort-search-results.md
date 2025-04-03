@@ -428,7 +428,7 @@ GET /_search
 
 ### Lat lon as WKT string [_lat_lon_as_wkt_string]
 
-Format in [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md).
+Format in [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html).
 
 ```console
 GET /_search

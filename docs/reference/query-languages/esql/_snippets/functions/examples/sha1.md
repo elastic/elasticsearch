@@ -6,7 +6,7 @@
 FROM sample_data
 | WHERE message != "Connection error"
 | EVAL sha1 = sha1(message)
-| KEEP message, sha1;
+| KEEP message, sha1
 ```
 
 | message:keyword | sha1:keyword |

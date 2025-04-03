@@ -55,7 +55,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 
 class S3BlobStore implements BlobStore {
@@ -144,16 +143,17 @@ class S3BlobStore implements BlobStore {
         return service.compareAndExchangeAntiContentionDelay;
     }
 
-    // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
-    // issue
-    class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+    /**
+     * A {@link RequestMetricCollector} that processes the metrics related to each API invocation attempt according to Elasticsearch's needs
+     */
+    class ElasticsearchS3MetricsCollector extends RequestMetricCollector {
 
         final LongAdder requests = new LongAdder();
         final LongAdder operations = new LongAdder();
         private final Operation operation;
         private final Map<String, Object> attributes;
 
-        private IgnoreNoResponseMetricsCollector(Operation operation, OperationPurpose purpose) {
+        private ElasticsearchS3MetricsCollector(Operation operation, OperationPurpose purpose) {
             this.operation = operation;
             this.attributes = RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey());
         }
@@ -398,16 +398,7 @@ class S3BlobStore implements BlobStore {
             } catch (MultiObjectDeleteException e) {
                 // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
                 // first remove all keys that were sent in the request and then add back those that ran into an exception.
-                logger.warn(
-                    () -> format(
-                        "Failed to delete some blobs %s",
-                        e.getErrors()
-                            .stream()
-                            .map(err -> "[" + err.getKey() + "][" + err.getCode() + "][" + err.getMessage() + "]")
-                            .toList()
-                    ),
-                    e
-                );
+                logger.warn(buildDeletionErrorMessage(e), e);
                 deletionExceptions.useOrMaybeSuppress(e);
                 return;
             } catch (AmazonClientException e) {
@@ -428,6 +419,26 @@ class S3BlobStore implements BlobStore {
                 }
             }
         }
+    }
+
+    private String buildDeletionErrorMessage(MultiObjectDeleteException e) {
+        final var sb = new StringBuilder("Failed to delete some blobs ");
+        final var errors = e.getErrors();
+        for (int i = 0; i < errors.size() && i < MAX_DELETE_EXCEPTIONS; i++) {
+            final var err = errors.get(i);
+            sb.append("[").append(err.getKey()).append("][").append(err.getCode()).append("][").append(err.getMessage()).append("]");
+            if (i < errors.size() - 1) {
+                sb.append(",");
+            }
+        }
+        if (errors.size() > MAX_DELETE_EXCEPTIONS) {
+            sb.append("... (")
+                .append(errors.size())
+                .append(" in total, ")
+                .append(errors.size() - MAX_DELETE_EXCEPTIONS)
+                .append(" omitted)");
+        }
+        return sb.toString();
     }
 
     /**
@@ -572,7 +583,7 @@ class S3BlobStore implements BlobStore {
     }
 
     class StatsCollectors {
-        final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
+        final Map<StatsKey, ElasticsearchS3MetricsCollector> collectors = new ConcurrentHashMap<>();
 
         RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
             return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation(), k.purpose()));
@@ -595,8 +606,8 @@ class S3BlobStore implements BlobStore {
             }
         }
 
-        IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation, OperationPurpose purpose) {
-            return new IgnoreNoResponseMetricsCollector(operation, purpose);
+        ElasticsearchS3MetricsCollector buildMetricCollector(Operation operation, OperationPurpose purpose) {
+            return new ElasticsearchS3MetricsCollector(operation, purpose);
         }
     }
 

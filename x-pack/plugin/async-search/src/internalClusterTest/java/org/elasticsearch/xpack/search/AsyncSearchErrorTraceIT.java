@@ -9,17 +9,21 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.ErrorTraceHelper;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 
@@ -31,8 +35,9 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(AsyncSearch.class);
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), AsyncSearch.class, MockTransportService.TestPlugin.class);
     }
 
     private BooleanSupplier transportMessageHasStackTrace;
@@ -40,6 +45,13 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     @Before
     public void setupMessageListener() {
         transportMessageHasStackTrace = ErrorTraceHelper.setupErrorTraceListener(internalCluster());
+        // TODO: make this test work with batched query execution by enhancing ErrorTraceHelper.setupErrorTraceListener
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
+    }
+
+    @After
+    public void resetSettings() {
+        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
     private void setupIndexWithDocs() {

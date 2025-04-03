@@ -149,14 +149,20 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService, RestApiVersion restApiVersion)
-        throws Exception {
+    static Parsed parse(
+        ProjectId projectId,
+        Map<String, Object> config,
+        boolean verbose,
+        IngestService ingestService,
+        RestApiVersion restApiVersion
+    ) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
         Pipeline pipeline = Pipeline.create(
             SIMULATED_PIPELINE_ID,
             pipelineConfig,
             ingestService.getProcessorFactories(),
-            ingestService.getScriptService()
+            ingestService.getScriptService(),
+            projectId
         );
         List<IngestDocument> ingestDocumentList = parseDocs(config, restApiVersion);
         return new Parsed(pipeline, ingestDocumentList, verbose);

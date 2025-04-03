@@ -360,22 +360,17 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalCategorizationAggregation(
-            name,
-            requiredSize,
-            minDocCount,
-            similarityThreshold,
-            metadata,
-            buckets.stream()
-                .map(
-                    b -> new Bucket(
-                        new SerializableTokenListCategory(b.getSerializableCategory(), samplingContext.scaleUp(b.getDocCount())),
-                        b.getBucketOrd(),
-                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
-                    )
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(
+                new Bucket(
+                    new SerializableTokenListCategory(bucket.getSerializableCategory(), samplingContext.scaleUp(bucket.getDocCount())),
+                    bucket.getBucketOrd(),
+                    InternalAggregations.finalizeSampling(bucket.aggregations, samplingContext)
                 )
-                .collect(Collectors.toList())
-        );
+            );
+        }
+        return new InternalCategorizationAggregation(name, requiredSize, minDocCount, similarityThreshold, metadata, buckets);
     }
 
     public int getSimilarityThreshold() {

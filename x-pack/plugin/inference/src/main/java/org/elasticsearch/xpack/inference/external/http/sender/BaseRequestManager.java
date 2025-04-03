@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Objects;
@@ -17,14 +18,31 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 abstract class BaseRequestManager implements RequestManager {
     private final ThreadPool threadPool;
     private final String inferenceEntityId;
-    private final Object rateLimitGroup;
+    // It's possible that two inference endpoints have the same information defining the group but have different
+    // rate limits then they should be in different groups otherwise whoever initially created the group will set
+    // the rate and the other inference endpoint's rate will be ignored
+    private final EndpointGrouping endpointGrouping;
     private final RateLimitSettings rateLimitSettings;
 
     BaseRequestManager(ThreadPool threadPool, String inferenceEntityId, Object rateLimitGroup, RateLimitSettings rateLimitSettings) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
-        this.rateLimitGroup = Objects.requireNonNull(rateLimitGroup);
-        this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
+
+        Objects.requireNonNull(rateLimitSettings);
+        this.endpointGrouping = new EndpointGrouping(Objects.requireNonNull(rateLimitGroup).hashCode(), rateLimitSettings);
+        this.rateLimitSettings = rateLimitSettings;
+    }
+
+    BaseRequestManager(ThreadPool threadPool, RateLimitGroupingModel rateLimitGroupingModel) {
+        this.threadPool = Objects.requireNonNull(threadPool);
+        Objects.requireNonNull(rateLimitGroupingModel);
+
+        this.inferenceEntityId = rateLimitGroupingModel.inferenceEntityId();
+        this.endpointGrouping = new EndpointGrouping(
+            rateLimitGroupingModel.rateLimitGroupingHash(),
+            rateLimitGroupingModel.rateLimitSettings()
+        );
+        this.rateLimitSettings = rateLimitGroupingModel.rateLimitSettings();
     }
 
     protected void execute(Runnable runnable) {
@@ -38,10 +56,7 @@ abstract class BaseRequestManager implements RequestManager {
 
     @Override
     public Object rateLimitGrouping() {
-        // It's possible that two inference endpoints have the same information defining the group but have different
-        // rate limits then they should be in different groups otherwise whoever initially created the group will set
-        // the rate and the other inference endpoint's rate will be ignored
-        return new EndpointGrouping(rateLimitGroup, rateLimitSettings);
+        return endpointGrouping;
     }
 
     @Override
@@ -49,5 +64,5 @@ abstract class BaseRequestManager implements RequestManager {
         return rateLimitSettings;
     }
 
-    private record EndpointGrouping(Object group, RateLimitSettings settings) {}
+    private record EndpointGrouping(int group, RateLimitSettings settings) {}
 }

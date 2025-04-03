@@ -65,7 +65,7 @@ public class CommunityIdProcessorFactoryTests extends ESTestCase {
         config.put("ignore_missing", ignoreMissing);
 
         String processorTag = randomAlphaOfLength(10);
-        CommunityIdProcessor communityIdProcessor = factory.create(null, processorTag, null, config);
+        CommunityIdProcessor communityIdProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(communityIdProcessor.getTag(), equalTo(processorTag));
         assertThat(communityIdProcessor.getSourceIpField(), equalTo(sourceIpField));
         assertThat(communityIdProcessor.getSourcePortField(), equalTo(sourcePortField));
@@ -87,27 +87,27 @@ public class CommunityIdProcessorFactoryTests extends ESTestCase {
         // negative seeds are rejected
         int tooSmallSeed = randomIntBetween(Integer.MIN_VALUE, -1);
         config.put("seed", Integer.toString(tooSmallSeed));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config, null));
         assertThat(e.getMessage(), containsString("must be a value between 0 and 65535"));
 
         // seeds >= 2^16 are rejected
         int tooBigSeed = randomIntBetween(65536, Integer.MAX_VALUE);
         config.put("seed", Integer.toString(tooBigSeed));
-        e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config));
+        e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config, null));
         assertThat(e.getMessage(), containsString("must be a value between 0 and 65535"));
 
         // seeds between 0 and 2^16-1 are accepted
         int justRightSeed = randomIntBetween(0, 65535);
         byte[] expectedSeed = new byte[] { (byte) (justRightSeed >> 8), (byte) justRightSeed };
         config.put("seed", Integer.toString(justRightSeed));
-        CommunityIdProcessor communityIdProcessor = factory.create(null, processorTag, null, config);
+        CommunityIdProcessor communityIdProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(communityIdProcessor.getSeed(), equalTo(expectedSeed));
     }
 
     public void testRequiredFields() throws Exception {
         HashMap<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
-        CommunityIdProcessor communityIdProcessor = factory.create(null, processorTag, null, config);
+        CommunityIdProcessor communityIdProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(communityIdProcessor.getTag(), equalTo(processorTag));
         assertThat(communityIdProcessor.getSourceIpField(), equalTo(DEFAULT_SOURCE_IP));
         assertThat(communityIdProcessor.getSourcePortField(), equalTo(DEFAULT_SOURCE_PORT));

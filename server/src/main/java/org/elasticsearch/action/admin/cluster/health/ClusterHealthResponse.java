@@ -62,7 +62,6 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
     public ClusterHealthResponse() {}
 
     public ClusterHealthResponse(StreamInput in) throws IOException {
-        super(in);
         clusterName = in.readString();
         clusterHealthStatus = ClusterHealthStatus.readFrom(in);
         clusterStateHealth = new ClusterStateHealth(in);

@@ -465,7 +465,6 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             "public-read",
             "public-read-write",
             "authenticated-read",
-            // "log-delivery-write", TODO NOMERGE this isn't supported in SDKv2
             "bucket-owner-read",
             "bucket-owner-full-control" };
 

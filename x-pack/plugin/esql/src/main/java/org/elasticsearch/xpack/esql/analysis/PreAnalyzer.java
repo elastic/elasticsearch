@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -28,11 +28,11 @@ public class PreAnalyzer {
     public static class PreAnalysis {
         public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList(), emptyList());
 
-        public final List<TableInfo> indices;
+        public final List<IndexPattern> indices;
         public final List<Enrich> enriches;
-        public final List<TableInfo> lookupIndices;
+        public final List<IndexPattern> lookupIndices;
 
-        public PreAnalysis(List<TableInfo> indices, List<Enrich> enriches, List<TableInfo> lookupIndices) {
+        public PreAnalysis(List<IndexPattern> indices, List<Enrich> enriches, List<IndexPattern> lookupIndices) {
             this.indices = indices;
             this.enriches = enriches;
             this.lookupIndices = lookupIndices;
@@ -48,15 +48,12 @@ public class PreAnalyzer {
     }
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
-        Set<TableInfo> indices = new HashSet<>();
+        Set<IndexPattern> indices = new HashSet<>();
+
         List<Enrich> unresolvedEnriches = new ArrayList<>();
-        List<TableInfo> lookupIndices = new ArrayList<>();
+        List<IndexPattern> lookupIndices = new ArrayList<>();
 
-        plan.forEachUp(UnresolvedRelation.class, p -> {
-            Collection<TableInfo> collection = p.indexMode() == IndexMode.LOOKUP ? lookupIndices : indices;
-            collection.add(new TableInfo(p.indexPattern()));
-        });
-
+        plan.forEachUp(UnresolvedRelation.class, p -> (p.indexMode() == IndexMode.LOOKUP ? lookupIndices : indices).add(p.indexPattern()));
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)

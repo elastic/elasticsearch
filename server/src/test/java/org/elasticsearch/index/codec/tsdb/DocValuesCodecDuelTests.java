@@ -24,6 +24,8 @@ import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -39,6 +41,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
     private static final String FIELD_4 = "number_field_4";
     private static final String FIELD_5 = "binary_field_5";
 
+    @SuppressWarnings("checkstyle:LineLength")
     public void testDuel() throws IOException {
         try (var baselineDirectory = newDirectory(); var contenderDirectory = newDirectory()) {
             int numDocs = randomIntBetween(256, 32768);
@@ -48,7 +51,9 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             baselineConfig.setMergePolicy(mergePolicy);
             baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
             var contenderConf = newIndexWriterConfig();
-            contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat()));
+            contenderConf.setCodec(
+                TestUtil.alwaysDocValuesFormat(rarely() ? new TestES87TSDBDocValuesFormat() : new ES819TSDBDocValuesFormat())
+            );
             contenderConf.setMergePolicy(mergePolicy);
 
             try (

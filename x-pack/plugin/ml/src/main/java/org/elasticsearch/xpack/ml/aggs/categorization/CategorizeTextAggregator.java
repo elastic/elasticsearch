@@ -32,9 +32,14 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.CategorizationBytesRefHash;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.InternalCategorizationAggregation;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.InternalCategorizationAggregation.Bucket;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.TokenListCategorizer;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.TokenListCategory;
+import org.elasticsearch.xpack.core.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
-import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation.Bucket;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -15,8 +15,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
-import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.util.Arrays;

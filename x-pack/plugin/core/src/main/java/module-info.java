@@ -80,6 +80,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.logstash;
     exports org.elasticsearch.xpack.core.ml.action;
     exports org.elasticsearch.xpack.core.ml.aggs;
+    exports org.elasticsearch.xpack.core.ml.aggs.categorization;
     exports org.elasticsearch.xpack.core.ml.aggs.changepoint;
     exports org.elasticsearch.xpack.core.ml.annotations;
     exports org.elasticsearch.xpack.core.ml.autoscaling;
@@ -112,6 +113,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel;
     exports org.elasticsearch.xpack.core.ml.inference.utils;
     exports org.elasticsearch.xpack.core.ml.inference;
+    exports org.elasticsearch.xpack.core.ml.job.categorization;
     exports org.elasticsearch.xpack.core.ml.job.config;
     exports org.elasticsearch.xpack.core.ml.job.groups;
     exports org.elasticsearch.xpack.core.ml.job.messages;

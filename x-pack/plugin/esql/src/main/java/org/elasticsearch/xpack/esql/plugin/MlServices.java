@@ -12,6 +12,5 @@ import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangePointDetector;
 
 public record MlServices(ChangePointDetector changePointDetector) {
     @Inject
-    public MlServices {
-    }
+    public MlServices {}
 }

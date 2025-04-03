@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningTests;
 

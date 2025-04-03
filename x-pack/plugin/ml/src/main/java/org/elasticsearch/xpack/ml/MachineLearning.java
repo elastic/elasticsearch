@@ -185,6 +185,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
@@ -297,7 +298,6 @@ import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
-import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetectorImpl;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
@@ -779,7 +779,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
-    private final SetOnce<ChangePointDetector> changePointDetector =  new SetOnce<>(new ChangePointDetectorImpl());
+    private final SetOnce<ChangePointDetector> changePointDetector = new SetOnce<>(new ChangePointDetectorImpl());
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
 
     public MachineLearning(Settings settings) {

@@ -13,6 +13,8 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.CategorizationBytesRefHash;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.MachineLearningTests;
 import org.junit.After;
 import org.junit.Before;

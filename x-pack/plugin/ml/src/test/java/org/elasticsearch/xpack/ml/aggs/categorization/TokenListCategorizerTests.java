@@ -15,9 +15,11 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.TokenListCategorizer;
+import org.elasticsearch.xpack.core.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.junit.Before;
 
 import java.io.IOException;

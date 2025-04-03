@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization;
+package org.elasticsearch.xpack.core.ml.aggs.categorization;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,8 +18,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategory.TokenAndWeight;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.TokenListCategory.TokenAndWeight;
+import org.elasticsearch.xpack.core.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

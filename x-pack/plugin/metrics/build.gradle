@@ -1,0 +1,36 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name = 'metrics'
+  description = 'A plugin for metrics related functionality'
+  classname ='org.elasticsearch.xpack.metrics.MetricsPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+base {
+  archivesName = 'x-pack-metrics'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+
+  implementation "io.opentelemetry:opentelemetry-api:1.48.0"
+  implementation "io.opentelemetry:opentelemetry-context:1.48.0"
+  // TODO this is explicitly marked as "not for production" but it's good for now
+  implementation "io.opentelemetry.proto:opentelemetry-proto:1.5.0-alpha"
+
+  implementation "com.google.protobuf:protobuf-java:4.30.2"
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /opentelemetry-.*/, to: 'opentelemetry'
+  mapping from: /protobuf.*/, to: 'protobuf'
+}

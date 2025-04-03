@@ -117,8 +117,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             TestConfigs configs = testConfigurations.computeIfAbsent("strings", TestConfigs::new);
             configs.addPasses(KEYWORD, KEYWORD);
             configs.addPasses(TEXT, KEYWORD);
-            configs.addFailsText(KEYWORD, TEXT);
-            configs.addFailsText(TEXT, TEXT);
+            configs.addFailsText(KEYWORD);
+            configs.addFailsText(TEXT);
         }
 
         // Test integer types
@@ -187,7 +187,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 }
             }
         }
-        // TODO: Add tests for mixed groups (should mostly fail, but might be some implicit casting to consider)
+
+        // TODO: Add tests for more types, eg. unsigned_long, version, spatial types, date/temporal types.
 
         // Make sure we have never added two configurations with the same index name
         Set<String> knownTypes = new HashSet<>();
@@ -365,13 +366,13 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             );
         }
 
-        private void addFailsText(DataType mainType, DataType lookupType) {
+        private void addFailsText(DataType mainType) {
             String fieldName = "field_" + mainType.esType();
             String errorMessage = String.format(Locale.ROOT, "JOIN with right field [%s] of type [TEXT] is not supported", fieldName);
             add(
                 new TestConfigFails<>(
                     mainType,
-                    lookupType,
+                    DataType.TEXT,
                     VerificationException.class,
                     e -> assertThat(e.getMessage(), containsString(errorMessage))
                 )
@@ -450,6 +451,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 exception(),
                 "Expected exception " + exception().getSimpleName() + " but no exception was thrown: " + query,
                 () -> {
+                    // noinspection EmptyTryBlock
                     try (var ignored = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
                         // We use try-with-resources to ensure the request is closed if the exception is not thrown (less cluttered errors)
                     }

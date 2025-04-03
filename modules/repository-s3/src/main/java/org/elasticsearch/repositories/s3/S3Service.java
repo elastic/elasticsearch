@@ -668,7 +668,7 @@ class S3Service extends AbstractLifecycleComponent {
 
         private <T> T resultHandler(T result, Throwable exception) {
             if (exception != null) {
-                logger.error(() -> "Unable to load credentials from " + delegate, exception);
+                logger.error(() -> "Unable to resolve identity from " + delegate, exception);
                 if (exception instanceof Error error) {
                     throw error;
                 } else if (exception instanceof RuntimeException runtimeException) {

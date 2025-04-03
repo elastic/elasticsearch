@@ -243,23 +243,5 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "TODO NOMERGE")
-    public void testLoggingCredentialsProviderCatchesErrorsOnRefresh() {
-        var mockProvider = Mockito.mock(AwsCredentialsProvider.class);
-        String mockProviderErrorMessage = "mockProvider failed to refresh";
-        Mockito.doThrow(new IllegalStateException(mockProviderErrorMessage)).when(mockProvider).resolveCredentials();
-        var mockLogger = Mockito.mock(Logger.class);
-
-        var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockProvider, mockLogger);
-        var exception = expectThrows(IllegalStateException.class, credentialsProvider::resolveCredentials);
-        assertEquals(mockProviderErrorMessage, exception.getMessage());
-
-        var messageSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
-        var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
-        Mockito.verify(mockLogger).error(messageSupplierCaptor.capture(), throwableCaptor.capture());
-
-        assertThat(messageSupplierCaptor.getValue().get().toString(), startsWith("Unable to refresh"));
-        assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
-    }
-
+    // TODO NOMERGE: refresh() is gone in V2, but resolveIdentity was added. Do we want to test anything about that?
 }

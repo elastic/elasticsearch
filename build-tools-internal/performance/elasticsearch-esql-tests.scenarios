@@ -15,8 +15,8 @@ TEST_ESQL_ABI_CHANGE_TAPI {
         cleanup = "@testGitCommit@"
         build = "@testGitCommit@"
     }
-    warm-ups = 3
-    iterations = 10
+    warm-ups = 2
+    iterations = 5
 }
 
 TEST_ESQL_ABI_CHANGE_TAPI_CC {
@@ -25,7 +25,6 @@ TEST_ESQL_ABI_CHANGE_TAPI_CC {
     gradle-args = ["--configuration-cache", "-I", ".ci/init.gradle"]
     run-using = tooling-api // value can be "cli" or "tooling-api"
     daemon = warm // value can be "warm", "cold", or "none"
-    warm-ups = 3
     copy-file = {
         source = "build-tools-internal/performance/test-files/BenchmarkingTests.java"
         target = "x-pack/plugin/esql/src/test/java/org/elasticsearch/gradle/benchmarking/BenchmarkingTests.java"
@@ -36,8 +35,8 @@ TEST_ESQL_ABI_CHANGE_TAPI_CC {
         cleanup = "@testGitCommit@"
         build = "@testGitCommit@"
     }
-    warm-ups = 3
-    iterations = 10
+    warm-ups = 2
+    iterations = 5
 }
 
 TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT {
@@ -56,8 +55,8 @@ TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT {
         cleanup = "@testGitCommit@"
         build = "@testGitCommit@"
     }
-    warm-ups = 3
-    iterations = 10
+    warm-ups = 2
+    iterations = 5
 }
 
 TEST_ESQL_ABI_CHANGE_TAPI_MAIN {
@@ -75,8 +74,8 @@ TEST_ESQL_ABI_CHANGE_TAPI_MAIN {
         cleanup = "main"
         build = "main"
     }
-    warm-ups = 3
-    iterations = 10
+    warm-ups = 2
+    iterations = 5
 }
 
 TEST_ESQL_ABI_CHANGE_TAPI_CC_MAIN {
@@ -85,7 +84,6 @@ TEST_ESQL_ABI_CHANGE_TAPI_CC_MAIN {
     gradle-args = ["--configuration-cache", "-I", ".ci/init.gradle"]
     run-using = tooling-api // value can be "cli" or "tooling-api"
     daemon = warm // value can be "warm", "cold", or "none"
-    warm-ups = 3
     copy-file = {
         source = "build-tools-internal/performance/test-files/BenchmarkingTests.java"
         target = "x-pack/plugin/esql/src/test/java/org/elasticsearch/gradle/benchmarking/BenchmarkingTests.java"
@@ -96,8 +94,8 @@ TEST_ESQL_ABI_CHANGE_TAPI_CC_MAIN {
         cleanup = "main"
         build = "main"
     }
-    warm-ups = 3
-    iterations = 10
+    warm-ups = 2
+    iterations = 5
 }
 
 TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT_MAIN {
@@ -115,6 +113,6 @@ TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT_MAIN {
         cleanup = "main"
         build = "main"
     }
-    warm-ups = 3
-    iterations = 10
+    warm-ups = 2
+    iterations = 5
 }

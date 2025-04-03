@@ -1,11 +1,11 @@
 pr: 999999
 summary: Upgrade `repository-s3` to AWS SDK v2
-area: Blah
+area: Snapshot/Restore
 type: breaking
 issues: []
 breaking:
   title: Upgrade `repository-s3` to AWS SDK v2
-  area: Blah
+  area: Cluster and node setting
   details: >-
 
     In earlier versions of {es} the `repository-s3` plugin was based on the AWS

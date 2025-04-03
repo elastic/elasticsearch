@@ -21,7 +21,7 @@ public class InlineStatsSerializationTests extends AbstractLogicalPlanSerializat
         LogicalPlan child = randomChild(0);
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
         List<? extends NamedExpression> aggregates = randomFieldAttributes(0, 5, false).stream().map(a -> (NamedExpression) a).toList();
-        return new InlineStats(source, new Aggregate(source, child, Aggregate.AggregateType.STANDARD, groupings, aggregates));
+        return new InlineStats(source, new Aggregate(source, child, groupings, aggregates));
     }
 
     @Override
@@ -40,7 +40,7 @@ public class InlineStatsSerializationTests extends AbstractLogicalPlanSerializat
                 () -> randomFieldAttributes(0, 5, false).stream().map(a -> (NamedExpression) a).toList()
             );
         }
-        Aggregate agg = new Aggregate(instance.source(), child, Aggregate.AggregateType.STANDARD, groupings, aggregates);
+        Aggregate agg = new Aggregate(instance.source(), child, groupings, aggregates);
         return new InlineStats(instance.source(), agg);
     }
 }

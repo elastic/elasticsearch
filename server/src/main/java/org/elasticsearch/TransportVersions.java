@@ -211,7 +211,8 @@ public class TransportVersions {
     public static final TransportVersion REPOSITORIES_METADATA_AS_PROJECT_CUSTOM = def(9_042_0_00);
     public static final TransportVersion BATCHED_QUERY_PHASE_VERSION = def(9_043_0_00);
     public static final TransportVersion REMOTE_EXCEPTION = def(9_044_0_00);
-    public static final TransportVersion ADD_PROJECT_ID_TO_DSL_ERROR_INFO = def(9_045_0_00);
+    public static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = def(9_045_0_00);
+    public static final TransportVersion ADD_PROJECT_ID_TO_DSL_ERROR_INFO = def(9_046_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -585,6 +584,11 @@ public class EsqlCapabilities {
         BUCKET_INCLUSIVE_UPPER_BOUND,
 
         /**
+         * Enhanced DATE_TRUNC with arbitrary month and year intervals. (#120302)
+         */
+        DATE_TRUNC_WITH_ARBITRARY_INTERVALS,
+
+        /**
          * Changed error messages for fields with conflicting types in different indices.
          */
         SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,
@@ -694,10 +698,6 @@ public class EsqlCapabilities {
          */
         FUNCTION_STATS,
         /**
-         * Support for semantic_text field mapping
-         */
-        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
-        /**
          * Fix for an optimization that caused wrong results
          * https://github.com/elastic/elasticsearch/issues/115281
          */
@@ -769,11 +769,6 @@ public class EsqlCapabilities {
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
          */
         FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
-
-        /**
-         * support for aggregations on semantic_text
-         */
-        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714, again
@@ -942,7 +937,12 @@ public class EsqlCapabilities {
         /**
          * Support for sorting when aggregate_metric_doubles are present
          */
-        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
+        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
+         */
+        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT;
 
         private final boolean enabled;
 

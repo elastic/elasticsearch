@@ -157,13 +157,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx) { }
+  @Override public void enterTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx) { }
+  @Override public void exitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -207,11 +207,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     try (var clientReference = blobStore.clientReference()) {
                         uploadResponse = SocketAccess.doPrivileged(
                             () -> clientReference.client()
-                                .uploadPart(
-                                    uploadRequest,
-                                    // TODO NOMERGE check memory usage here, the SDK isn't doing anything daft is it?
-                                    RequestBody.fromInputStream(partContentStream, buffer.size())
-                                )
+                                .uploadPart(uploadRequest, RequestBody.fromInputStream(partContentStream, buffer.size()))
                         );
                     }
                     finishPart(CompletedPart.builder().partNumber(parts.size() + 1).eTag(uploadResponse.eTag()).build());

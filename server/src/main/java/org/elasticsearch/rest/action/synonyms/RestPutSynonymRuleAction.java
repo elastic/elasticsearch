@@ -22,6 +22,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.action.synonyms.PutSynonymRuleAction.DEFAULT_TIMEOUT;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -42,7 +43,7 @@ public class RestPutSynonymRuleAction extends BaseRestHandler {
         PutSynonymRuleAction.Request request = new PutSynonymRuleAction.Request(
             restRequest.param("synonymsSet"),
             restRequest.param("synonymRuleId"),
-            RestUtils.getAckTimeout(restRequest),
+            restRequest.paramAsTime(RestUtils.REST_TIMEOUT_PARAM, DEFAULT_TIMEOUT),
             restRequest.content(),
             restRequest.getXContentType()
         );

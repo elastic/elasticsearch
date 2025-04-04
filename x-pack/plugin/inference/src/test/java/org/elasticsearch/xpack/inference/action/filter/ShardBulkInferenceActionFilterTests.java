@@ -102,6 +102,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -498,9 +500,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(Settings.EMPTY);
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final StaticModel denseModel = StaticModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
-        final int denseModelEmbeddingBytes = denseModel.getServiceSettings()
-            .elementType()
-            .getNumBytes(denseModel.getServiceSettings().dimensions());
         final Function<XContentBuilder, Long> bytesUsed = b -> BytesReference.bytes(b).ramBytesUsed();
         final ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -554,14 +553,20 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure).increment(1, 128 + bytesUsed.apply(doc0Source));
-                verify(coordinatingIndexingPressure).increment(1, denseModelEmbeddingBytes + bytesUsed.apply(doc1Source));
-                verify(coordinatingIndexingPressure).increment(1, 128 + denseModelEmbeddingBytes + bytesUsed.apply(doc2Source));
-                verify(coordinatingIndexingPressure).increment(1, denseModelEmbeddingBytes * 2L + bytesUsed.apply(doc3Source));
-                verify(coordinatingIndexingPressure).increment(1, 128 + bytesUsed.apply(doc0UpdateSource));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc0Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc1Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc2Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc3Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc4Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc0UpdateSource));
+                if (useLegacyFormat == false) {
+                    verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc1UpdateSource));
+                }
+
+                verify(coordinatingIndexingPressure, times(useLegacyFormat ? 6 : 7)).increment(eq(0), longThat(l -> l > 0));
 
                 // Verify that the only times that increment is called are the times verified above
-                verify(coordinatingIndexingPressure, times(5)).increment(anyInt(), anyLong());
+                verify(coordinatingIndexingPressure, times(useLegacyFormat ? 12 : 14)).increment(anyInt(), anyLong());
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
                 verify(coordinatingIndexingPressure, never()).close();

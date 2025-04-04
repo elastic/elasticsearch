@@ -136,6 +136,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     public PhysicalPlan estimateRowSize(State state) {
         state.add(false, aggregates);  // The groupings are contained within the aggregates
         int size = state.consumeAllFields(true);
+        size = Math.max(size, 1);
         return Objects.equals(this.estimatedRowSize, size)
             ? this
             : new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, size);

@@ -187,7 +187,8 @@ public class PatternedTextValueProcessor {
                     return false;
                 }
                 octet = 0;
-            } else if (Character.isDigit(c)) {
+            } else if ('0' <= c && c <= '9') {
+                // Character.isDigit(c) is invalid for IPs and inconsistent with the calculation of the numeric value of the character
                 octet = octet * 10 + c - '0';
                 if (octet > 255) {
                     return false;

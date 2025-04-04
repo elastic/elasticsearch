@@ -1060,10 +1060,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(innerExceptions.length - sdkGeneratedExceptions, lessThan(S3BlobStore.MAX_DELETE_EXCEPTIONS));
     }
 
-    private static boolean isMultiDeleteRequest(HttpExchange exchange) {
-        return new S3HttpHandler("bucket").parseRequest(exchange).isMultiObjectDeleteRequest();
-    }
-
     public void testTrimmedLogAndCappedSuppressedErrorOnMultiObjectDeletionException() {
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
         int maxBulkDeleteSize = randomIntBetween(10, 30);

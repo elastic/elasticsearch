@@ -471,9 +471,9 @@ final class S3ClientSettings {
     }
 
     static final class Defaults {
-        static final TimeValue READ_TIMEOUT = TimeValue.timeValueSeconds(50);// TODO NOMERGE confirm previous default
+        static final TimeValue READ_TIMEOUT = TimeValue.timeValueSeconds(50);
         static final int MAX_CONNECTIONS = 50;
-        static final int RETRY_COUNT = 3;// TODO NOMERGE confirm previous default
-        static final boolean THROTTLE_RETRIES = true;// TODO NOMERGE confirm previous default
+        static final int RETRY_COUNT = 3;
+        static final boolean THROTTLE_RETRIES = true;
     }
 }

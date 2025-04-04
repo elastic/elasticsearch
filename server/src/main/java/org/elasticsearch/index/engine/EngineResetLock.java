@@ -75,6 +75,13 @@ public final class EngineResetLock implements ReadWriteLock {
     }
 
     /**
+     * See {@link ReentrantReadWriteLock#getReadLockCount()}
+     */
+    public int getReadLockCount() {
+        return lock.getReadLockCount();
+    }
+
+    /**
      * See {@link ReentrantReadWriteLock#getQueuedWriterThreads()}
      */
     public Collection<Thread> getQueuedWriterThreads() {

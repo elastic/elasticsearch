@@ -74,6 +74,10 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, BASE_WHITELIST_FILES)
     );
 
+    public static List<Whitelist> baseWhiteList() {
+        return BASE_WHITELISTS;
+    }
+
     /*
      * Contexts from Core that need custom whitelists can add them to the map below.
      * Whitelist resources should be added as appropriately named, separate files

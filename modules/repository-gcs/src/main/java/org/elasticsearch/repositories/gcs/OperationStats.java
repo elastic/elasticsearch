@@ -24,27 +24,27 @@ public class OperationStats {
     /**
      * true if last request is completed successfully
      */
-    boolean isLastReqSuccess;
+    boolean isLastRequestSucceed;
 
     /**
      * request attempts including retires and multi part requests
      */
-    int reqAtt;
+    int requestAttempts;
 
     /**
      * request errors, all unsuccessful request attempts {@code reqErr<=reqAtt}
      */
-    int reqErr;
+    int requestError;
 
     /**
      * request throttles (429),  {@code reqErrThrottle<=reqErr}
      */
-    int reqErrThrottle;
+    int requestThrottle;
 
     /**
      * request range not satisfied error(416), only applicable for GetObject operations, {@code reqErrRange<=reqErr}
      */
-    int reqErrRange;
+    int requestRangeError;
 
     OperationStats(OperationPurpose purpose, StorageOperation operation) {
         this.purpose = purpose;
@@ -61,15 +61,15 @@ public class OperationStats {
             + ", totalDuration="
             + totalDuration
             + ", isLastReqSuccess="
-            + isLastReqSuccess
+            + isLastRequestSucceed
             + ", reqAtt="
-            + reqAtt
+            + requestAttempts
             + ", reqErr="
-            + reqErr
+            + requestError
             + ", reqErrThrottle="
-            + reqErrThrottle
+            + requestThrottle
             + ", reqErrRange="
-            + reqErrRange
+            + requestRangeError
             + '}';
     }
 }

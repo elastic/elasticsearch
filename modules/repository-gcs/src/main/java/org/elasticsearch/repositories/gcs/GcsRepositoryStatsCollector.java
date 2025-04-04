@@ -65,14 +65,14 @@ public class GcsRepositoryStatsCollector {
     public static final HttpResponseInterceptor METERING_INTERCEPTOR = response -> {
         var stats = getThreadLocal();
         var code = response.getStatusCode();
-        stats.reqAtt += 1;
-        stats.isLastReqSuccess = true;
+        stats.requestAttempts += 1;
+        stats.isLastRequestSucceed = true;
         if (((code >= 200 && code < 300) || code == 308 || code == 404) == false) {
-            stats.reqErr += 1;
-            stats.isLastReqSuccess = false;
+            stats.requestError += 1;
+            stats.isLastRequestSucceed = false;
             switch (code) {
-                case 416 -> stats.reqErrRange += 1;
-                case 429 -> stats.reqErrThrottle += 1;
+                case 416 -> stats.requestRangeError += 1;
+                case 429 -> stats.requestThrottle += 1;
             }
         }
     };
@@ -167,9 +167,6 @@ public class GcsRepositoryStatsCollector {
         }
     }
 
-    /**
-     * Continue collecting metrics with given OperationStats. Useful for readers and writers.
-     */
     public void collectIORunnable(OperationPurpose purpose, StorageOperation operation, IORunnable runnable) throws IOException {
         var stats = initAndGetThreadLocal(purpose, operation);
         var t = timer.absoluteTimeInMillis();
@@ -193,9 +190,6 @@ public class GcsRepositoryStatsCollector {
         }
     }
 
-    /**
-     * Executes GCS Storage operation in a wrapper that stores metrics in ThreadLocal
-     */
     public <T> T collectIOSupplier(OperationPurpose purpose, StorageOperation operation, IOSupplier<T> blobFn) throws IOException {
         var t = timer.absoluteTimeInMillis();
         var stats = initAndGetThreadLocal(purpose, operation);
@@ -208,9 +202,6 @@ public class GcsRepositoryStatsCollector {
         }
     }
 
-    /**
-     * Executes GCS Storage operation in a wrapper that stores metrics in ThreadLocal
-     */
     public <T> T collectSupplier(OperationPurpose purpose, StorageOperation operation, Supplier<T> blobFn) {
         var t = timer.absoluteTimeInMillis();
         var stats = initAndGetThreadLocal(purpose, operation);
@@ -224,28 +215,28 @@ public class GcsRepositoryStatsCollector {
     }
 
     private void collect(OperationStats stats) {
-        if (stats.reqAtt == 0) {
+        if (stats.requestAttempts == 0) {
             return; // nothing happened
         }
         var purpose = stats.purpose;
         var operation = stats.operation;
-        var operationSuccess = stats.isLastReqSuccess ? 1 : 0;
-        var operationErr = stats.isLastReqSuccess ? 0 : 1;
+        var operationSuccess = stats.isLastRequestSucceed ? 1 : 0;
+        var operationError = stats.isLastRequestSucceed ? 0 : 1;
         var collector = collectors.get(purpose).get(operation);
         assert collector != null;
         collector.operations.add(operationSuccess);
-        collector.requests.add(stats.reqAtt);
+        collector.requests.add(stats.requestAttempts);
 
         var attr = telemetryAttributes.get(purpose).get(operation);
         assert attr != null;
         telemetry.operationCounter().incrementBy(operationSuccess, attr);
-        telemetry.unsuccessfulOperationCounter().incrementBy(operationErr, attr);
-        telemetry.requestCounter().incrementBy(stats.reqAtt, attr);
-        telemetry.exceptionCounter().incrementBy(stats.reqErr, attr);
-        telemetry.exceptionHistogram().record(stats.reqErr, attr);
-        telemetry.throttleCounter().incrementBy(stats.reqErrThrottle, attr);
-        telemetry.throttleHistogram().record(stats.reqErrThrottle, attr);
-        telemetry.requestRangeNotSatisfiedExceptionCounter().incrementBy(stats.reqErrRange, attr);
+        telemetry.unsuccessfulOperationCounter().incrementBy(operationError, attr);
+        telemetry.requestCounter().incrementBy(stats.requestAttempts, attr);
+        telemetry.exceptionCounter().incrementBy(stats.requestError, attr);
+        telemetry.exceptionHistogram().record(stats.requestError, attr);
+        telemetry.throttleCounter().incrementBy(stats.requestThrottle, attr);
+        telemetry.throttleHistogram().record(stats.requestThrottle, attr);
+        telemetry.requestRangeNotSatisfiedExceptionCounter().incrementBy(stats.requestRangeError, attr);
         telemetry.httpRequestTimeInMillisHistogram().record(stats.totalDuration, attr);
     }
 

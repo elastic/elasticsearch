@@ -161,13 +161,13 @@ public class SamlObjectHandler {
         return credentials.stream().map(credential -> describe(credential.getEntityCertificate())).collect(Collectors.joining(","));
     }
 
-    void validateSignature(Signature signature) {
+    void validateSignature(Signature signature, Issuer issuer) {
         final String signatureText = text(signature, 32);
         SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();
         try {
             profileValidator.validate(signature);
         } catch (SignatureException e) {
-            throw samlSignatureException(idp.getSigningCredentials(), signatureText, e);
+            throw samlSignatureException(issuer, idp.getSigningCredentials(), signatureText, e);
         }
 
         checkIdpSignature(credential -> {
@@ -207,14 +207,14 @@ public class SamlObjectHandler {
             } catch (PrivilegedActionException e) {
                 throw new SecurityException("SecurityException while attempting to validate SAML signature", e);
             }
-        }, signatureText);
+        }, signatureText, issuer);
     }
 
     /**
      * Tests whether the provided function returns {@code true} for any of the IdP's signing credentials.
-     * @throws ElasticsearchSecurityException - A SAML exception if not matching credential is found.
+     * @throws ElasticsearchSecurityException - A SAML exception if no matching credential is found.
      */
-    protected void checkIdpSignature(CheckedFunction<Credential, Boolean, Exception> check, String signatureText) {
+    protected void checkIdpSignature(CheckedFunction<Credential, Boolean, Exception> check, String signatureText, Issuer issuer) {
         final Predicate<Credential> predicate = credential -> {
             try {
                 return check.apply(credential);
@@ -237,29 +237,35 @@ public class SamlObjectHandler {
         };
         final List<Credential> credentials = idp.getSigningCredentials();
         if (credentials.stream().anyMatch(predicate) == false) {
-            throw samlSignatureException(credentials, signatureText);
+            throw samlSignatureException(issuer, credentials, signatureText);
         }
     }
 
     /**
      * Constructs a SAML specific exception with a consistent message regarding SAML Signature validation failures
      */
-    private ElasticsearchSecurityException samlSignatureException(List<Credential> credentials, String signature, Exception cause) {
+    private ElasticsearchSecurityException samlSignatureException(
+        Issuer issuer,
+        List<Credential> credentials,
+        String signature,
+        Exception cause
+    ) {
+        final String issuerValue = issuer != null ? issuer.getValue() : "";
         logger.warn(
-            "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML"
-                + "metadata file/URL for this Identity Provider"
+            "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML " +
+                "metadata file/URL for this Identity Provider {}",
+            issuerValue
         );
         final String msg = "SAML Signature [{}] could not be validated against [{}]";
-        return samlException(msg, cause, signature, describeCredentials(credentials));
+        if (cause != null) {
+            return samlException(msg, cause, signature, describeCredentials(credentials));
+        } else {
+            return samlException(msg, signature, describeCredentials(credentials));
+        }
     }
 
-    private ElasticsearchSecurityException samlSignatureException(List<Credential> credentials, String signature) {
-        logger.warn(
-            "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML"
-                + "metadata file/URL for this Identity Provider"
-        );
-        final String msg = "SAML Signature [{}] could not be validated against [{}]";
-        return samlException(msg, signature, describeCredentials(credentials));
+    private ElasticsearchSecurityException samlSignatureException(Issuer issuer, List<Credential> credentials, String signature) {
+        return samlSignatureException(issuer, credentials, signature, null);
     }
 
     private static String describeCredentials(List<Credential> credentials) {
@@ -423,7 +429,7 @@ public class SamlObjectHandler {
                 );
                 return false;
             }
-        }, signatureText);
+        }, signatureText, null);
     }
 
     protected byte[] decodeBase64(String content) {

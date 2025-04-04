@@ -106,6 +106,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "Attributes with a name clash may prevent authentication or interfere will role mapping. "
             + "Change your IdP configuration to use a different attribute *"
             + " that will not clash with any of [*]";
+    private static final String SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE = "The XML Signature of this SAML message cannot be validated. "
+        + "Please verify that the saml realm uses the correct SAMLmetadata file/URL for this Identity Provider "
+        + "https://idp.saml.elastic.test/";
 
     private SamlAuthenticator authenticator;
 
@@ -741,16 +744,29 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         // check that the content is valid when signed by the correct key-pair
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
-        // check is rejected when signed by a different key-pair
-        final Tuple<X509Certificate, PrivateKey> wrongKey = readKeyPair("RSA_4096_updated");
-        final ElasticsearchSecurityException exception = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> authenticator.authenticate(token(signer.transform(xml, wrongKey)))
-        );
-        assertThat(exception.getMessage(), containsString("SAML Signature"));
-        assertThat(exception.getMessage(), containsString("could not be validated"));
-        assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Invalid Signature",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE
+                )
+            );
+
+            // check is rejected when signed by a different key-pair
+            final Tuple<X509Certificate, PrivateKey> wrongKey = readKeyPair("RSA_4096_updated");
+            final ElasticsearchSecurityException exception = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> authenticator.authenticate(token(signer.transform(xml, wrongKey)))
+            );
+            assertThat(exception.getMessage(), containsString("SAML Signature"));
+            assertThat(exception.getMessage(), containsString("could not be validated"));
+            assertThat(exception.getCause(), nullValue());
+            assertThat(SamlUtils.isSamlException(exception), is(true));
+
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testSigningKeyIsReloadedForEachRequest() throws Exception {
@@ -1301,24 +1317,54 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         authenticator = buildAuthenticator(() -> emptyList(), emptyList());
         final String xml = getSimpleResponseAsString(clock.instant());
         final SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
-        assertThat(exception.getCause(), nullValue());
-        assertThat(exception.getMessage(), containsString("SAML Signature"));
-        assertThat(exception.getMessage(), containsString("could not be validated"));
-        // Restore the authenticator with credentials for the rest of the test cases
-        authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
+
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Invalid signature",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE
+                )
+            );
+
+            final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+            assertThat(exception.getCause(), nullValue());
+            assertThat(exception.getMessage(), containsString("SAML Signature"));
+            assertThat(exception.getMessage(), containsString("could not be validated"));
+
+            mockLog.awaitAllExpectationsMatched();
+        } finally {
+            // Restore the authenticator with credentials for the rest of the test cases
+            authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
+        }
     }
 
     public void testFailureWhenIdPCredentialsAreNull() throws Exception {
         authenticator = buildAuthenticator(() -> singletonList(null), emptyList());
         final String xml = getSimpleResponseAsString(clock.instant());
         final SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
-        assertThat(exception.getCause(), nullValue());
-        assertThat(exception.getMessage(), containsString("SAML Signature"));
-        assertThat(exception.getMessage(), containsString("could not be validated"));
-        // Restore the authenticator with credentials for the rest of the test cases
-        authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
+
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Invalid signature",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE
+                )
+            );
+
+            final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+            assertThat(exception.getCause(), nullValue());
+            assertThat(exception.getMessage(), containsString("SAML Signature"));
+            assertThat(exception.getMessage(), containsString("could not be validated"));
+
+            mockLog.awaitAllExpectationsMatched();
+        } finally {
+            // Restore the authenticator with credentials for the rest of the test cases
+            authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
+        }
     }
 
     private interface CryptoTransform {

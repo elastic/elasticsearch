@@ -920,6 +920,11 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return telemetryPlugin.getLongHistogramMeasurement(name).stream().mapToLong(Measurement::getLong).sum();
     }
 
+    protected static long getLastLongGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
+        List<Measurement> measurements = telemetryPlugin.getLongGaugeMeasurement(name);
+        return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
+    }
+
     protected static Settings disableIndexingDiskAndMemoryControllersNodeSettings() {
         return Settings.builder()
             .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))

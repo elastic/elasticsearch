@@ -38,7 +38,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
@@ -57,6 +59,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.InferenceException;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -199,6 +202,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * @param input The input to run inference on.
      * @param inputOrder The original order of the input.
      * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
+     * @param chunkingSettings Additional explicitly specified chunking settings, or null to use model defaults
      */
     private record FieldInferenceRequest(
         int bulkItemIndex,
@@ -206,7 +210,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         String sourceField,
         String input,
         int inputOrder,
-        int offsetAdjustment
+        int offsetAdjustment,
+        ChunkingSettings chunkingSettings
     ) {}
 
     /**
@@ -387,7 +392,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 modelRegistry.getModelWithSecrets(inferenceId, modelLoadingListener);
                 return;
             }
-            final List<String> inputs = requests.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
+            final List<ChunkInferenceInput> inputs = requests.stream()
+                .map(r -> new ChunkInferenceInput(r.input, r.chunkingSettings))
+                .collect(Collectors.toList());
+
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
                 @Override
                 public void onResponse(List<ChunkedInference> results) {
@@ -482,6 +490,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             for (var entry : fieldInferenceMap.values()) {
                 String field = entry.getName();
                 String inferenceId = entry.getInferenceId();
+                ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(entry.getChunkingSettings(), false);
 
                 if (isInferenceRequired(entry, docMap) == false) {
                     continue;
@@ -551,7 +560,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                             );
                         } else {
-                            requests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+                            requests.add(
+                                new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment, chunkingSettings)
+                            );
                             inputLength += v.length();
                         }
 
@@ -706,6 +717,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     new SemanticTextField.InferenceResult(
                         inferenceFieldMetadata.getInferenceId(),
                         model != null ? new MinimalServiceSettings(model) : null,
+                        ChunkingSettingsBuilder.fromMap(inferenceFieldMetadata.getChunkingSettings(), false),
                         chunkMap
                     ),
                     indexRequest.getContentType()

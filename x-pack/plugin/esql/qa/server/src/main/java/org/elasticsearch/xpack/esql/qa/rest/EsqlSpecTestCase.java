@@ -66,10 +66,14 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasRerankInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createRerankInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteRerankInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
 
 // This test can run very long in serverless configurations
@@ -133,6 +137,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             createInferenceEndpoint(client());
         }
 
+        if (supportsInferenceTestService() && clusterHasRerankInferenceEndpoint(client()) == false) {
+            createRerankInferenceEndpoint(client());
+        }
+
         boolean supportsLookup = supportsIndexModeLookup();
         boolean supportsSourceMapping = supportsSourceFieldMapping();
         if (indexExists(availableDatasetsForEs(client(), supportsLookup, supportsSourceMapping).iterator().next().indexName()) == false) {
@@ -152,6 +160,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
 
         deleteInferenceEndpoint(client());
+        deleteRerankInferenceEndpoint(client());
     }
 
     public boolean logResults() {
@@ -168,9 +177,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        if (testCase.requiredCapabilities.contains("semantic_text_type")
-            || testCase.requiredCapabilities.contains("semantic_text_aggregations")
-            || testCase.requiredCapabilities.contains("semantic_text_field_caps")) {
+        if (testCase.requiredCapabilities.contains("semantic_text_field_caps")) {
             assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
@@ -178,6 +185,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (supportsSourceFieldMapping() == false) {
             assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
         }
+        if (testCase.requiredCapabilities.contains(METRICS_COMMAND.capabilityName())) {
+            assumeTrue("Skip time-series tests in mixed clusters until the development stabilizes", supportTimeSeriesCommand());
+        }
+    }
+
+    /**
+     * Skip time-series tests in mixed clusters until the development stabilizes
+     */
+    protected boolean supportTimeSeriesCommand() {
+        return true;
     }
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)

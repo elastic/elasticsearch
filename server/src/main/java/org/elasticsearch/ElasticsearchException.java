@@ -71,6 +71,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -353,7 +354,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static boolean isRegistered(Class<? extends Throwable> exception, TransportVersion version) {
         ElasticsearchExceptionHandle elasticsearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
         if (elasticsearchExceptionHandle != null) {
-            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded);
+            return elasticsearchExceptionHandle.supportedTransportVersion.test(version);
         }
         return false;
     }
@@ -1983,12 +1984,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             183,
             TransportVersions.V_8_16_0
         ),
-        REMOTE_EXCEPTION(RemoteException.class, RemoteException::new, 184, TransportVersions.REMOTE_EXCEPTION);
+        REMOTE_EXCEPTION(
+            RemoteException.class,
+            RemoteException::new,
+            184,
+            version -> version.onOrAfter(TransportVersions.REMOTE_EXCEPTION) || version.isPatchFrom(TransportVersions.REMOTE_EXCEPTION_8_19)
+        );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;
         final int id;
-        final TransportVersion versionAdded;
+        final Predicate<TransportVersion> supportedTransportVersion;
 
         <E extends ElasticsearchException> ElasticsearchExceptionHandle(
             Class<E> exceptionClass,
@@ -1999,7 +2005,20 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             // We need the exceptionClass because you can't dig it out of the constructor reliably.
             this.exceptionClass = exceptionClass;
             this.constructor = constructor;
-            this.versionAdded = versionAdded;
+            this.supportedTransportVersion = version -> version.onOrAfter(versionAdded);
+            this.id = id;
+        }
+
+        <E extends ElasticsearchException> ElasticsearchExceptionHandle(
+            Class<E> exceptionClass,
+            CheckedFunction<StreamInput, E, IOException> constructor,
+            int id,
+            Predicate<TransportVersion> supportedTransportVersion
+        ) {
+            // We need the exceptionClass because you can't dig it out of the constructor reliably.
+            this.exceptionClass = exceptionClass;
+            this.constructor = constructor;
+            this.supportedTransportVersion = supportedTransportVersion;
             this.id = id;
         }
     }

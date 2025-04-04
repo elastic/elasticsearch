@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -165,11 +167,11 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public Builder asBuilder() {
-        return new Builder().addAll(this);
+        return builder(size()).addAll(this);
     }
 
     public static AttributeSet of(Attribute... attrs) {
-        final AttributeMap.Builder<Object> mapBuilder = AttributeMap.builder();
+        final AttributeMap.Builder<Object> mapBuilder = AttributeMap.builder(attrs.length);
         for (var a : attrs) {
             mapBuilder.put(a, PRESENT);
         }
@@ -177,21 +179,46 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public static AttributeSet of(Collection<? extends Attribute> c) {
-        final AttributeMap.Builder<Object> mapBuilder = AttributeMap.builder();
+        final AttributeMap.Builder<Object> mapBuilder = AttributeMap.builder(c.size());
         for (var a : c) {
             mapBuilder.put(a, PRESENT);
         }
         return new AttributeSet(mapBuilder.build());
     }
 
+    public static <T> AttributeSet of(Collection<T> sources, Function<T, Collection<Attribute>> mapper) {
+        if (sources.isEmpty()) {
+            return AttributeSet.EMPTY;
+        }
+        var size = 0;
+        var attributeSets = new ArrayList<Collection<Attribute>>(sources.size());
+        for (T source : sources) {
+            var attrs = mapper.apply(source);
+            size += attrs.size();
+            attributeSets.add(attrs);
+        }
+        var builder = AttributeSet.builder(size);
+        for (Collection<Attribute> attributeSet : attributeSets) {
+            builder.addAll(attributeSet);
+        }
+        return builder.build();
+    }
+
     public static Builder builder() {
-        return new Builder();
+        return new Builder(AttributeMap.builder());
+    }
+
+    public static Builder builder(int expectedSize) {
+        return new Builder(AttributeMap.builder(expectedSize));
     }
 
     public static class Builder {
-        private final AttributeMap.Builder<Object> mapBuilder = AttributeMap.builder();
 
-        private Builder() {}
+        private final AttributeMap.Builder<Object> mapBuilder;
+
+        private Builder(AttributeMap.Builder<Object> mapBuilder) {
+            this.mapBuilder = mapBuilder;
+        }
 
         public Builder add(Attribute attr) {
             mapBuilder.put(attr, PRESENT);

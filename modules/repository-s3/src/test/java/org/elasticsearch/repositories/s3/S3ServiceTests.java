@@ -186,7 +186,7 @@ public class S3ServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging(reason = "testing log output for various settings", value = "org.elasticsearch.repositories.s3.S3Service:DEBUG")
+    @TestLogging(reason = "testing DEBUG log output", value = "org.elasticsearch.repositories.s3.S3Service:DEBUG")
     public void testGetClientRegionFromDefault() {
         final var regionRequested = new AtomicBoolean();
         final var defaultRegion = randomBoolean() ? randomFrom(Region.regions()) : Region.of(randomIdentifier());
@@ -212,7 +212,7 @@ public class S3ServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging(reason = "testing log output for various settings", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
+    @TestLogging(reason = "testing WARN log output", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
     public void testGetClientRegionFallbackToUsEast1() {
         final var regionRequested = new AtomicBoolean();
         try (var s3Service = new S3Service(mock(Environment.class), Settings.EMPTY, mock(ResourceWatcherService.class), () -> {

@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -188,6 +189,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -5191,7 +5193,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertThat(engine, notNullValue());
                 EngineTestCase.ensureOpen(engine);
                 hold.onResponse(engine);
-                safeAwait(release, TimeValue.ONE_HOUR);
+                safeAwait(release);
                 return null;
             });
         });
@@ -5226,10 +5228,213 @@ public class IndexShardTests extends IndexShardTestCase {
         release.countDown();
         safeGet(reset);
 
+        assertThat(preparedForReset.get(), equalTo(true));
+
         holdEngineThread.join();
         resetEngineThread.join();
 
         closeShards(shard);
+    }
+
+    public void testReentrantEngineReadLockAcquisitionInRefreshListener() throws Exception {
+        final var lazyShard = new AtomicReference<IndexShard>();
+        final var lazyEngineConfig = new AtomicReference<EngineConfig>();
+
+        final var refreshStarted = new CountDownLatch(1);
+        final var blockRefresh = new AtomicBoolean();
+        final var unblockRefresh = new CountDownLatch(1);
+
+        final var getFromTranslogStarted = new CountDownLatch(1);
+        final var getFromTranslogResult = new PlainActionFuture<Boolean>();
+
+        final var resetStarted = new CountDownLatch(1);
+
+        // Refresh listener that blocks on purpose (so it holds the refresh lock) and acquires the engine read lock in a reentrant manner
+        final var blockingRefreshListener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() throws IOException {
+                if (blockRefresh.get()) {
+                    try {
+                        var shard = lazyShard.get();
+                        assertThat(shard, notNullValue());
+
+                        // Asserts that the refresh is triggered by the test and not something else
+                        assertThat(Thread.currentThread().toString(), containsStringIgnoringCase(getTestClass().getSimpleName()));
+
+                        // Asserts the current thread holds the engine read lock
+                        var engineResetLock = lazyEngineConfig.get().getEngineResetLock();
+                        assertThat(engineResetLock.isReadLockedByCurrentThread(), equalTo(true));
+
+                        refreshStarted.countDown();
+                        safeAwait(getFromTranslogStarted);
+
+                        // A this stage, getThread is blocked on the refresh held by the current thread
+                        assertBusy(() -> assertThat(engineResetLock.getReadLockCount(), greaterThanOrEqualTo(2)));
+                        assertThat(getFromTranslogResult.isDone(), equalTo(false));
+
+                        // Waits for the resetThread
+                        safeAwait(resetStarted);
+
+                        // The resetThread waits for the engine write lock, blocking new non-reentrant engine read lock acquisitions
+                        assertBusy(() -> assertThat(engineResetLock.getQueuedWriterThreads(), hasSize(1)));
+
+                        // Ensure that accessing the engine from a refresh listener works, even if another thread (like resetThread) is
+                        // waiting for the engine write lock. If we were not acquiring the engine read lock when refreshing the reader,
+                        // we would deadlock here.
+                        var localCheckpoint = shard.withEngine(engine -> engine.getProcessedLocalCheckpoint());
+                        assertThat(localCheckpoint, greaterThan(SequenceNumbers.NO_OPS_PERFORMED));
+
+                        // Also test `getEngine`
+                        var internalEngine = asInstanceOf(InternalEngine.class, shard.getEngine());
+                        assertThat(internalEngine.getTranslogStats().getUncommittedOperations(), equalTo(1));
+
+                        // Don't block refresh again (it will flush and refresh later in prepareEngineForReset)
+                        blockRefresh.set(false);
+
+                        safeAwait(unblockRefresh);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) throws IOException {}
+        };
+
+        final var preparedForReset = new AtomicBoolean();
+        final var shard = newShard(true, Settings.EMPTY, config -> {
+            if (preparedForReset.get()) {
+                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true);
+            } else {
+                var internalRefreshListeners = new ArrayList<ReferenceManager.RefreshListener>();
+                internalRefreshListeners.add(blockingRefreshListener);
+                internalRefreshListeners.addAll(config.getInternalRefreshListener());
+
+                var engineConfigWithBlockingRefreshListener = new EngineConfig(
+                    config.getShardId(),
+                    config.getThreadPool(),
+                    config.getThreadPoolMergeExecutorService(),
+                    config.getIndexSettings(),
+                    config.getWarmer(),
+                    config.getStore(),
+                    config.getMergePolicy(),
+                    config.getAnalyzer(),
+                    config.getSimilarity(),
+                    new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+                    config.getEventListener(),
+                    config.getQueryCache(),
+                    config.getQueryCachingPolicy(),
+                    config.getTranslogConfig(),
+                    config.getFlushMergesAfter(),
+                    config.getExternalRefreshListener(),
+                    internalRefreshListeners,
+                    config.getIndexSort(),
+                    config.getCircuitBreakerService(),
+                    config.getGlobalCheckpointSupplier(),
+                    config.retentionLeasesSupplier(),
+                    config.getPrimaryTermSupplier(),
+                    IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                    config.getLeafSorter(),
+                    config.getRelativeTimeInNanosSupplier(),
+                    config.getIndexCommitListener(),
+                    config.isPromotableToPrimary(),
+                    config.getMapperService(),
+                    config.getEngineResetLock()
+                );
+                lazyEngineConfig.set(engineConfigWithBlockingRefreshListener);
+                return new InternalEngine(engineConfigWithBlockingRefreshListener) {
+                    @Override
+                    public void prepareForEngineReset() throws IOException {
+                        flush(true, true);
+                        assertTrue(preparedForReset.compareAndSet(false, true));
+                    }
+                };
+            }
+        });
+        try {
+            recoverShardFromStore(shard);
+            blockRefresh.set(true);
+            lazyShard.set(shard);
+
+            // Index a doc with an auto-generated idea makes the version map unsafe, and the realtime get will have to refresh
+            var index = indexDoc(shard, "_doc", null /* auto-generated id */);
+            assertThat(index.isCreated(), equalTo(true));
+
+            // Trigger a refresh
+            var refreshThread = new Thread(() -> shard.refresh("test"));
+            refreshThread.start();
+
+            // Wait for the refresh listener to hold the resfresh lock and the engine read lock
+            safeAwait(refreshStarted);
+
+            // While refresh is blocked holding the locks, triggers a getFromTranslog() that will refresh-blocking in another thread
+            var getThread = new Thread(() -> {
+                shard.withEngine(engine -> {
+                    getFromTranslogStarted.countDown();
+                    try (
+                        // Will block on the refresh lock
+                        var getResult = engine.get(
+                            new Engine.Get(true, false, index.getId()),
+                            shard.mapperService().mappingLookup(),
+                            shard.mapperService().documentParser(),
+                            searcher -> searcher
+                        )
+                    ) {
+                        assertThat(getResult, notNullValue());
+                        getFromTranslogResult.onResponse(getResult.exists());
+                        return null;
+                    }
+                });
+            });
+            getThread.start();
+
+            final var engineResetLock = lazyEngineConfig.get().getEngineResetLock();
+            safeAwait(getFromTranslogStarted);
+
+            // Resets the engine to have a thread waiting for the engine write lock (this will block non-reentrant read lock acquisitions)
+            final var reset = new PlainActionFuture<Void>();
+            final var resetEngineThread = new Thread(() -> {
+                resetStarted.countDown();
+                try {
+                    shard.acquirePrimaryOperationPermit(reset.delegateFailure((l, permit) -> {
+                        try (permit) {
+                            shard.resetEngine(newEngine -> {
+                                assertThat(newEngine.getEngineConfig().getEngineResetLock(), sameInstance(engineResetLock));
+                                assertThat(engineResetLock.isWriteLockedByCurrentThread(), equalTo(true));
+                                assertThat(newEngine, instanceOf(ReadOnlyEngine.class));
+                                assertThat(getFromTranslogResult.isDone(), equalTo(true));
+                            });
+                            assertThat(preparedForReset.get(), equalTo(true));
+                            l.onResponse(null);
+                        }
+                    }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                } catch (Exception e) {
+                    reset.onFailure(e);
+                }
+            });
+            resetEngineThread.start();
+
+            safeAwait(resetStarted);
+
+            // A this stage, getThread is blocked by refreshThread, and boths threads block resetEngineThread
+            assertThat(getFromTranslogResult.isDone(), equalTo(false));
+
+            assertBusy(() -> assertThat(engineResetLock.getReadLockCount(), greaterThanOrEqualTo(2)));
+            assertBusy(() -> assertThat(engineResetLock.getQueuedWriterThreads(), hasItem(resetEngineThread)));
+            assertThat(engineResetLock.isWriteLocked(), equalTo(false));
+            assertThat(engineResetLock.isReadLocked(), equalTo(true));
+
+            unblockRefresh.countDown();
+
+            safeGet(reset);
+
+            resetEngineThread.join();
+            refreshThread.join();
+            getThread.join();
+        } finally {
+            closeShards(shard);
+        }
     }
 
     public void testShardExposesWriteLoadStats() throws Exception {

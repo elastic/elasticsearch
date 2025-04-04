@@ -26,13 +26,23 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.common.bytes.BytesReference.bytes;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class HollowIndexEngineTests extends EngineTestCase {
 
@@ -46,7 +56,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             store.createEmpty();
 
-            try (var hollowIndexEngine = new HollowIndexEngine(config, statelessCommitService, hollowShardsService)) {
+            try (var hollowIndexEngine = new HollowIndexEngine(config, statelessCommitService, hollowShardsService, mapperService)) {
                 var exception = LuceneTestCase.TEST_ASSERTS_ENABLED ? AssertionError.class : UnsupportedOperationException.class;
                 expectThrows(exception, () -> hollowIndexEngine.index(null));
                 expectThrows(exception, () -> hollowIndexEngine.delete(null));
@@ -76,9 +86,134 @@ public class HollowIndexEngineTests extends EngineTestCase {
                 expectedShardFieldStats = engine.shardFieldStats();
             }
 
-            try (var hollowIndexEngine = new HollowIndexEngine(engineConfig, statelessCommitService, hollowShardsService)) {
+            try (var hollowIndexEngine = new HollowIndexEngine(engineConfig, statelessCommitService, hollowShardsService, mapperService)) {
                 assertEquals(expectedShardFieldStats, hollowIndexEngine.shardFieldStats());
             }
         }
+    }
+
+    public void testDocStats() throws Exception {
+        IOUtils.close(engine, store);
+        try (Store store = createStore()) {
+            var globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            int numDocs = randomIntBetween(8, 32);
+            try (InternalEngine engine = createEngine(engineConfig)) {
+                for (int i = 0; i < numDocs; i++) {
+                    engine.index(indexForDoc(createParsedDoc(String.valueOf(i), null)));
+                    engine.syncTranslog();
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
+                }
+                waitForOpsToComplete(engine, numDocs - 1);
+                engine.flush(true, true);
+            }
+
+            DocsStats expectedDocStats;
+            try (InternalEngine engine = createEngine(engineConfig)) {
+                expectedDocStats = engine.docStats();
+            }
+
+            try (var hollowIndexEngine = new HollowIndexEngine(engineConfig, statelessCommitService, hollowShardsService, mapperService)) {
+                assertEquals(expectedDocStats, hollowIndexEngine.docStats());
+            }
+        }
+    }
+
+    public void testSegmentStats() throws Exception {
+        IOUtils.close(engine, store);
+        try (Store store = createStore()) {
+            var globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            int numDocs = randomIntBetween(8, 32);
+            try (InternalEngine engine = createEngine(engineConfig)) {
+                for (int i = 0; i < numDocs; i++) {
+                    engine.index(indexForDoc(createParsedDoc(String.valueOf(i), null)));
+                    engine.syncTranslog();
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
+                }
+                waitForOpsToComplete(engine, numDocs - 1);
+                engine.flush(true, true);
+            }
+
+            try (InternalEngine engine = createEngine(engineConfig)) {
+                var segmentsStats = engine.segmentsStats(true, true);
+                assertThat(segmentsStats.getCount(), greaterThan(0L));
+            }
+
+            try (var hollowIndexEngine = new HollowIndexEngine(engineConfig, statelessCommitService, hollowShardsService, mapperService)) {
+                var segmentsStats = hollowIndexEngine.segmentsStats(true, true);
+                assertThat(segmentsStats, equalTo(new SegmentsStats()));
+            }
+        }
+    }
+
+    @Override
+    protected String defaultMapping() {
+        return """
+            {
+              "properties": {
+                "dv": {
+                  "type": "dense_vector",
+                  "dims": 3,
+                  "similarity": "cosine"
+                },
+                "sv": {
+                  "type": "sparse_vector"
+                }
+              }
+            }
+            """;
+    }
+
+    public void testVectorStats() throws Exception {
+        IOUtils.close(engine, store);
+        try (Store store = createStore()) {
+            var globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            var documentMapper = engineConfig.getMapperService().documentMapper();
+            var mappingLookup = engineConfig.getMapperService().mappingLookup();
+            int numDocs = randomIntBetween(8, 32);
+            try (InternalEngine engine = createEngine(engineConfig)) {
+                for (int i = 0; i < numDocs; i++) {
+                    var denseVectorSource = JsonXContent.contentBuilder().startObject().array("dv", randomVector(3)).endObject();
+                    var denseVectorDoc = documentMapper.parse(new SourceToParse("dv_" + i, bytes(denseVectorSource), XContentType.JSON));
+                    engine.index(indexForDoc(denseVectorDoc));
+
+                    var sparseVectorSource = JsonXContent.contentBuilder()
+                        .startObject()
+                        .field("sv")
+                        .value(Map.of("a", randomPositiveFloat(), "b", randomPositiveFloat()))
+                        .endObject();
+                    var sparseVectorDoc = documentMapper.parse(new SourceToParse("sv_" + i, bytes(sparseVectorSource), XContentType.JSON));
+                    engine.index(indexForDoc(sparseVectorDoc));
+
+                    engine.syncTranslog();
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
+                }
+                waitForOpsToComplete(engine, numDocs - 1);
+                engine.flush(true, true);
+            }
+            try (InternalEngine e = createEngine(engineConfig)) {
+                assertThat(e.denseVectorStats(mappingLookup).getValueCount(), greaterThan(0L));
+                assertThat(e.sparseVectorStats(mappingLookup).getValueCount(), greaterThan(0L));
+            }
+
+            try (var e = new HollowIndexEngine(engineConfig, statelessCommitService, hollowShardsService, mapperService)) {
+                assertThat(e.denseVectorStats(mappingLookup).getValueCount(), equalTo(0L));
+                assertThat(e.sparseVectorStats(mappingLookup).getValueCount(), equalTo(0L));
+            }
+        }
+    }
+
+    private static float[] randomVector(int numDimensions) {
+        float[] vector = new float[numDimensions];
+        for (int j = 0; j < numDimensions; j++) {
+            vector[j] = randomPositiveFloat();
+        }
+        return vector;
+    }
+
+    private static float randomPositiveFloat() {
+        return randomFloatBetween(0, 1, true);
     }
 }

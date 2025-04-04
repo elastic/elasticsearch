@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -284,7 +285,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new Aggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
-                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -301,7 +301,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new Aggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
-                Aggregate.AggregateType.STANDARD,
                 List.of(),
                 List.of(
                     new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -314,7 +313,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithoutAggs() {
         assertEquals(
-            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(attribute("a")), List.of(attribute("a"))),
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
             processingCommand("stats by a")
         );
     }
@@ -349,7 +348,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
         assertEquals(
-            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(a), List.of(filter, a)),
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(a), List.of(filter, a)),
             processingCommand("stats min(a) where a > 1 by a")
         );
     }
@@ -372,13 +371,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var avg_filter = new Alias(EMPTY, "avg", new FilteredExpression(EMPTY, avg, avg_filter_ex));
 
         assertEquals(
-            new Aggregate(
-                EMPTY,
-                PROCESSING_CMD_INPUT,
-                Aggregate.AggregateType.STANDARD,
-                List.of(a),
-                List.of(min_alias, max_filter, avg_filter, a)
-            ),
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(a), List.of(min_alias, max_filter, avg_filter, a)),
             processingCommand("""
                 stats
                 min = min(a),
@@ -393,10 +386,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var a = attribute("a");
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
-        assertEquals(
-            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(), List.of(filter)),
-            processingCommand("stats min(a) where a > 1")
-        );
+        assertEquals(new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(), List.of(filter)), processingCommand("stats min(a) where a > 1"));
     }
 
     public void testInlineStatsWithGroups() {
@@ -415,7 +405,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 new Aggregate(
                     EMPTY,
                     PROCESSING_CMD_INPUT,
-                    Aggregate.AggregateType.STANDARD,
                     List.of(attribute("c"), attribute("d.e")),
                     List.of(
                         new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -444,7 +433,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 new Aggregate(
                     EMPTY,
                     PROCESSING_CMD_INPUT,
-                    Aggregate.AggregateType.STANDARD,
                     List.of(),
                     List.of(
                         new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -1831,7 +1819,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Aggregate(
                         EMPTY,
                         relation("test"),
-                        Aggregate.AggregateType.STANDARD,
                         List.of(attribute("f.4.")),
                         List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f3.*")))), attribute("f.4."))
                     ),
@@ -1866,7 +1853,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Aggregate(
                         EMPTY,
                         relation("test"),
-                        Aggregate.AggregateType.STANDARD,
                         List.of(attribute("f.9.f10.*")),
                         List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f.7*.f8.")))), attribute("f.9.f10.*"))
                     ),
@@ -2343,30 +2329,35 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStatement(
             "TS foo | STATS load=avg(cpu) BY ts",
-            new Aggregate(
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("ts")),
-                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
+                List.of(
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    attribute("ts")
+                ),
+                null
             )
         );
         assertStatement(
             "TS foo,bar | STATS load=avg(cpu) BY ts",
-            new Aggregate(
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("ts")),
-                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
+                List.of(
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    attribute("ts")
+                ),
+                null
             )
         );
         assertStatement(
             "TS foo,bar | STATS load=avg(cpu),max(rate(requests)) BY ts",
-            new Aggregate(
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("ts")),
                 List.of(
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
@@ -2381,61 +2372,62 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         )
                     ),
                     attribute("ts")
-                )
+                ),
+                null
             )
         );
         assertStatement(
             "TS foo* | STATS count(errors)",
-            new Aggregate(
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(),
-                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
+                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors"))))),
+                null
             )
         );
         assertStatement(
             "TS foo* | STATS a(b)",
-            new Aggregate(
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                null
             )
         );
         assertStatement(
             "TS foo* | STATS a(b)",
-            new Aggregate(
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                null
             )
         );
         assertStatement(
             "TS foo* | STATS a1(b2)",
-            new Aggregate(
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(),
-                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
+                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2"))))),
+                null
             )
         );
         assertStatement(
             "TS foo*,bar* | STATS b = min(a) by c, d.e",
-            new Aggregate(
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*,bar*"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
                     attribute("c"),
                     attribute("d.e")
-                )
+                ),
+                null
             )
         );
     }
@@ -2595,7 +2587,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 new Aggregate(
                     EMPTY,
                     relation("test"),
-                    Aggregate.AggregateType.STANDARD,
                     List.of(
                         new Alias(
                             EMPTY,
@@ -2711,7 +2702,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 new Aggregate(
                     EMPTY,
                     relation("test"),
-                    Aggregate.AggregateType.STANDARD,
                     List.of(
                         new Alias(
                             EMPTY,
@@ -3589,7 +3579,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Aggregate(
                             EMPTY,
                             relation("test"),
-                            Aggregate.AggregateType.STANDARD,
                             List.of(attribute("f.4.")),
                             List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f3.*")))), attribute("f.4."))
                         ),
@@ -3646,7 +3635,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Aggregate(
                             EMPTY,
                             relation("test"),
-                            Aggregate.AggregateType.STANDARD,
                             List.of(attribute("f.9.f10.*")),
                             List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f.7*.f8.")))), attribute("f.9.f10.*"))
                         ),
@@ -4006,7 +3994,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Aggregate(
                             EMPTY,
                             relation("test"),
-                            Aggregate.AggregateType.STANDARD,
                             List.of(attribute("f.4.")),
                             List.of(new Alias(EMPTY, "y", function("count", List.of(new Literal(EMPTY, "*", KEYWORD)))), attribute("f.4."))
                         ),

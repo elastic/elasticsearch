@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
@@ -142,15 +144,28 @@ class MapperUtils {
     }
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
-        return new AggregateExec(
-            aggregate.source(),
-            child,
-            aggregate.groupings(),
-            aggregate.aggregates(),
-            aggMode,
-            intermediateAttributes,
-            null
-        );
+        if (aggregate instanceof TimeSeriesAggregate ts) {
+            return new TimeSeriesAggregateExec(
+                aggregate.source(),
+                child,
+                aggregate.groupings(),
+                aggregate.aggregates(),
+                aggMode,
+                intermediateAttributes,
+                null,
+                ts.timeBucket()
+            );
+        } else {
+            return new AggregateExec(
+                aggregate.source(),
+                child,
+                aggregate.groupings(),
+                aggregate.aggregates(),
+                aggMode,
+                intermediateAttributes,
+                null
+            );
+        }
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {

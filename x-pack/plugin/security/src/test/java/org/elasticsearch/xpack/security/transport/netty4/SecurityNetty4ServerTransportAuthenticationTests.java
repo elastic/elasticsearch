@@ -334,11 +334,11 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
             RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
             BytesReference bytesReference = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
                 "internal:whatever",
                 randomNonNegativeLong(),
                 false,
                 TransportVersion.current(),
-                false,
                 randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
                 new EmptyRequest(),
                 threadPool.getThreadContext(),

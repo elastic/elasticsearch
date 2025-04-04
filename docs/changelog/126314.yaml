@@ -1,0 +1,6 @@
+pr: 126314
+summary: Add timeout to synonyms put APIs to wait for synonyms to be accessible
+area: Analysis
+type: bug
+issues:
+ - 121441

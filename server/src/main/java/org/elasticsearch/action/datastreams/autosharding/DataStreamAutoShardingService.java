@@ -313,7 +313,7 @@ public class DataStreamAutoShardingService {
             return Strings.format(
                 "For data stream %s: %s based on [inc/dec cooldowns %s/%s, %d-%d threads, "
                     + "write index %s has all-time/recent/peak loads %g/%g/%g, current shards %d, "
-                    + "using %s value %g for increase gives %d shards%s]",
+                    + "increase calculation gives %d shards using %s load %g for write index%s]",
                 inputs.dataStream,
                 result,
                 inputs.increaseShardsCooldown,
@@ -325,19 +325,19 @@ public class DataStreamAutoShardingService {
                 inputs.writeIndexRecentLoad,
                 inputs.writeIndexPeakLoad,
                 inputs.currentNumberOfWriteIndexShards,
+                increaseCalculation.optimalShardCountForIncrease,
                 inputs.increaseShardsMetric,
                 increaseCalculation.writeIndexLoadForIncrease,
-                increaseCalculation.optimalShardCountForIncrease,
                 decreaseCalculation == null
                     ? ""
-                    : Strings.format(
-                        ", and using %s value %g for dec based on %s gives %d shards",
+                    : String.format(
+                        ", decrease calculation gives %d shards using %s load %g for %s",
+                        decreaseCalculation.optimalShardCountForDecrease,
                         inputs.decreaseShardsMetric,
                         decreaseCalculation.maxLoadWithinCooldown.load,
                         decreaseCalculation.maxLoadWithinCooldown.previousIndexWithMaxLoad != null
                             ? decreaseCalculation.maxLoadWithinCooldown.previousIndexWithMaxLoad
-                            : "write index",
-                        decreaseCalculation.optimalShardCountForDecrease
+                            : "write index"
                     )
             );
         }

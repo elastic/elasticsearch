@@ -14,8 +14,11 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.DslErrorInfo;
+import org.elasticsearch.health.node.ProjectIndexName;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -117,23 +120,38 @@ public class DataStreamLifecycleErrorStore {
      * retries DSL attempted (descending order) and the number of entries will be limited according to the provided limit parameter.
      * Returns empty list if no entries are present in the error store or none satisfy the predicate.
      */
-    public List<DslErrorInfo> getErrorsInfo(ProjectId projectId, Predicate<ErrorEntry> errorEntryPredicate, int limit) {
-        final var indexNameToError = projectMap.get(projectId);
-        if (indexNameToError == null || indexNameToError.isEmpty()) {
-            return List.of();
-        }
-        return indexNameToError.entrySet()
+    public List<DslErrorInfo> getErrorsInfo(Predicate<ErrorEntry> errorEntryPredicate, int limit) {
+        return projectMap.entrySet()
             .stream()
-            .filter(keyValue -> errorEntryPredicate.test(keyValue.getValue()))
-            .sorted(Map.Entry.comparingByValue())
+            .flatMap(
+                projectToIndexError -> projectToIndexError.getValue()
+                    .entrySet()
+                    .stream()
+                    .map(
+                        indexToError -> new Tuple<>(
+                            new ProjectIndexName(projectToIndexError.getKey(), indexToError.getKey()),
+                            indexToError.getValue()
+                        )
+                    )
+            )
+            .filter(projectIndexAndError -> errorEntryPredicate.test(projectIndexAndError.v2()))
+            .sorted(Comparator.comparing(Tuple::v2))
             .limit(limit)
             .map(
-                keyValue -> new DslErrorInfo(
-                    keyValue.getKey(),
-                    keyValue.getValue().firstOccurrenceTimestamp(),
-                    keyValue.getValue().retryCount()
+                projectIndexAndError -> new DslErrorInfo(
+                    projectIndexAndError.v1().indexName(),
+                    projectIndexAndError.v2().firstOccurrenceTimestamp(),
+                    projectIndexAndError.v2().retryCount(),
+                    projectIndexAndError.v1().projectId()
                 )
             )
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the total number of error entries in the store
+     */
+    public int getTotalErrorEntries() {
+        return projectMap.values().stream().mapToInt(Map::size).sum();
     }
 }

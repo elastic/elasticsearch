@@ -23,8 +23,7 @@ import static java.util.stream.Collectors.joining;
 public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     public record Factory(
-        BlockHash.GroupSpec tsidGroup,
-        BlockHash.GroupSpec timestampGroup,
+        List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int maxPageSize
@@ -32,10 +31,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         @Override
         public Operator get(DriverContext driverContext) {
             // TODO: use TimeSeriesBlockHash when possible
-            return new HashAggregationOperator(
+            return new TimeSeriesAggregationOperator(
                 aggregators,
                 () -> BlockHash.build(
-                    List.of(tsidGroup, timestampGroup),
+                    groups,
                     driverContext.blockFactory(),
                     maxPageSize,
                     true // we can enable optimizations as the inputs are vectors

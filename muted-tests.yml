@@ -396,6 +396,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable cardinality is too low}
   issue: https://github.com/elastic/elasticsearch/issues/126299
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker using multiple fields SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126320
 
 # Examples:
 #

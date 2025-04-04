@@ -89,9 +89,9 @@ public class RestRerankTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsqlQuery(query);
 
         var expectedValues = List.of(
-            List.of("Jane Smith", "Deep Sea Exploration", 0.02941),
-            List.of("John Doe", "The Future of Exploration", 0.02632),
-            List.of("Alice Johnson", "History of Space Exploration", 0.02381)
+            List.of("Jane Smith", "Deep Sea Exploration", 0.02941d),
+            List.of("John Doe", "The Future of Exploration", 0.02632d),
+            List.of("Alice Johnson", "History of Space Exploration", 0.02381d)
         );
 
         assertResultMap(result, defaultOutputColumns(), expectedValues);
@@ -110,9 +110,9 @@ public class RestRerankTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsqlQuery(query);
         ;
         var expectedValues = List.of(
-            List.of("Jane Smith", "Deep Sea Exploration", 0.01818),
-            List.of("John Doe", "The Future of Exploration", 0.01754),
-            List.of("Alice Johnson", "History of Space Exploration", 0.01515)
+            List.of("Jane Smith", "Deep Sea Exploration", 0.01818d),
+            List.of("John Doe", "The Future of Exploration", 0.01754d),
+            List.of("Alice Johnson", "History of Space Exploration", 0.01515d)
         );
 
         assertResultMap(result, defaultOutputColumns(), expectedValues);
@@ -131,9 +131,9 @@ public class RestRerankTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsqlQuery(query, "[\"exploration\", \"test_reranker\"]");
 
         var expectedValues = List.of(
-            List.of("Jane Smith", "Deep Sea Exploration", 0.02941),
-            List.of("John Doe", "The Future of Exploration", 0.02632),
-            List.of("Alice Johnson", "History of Space Exploration", 0.02381)
+            List.of("Jane Smith", "Deep Sea Exploration", 0.02941d),
+            List.of("John Doe", "The Future of Exploration", 0.02632d),
+            List.of("Alice Johnson", "History of Space Exploration", 0.02381d)
         );
 
         assertResultMap(result, defaultOutputColumns(), expectedValues);
@@ -152,9 +152,9 @@ public class RestRerankTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsqlQuery(query, "[{\"queryText\": \"exploration\"}, {\"inferenceId\": \"test_reranker\"}]");
 
         var expectedValues = List.of(
-            List.of("Jane Smith", "Deep Sea Exploration", 0.02941),
-            List.of("John Doe", "The Future of Exploration", 0.02632),
-            List.of("Alice Johnson", "History of Space Exploration", 0.02381)
+            List.of("Jane Smith", "Deep Sea Exploration", 0.02941d),
+            List.of("John Doe", "The Future of Exploration", 0.02632d),
+            List.of("Alice Johnson", "History of Space Exploration", 0.02381d)
         );
 
         assertResultMap(result, defaultOutputColumns(), expectedValues);

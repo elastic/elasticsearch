@@ -86,6 +86,11 @@ public class InboundHandler {
         this.slowLogThresholdMs = slowLogThreshold.getMillis();
     }
 
+    /**
+     * @param message the transport message received, guaranteed to be closed by this method if it returns without exception.
+     *                Callers must ensure that {@code message} is closed if this method throws an exception but must not release
+     *                the message themselves otherwise
+     */
     void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {
         final long startTime = threadPool.rawRelativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
@@ -101,6 +106,11 @@ public class InboundHandler {
     // Empty stream constant to avoid instantiating a new stream for empty messages.
     private static final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
 
+    /**
+     * @param message the transport message received, guaranteed to be closed by this method if it returns without exception.
+     *                Callers must ensure that {@code message} is closed if this method throws an exception but must not release
+     *                the message themselves otherwise
+     */
     private void messageReceived(TcpChannel channel, InboundMessage message, long startTime) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
         final Header header = message.getHeader();
@@ -136,6 +146,11 @@ public class InboundHandler {
         }
     }
 
+    /**
+     * @param message the transport message received, guaranteed to be closed by this method if it returns without exception.
+     *                Callers must ensure that {@code message} is closed if this method throws an exception but must not release
+     *                the message themselves otherwise
+     */
     private void executeResponseHandler(
         InboundMessage message,
         TransportResponseHandler<?> responseHandler,
@@ -221,6 +236,11 @@ public class InboundHandler {
         }
     }
 
+    /**
+     * @param message the transport message received, guaranteed to be closed by this method if it returns without exception.
+     *                Callers must ensure that {@code message} is closed if this method throws an exception but must not release
+     *                the message themselves otherwise
+     */
     private <T extends TransportRequest> void handleRequest(TcpChannel channel, InboundMessage message) throws IOException {
         final Header header = message.getHeader();
         if (header.isHandshake()) {
@@ -333,6 +353,9 @@ public class InboundHandler {
         }
     }
 
+    /**
+     * @param message guaranteed to get closed by this method
+     */
     private void handleHandshakeRequest(TcpChannel channel, InboundMessage message) throws IOException {
         var header = message.getHeader();
         assert header.actionName.equals(TransportHandshaker.HANDSHAKE_ACTION_NAME);
@@ -373,27 +396,30 @@ public class InboundHandler {
         }
     }
 
+    /**
+     * @param message guaranteed to get closed by this method
+     */
     private <T extends TransportResponse> void handleResponse(
         InetSocketAddress remoteAddress,
         final StreamInput stream,
         final TransportResponseHandler<T> handler,
-        final InboundMessage inboundMessage
+        final InboundMessage message
     ) {
         final var executor = handler.executor();
         if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             // no need to provide a buffer release here, we never escape the buffer when handling directly
-            doHandleResponse(handler, remoteAddress, stream, inboundMessage);
+            doHandleResponse(handler, remoteAddress, stream, message);
         } else {
             // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out
             executor.execute(new ForkingResponseHandlerRunnable(handler, null) {
                 @Override
                 protected void doRun() {
-                    doHandleResponse(handler, remoteAddress, stream, inboundMessage);
+                    doHandleResponse(handler, remoteAddress, stream, message);
                 }
 
                 @Override
                 public void onAfter() {
-                    inboundMessage.close();
+                    message.close();
                 }
             });
         }
@@ -404,7 +430,7 @@ public class InboundHandler {
      * @param handler response handler
      * @param remoteAddress remote address that the message was sent from
      * @param stream bytes stream for reading the message
-     * @param inboundMessage inbound message
+     * @param inboundMessage inbound message, guaranteed to get closed by this method
      * @param <T> response message type
      */
     private <T extends TransportResponse> void doHandleResponse(
@@ -436,6 +462,9 @@ public class InboundHandler {
         }
     }
 
+    /**
+     * @param message guaranteed to get closed by this method
+     */
     private void handlerResponseError(StreamInput stream, InboundMessage message, final TransportResponseHandler<?> handler) {
         Exception error;
         try (message) {

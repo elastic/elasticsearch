@@ -29,6 +29,7 @@ public class InboundMessage implements Releasable {
     private Releasable breakerRelease;
     private StreamInput streamInput;
 
+    @SuppressWarnings("unused") // updated via CLOSED (and _only_ via CLOSED)
     private boolean closed;
 
     private static final VarHandle CLOSED;

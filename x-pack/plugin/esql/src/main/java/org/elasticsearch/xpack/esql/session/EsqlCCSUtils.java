@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Collections;
@@ -276,14 +276,15 @@ public class EsqlCCSUtils {
      */
     public static void checkForCcsLicense(
         EsqlExecutionInfo executionInfo,
-        List<TableInfo> indices,
+        List<IndexPattern> indices,
         IndicesExpressionGrouper indicesGrouper,
+        Set<String> configuredClusters,
         XPackLicenseState licenseState
     ) {
-        for (TableInfo tableInfo : indices) {
+        for (IndexPattern index : indices) {
             Map<String, OriginalIndices> groupedIndices;
             try {
-                groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, tableInfo.id().indexPattern());
+                groupedIndices = indicesGrouper.groupIndices(configuredClusters, IndicesOptions.DEFAULT, index.indexPattern());
             } catch (NoSuchRemoteClusterException e) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
                     throw e;

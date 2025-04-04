@@ -76,18 +76,11 @@ final class S3ClientSettings {
         key -> new Setting<>(key, "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope)
     );
 
-    /** The protocol to use to connect to s3. */
-    static final Setting.AffixSetting<HttpScheme> PROTOCOL_SETTING = Setting.affixKeySetting(
+    /** Formerly the protocol to use to connect to s3, now unused */
+    static final Setting.AffixSetting<HttpScheme> UNUSED_PROTOCOL_SETTING = Setting.affixKeySetting(
         PREFIX,
         "protocol",
-        key -> new Setting<>(
-            key,
-            "https",
-            s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)),
-            Property.NodeScope,
-            // TODO NOMERGE document this deprecation (setting now has no effect)
-            Property.Deprecated
-        )
+        key -> new Setting<>(key, "https", s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope, Property.Deprecated)
     );
 
     /** The host name of a proxy to connect to s3 through. */
@@ -146,17 +139,11 @@ final class S3ClientSettings {
         key -> Setting.intSetting(key, Defaults.RETRY_COUNT, 0, Property.NodeScope)
     );
 
-    /** Whether retries should be throttled (ie use backoff). */
-    static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
+    /** Formerly whether retries should be throttled (ie use backoff), now unused. */
+    static final Setting.AffixSetting<Boolean> UNUSED_USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
-        key -> Setting.boolSetting(
-            key,
-            Defaults.THROTTLE_RETRIES,
-            Property.NodeScope,
-            // TODO NOMERGE document this deprecation (setting now has no effect)
-            Property.Deprecated
-        )
+        key -> Setting.boolSetting(key, Defaults.THROTTLE_RETRIES, Property.NodeScope, Property.Deprecated)
     );
 
     /** Whether the s3 client should use path style access. */

@@ -548,8 +548,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     var slot = ensureResponseAccumulatorSlot(itemIndex);
                     final List<String> values;
                     try {
-                        // TODO: Test this bug and factor out fix into separate PR
-                        values = SemanticTextUtils.nodeStringValues(sourceField, valueObj);
+                        values = SemanticTextUtils.nodeStringValues(field, valueObj);
                     } catch (Exception exc) {
                         addInferenceResponseFailure(itemIndex, exc);
                         break;

@@ -11,9 +11,9 @@ In practice, an entitlement allows code to call a well-defined set of correspond
 
 ## Structure
 
-All the code implementing Entitlements can be found under this directory. The `agent` module instruments sensitive JDK class library methods using a `InstrumentationService`. The current implementation of the instrumentation service uses ASM and is located under `asm-provider`.
+All the code implementing Entitlements can be found under this directory. The `agent` module bootstraps the entitlement lib, and uses it to instruments sensitive JDK class library methods using a `InstrumentationService`. The current implementation of the instrumentation service uses ASM and is located under `asm-provider`.
 
-The agent instruments JDK methods to start with a call to check entitlements. The entitlement checker is defined in the `bridge`, which is patched into `java.base` at runtime because it must exist in the platform classloader.
+`InstrumentationService` transform JDK methods to start with a call to check entitlements. The entitlement checker is defined in the `bridge`, which is patched into `java.base` at runtime because it must exist in the platform classloader.
 
 The entitlement checker is implemented in the entitlement lib, which the `bridge` grabs reflectively. `PolicyManager` is where most checks are actually done. The entitlement lib also contains the implementation of the data objects used to define Entitlements (`Policy`, `Scope` and all classes implementing the `Entitlement` interface) as well as the logic for handling them (`PolicyParser`, `PolicyUtils`).
 
@@ -69,7 +69,7 @@ new Scope(
     )
 )
 ```
-
+In any case, before adding a `server` entitlement or make any change to the server layer policy, please consult with the Core/Infra team.
 
 ### Always denied
 

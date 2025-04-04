@@ -316,10 +316,13 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
     public void testCreateSynonymsWithYellowSynonymsIndex() throws Exception {
 
+        TimeValue timeout = randomTimeValue();
+
         // Override health method check to simulate a timeout in checking the synonyms index
         synonymsManagementAPIService = new SynonymsManagementAPIService(client()) {
             @Override
-            void checkSynonymsIndexHealth(TimeValue timeout, ActionListener<ClusterHealthResponse> listener) {
+            void checkSynonymsIndexHealth(TimeValue actualTimeout, ActionListener<ClusterHealthResponse> listener) {
+                assertEquals(actualTimeout, timeout);
                 ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
                 ClusterHealthResponse response = new ClusterHealthResponse(
                     randomIdentifier(),
@@ -334,7 +337,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         // Create a rule fails
         CountDownLatch putLatch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(1, 1), DEFAULT_TIMEOUT, new ActionListener<>() {
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(1, 1), timeout, new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                 fail("Shouldn't have been able to create synonyms with a timeout in synonyms index health");
@@ -356,7 +359,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService.putSynonymRule(
             synonymSetId,
             randomSynonymRule(randomIdentifier()),
-            DEFAULT_TIMEOUT,
+            timeout,
             new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {

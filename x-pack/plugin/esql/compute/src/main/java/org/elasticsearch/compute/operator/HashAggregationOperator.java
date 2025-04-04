@@ -86,7 +86,7 @@ public class HashAggregationOperator implements Operator {
 
     private final List<GroupingAggregator> aggregators;
 
-    private final DriverContext driverContext;
+    protected final DriverContext driverContext;
 
     /**
      * Nanoseconds this operator has spent hashing grouping keys.
@@ -226,7 +226,7 @@ public class HashAggregationOperator implements Operator {
             blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             int offset = keys.length;
-            var evaluationContext = new GroupingAggregatorEvaluationContext(driverContext);
+            var evaluationContext = evaluationContext(keys);
             for (int i = 0; i < aggregators.size(); i++) {
                 var aggregator = aggregators.get(i);
                 aggregator.evaluate(blocks, offset, selected, evaluationContext);
@@ -243,6 +243,10 @@ public class HashAggregationOperator implements Operator {
                 Releasables.closeExpectNoException(blocks);
             }
         }
+    }
+
+    protected GroupingAggregatorEvaluationContext evaluationContext(Block[] keys) {
+        return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
     @Override

@@ -665,9 +665,9 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             // Increase shard count based on all-time load of 1.9 for write index:
             assertThat(decision.increaseCalculation().optimalShardCountForIncrease(), equalTo(2));
             // The highest load for decrease (i.e. recent load) within the cooling period is the 0.333 from generation 3
-            assertThat(decision.decreaseCalculation().maxLoadWithinCooldownForDecrease().load(), closeTo(0.333, 1.0e-8));
+            assertThat(decision.decreaseCalculation().maxLoadWithinCooldown().load(), closeTo(0.333, 1.0e-8));
             assertThat(
-                decision.decreaseCalculation().maxLoadWithinCooldownForDecrease().previousIndexWithMaxLoad(),
+                decision.decreaseCalculation().maxLoadWithinCooldown().previousIndexWithMaxLoad(),
                 equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 3, now - TimeValue.timeValueDays(2).getMillis()))
             );
             // Decrease shard count based on recent load of 0.333 for gen 3 index

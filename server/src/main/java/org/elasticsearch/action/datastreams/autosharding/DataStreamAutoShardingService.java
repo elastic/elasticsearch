@@ -238,10 +238,19 @@ public class DataStreamAutoShardingService {
         ) {}
 
         record DecreaseCalculation(
-            MaxLoadWithinCooldown maxLoadWithinCooldownForDecrease,
+            MaxLoadWithinCooldown maxLoadWithinCooldown,
             int optimalShardCountForDecrease,
             @Nullable AutoShardingResult decreaseResult
         ) {
+
+            /**
+             * Contains information about the backing index with the highest load, out of the current write index and all the older
+             * indices created within the cooldown period.
+             *
+             * @param load The highest load
+             * @param previousIndexWithMaxLoad If this load came from one of the previous backing indices, the name of that index; null if
+             *    it came from the current write index
+             */
             record MaxLoadWithinCooldown(double load, @Nullable String previousIndexWithMaxLoad) {}
         }
 
@@ -270,9 +279,9 @@ public class DataStreamAutoShardingService {
                     : Strings.format(
                         ", and using %s value %g for dec based on %s gives %d shards",
                         inputs.decreaseShardsMetric,
-                        decreaseCalculation.maxLoadWithinCooldownForDecrease.load,
-                        decreaseCalculation.maxLoadWithinCooldownForDecrease.previousIndexWithMaxLoad != null
-                            ? decreaseCalculation.maxLoadWithinCooldownForDecrease.previousIndexWithMaxLoad
+                        decreaseCalculation.maxLoadWithinCooldown.load,
+                        decreaseCalculation.maxLoadWithinCooldown.previousIndexWithMaxLoad != null
+                            ? decreaseCalculation.maxLoadWithinCooldown.previousIndexWithMaxLoad
                             : "write index",
                         decreaseCalculation.optimalShardCountForDecrease
                     )
@@ -372,7 +381,7 @@ public class DataStreamAutoShardingService {
             return new Decision(inputs, increaseCalculation, null, increaseCalculation.increaseResult());
         }
         // If not, see whether we recommend decreasing the number of shards.
-        Decision.DecreaseCalculation decreaseCalculation = calculateIncreaseShardsDecision(project, dataStream, inputs);
+        Decision.DecreaseCalculation decreaseCalculation = calculateDecreaseShardsDecision(project, dataStream, inputs);
         if (decreaseCalculation.decreaseResult() != null) {
             return new Decision(inputs, increaseCalculation, decreaseCalculation, decreaseCalculation.decreaseResult());
         }
@@ -451,7 +460,7 @@ public class DataStreamAutoShardingService {
             );
     }
 
-    private Decision.DecreaseCalculation calculateIncreaseShardsDecision(
+    private Decision.DecreaseCalculation calculateDecreaseShardsDecision(
         ProjectMetadata project,
         DataStream dataStream,
         Decision.Inputs inputs

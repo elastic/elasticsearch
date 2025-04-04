@@ -223,10 +223,10 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     }
 
     public void testReadFromPositionLargerThanBlobLength() {
-        testReadFromPositionLargerThanBlobLength(
-            e -> Integer.parseInt(
-                asInstanceOf(S3Exception.class, e.getCause()).awsErrorDetails().errorCode()
-            ) == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
-        );
+        testReadFromPositionLargerThanBlobLength(e -> {
+            final var s3Exception = asInstanceOf(S3Exception.class, e.getCause());
+            return s3Exception.statusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
+                && "InvalidRange".equals(s3Exception.awsErrorDetails().errorCode());
+        });
     }
 }

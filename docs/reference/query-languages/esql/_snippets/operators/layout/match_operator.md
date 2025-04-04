@@ -1,3 +1,5 @@
+### Match operator (`:`) [esql-match-operator]
+
 The only search operator is match (`:`).
 
 **Syntax**

@@ -213,6 +213,7 @@ public abstract class DocsV3Support {
         UNARY,
         LOGICAL,
         NULL_PREDICATES,
+        CAST,
         IN,
         LIKE_AND_RLIKE,
         SEARCH
@@ -674,9 +675,11 @@ public abstract class DocsV3Support {
         @Override
         public void renderSignature() throws IOException {
             String rendered = (switch (op.category()) {
-                case BINARY -> RailRoadDiagram.binaryOperator(op.symbol());
-                case UNARY -> RailRoadDiagram.unaryOperator(op.symbol());
-                case SEARCH -> RailRoadDiagram.searchOperator(op.symbol());
+                case BINARY -> RailRoadDiagram.infixOperator("lhs", op.symbol(), "rhs");
+                case UNARY -> RailRoadDiagram.prefixOperator(op.symbol(), "v");
+                case SEARCH -> RailRoadDiagram.infixOperator("field", op.symbol(), "query");
+                case NULL_PREDICATES -> RailRoadDiagram.suffixOperator("field", op.symbol());
+                case CAST -> RailRoadDiagram.infixOperator("field", op.symbol(), "type");
                 default -> buildFunctionSignatureSvg();
             });
             if (rendered == null) {

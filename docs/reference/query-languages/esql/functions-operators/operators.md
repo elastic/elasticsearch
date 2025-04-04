@@ -6,7 +6,7 @@ mapped_pages:
 
 # {{esql}} operators [esql-operators]
 
-Boolean operators for comparing against one or multiple expressions.
+Operators for performing operations on, or comparing against, one or multiple expressions.
 
 :::{include} ../_snippets/lists/operators.md
 :::
@@ -22,17 +22,8 @@ Boolean operators for comparing against one or multiple expressions.
 :::{include} ../_snippets/operators/logical.md
 :::
 
-:::{include} ../_snippets/operators/predicates.md
+:::{include} ../_snippets/operators/suffix.md
 :::
 
-:::{include} ../_snippets/operators/cast.md
-:::
-
-:::{include} ../_snippets/operators/in.md
-:::
-
-:::{include} ../_snippets/operators/like-and-rlike.md
-:::
-
-:::{include} ../_snippets/operators/search.md
+:::{include} ../_snippets/operators/infix.md
 :::

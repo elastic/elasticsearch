@@ -1237,7 +1237,7 @@ FROM books
 | 3293 | Danny Faulkner |
 
 ::::{tip}
-You can also use the shorthand [match operator](/reference/query-languages/esql/functions-operators/operators.md#esql-search-operators) `:` instead of `MATCH`.
+You can also use the shorthand [match operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) `:` instead of `MATCH`.
 
 ::::
 

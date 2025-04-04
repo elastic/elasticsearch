@@ -1,4 +1,4 @@
-## `Cast (::)` [esql-cast-operator]
+### Cast (`::`) [esql-cast-operator]
 
 :::{image} ../../../images/operators/cast.svg
 :alt: Embedded

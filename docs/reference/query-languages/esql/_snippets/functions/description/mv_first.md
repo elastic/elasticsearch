@@ -2,7 +2,7 @@
 
 **Description**
 
-Converts a multivalued expression into a single valued column containing the first value. This is most useful when reading from a function that emits multivalued columns in a known order like [`SPLIT`](/reference/query-languages/esql/functions-operators/date-time-functions.md#esql-split).
+Converts a multivalued expression into a single valued column containing the first value. This is most useful when reading from a function that emits multivalued columns in a known order like [`SPLIT`](/reference/query-languages/esql/functions-operators/string-functions.md#esql-split).
 
 The order that [multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md) are read from
 underlying storage is not guaranteed. It is **frequently** ascending, but don’t

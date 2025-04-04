@@ -291,7 +291,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         credentialsProvider.resolveIdentity();
 
         var messageSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
-        var throwableCaptor = ArgumentCapgtor.forClass(Throwable.class);
+        var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
         Mockito.verify(mockLogger).error(messageSupplierCaptor.capture(), throwableCaptor.capture());
 
         assertThat(messageSupplierCaptor.getValue().get().toString(), startsWith("Unable to resolve identity from"));

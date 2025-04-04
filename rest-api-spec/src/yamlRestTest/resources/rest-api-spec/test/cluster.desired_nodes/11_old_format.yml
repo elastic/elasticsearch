@@ -10,7 +10,7 @@ setup:
       capabilities:
         - method: DELETE
           path: /_internal/desired_nodes
-          capabilities: [ plain_text_response ]
+          capabilities: [ plain_text_empty_response ]
 ---
 teardown:
   - do:

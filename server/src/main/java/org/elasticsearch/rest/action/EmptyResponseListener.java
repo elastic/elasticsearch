@@ -34,5 +34,5 @@ public final class EmptyResponseListener extends RestResponseListener<ActionResp
      * Capability name for APIs that previously would return an invalid zero-byte {@code application/json} response so that the YAML test
      * runner can avoid those APIs.
      */
-    public static final String PLAIN_TEXT_RESPONSE_CAPABILITY_NAME = "plain_text_response";
+    public static final String PLAIN_TEXT_EMPTY_RESPONSE_CAPABILITY_NAME = "plain_text_empty_response";
 }

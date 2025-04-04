@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
-import static org.elasticsearch.rest.action.EmptyResponseListener.PLAIN_TEXT_RESPONSE_CAPABILITY_NAME;
+import static org.elasticsearch.rest.action.EmptyResponseListener.PLAIN_TEXT_EMPTY_RESPONSE_CAPABILITY_NAME;
 
 public class RestDeprecationCacheResetAction extends BaseRestHandler {
 
@@ -33,7 +33,7 @@ public class RestDeprecationCacheResetAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(PLAIN_TEXT_RESPONSE_CAPABILITY_NAME);
+        return Set.of(PLAIN_TEXT_EMPTY_RESPONSE_CAPABILITY_NAME);
     }
 
     @Override

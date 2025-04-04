@@ -70,11 +70,7 @@ public class RateFloatAggregator {
         current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
-    public static Block evaluateFinal(
-        FloatRateGroupingState state,
-        IntVector selected,
-        GroupingAggregatorEvaluationContext evalContext
-    ) {
+    public static Block evaluateFinal(FloatRateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         return state.evaluateFinal(selected, evalContext);
     }
 
@@ -353,17 +349,18 @@ public class RateFloatAggregator {
             final double slope = (lastValue - firstValue) / sampleTS;
             double startGap = firstTS - rangeStart;
             if (startGap > 0) {
-             if (startGap > averageSampleInterval * 1.1) {
-                 startGap = averageSampleInterval / 2.0; // limit to half of the average of the sample interval
-             }
-             firstValue = Math.max(0.0, firstValue - startGap * slope);
+                if (startGap > averageSampleInterval * 1.1) {
+                    // limit to half of the average sample interval if samples are far from the boundary
+                    startGap = averageSampleInterval / 2.0;
+                }
+                firstValue = Math.max(0.0, firstValue - startGap * slope);
             }
             double endGap = rangeEnd - lastTS;
             if (endGap > 0) {
-             if (endGap > averageSampleInterval * 1.1) {
-                 endGap = averageSampleInterval / 2.0;
-             }
-             lastValue = lastValue + endGap * slope;
+                if (endGap > averageSampleInterval * 1.1) {
+                    endGap = averageSampleInterval / 2.0;
+                }
+                lastValue = lastValue + endGap * slope;
             }
             return (lastValue - firstValue) * unitInMillis / (rangeEnd - rangeStart);
         }
@@ -381,11 +378,7 @@ public class RateFloatAggregator {
                     int len = state.entries();
                     final double rate;
                     if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                        rate = computeRate(
-                        state,
-                        tsContext.rangeStartInMillis(groupId),
-                        tsContext.rangeEndInMillis(groupId),
-                        unitInMillis);
+                        rate = computeRate(state, tsContext.rangeStartInMillis(groupId), tsContext.rangeEndInMillis(groupId), unitInMillis);
                     } else {
                         rate = computeRate(state, unitInMillis);
                     }

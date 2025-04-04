@@ -521,6 +521,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                 | FORK ( EVAL a = 1 )
                        ( EVAL b = 2 )
                 | KEEP a, b, _fork
+                | SORT _fork, a
             """;
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("a", "b", "_fork"));
@@ -533,6 +534,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                 | FORK (STATS x=COUNT(*), y=VALUES(id))
                        (WHERE id == 2)
                 | KEEP _fork, x, y, id
+                | SORT _fork, id
             """;
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("_fork", "x", "y", "id"));

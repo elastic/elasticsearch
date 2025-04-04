@@ -161,7 +161,7 @@ fork1         | 10081          | null   | null      | null
 fork2         | 10081          | null   | null      | null
 fork2         | 10087          | null   | null      | null
 fork3         | null           | 100    | 10100     | 10001
-fork4         | null           | null   | null      | null
+fork4         | null           | 100    | 10001     | null
 ;
 
 forkWithDrop-Ignore
@@ -223,8 +223,8 @@ FROM employees
 _fork:keyword | emp_no:integer | x:keyword | y:keyword | z:keyword | w:keyword
 fork1         | 10048          | Florian   | 10048     | Syrotiuk  | null
 fork1         | 10081          | Zhongwei  | 10081     | Rosen     | null
-fork2         | 10048          | null      | null      | null      | Florian
-fork2         | 10081          | null      | null      | null      | Zhongwei
+fork2         | 10048          | Syrotiuk  | 10048     | null      | Florian
+fork2         | 10081          | Rosen     | 10081     | null      | Zhongwei
 ;
 
 forkWithMixOfCommands

@@ -6,33 +6,14 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.elasticsearch.index.codec.tsdb.es819;
 
-import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BaseTermsEnum;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocIDMerger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.ImpactsEnum;
@@ -40,7 +21,6 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -52,121 +32,22 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.index.codec.tsdb.es819.DocValuesConsumerUtil.MergeStats;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
- * Abstract API that consumes numeric, binary and sorted docvalues. Concrete implementations of this
- * actually do "something" with the docvalues (write it into the index in a specific format).
- *
- * <p>The lifecycle is:
- *
- * <ol>
- *   <li>DocValuesConsumer is created by {@link DocValuesFormat#fieldsConsumer(SegmentWriteState)}.
- *   <li>{@link #addNumericField}, {@link #addBinaryField}, {@link #addSortedField}, {@link
- *       #addSortedSetField}, or {@link #addSortedNumericField} are called for each Numeric, Binary,
- *       Sorted, SortedSet, or SortedNumeric docvalues field. The API is a "pull" rather than
- *       "push", and the implementation is free to iterate over the values multiple times ({@link
- *       Iterable#iterator()}).
- *   <li>After all fields are added, the consumer is {@link #close}d.
- * </ol>
- *
- * @lucene.experimental
+ * Forks the merging logic from {@link DocValuesConsumer} that {@link  ES819TSDBDocValuesConsumer} needs.
+ * This class should be removed when merging logic in {@link DocValuesConsumer} becomes accessible / overwritable in Lucene.
  */
-public abstract class XDocValuesConsumer implements Closeable {
+public abstract class XDocValuesConsumer extends DocValuesConsumer {
 
   /** Sole constructor. (For invocation by subclass constructors, typically implicit.) */
   protected XDocValuesConsumer() {}
-
-  /**
-   * Writes numeric docvalues for a field.
-   *
-   * @param field field information
-   * @param valuesProducer Numeric values to write.
-   * @throws IOException if an I/O error occurred.
-   */
-  public abstract void addNumericField(FieldInfo field, DocValuesProducer valuesProducer)
-      throws IOException;
-
-  /**
-   * Writes binary docvalues for a field.
-   *
-   * @param field field information
-   * @param valuesProducer Binary values to write.
-   * @throws IOException if an I/O error occurred.
-   */
-  public abstract void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer)
-      throws IOException;
-
-  /**
-   * Writes pre-sorted binary docvalues for a field.
-   *
-   * @param field field information
-   * @param valuesProducer produces the values and ordinals to write
-   * @throws IOException if an I/O error occurred.
-   */
-  public abstract void addSortedField(FieldInfo field, DocValuesProducer valuesProducer)
-      throws IOException;
-
-  /**
-   * Writes pre-sorted numeric docvalues for a field
-   *
-   * @param field field information
-   * @param valuesProducer produces the values to write
-   * @throws IOException if an I/O error occurred.
-   */
-  public abstract void addSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer)
-      throws IOException;
-
-  /**
-   * Writes pre-sorted set docvalues for a field
-   *
-   * @param field field information
-   * @param valuesProducer produces the values to write
-   * @throws IOException if an I/O error occurred.
-   */
-  public abstract void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer)
-      throws IOException;
-
-  /**
-   * Merges in the fields from the readers in <code>mergeState</code>. The default implementation
-   * calls {@link #mergeNumericField}, {@link #mergeBinaryField}, {@link #mergeSortedField}, {@link
-   * #mergeSortedSetField}, or {@link #mergeSortedNumericField} for each field, depending on its
-   * type. Implementations can override this method for more sophisticated merging (bulk-byte
-   * copying, etc).
-   */
-  public void merge(MergeState mergeState) throws IOException {
-    for (DocValuesProducer docValuesProducer : mergeState.docValuesProducers) {
-      if (docValuesProducer != null) {
-        docValuesProducer.checkIntegrity();
-      }
-    }
-
-    for (FieldInfo mergeFieldInfo : mergeState.mergeFieldInfos) {
-      DocValuesType type = mergeFieldInfo.getDocValuesType();
-      if (type != DocValuesType.NONE) {
-        if (type == DocValuesType.NUMERIC) {
-          mergeNumericField(mergeFieldInfo, mergeState);
-        } else if (type == DocValuesType.BINARY) {
-          mergeBinaryField(mergeFieldInfo, mergeState);
-        } else if (type == DocValuesType.SORTED) {
-          mergeSortedField(mergeFieldInfo, mergeState);
-        } else if (type == DocValuesType.SORTED_SET) {
-          mergeSortedSetField(mergeFieldInfo, mergeState);
-        } else if (type == DocValuesType.SORTED_NUMERIC) {
-          mergeSortedNumericField(mergeFieldInfo, mergeState);
-        } else {
-          throw new AssertionError("type=" + type);
-        }
-      }
-    }
-  }
 
   /** Tracks state of one numeric sub-reader that we are merging */
   private static class NumericDocValuesSub extends DocIDMerger.Sub {
@@ -191,11 +72,11 @@ public abstract class XDocValuesConsumer implements Closeable {
    * <p>The default implementation calls {@link #addNumericField}, passing a DocValuesProducer that
    * merges and filters deleted documents on the fly.
    */
-  public void mergeNumericField(final FieldInfo mergeFieldInfo, final MergeState mergeState)
+  public void mergeNumericField(MergeStats mergeStats, final FieldInfo mergeFieldInfo, final MergeState mergeState)
       throws IOException {
     addNumericField(
         mergeFieldInfo,
-        new EmptyDocValuesProducer() {
+        new TsdbDocValuesProducer(mergeStats) {
           @Override
           public NumericDocValues getNumeric(FieldInfo fieldInfo) throws IOException {
             if (fieldInfo != mergeFieldInfo) {
@@ -276,107 +157,6 @@ public abstract class XDocValuesConsumer implements Closeable {
     };
   }
 
-  /** Tracks state of one binary sub-reader that we are merging */
-  private static class BinaryDocValuesSub extends DocIDMerger.Sub {
-
-    final BinaryDocValues values;
-
-    public BinaryDocValuesSub(MergeState.DocMap docMap, BinaryDocValues values) {
-      super(docMap);
-      this.values = values;
-      assert values.docID() == -1;
-    }
-
-    @Override
-    public int nextDoc() throws IOException {
-      return values.nextDoc();
-    }
-  }
-
-  /**
-   * Merges the binary docvalues from <code>MergeState</code>.
-   *
-   * <p>The default implementation calls {@link #addBinaryField}, passing a DocValuesProducer that
-   * merges and filters deleted documents on the fly.
-   */
-  public void mergeBinaryField(FieldInfo mergeFieldInfo, final MergeState mergeState)
-      throws IOException {
-    addBinaryField(
-        mergeFieldInfo,
-        new EmptyDocValuesProducer() {
-          @Override
-          public BinaryDocValues getBinary(FieldInfo fieldInfo) throws IOException {
-            if (fieldInfo != mergeFieldInfo) {
-              throw new IllegalArgumentException("wrong fieldInfo");
-            }
-
-            List<BinaryDocValuesSub> subs = new ArrayList<>();
-
-            long cost = 0;
-            for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
-              BinaryDocValues values = null;
-              DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
-              if (docValuesProducer != null) {
-                FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
-                if (readerFieldInfo != null
-                    && readerFieldInfo.getDocValuesType() == DocValuesType.BINARY) {
-                  values = docValuesProducer.getBinary(readerFieldInfo);
-                }
-              }
-              if (values != null) {
-                cost += values.cost();
-                subs.add(new BinaryDocValuesSub(mergeState.docMaps[i], values));
-              }
-            }
-
-            final DocIDMerger<BinaryDocValuesSub> docIDMerger =
-                DocIDMerger.of(subs, mergeState.needsIndexSort);
-            final long finalCost = cost;
-
-            return new BinaryDocValues() {
-              private BinaryDocValuesSub current;
-              private int docID = -1;
-
-              @Override
-              public int docID() {
-                return docID;
-              }
-
-              @Override
-              public int nextDoc() throws IOException {
-                current = docIDMerger.next();
-                if (current == null) {
-                  docID = NO_MORE_DOCS;
-                } else {
-                  docID = current.mappedDocID;
-                }
-                return docID;
-              }
-
-              @Override
-              public int advance(int target) throws IOException {
-                throw new UnsupportedOperationException();
-              }
-
-              @Override
-              public boolean advanceExact(int target) throws IOException {
-                throw new UnsupportedOperationException();
-              }
-
-              @Override
-              public long cost() {
-                return finalCost;
-              }
-
-              @Override
-              public BytesRef binaryValue() throws IOException {
-                return current.values.binaryValue();
-              }
-            };
-          }
-        });
-  }
-
   /** Tracks state of one sorted numeric sub-reader that we are merging */
   private static class SortedNumericDocValuesSub extends DocIDMerger.Sub {
 
@@ -400,12 +180,12 @@ public abstract class XDocValuesConsumer implements Closeable {
    * <p>The default implementation calls {@link #addSortedNumericField}, passing iterables that
    * filter deleted documents.
    */
-  public void mergeSortedNumericField(FieldInfo mergeFieldInfo, final MergeState mergeState)
+  public void mergeSortedNumericField(MergeStats mergeStats, FieldInfo mergeFieldInfo, final MergeState mergeState)
       throws IOException {
 
     addSortedNumericField(
         mergeFieldInfo,
-        new EmptyDocValuesProducer() {
+        new TsdbDocValuesProducer(mergeStats) {
           @Override
           public SortedNumericDocValues getSortedNumeric(FieldInfo fieldInfo) throws IOException {
             if (fieldInfo != mergeFieldInfo) {
@@ -616,7 +396,7 @@ public abstract class XDocValuesConsumer implements Closeable {
    * <p>The default implementation calls {@link #addSortedField}, passing an Iterable that merges
    * ordinals and values and filters deleted documents .
    */
-  public void mergeSortedField(FieldInfo fieldInfo, final MergeState mergeState)
+  public void mergeSortedField(MergeStats mergeStats, FieldInfo fieldInfo, final MergeState mergeState)
       throws IOException {
     List<SortedDocValues> toMerge = new ArrayList<>();
     for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
@@ -668,7 +448,7 @@ public abstract class XDocValuesConsumer implements Closeable {
     // step 3: add field
     addSortedField(
         fieldInfo,
-        new EmptyDocValuesProducer() {
+        new TsdbDocValuesProducer(mergeStats) {
           @Override
           public SortedDocValues getSorted(FieldInfo fieldInfoIn) throws IOException {
             if (fieldInfoIn != fieldInfo) {
@@ -806,7 +586,7 @@ public abstract class XDocValuesConsumer implements Closeable {
    * <p>The default implementation calls {@link #addSortedSetField}, passing an Iterable that merges
    * ordinals and values and filters deleted documents .
    */
-  public void mergeSortedSetField(FieldInfo mergeFieldInfo, final MergeState mergeState)
+  public void mergeSortedSetField(MergeStats mergeStats, FieldInfo mergeFieldInfo, final MergeState mergeState)
       throws IOException {
 
     List<SortedSetDocValues> toMerge = new ArrayList<>();
@@ -855,7 +635,7 @@ public abstract class XDocValuesConsumer implements Closeable {
     // step 3: add field
     addSortedSetField(
         mergeFieldInfo,
-        new EmptyDocValuesProducer() {
+        new TsdbDocValuesProducer(mergeStats) {
           @Override
           public SortedSetDocValues getSortedSet(FieldInfo fieldInfo) throws IOException {
             if (fieldInfo != mergeFieldInfo) {
@@ -999,53 +779,5 @@ public abstract class XDocValuesConsumer implements Closeable {
         return AcceptStatus.NO;
       }
     }
-  }
-
-  /** Helper: returns true if the given docToValue count contains only at most one value */
-  public static boolean isSingleValued(Iterable<Number> docToValueCount) {
-    for (Number count : docToValueCount) {
-      if (count.longValue() > 1) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /** Helper: returns single-valued view, using {@code missingValue} when count is zero */
-  public static Iterable<Number> singletonView(
-      final Iterable<Number> docToValueCount,
-      final Iterable<Number> values,
-      final Number missingValue) {
-    assert isSingleValued(docToValueCount);
-    return new Iterable<Number>() {
-
-      @Override
-      public Iterator<Number> iterator() {
-        final Iterator<Number> countIterator = docToValueCount.iterator();
-        final Iterator<Number> valuesIterator = values.iterator();
-        return new Iterator<Number>() {
-
-          @Override
-          public boolean hasNext() {
-            return countIterator.hasNext();
-          }
-
-          @Override
-          public Number next() {
-            int count = countIterator.next().intValue();
-            if (count == 0) {
-              return missingValue;
-            } else {
-              return valuesIterator.next();
-            }
-          }
-
-          @Override
-          public void remove() {
-            throw new UnsupportedOperationException();
-          }
-        };
-      }
-    };
   }
 }

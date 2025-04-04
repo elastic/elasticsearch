@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.BinaryDocValues;
@@ -53,7 +52,7 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SORTED_SET;
 
-final class ES819TSDBDocValuesConsumer extends DocValuesConsumer {
+final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
     IndexOutput data, meta;
     final int maxDoc;
@@ -226,7 +225,7 @@ final class ES819TSDBDocValuesConsumer extends DocValuesConsumer {
     public void mergeNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
         var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
         if (result.supported()) {
-            addNumericField(mergeFieldInfo, DocValuesConsumerUtil.mergeNumericProducer(result, mergeFieldInfo, mergeState));
+            mergeNumericField(result, mergeFieldInfo, mergeState);
         } else {
             super.mergeNumericField(mergeFieldInfo, mergeState);
         }
@@ -311,7 +310,7 @@ final class ES819TSDBDocValuesConsumer extends DocValuesConsumer {
     public void mergeSortedField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
         var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
         if (result.supported()) {
-            addSortedField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedProducer(result, mergeFieldInfo, mergeState));
+            mergeSortedField(result, mergeFieldInfo, mergeState);
         } else {
             super.mergeSortedField(mergeFieldInfo, mergeState);
         }
@@ -555,7 +554,7 @@ final class ES819TSDBDocValuesConsumer extends DocValuesConsumer {
     public void mergeSortedNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
         var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
         if (result.supported()) {
-            addSortedNumericField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedNumericProducer(result, mergeFieldInfo, mergeState));
+            mergeSortedNumericField(result, mergeFieldInfo, mergeState);
         } else {
             super.mergeSortedNumericField(mergeFieldInfo, mergeState);
         }
@@ -586,7 +585,7 @@ final class ES819TSDBDocValuesConsumer extends DocValuesConsumer {
     public void mergeSortedSetField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
         var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
         if (result.supported()) {
-            addSortedSetField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedSetProducer(result, mergeFieldInfo, mergeState));
+            mergeSortedSetField(result, mergeFieldInfo, mergeState);
         } else {
             super.mergeSortedSetField(mergeFieldInfo, mergeState);
         }

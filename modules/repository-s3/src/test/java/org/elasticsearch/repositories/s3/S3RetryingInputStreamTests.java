@@ -16,6 +16,9 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
@@ -26,6 +29,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.BiConsumer;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,7 +57,7 @@ public class S3RetryingInputStreamTests extends ESTestCase {
         final byte[] actualBytes = new byte[randomIntBetween(1, Math.max(1, expectedBytes.length - 1))];
 
         final S3RetryingInputStream stream = createInputStream(expectedBytes, null, null);
-        stream.read(actualBytes);
+        assertEquals(actualBytes.length, stream.read(actualBytes));
         stream.close();
 
         assertArrayEquals(Arrays.copyOf(expectedBytes, actualBytes.length), actualBytes);
@@ -80,7 +85,7 @@ public class S3RetryingInputStreamTests extends ESTestCase {
         final int position = randomIntBetween(0, Math.max(1, expectedBytes.length - length));
 
         final S3RetryingInputStream stream = createInputStream(expectedBytes, position, length);
-        stream.read(actualBytes);
+        assertEquals(actualBytes.length, stream.read(actualBytes));
         stream.close();
 
         assertArrayEquals(Arrays.copyOfRange(expectedBytes, position, position + actualBytes.length), actualBytes);
@@ -116,6 +121,45 @@ public class S3RetryingInputStreamTests extends ESTestCase {
         }
     }
 
+    public void testContentRangeValidation() throws IOException {
+        final byte[] bytes = randomByteArrayOfLength(between(100, 200));
+        final int position = between(0, 100);
+        final int length = between(1, 100);
+        try (var stream = createInputStream(bytes, position, length)) {
+
+            final ToLongFunction<String> lengthSupplier = contentRangeHeader -> stream.tryGetStreamLength(
+                GetObjectResponse.builder().contentRange(contentRangeHeader).build()
+            );
+
+            final var fakeLength = between(1, length);
+            assertEquals(fakeLength, lengthSupplier.applyAsLong("bytes " + position + "-" + (position + fakeLength - 1) + "/*"));
+            assertEquals(fakeLength, stream.tryGetStreamLength(GetObjectResponse.builder().contentLength((long) fakeLength).build()));
+
+            final BiConsumer<String, String> failureMessageAsserter = (contentRangeHeader, expectedMessage) -> assertEquals(
+                expectedMessage,
+                expectThrows(IllegalArgumentException.class, () -> lengthSupplier.applyAsLong(contentRangeHeader)).getMessage()
+            );
+
+            failureMessageAsserter.accept("invalid", "unexpected Content-range header [invalid], should have started with [bytes ]");
+            failureMessageAsserter.accept("bytes invalid", "could not parse Content-range header [bytes invalid], missing hyphen");
+            failureMessageAsserter.accept("bytes 0-1", "could not parse Content-range header [bytes 0-1], missing slash");
+
+            final var badStartPos = randomValueOtherThan(position, () -> between(0, 100));
+            final var badStartHeader = Strings.format("bytes %d-%d/*", badStartPos, between(badStartPos, 200));
+            failureMessageAsserter.accept(
+                badStartHeader,
+                "unexpected Content-range header [" + badStartHeader + "], should have started at " + position
+            );
+
+            final var badEndPos = between(position + length + 1, 201);
+            final var badEndHeader = Strings.format("bytes %d-%d/*", position, badEndPos);
+            failureMessageAsserter.accept(
+                badEndHeader,
+                "unexpected Content-range header [" + badEndHeader + "], should have ended no later than " + (position + length - 1)
+            );
+        }
+    }
+
     /**
      * Creates a mock BlobStore that returns a mock S3Client, configured to supply a #getObject response. The blob store is then wrapped in
      * a {@link S3RetryingInputStream}.
@@ -124,7 +168,6 @@ public class S3RetryingInputStreamTests extends ESTestCase {
      * @param position The position at which to start reading from the stream.
      * @param length How much to read from the data stream starting at {@code position}
      * @return A {@link S3RetryingInputStream} that reads from the data stream.
-     * @throws IOException
      */
     private S3RetryingInputStream createInputStream(final byte[] data, @Nullable final Integer position, @Nullable final Integer length)
         throws IOException {

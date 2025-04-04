@@ -133,46 +133,50 @@ class S3RetryingInputStream extends InputStream {
 
     private long getStreamLength(final GetObjectResponse getObjectResponse) {
         try {
-            // Returns the content range of the object if response contains the Content-Range header.
-            final var rangeString = getObjectResponse.contentRange();
-            if (rangeString != null) {
-                // TODO NOMERGE this went from Long[] to String, had to add parsing, needs some testing too
-                if (rangeString.startsWith("bytes ") == false) {
-                    throw new IllegalArgumentException(
-                        "unexpected Content-range header [" + rangeString + "], should have started with [bytes ]"
-                    );
-                }
-                final var hyphenPos = rangeString.indexOf('-');
-                if (hyphenPos == -1) {
-                    throw new IllegalArgumentException("could not parse Content-range header [" + rangeString + "], missing hyphen");
-                }
-                final var slashPos = rangeString.indexOf('/');
-                if (slashPos == -1) {
-                    throw new IllegalArgumentException("could not parse Content-range header [" + rangeString + "], missing slash");
-                }
-
-                final var rangeStart = Long.parseLong(rangeString, "bytes ".length(), hyphenPos, 10);
-                final var rangeEnd = Long.parseLong(rangeString, hyphenPos + 1, slashPos, 10);
-                if (rangeEnd < rangeStart) {
-                    throw new IllegalArgumentException("invalid Content-range header [" + rangeString + "]");
-                }
-                if (rangeStart != start + currentOffset) {
-                    throw new IllegalArgumentException(
-                        "unexpected Content-range header [" + rangeString + "], should have started at " + (start + currentOffset)
-                    );
-                }
-                if (rangeEnd > end) {
-                    throw new IllegalArgumentException(
-                        "unexpected Content-range header [" + rangeString + "], should have ended no later than " + end
-                    );
-                }
-                return rangeEnd - rangeStart + 1L;
-            }
-            return getObjectResponse.contentLength();
+            return tryGetStreamLength(getObjectResponse);
         } catch (Exception e) {
             assert false : e;
             return Long.MAX_VALUE - 1L; // assume a large stream so that the underlying stream is aborted on closing, unless eof is reached
         }
+    }
+
+    // exposed for testing
+    long tryGetStreamLength(GetObjectResponse getObjectResponse) {
+        // Returns the content range of the object if response contains the Content-Range header.
+        final var rangeString = getObjectResponse.contentRange();
+        if (rangeString != null) {
+            if (rangeString.startsWith("bytes ") == false) {
+                throw new IllegalArgumentException(
+                    "unexpected Content-range header [" + rangeString + "], should have started with [bytes ]"
+                );
+            }
+            final var hyphenPos = rangeString.indexOf('-');
+            if (hyphenPos == -1) {
+                throw new IllegalArgumentException("could not parse Content-range header [" + rangeString + "], missing hyphen");
+            }
+            final var slashPos = rangeString.indexOf('/');
+            if (slashPos == -1) {
+                throw new IllegalArgumentException("could not parse Content-range header [" + rangeString + "], missing slash");
+            }
+
+            final var rangeStart = Long.parseLong(rangeString, "bytes ".length(), hyphenPos, 10);
+            final var rangeEnd = Long.parseLong(rangeString, hyphenPos + 1, slashPos, 10);
+            if (rangeEnd < rangeStart) {
+                throw new IllegalArgumentException("invalid Content-range header [" + rangeString + "]");
+            }
+            if (rangeStart != start + currentOffset) {
+                throw new IllegalArgumentException(
+                    "unexpected Content-range header [" + rangeString + "], should have started at " + (start + currentOffset)
+                );
+            }
+            if (rangeEnd > end) {
+                throw new IllegalArgumentException(
+                    "unexpected Content-range header [" + rangeString + "], should have ended no later than " + end
+                );
+            }
+            return rangeEnd - rangeStart + 1L;
+        }
+        return getObjectResponse.contentLength();
     }
 
     @Override

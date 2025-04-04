@@ -158,7 +158,7 @@ public class ClusterModule extends AbstractModule {
             : new GlobalPartitionedClusterFactory(balancerSettings);
         var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
             writeLoadForecaster,
-            new GlobalPartitionedClusterFactory(balancerSettings)
+            partitionedClusterFactory
         );
         this.shardsAllocator = createShardsAllocator(
             settings,

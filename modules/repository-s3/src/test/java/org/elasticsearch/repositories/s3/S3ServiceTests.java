@@ -44,19 +44,13 @@ public class S3ServiceTests extends ESTestCase {
             () -> Region.of("es-test-region")
         );
         s3Service.start();
-        final String endpointOverride = "http://first";
-        final Settings settings = Settings.builder().put("endpoint", endpointOverride).build();
+        final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
         final S3ClientSettings clientSettings = s3Service.settings(metadata2);
         final S3ClientSettings otherClientSettings = s3Service.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);
         final AmazonS3Reference reference = s3Service.client(metadata1);
-
-        // TODO NOMERGE: move to its own test.
-        assertEquals(endpointOverride, reference.client().serviceClientConfiguration().endpointOverride().get().toString());
-        assertEquals("es-test-region", reference.client().serviceClientConfiguration().region().toString());
-
         reference.close();
         s3Service.doClose();
         final AmazonS3Reference referenceReloaded = s3Service.client(metadata1);

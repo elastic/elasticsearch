@@ -28,11 +28,15 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Completion extends InferencePlan<Completion> implements GeneratingPlan<Completion>, SortAgnostic{
+public class Completion extends InferencePlan<Completion> implements GeneratingPlan<Completion>, SortAgnostic {
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Completion", Completion::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "Completion",
+        Completion::new
+    );
     private final Expression prompt;
     private final Attribute targetField;
     private List<Attribute> lazyOutput;
@@ -56,7 +60,8 @@ public class Completion extends InferencePlan<Completion> implements GeneratingP
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeNamedWriteable(prompt);;
+        out.writeNamedWriteable(prompt);
+        ;
         out.writeNamedWriteable(targetField);
     }
 
@@ -120,6 +125,7 @@ public class Completion extends InferencePlan<Completion> implements GeneratingP
     protected AttributeSet computeReferences() {
         return prompt.references();
     }
+
     @Override
     public boolean expressionsResolved() {
         return super.expressionsResolved() && prompt.resolved();

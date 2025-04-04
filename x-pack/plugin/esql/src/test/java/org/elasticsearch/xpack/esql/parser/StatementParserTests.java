@@ -3431,7 +3431,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         var plan = as(processingCommand("COMPLETION CONCAT(fieldA, fieldB) WITH inferenceID AS targetField"), Completion.class);
 
-        assertThat(plan.prompt(), equalTo(function("CONCAT", List.of(attribute("fieldA"),attribute("fieldB")))));
+        assertThat(plan.prompt(), equalTo(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(plan.targetField(), equalTo(referenceAttribute("targetField", DataType.TEXT)));
     }

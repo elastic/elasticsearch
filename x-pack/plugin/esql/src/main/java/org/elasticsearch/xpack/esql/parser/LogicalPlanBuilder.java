@@ -749,7 +749,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Expression prompt = expression(ctx.prompt);
         Literal inferenceId = inferenceId(ctx.inferenceId);
-        String targetFieldName = ctx.targetField == null ? Completion.DEFAULT_OUTPUT_FIELD_NAME : visitQualifiedName(ctx.targetField).name();
+        String targetFieldName = ctx.targetField == null
+            ? Completion.DEFAULT_OUTPUT_FIELD_NAME
+            : visitQualifiedName(ctx.targetField).name();
         Attribute targetField = new ReferenceAttribute(source, targetFieldName, DataType.TEXT);
 
         return p -> new Completion(source, p, inferenceId, prompt, targetField);

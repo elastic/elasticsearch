@@ -60,7 +60,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
-import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -613,7 +612,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testIndexingPressureTripsOnEstimatedInferenceBytes() {
+    public void testIndexingPressureTripsOnEstimatedInferenceBytes() throws Exception {
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "1b").build()
         );
@@ -626,8 +625,41 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
         filter.setIndexingPressure(indexingPressure);
 
+        XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
+
+        CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
-            fail("Downstream elements of the action filter chain should not execute");
+            try {
+                assertNull(request.getInferenceFieldMap());
+                assertThat(request.items().length, equalTo(3));
+
+                assertNull(request.items()[0].getPrimaryResponse());
+                assertNull(request.items()[2].getPrimaryResponse());
+
+                BulkItemResponse doc1Response = request.items()[1].getPrimaryResponse();
+                assertNotNull(doc1Response);
+                assertTrue(doc1Response.isFailed());
+                BulkItemResponse.Failure doc1Failure = doc1Response.getFailure();
+                assertThat(
+                    doc1Failure.getCause().getMessage(),
+                    containsString("Insufficient memory available to update source on document [doc_1]")
+                );
+                assertThat(doc1Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+                assertThat(doc1Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));
+
+                IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+                assertThat(coordinatingIndexingPressure, notNullValue());
+                verify(coordinatingIndexingPressure).increment(1, BytesReference.bytes(doc1Source).ramBytesUsed());
+                verify(coordinatingIndexingPressure, times(1)).increment(anyInt(), anyLong());
+
+                // Verify that the coordinating indexing pressure is maintained through downstream action filters
+                verify(coordinatingIndexingPressure, never()).close();
+
+                // Call the listener once the request is successfully processed, like is done in the production code path
+                listener.onResponse(null);
+            } finally {
+                chainExecuted.countDown();
+            }
         };
         ActionListener<BulkShardResponse> actionListener = (ActionListener<BulkShardResponse>) mock(ActionListener.class);
         Task task = mock(Task.class);
@@ -639,19 +671,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         BulkItemRequest[] items = new BulkItemRequest[3];
         items[0] = new BulkItemRequest(0, new IndexRequest("index").id("doc_0").source("non_inference_field", "foo"));
-        items[1] = new BulkItemRequest(1, new IndexRequest("index").id("doc_1").source("sparse_field", "bar"));
+        items[1] = new BulkItemRequest(1, new IndexRequest("index").id("doc_1").source(doc1Source));
         items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source("non_inference_field", "baz"));
 
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);
-
-        InferenceException exception = assertThrows(
-            InferenceException.class,
-            () -> filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain)
-        );
-        assertThat(exception.getMessage(), containsString("Insufficient memory available to perform inference on bulk request"));
-        assertThat(exception.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
-        assertThat(exception.getCause(), instanceOf(EsRejectedExecutionException.class));
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
 
         IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
         assertThat(coordinatingIndexingPressure, notNullValue());

@@ -261,8 +261,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
         private final CoordinatingIndexingPressureWrapper coordinatingWrapper;
 
-        private long estimatedInferenceRequestMemoryUsageInBytes = 0;  // Estimated memory used by requests that perform inference
-
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
@@ -492,8 +490,22 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 String inferenceId = entry.getInferenceId();
                 ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(entry.getChunkingSettings(), false);
 
-                if (isInferenceRequired(entry, docMap) == false) {
-                    continue;
+                if (useLegacyFormat) {
+                    var originalFieldValue = XContentMapValues.extractValue(field, docMap);
+                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
+                        // Inference has already been computed, or there is no inference required.
+                        continue;
+                    }
+                } else {
+                    var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
+                        InferenceMetadataFieldsMapper.NAME + "." + field,
+                        docMap,
+                        EXPLICIT_NULL
+                    );
+                    if (inferenceMetadataFieldsValue != null) {
+                        // Inference has already been computed
+                        continue;
+                    }
                 }
 
                 int order = 0;
@@ -621,32 +633,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             return success;
-        }
-
-        private boolean isInferenceRequired(InferenceFieldMetadata inferenceFieldMetadata, Map<String, Object> docMap) {
-            String field = inferenceFieldMetadata.getName();
-
-            boolean inferenceRequired = true;
-            if (useLegacyFormat) {
-                var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                if (originalFieldValue instanceof Map
-                    || (originalFieldValue == null && inferenceFieldMetadata.getSourceFields().length == 1)) {
-                    // Inference has already been computed, or there is no inference required.
-                    inferenceRequired = false;
-                }
-            } else {
-                var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
-                    InferenceMetadataFieldsMapper.NAME + "." + field,
-                    docMap,
-                    EXPLICIT_NULL
-                );
-                if (inferenceMetadataFieldsValue != null) {
-                    // Inference has already been computed
-                    inferenceRequired = false;
-                }
-            }
-
-            return inferenceRequired;
         }
 
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {

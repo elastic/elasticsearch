@@ -209,22 +209,5 @@ public class S3ClientSettingsTests extends ESTestCase {
 
         // the default appears in the docs so let's make sure it doesn't change:
         assertEquals(50, S3ClientSettings.Defaults.MAX_CONNECTIONS);
-
-        // TODO NOMERGE: max connection setting is no longer available. Need alternative testing.
-        /*
-        SdkHttpClient defaultHttpClient = S3Service.buildHttpClient(settings.get("default"));
-        assertThat(defaultHttpClient.getMaxConnections(), is(S3ClientSettings.Defaults.MAX_CONNECTIONS));
-        SdkHttpClient otherHttpClient = S3Service.buildHttpClient(settings.get("other"));
-        assertThat(otherHttpClient.getMaxConnections(), is(maxConnections));
-        */
     }
-
-    /*
-    // TODO NOMERGE: retryability is no longer testable via unit test: policy is not accessible. Need alternative testing.
-    public void testStatelessDefaultRetryPolicy() {
-        final var s3ClientSettings = S3ClientSettings.load(Settings.EMPTY).get("default");
-        final var clientConfiguration = S3Service.buildConfiguration(s3ClientSettings, true);
-        assertThat(clientConfiguration.getRetryPolicy(), is(S3Service.RETRYABLE_403_RETRY_POLICY));
-    }
-    */
 }

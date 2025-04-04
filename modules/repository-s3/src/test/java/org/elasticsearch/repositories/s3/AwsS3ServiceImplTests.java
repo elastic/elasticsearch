@@ -237,23 +237,25 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testEndPointAndRegionOverrides() throws IOException {
-        final S3Service s3Service = new S3Service(
-            mock(Environment.class),
-            Settings.EMPTY,
-            mock(ResourceWatcherService.class),
-            () -> Region.of("es-test-region")
-        );
-        s3Service.start();
-        final String endpointOverride = "http://first";
-        final Settings settings = Settings.builder().put("endpoint", endpointOverride).build();
-        final AmazonS3Reference reference = s3Service.client(new RepositoryMetadata("first", "s3", settings));
+        try (
+            S3Service s3Service = new S3Service(
+                mock(Environment.class),
+                Settings.EMPTY,
+                mock(ResourceWatcherService.class),
+                () -> Region.of("es-test-region")
+            )
+        ) {
+            s3Service.start();
+            final String endpointOverride = "http://first";
+            final Settings settings = Settings.builder().put("endpoint", endpointOverride).build();
+            final AmazonS3Reference reference = s3Service.client(new RepositoryMetadata("first", "s3", settings));
 
-        assertEquals(endpointOverride, reference.client().serviceClientConfiguration().endpointOverride().get().toString());
-        assertEquals("es-test-region", reference.client().serviceClientConfiguration().region().toString());
+            assertEquals(endpointOverride, reference.client().serviceClientConfiguration().endpointOverride().get().toString());
+            assertEquals("es-test-region", reference.client().serviceClientConfiguration().region().toString());
 
-        reference.close();
-        s3Service.doClose();
-        s3Service.close();
+            reference.close();
+            s3Service.doClose();
+        }
     }
 
     public void testLoggingCredentialsProviderCatchesErrorsOnResolveCredentials() {

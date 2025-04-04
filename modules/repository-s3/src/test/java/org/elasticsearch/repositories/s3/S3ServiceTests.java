@@ -77,7 +77,7 @@ public class S3ServiceTests extends ESTestCase {
 
         // The retryable 403 condition retries on 403 invalid access key id
         assertTrue(
-            S3Service.RETRYABLE_403_RETRY_PREDICATE(
+            S3Service.RETRYABLE_403_PREDICATE(
                 RetryPolicyContext.builder().retriesAttempted(between(0, 9)).exception(s3Exception).build().exception()
             )
         );
@@ -89,7 +89,7 @@ public class S3ServiceTests extends ESTestCase {
             var retryPolicyContext = RetryPolicyContext.builder().retriesAttempted(between(0, 9)).exception(non403Exception).build();
             // Retryable 403 condition delegates to the AWS default retry condition. Its result must be consistent with the decision
             // by the AWS default, e.g. some error status like 429 is retryable by default, the retryable 403 condition respects it.
-            boolean actual = S3Service.RETRYABLE_403_RETRY_PREDICATE(retryPolicyContext.exception());
+            boolean actual = S3Service.RETRYABLE_403_PREDICATE(retryPolicyContext.exception());
             boolean expected = RetryCondition.defaultRetryCondition().shouldRetry(retryPolicyContext);
             assertThat(actual, equalTo(expected));
         } else {
@@ -97,7 +97,7 @@ public class S3ServiceTests extends ESTestCase {
             String errorCode = randomAlphaOfLength(10);
             var exception = S3Exception.builder().awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build()).build();
             var retryPolicyContext = RetryPolicyContext.builder().retriesAttempted(between(0, 9)).exception(exception).build();
-            assertFalse(S3Service.RETRYABLE_403_RETRY_PREDICATE(retryPolicyContext.exception()));
+            assertFalse(S3Service.RETRYABLE_403_PREDICATE(retryPolicyContext.exception()));
         }
     }
 

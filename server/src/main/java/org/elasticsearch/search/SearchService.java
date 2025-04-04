@@ -416,12 +416,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
         if (BATCHED_QUERY_PHASE_FEATURE_FLAG) {
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
             batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
         } else {
             batchQueryPhase = false;
         }
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(BATCHED_QUERY_PHASE, bulkExecuteQueryPhase -> this.batchQueryPhase = bulkExecuteQueryPhase);
         memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();

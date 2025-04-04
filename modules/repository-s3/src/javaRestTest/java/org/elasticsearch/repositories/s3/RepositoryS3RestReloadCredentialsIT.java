@@ -25,6 +25,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.mutableAccessKey;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
@@ -42,7 +43,7 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
         true,
         BUCKET,
         BASE_PATH,
-        mutableAccessKey(() -> repositoryAccessKey, "*", "s3")
+        mutableAccessKey(() -> repositoryAccessKey, ANY_REGION, "s3")
     );
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();

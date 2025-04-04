@@ -203,8 +203,8 @@ public final class StdDevIntGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = StdDevIntAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = StdDevIntAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

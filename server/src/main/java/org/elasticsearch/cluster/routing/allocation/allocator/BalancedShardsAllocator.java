@@ -195,8 +195,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
-        PartitionedCluster partitionedCluster = partitionedClusterFactory.create();
-        Balancer balancer = new Balancer(writeLoadForecaster, allocation, balancerSettings.getThreshold(), partitionedCluster);
+        Balancer balancer = new Balancer(
+            writeLoadForecaster,
+            allocation,
+            balancerSettings.getThreshold(),
+            partitionedClusterFactory.create()
+        );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         final ProjectIndex index = new ProjectIndex(allocation, shard);

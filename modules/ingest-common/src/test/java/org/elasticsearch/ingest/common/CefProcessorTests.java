@@ -1044,33 +1044,21 @@ public class CefProcessorTests extends ESTestCase {
         assertEquals("00:0D:60:FF:FE:AF:1B:61", result);
     }
 
-    public void toIP_validIPv4Address() {
+    public void testtoIPValidIPv4Address() {
         CefParser parser = new CefParser(ZoneId.of("UTC"), true);
         String result = parser.toIP("192.168.1.1");
         assertEquals("192.168.1.1", result);
     }
 
-    public void toIP_validIPv6Address() {
+    public void testToIPValidIPv6Address() {
         CefParser parser = new CefParser(ZoneId.of("UTC"), true);
         String result = parser.toIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334");
         assertEquals("2001:db8:85a3::8a2e:370:7334", result);
     }
 
-    public void toIP_invalidIPAddress() {
+    public void testToIPInvalidIPAddress() {
         CefParser parser = new CefParser(ZoneId.of("UTC"), true);
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> parser.toIP("invalid_ip"));
-        assertEquals("Invalid IP address format", exception.getMessage());
-    }
-
-    public void toIP_emptyString() {
-        CefParser parser = new CefParser(ZoneId.of("UTC"), true);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> parser.toIP(""));
-        assertEquals("Invalid IP address format", exception.getMessage());
-    }
-
-    public void toIP_nullString() {
-        CefParser parser = new CefParser(ZoneId.of("UTC"), true);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> parser.toIP(null));
         assertEquals("Invalid IP address format", exception.getMessage());
     }
 

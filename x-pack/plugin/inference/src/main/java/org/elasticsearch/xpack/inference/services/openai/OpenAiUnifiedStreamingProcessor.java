@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -62,7 +61,6 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
 
     private final BiFunction<String, Exception, Exception> errorParser;
     private final Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
-    private volatile boolean previousEventWasError = false;
 
     public OpenAiUnifiedStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
         this.errorParser = errorParser;
@@ -83,19 +81,15 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
 
         var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(item.size());
         for (var event : item) {
-            if (ServerSentEventField.EVENT == event.name() && "error".equals(event.value())) {
-                previousEventWasError = true;
-            } else if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
-                if (previousEventWasError) {
-                    throw errorParser.apply(event.value(), null);
-                }
-
+            if ("error".equals(event.type()) && event.hasData()) {
+                throw errorParser.apply(event.data(), null);
+            } else if (event.hasData()) {
                 try {
                     var delta = parse(parserConfig, event);
                     delta.forEachRemaining(results::offer);
                 } catch (Exception e) {
                     logger.warn("Failed to parse event from inference provider: {}", event);
-                    throw errorParser.apply(event.value(), e);
+                    throw errorParser.apply(event.data(), e);
                 }
             }
         }
@@ -118,11 +112,11 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
         XContentParserConfiguration parserConfig,
         ServerSentEvent event
     ) throws IOException {
-        if (DONE_MESSAGE.equalsIgnoreCase(event.value())) {
+        if (DONE_MESSAGE.equalsIgnoreCase(event.data())) {
             return Collections.emptyIterator();
         }
 
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.value())) {
+        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.data())) {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();

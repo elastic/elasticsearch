@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -23,9 +24,9 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
 
 import java.util.Arrays;
@@ -33,7 +34,15 @@ import java.util.Locale;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
-    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+    private final Codec codec = new Elasticsearch900Lucene101Codec() {
+
+        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
+
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return docValuesFormat;
+        }
+    };
 
     @Override
     protected Codec getCodec() {

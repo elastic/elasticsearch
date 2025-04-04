@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -31,6 +32,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +48,15 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
         Codec oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
-        Codec newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        Codec newCodec = new Elasticsearch900Lucene101Codec() {
+
+            final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
+
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return docValuesFormat;
+            }
+        };
         testMixedIndex(oldCodec, newCodec);
     }
 

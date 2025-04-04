@@ -11,7 +11,6 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -26,6 +25,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -62,6 +63,13 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 public class TSDBDocValuesMergeBenchmark {
+
+    static {
+        // For Elasticsearch900Lucene101Codec:
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
+        LogConfigurator.setNodeName("test");
+    }
 
     @Param("20431204")
     private int nDocs;
@@ -176,7 +184,7 @@ public class TSDBDocValuesMergeBenchmark {
         config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
         config.setMergePolicy(new LogByteSizeMergePolicy());
         var docValuesFormat = new ES819TSDBDocValuesFormat(4096, optimizedMergeEnabled);
-        config.setCodec(new Lucene101Codec() {
+        config.setCodec(new Elasticsearch900Lucene101Codec() {
 
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {

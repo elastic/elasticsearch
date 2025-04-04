@@ -10,9 +10,9 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
+import org.elasticsearch.index.codec.XPerFieldDocValuesFormat;
 
 import java.io.IOException;
 
@@ -43,63 +43,50 @@ class DocValuesConsumerUtil {
 
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
-            switch (fieldInfo.getDocValuesType()) {
-                case NUMERIC -> {
-                    var numeric = docValuesProducer.getNumeric(fieldInfo);
-                    // (checking instance type as serves as a version check)
-                    if (numeric instanceof ES819TSDBDocValuesProducer.BaseNumericDocValues baseNumeric) {
-                        var entry = baseNumeric.entry;
-                        sumNumValues += entry.numValues;
-                        sumNumDocsWithField += entry.numDocsWithField;
-                    } else if (numeric != null) {
-                        return UNSUPPORTED;
-                    }
-                }
-                case SORTED_NUMERIC -> {
-                    var sortedNumeric = docValuesProducer.getSortedNumeric(fieldInfo);
-                    if (sortedNumeric instanceof ES819TSDBDocValuesProducer.BaseSortedNumericDocValues baseSortedNumericDocValues) {
-                        var entry = baseSortedNumericDocValues.entry;
-                        sumNumValues += entry.numValues;
-                        sumNumDocsWithField += entry.numDocsWithField;
-                    } else {
-                        var singleton = DocValues.unwrapSingleton(sortedNumeric);
-                        if (singleton instanceof ES819TSDBDocValuesProducer.BaseNumericDocValues baseNumeric) {
-                            var entry = baseNumeric.entry;
-                            sumNumValues += entry.numValues;
-                            sumNumDocsWithField += entry.numDocsWithField;
-                        } else if (sortedNumeric != null) {
-                            return UNSUPPORTED;
+            if (docValuesProducer instanceof XPerFieldDocValuesFormat.FieldsReader perFieldReader) {
+                var wrapped = perFieldReader.getDocValuesProducer(fieldInfo);
+                if (wrapped instanceof ES819TSDBDocValuesProducer tsdbDocValuesProducer) {
+                    switch (fieldInfo.getDocValuesType()) {
+                        case NUMERIC -> {
+                            var entry = tsdbDocValuesProducer.numerics.get(fieldInfo.number);
+                            if (entry != null) {
+                                sumNumValues += entry.numValues;
+                                sumNumDocsWithField += entry.numDocsWithField;
+                            }
                         }
-                    }
-                }
-                case SORTED -> {
-                    var sorted = docValuesProducer.getSorted(fieldInfo);
-                    if (sorted instanceof ES819TSDBDocValuesProducer.BaseSortedDocValues baseSortedDocValues) {
-                        var entry = baseSortedDocValues.entry;
-                        sumNumValues += entry.ordsEntry.numValues;
-                        sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
-                    } else if (sorted != null) {
-                        return UNSUPPORTED;
-                    }
-                }
-                case SORTED_SET -> {
-                    var sortedSet = docValuesProducer.getSortedSet(fieldInfo);
-                    if (sortedSet instanceof ES819TSDBDocValuesProducer.BaseSortedSetDocValues baseSortedSet) {
-                        var entry = baseSortedSet.entry;
-                        sumNumValues += entry.ordsEntry.numValues;
-                        sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
-                    } else {
-                        var singleton = DocValues.unwrapSingleton(sortedSet);
-                        if (singleton instanceof ES819TSDBDocValuesProducer.BaseSortedDocValues baseSorted) {
-                            var entry = baseSorted.entry;
-                            sumNumValues += entry.ordsEntry.numValues;
-                            sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
-                        } else if (sortedSet != null) {
-                            return UNSUPPORTED;
+                        case SORTED_NUMERIC -> {
+                            var entry = tsdbDocValuesProducer.sortedNumerics.get(fieldInfo.number);
+                            if (entry != null) {
+                                sumNumValues += entry.numValues;
+                                sumNumDocsWithField += entry.numDocsWithField;
+                            }
                         }
+                        case SORTED -> {
+                            var entry = tsdbDocValuesProducer.sorted.get(fieldInfo.number);
+                            if (entry != null) {
+                                sumNumValues += entry.ordsEntry.numValues;
+                                sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
+                            }
+                        }
+                        case SORTED_SET -> {
+                            var entry = tsdbDocValuesProducer.sortedSets.get(fieldInfo.number);
+                            if (entry != null) {
+                                if (entry.singleValueEntry != null) {
+                                    sumNumValues += entry.singleValueEntry.ordsEntry.numValues;
+                                    sumNumDocsWithField += entry.singleValueEntry.ordsEntry.numDocsWithField;
+                                } else {
+                                    sumNumValues += entry.ordsEntry.numValues;
+                                    sumNumDocsWithField += entry.ordsEntry.numDocsWithField;
+                                }
+                            }
+                        }
+                        default -> throw new IllegalStateException("unexpected doc values producer type: " + fieldInfo.getDocValuesType());
                     }
+                } else {
+                    return UNSUPPORTED;
                 }
-                default -> throw new IllegalStateException("unexpected doc values producer type: " + fieldInfo.getDocValuesType());
+            } else {
+                return UNSUPPORTED;
             }
         }
 

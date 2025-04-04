@@ -312,7 +312,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", "metadata1_read2"));
 
         // ES|QL query on the same index pattern
-        var esqlResp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2"));
+        var esqlResp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2", false)
+        );
         var srchResp = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
 
         for (ResponseException r : List.of(esqlResp, srchResp)) {
@@ -331,7 +334,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand(
                 "metadata1_read2",
-                "FROM index-user1,index-user2 METADATA _index | STATS sum=sum(value), index=VALUES(_index)"
+                "FROM index-user1,index-user2 METADATA _index | STATS sum=sum(value), index=VALUES(_index)",
+                false
             )
         );
         assertThat(
@@ -344,7 +348,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 METADATA _index | STATS index=VALUES(_index)")
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 METADATA _index | STATS index=VALUES(_index)", false)
         );
         assertThat(
             EntityUtils.toString(resp.getResponse().getEntity()),
@@ -356,7 +360,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 | STATS sum=sum(value)")
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 | STATS sum=sum(value)", false)
         );
         assertThat(
             EntityUtils.toString(resp.getResponse().getEntity()),
@@ -368,7 +372,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("alias_user1", "FROM first-alias,index-user1 METADATA _index | KEEP _index, org, value | LIMIT 10")
+            () -> runESQLCommand("alias_user1", "FROM first-alias,index-user1 METADATA _index | KEEP _index, org, value | LIMIT 10", false)
         );
         assertThat(
             EntityUtils.toString(resp.getResponse().getEntity()),
@@ -382,7 +386,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand(
                 "alias_user2",
-                "from second-alias,index-user2 METADATA _index | stats sum=sum(value), index=VALUES(_index)"
+                "from second-alias,index-user2 METADATA _index | stats sum=sum(value), index=VALUES(_index)",
+                false
             )
         );
         assertThat(
@@ -826,6 +831,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     protected Response runESQLCommand(String user, String command) throws IOException {
+        return runESQLCommand(user, command, null);
+    }
+
+    protected Response runESQLCommand(String user, String command, Boolean allowPartialResults) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
             command += " | limit 10000000";
@@ -839,6 +848,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(json));
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
         request.addParameter("error_trace", "true");
+        if (allowPartialResults != null) {
+            request.addParameter("allow_partial_results", Boolean.toString(allowPartialResults));
+        }
         return client().performRequest(request);
     }
 

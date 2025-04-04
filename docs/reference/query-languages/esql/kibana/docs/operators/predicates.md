@@ -8,7 +8,4 @@ For NULL comparison use the `IS NULL` and `IS NOT NULL` predicates.
 ```esql
 FROM employees
 | WHERE birth_date IS NULL
-| KEEP first_name, last_name
-| SORT first_name
-| LIMIT 3
 ```

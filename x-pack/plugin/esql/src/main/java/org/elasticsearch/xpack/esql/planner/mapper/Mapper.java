@@ -16,10 +16,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Merge;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -66,8 +66,8 @@ public class Mapper {
             return mapBinary(binary);
         }
 
-        if (p instanceof Merge merge) {
-            return mapMerge(merge);
+        if (p instanceof Fork fork) {
+            return mapFork(fork);
         }
 
         return MapperUtils.unsupported(p);
@@ -220,13 +220,13 @@ public class Mapper {
         return MapperUtils.unsupported(bp);
     }
 
-    private PhysicalPlan mapMerge(Merge merge) {
+    private PhysicalPlan mapFork(Fork fork) {
         List<PhysicalPlan> physicalChildren = new ArrayList<>();
-        for (var child : merge.children()) {
+        for (var child : fork.children()) {
             var mappedChild = new FragmentExec(child);
             physicalChildren.add(mappedChild);
         }
-        return new MergeExec(merge.source(), physicalChildren, merge.output());
+        return new MergeExec(fork.source(), physicalChildren, fork.output());
     }
 
     public static boolean isPipelineBreaker(LogicalPlan p) {

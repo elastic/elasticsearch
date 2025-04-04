@@ -28,7 +28,9 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.InvalidSelectorException;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.UnsupportedSelectorException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -503,10 +505,12 @@ public class AuthorizationService {
                                 indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
                             ),
                             e -> {
-                                if (e instanceof InvalidIndexNameException) {
+                                if (e instanceof InvalidIndexNameException
+                                    || e instanceof InvalidSelectorException
+                                    || e instanceof UnsupportedSelectorException) {
                                     logger.debug(
                                         () -> Strings.format(
-                                            "failed [%s] action authorization for [%s] due [%s] exception",
+                                            "failed [%s] action authorization for [%s] due to [%s] exception",
                                             action,
                                             authentication,
                                             e.getClass().getSimpleName()

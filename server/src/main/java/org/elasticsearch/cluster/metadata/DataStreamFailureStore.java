@@ -35,6 +35,7 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
         SimpleDiffable<DataStreamFailureStore>,
         ToXContentObject {
 
+    public static final String FAILURES_LIFECYCLE_API_CAPABILITY = "failures_lifecycle";
     public static final String FAILURE_STORE = "failure_store";
     public static final String ENABLED = "enabled";
     public static final String LIFECYCLE = "lifecycle";

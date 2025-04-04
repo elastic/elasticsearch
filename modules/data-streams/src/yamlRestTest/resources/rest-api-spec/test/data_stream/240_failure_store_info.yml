@@ -5,7 +5,7 @@ setup:
       capabilities:
         - method: GET
           path: /_data_stream/{target}
-          capabilities: [ 'failure_lifecycle' ]
+          capabilities: [ 'failures_lifecycle' ]
   - do:
       allowed_warnings:
         - "index template [my-template1] has index patterns [fs-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"

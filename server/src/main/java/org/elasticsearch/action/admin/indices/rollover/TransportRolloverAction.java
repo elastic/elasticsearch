@@ -513,7 +513,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 try (var ignored = taskContext.captureResponseHeaders()) {
                     state = executeTask(state, resultsCollector::appendItem, taskContext, listener);
                 } catch (Exception e) {
-                    logger.warn("Failed to rollover task: {}", taskContext.getTask().rolloverRequest.getRolloverTarget());
                     taskContext.onFailure(e);
                 }
             }

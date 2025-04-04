@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.options.rest;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -28,8 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetDataStreamOptionsAction extends BaseRestHandler {
 
-    public static final String DATA_STREAM_FAILURE_LIFECYCLE = "failure_lifecycle";
-    private static final Set<String> CAPABILITIES = Set.of(DATA_STREAM_FAILURE_LIFECYCLE);
+    private static final Set<String> CAPABILITIES = Set.of(DataStreamFailureStore.FAILURES_LIFECYCLE_API_CAPABILITY);
 
     @Override
     public String getName() {

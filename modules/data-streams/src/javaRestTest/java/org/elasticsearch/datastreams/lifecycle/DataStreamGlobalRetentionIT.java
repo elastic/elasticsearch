@@ -67,7 +67,7 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
         Request createDocRequest = new Request("POST", "/my-data-stream/_doc?refresh=true");
         createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
         assertOK(client().performRequest(createDocRequest));
-        // Index failed doc, this will create the failure store
+        // Index one doc that will fail, this will create the failure store
         createDocRequest = new Request("POST", "/my-data-stream/_doc?refresh=true");
         createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\", \"count\": \"not-a-number\"}");
         assertOK(client().performRequest(createDocRequest));

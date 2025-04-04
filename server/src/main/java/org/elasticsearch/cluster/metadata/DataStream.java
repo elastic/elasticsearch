@@ -527,7 +527,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Retrieves the effective lifecycle configuration for the failure store. This can be either the configuration provided
-     * by a user or the default lifecycle if there are failure indices.
+     * by a user or the default lifecycle if there are failure indices. NOTE: this does not take into consideration if the
+     * failure store is enabled by a cluster setting, please use {@link DataStream#getFailuresLifecycle(Boolean)}.
      */
     @Nullable
     public DataStreamLifecycle getFailuresLifecycle() {
@@ -538,7 +539,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Retrieves the effective lifecycle configuration for the failure store. This can be either the configuration provided
-     * by a user or the default lifecycle if there are failure indices.
+     * by a user or the default lifecycle if there are failure indices or if the failure store is enabled by a cluster setting.
      */
     @Nullable
     public DataStreamLifecycle getFailuresLifecycle(Boolean effectivelyEnabledFailureStore) {

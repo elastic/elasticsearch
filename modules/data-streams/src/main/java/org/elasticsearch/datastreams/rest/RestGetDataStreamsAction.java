@@ -12,10 +12,10 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.datastreams.options.rest.RestGetDataStreamOptionsAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -52,7 +52,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
     );
     private static final Set<String> CAPABILITIES = Stream.of(
         DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY,
-        DataStream.isFailureStoreFeatureFlagEnabled() ? RestGetDataStreamOptionsAction.DATA_STREAM_FAILURE_LIFECYCLE : null
+        DataStream.isFailureStoreFeatureFlagEnabled() ? DataStreamFailureStore.FAILURES_LIFECYCLE_API_CAPABILITY : null
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     @Override

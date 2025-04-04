@@ -3094,12 +3094,12 @@ public class AnalyzerTests extends ESTestCase {
 
         // fork branch 1
         limit = as(subPlans.get(0), Limit.class);
-
-        List<String> keptColumns = limit.output().stream().map(exp -> as(exp, Attribute.class).name()).collect(Collectors.toList());
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+        Keep keep = as(limit.child(), Keep.class);
+        List<String> keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).collect(Collectors.toList());
         assertThat(keptColumns, equalTo(expectedOutput));
 
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        Eval eval = as(limit.child(), Eval.class);
+        Eval eval = as(keep.child(), Eval.class);
         assertEquals(eval.fields().size(), 3);
 
         Set<String> evalFieldNames = eval.fields().stream().map(a -> a.name()).collect(Collectors.toSet());
@@ -3126,7 +3126,7 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 2
         limit = as(subPlans.get(1), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        Keep keep = as(limit.child(), Keep.class);
+        keep = as(limit.child(), Keep.class);
         keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).collect(Collectors.toList());
         assertThat(keptColumns, equalTo(expectedOutput));
         eval = as(keep.child(), Eval.class);
@@ -3244,6 +3244,33 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 2 | SORT emp_no | LIMIT 10 | EVAL x = abc + 2 )
             """));
         assertThat(e.getMessage(), containsString("Unknown column [abc]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK ( STATS a = CONCAT(first_name, last_name) BY emp_no )
+                   ( WHERE emp_no > 2 | SORT emp_no | LIMIT 10 )
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("column [first_name] must appear in the STATS BY clause or be used in an aggregate function")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK ( DISSECT emp_no "%{abc} %{def}" )
+                   ( WHERE emp_no > 2 | SORT emp_no | LIMIT 10 )
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("Dissect only supports KEYWORD or TEXT values, found expression [emp_no] type [INTEGER]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK ( EVAL c = COUNT(first_name) )
+                   ( WHERE emp_no > 2 | SORT emp_no | LIMIT 10 )
+            """));
+        assertThat(e.getMessage(), containsString("aggregate function [COUNT(first_name)] not allowed outside STATS command"));
     }
 
     public void testValidRrf() {

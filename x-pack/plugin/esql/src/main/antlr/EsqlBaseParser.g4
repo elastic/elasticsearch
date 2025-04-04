@@ -286,11 +286,7 @@ forkSubQueryProcessingCommand
     | limitCommand
     | statsCommand
     | sortCommand
-    | dropCommand
-    | renameCommand
     | dissectCommand
-    | grokCommand
-    | mvExpandCommand
     ;
 
 rrfCommand

@@ -505,19 +505,27 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
     public void testWithEvalSimple() {
         var query = """
                 FROM test
+                | WHERE content:"cat"
                 | FORK ( EVAL a = 1 )
                        ( EVAL a = 2 )
-                | KEEP a, _fork
+                | KEEP a, _fork, id, content
             """;
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("a", "_fork"));
+            assertColumnNames(resp.columns(), List.of("a", "_fork", "id", "content"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(1, "fork1", 5, "There is also a white cat"),
+                List.of(2, "fork2", 5, "There is also a white cat")
+            );
+            assertValues(resp.values(), expectedValues);
         }
     }
 
     public void testWithEvalDifferentOutputs() {
         var query = """
                 FROM test
+                | WHERE id == 2
                 | FORK ( EVAL a = 1 )
                        ( EVAL b = 2 )
                 | KEEP a, b, _fork
@@ -525,6 +533,11 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             """;
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("a", "b", "_fork"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { 1, null, "fork1" }).toList(),
+                Arrays.stream(new Object[] { null, 2, "fork2" }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
         }
     }
 
@@ -544,18 +557,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             );
             assertValues(resp.values(), expectedValues);
         }
-    }
-
-    public void testWithMultipleCommandsAndBranches() {
-        var query = """
-                FROM test METADATA _score
-                | FORK (STATS x=COUNT(*), y=VALUES(id) | MV_EXPAND y )
-                       (WHERE content:"fox" | EVAL new_score = _score + 20 | SORT new_score DESC)
-                       (WHERE content:"dog" | EVAL new_score = _score + 1 | SORT new_score DESC | LIMIT 2 )
-                | KEEP _fork, new_score, _score, x, y
-            """;
-        // fails with a syntax error, does not like MV_EXPAND
-        // run(query);
     }
 
     public void testWithEvalWithConflictingTypes() {

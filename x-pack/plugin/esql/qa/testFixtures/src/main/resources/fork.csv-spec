@@ -130,19 +130,6 @@ fork2         | 10081          | def       | null      | 2
 fork2         | 10087          | def       | null      | 2
 ;
 
-forkWithKeep-Ignore
-required_capability: fork
-
-FROM employees
-| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | KEEP emp_no, first_name)
-       (WHERE emp_no == 10081 OR emp_no == 10087 | KEEP emp_no)
-| SORT _fork, emp_no, first_name
-;
-
-_fork:keyword | emp_no:integer | first_name:keyword
-1 | 2 | 3
-;
-
 forkWithStats
 required_capability: fork
 
@@ -164,52 +151,9 @@ fork3         | null           | 100    | 10100     | 10001
 fork4         | null           | 100    | 10001     | null
 ;
 
-forkWithDrop-Ignore
-required_capability: fork
-
-FROM employees
-| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | DROP last_name )
-       (WHERE emp_no == 10081 OR emp_no == 10087 | DROP first_name )
-| KEEP _fork, emp_no, first_name, last_name
-| SORT _fork, emp_no
-;
-
-_fork:keyword | emp_no:integer | first_name:keyword | last_name:keyword
-1 | 2 | 3 | 4
-;
-
-forkWithRename-Ignore
-required_capability: fork
-
-FROM employees
-| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | RENAME first_name AS x, last_name AS y)
-       (WHERE emp_no == 10081 OR emp_no == 10087 | RENAME last_name AS x)
-| KEEP _fork, emp_no, first_name, last_name
-| SORT _fork, emp_no
-;
-
-_fork:keyword | emp_no:integer | first_name:keyword | last_name:keyword
-1 | 2 | 3 | 4
-;
-
-forkWithGrok-Ignore
-required_capability: fork
-
-FROM employees
-| WHERE emp_no == 10048 OR emp_no == 10081
-| FORK (EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
-        | GROK a "%{WORD:x} %{INTEGER:y} %{WORD:z}")
-       (EVAL b = CONCAT(last_name, " ", emp_no::keyword, " ", first_name)
-        | GROK b "%{WORD:x} %{INTEGER:y} %{WORD:w}")
-| KEEP _fork, emp_no, x, y, z, w
-| SORT _fork, emp_no
-;
-
-_fork:keyword | emp_no:integer | x:keyword | y:integer | z:keyword | x:keyword
-1 | 2 | 3 | 4 | 5 | 6
-;
-
 forkWithDissect
+required_capability: fork
+
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
 | FORK (EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
@@ -228,6 +172,8 @@ fork2         | 10081          | Rosen     | 10081     | null      | Zhongwei
 ;
 
 forkWithMixOfCommands
+required_capability: fork
+
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
 | FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)

@@ -44,6 +44,8 @@ breaking:
 
     * AWS SDK v2 does not support the `log-delivery-write` canned ACL.
 
+    * AWS SDK v2 counts 4xx responses differently in its metrics reporting.
+
   impact: >-
 
     If you use the `repository-s3` module, test your upgrade thoroughly before

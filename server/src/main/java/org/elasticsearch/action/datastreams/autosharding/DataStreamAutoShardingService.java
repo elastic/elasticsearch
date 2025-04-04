@@ -165,7 +165,12 @@ public class DataStreamAutoShardingService {
     private volatile WriteLoadMetric decreaseShardsMetric;
 
     public DataStreamAutoShardingService(Settings settings, ClusterService clusterService, LongSupplier nowSupplier) {
-        this(settings, clusterService, nowSupplier, null);
+        this(settings, clusterService, nowSupplier, createPeriodLoggingDecisionConsumer(nowSupplier));
+    }
+
+    private static Consumer<Decision> createPeriodLoggingDecisionConsumer(LongSupplier nowSupplier) {
+        PeriodicDecisionLogger periodicDecisionLogger = new PeriodicDecisionLogger(nowSupplier);
+        return periodicDecisionLogger::maybeLogDecision;
     }
 
     // Exists to allow a fake decision logger to be injected in tests
@@ -173,7 +178,7 @@ public class DataStreamAutoShardingService {
         Settings settings,
         ClusterService clusterService,
         LongSupplier nowSupplier,
-        @Nullable Consumer<Decision> decisionLogger
+        Consumer<Decision> decisionLogger
     ) {
         this.clusterService = clusterService;
         this.isAutoShardingEnabled = settings.getAsBoolean(DATA_STREAMS_AUTO_SHARDING_ENABLED, false);
@@ -185,12 +190,7 @@ public class DataStreamAutoShardingService {
         this.increaseShardsMetric = DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC.get(settings);
         this.decreaseShardsMetric = DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC.get(settings);
         this.nowSupplier = nowSupplier;
-        if (decisionLogger == null) {
-            PeriodicDecisionLogger periodicDecisionLogger = new PeriodicDecisionLogger(nowSupplier);
-            this.decisionLogger = periodicDecisionLogger::maybeLogDecision;
-        } else {
-            this.decisionLogger = decisionLogger;
-        }
+        this.decisionLogger = decisionLogger;
     }
 
     public void init() {
@@ -209,6 +209,17 @@ public class DataStreamAutoShardingService {
     }
 
     // package-private for testing
+
+    /**
+     * Contains all the information relating to a decision made by this service: the inputs, the calculations made, and the resulting
+     * recommendation.
+     *
+     * @param inputs The inputs into the decision
+     * @param increaseCalculation The results of the calculation to determine whether to increase the number of shards
+     * @param decreaseCalculation The results of the calculation to determine whether to decrease the number of shards, or null of the
+     *     service already decided to increase the number (the decrease calculation is skipped in that case)
+     * @param result The resulting recommendation to be returned from the service
+     */
     record Decision(
         Inputs inputs,
         IncreaseCalculation increaseCalculation,
@@ -216,6 +227,30 @@ public class DataStreamAutoShardingService {
         AutoShardingResult result
     ) {
 
+        /**
+         * Contains the inputs to a decision.
+         *
+         * @param increaseShardsCooldown The time since the last auto-sharding to wait before increasing the shards
+         *     (see the {@link #DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN} cluster setting)
+         * @param decreaseShardsCooldown The time since the last auto-sharding to wait before decreasing the shards - or, if there was no
+         *     previous auto-sharding, the time since the first backing index was created
+         *     (see the {@link #DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN} cluster setting)
+         * @param minWriteThreads The minimum number of write threads per shard (see the {@link #CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS}
+         *     cluster setting)
+         * @param maxWriteThreads The maximum number of write threads per shard (see the {@link #CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS}
+         *     cluster setting)
+         * @param increaseShardsMetric Which load metric to use for the increase shards calculation
+         *     (see the {@link #DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC} cluster setting)
+         * @param decreaseShardsMetric Which load metric to use for the decrease shards calculation
+         *     (see the {@link #DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC} cluster setting)
+         * @param dataStream The name of the data stream
+         * @param writeIndex The name of the current write index
+         * @param writeIndexAllTimeLoad The all-time load metric for the write index (see {@link IndexingStats.Stats#getWriteLoad()})
+         * @param writeIndexRecentLoad The recent load metric for the current write index
+         *     (see {@link IndexingStats.Stats#getRecentWriteLoad()})
+         * @param writeIndexPeakLoad The peak load metric for the write index (see {@link IndexingStats.Stats#getPeakWriteLoad()})
+         * @param currentNumberOfWriteIndexShards The number of shards for the current write index
+         */
         record Inputs(
             TimeValue increaseShardsCooldown,
             TimeValue decreaseShardsCooldown,
@@ -231,12 +266,31 @@ public class DataStreamAutoShardingService {
             int currentNumberOfWriteIndexShards
         ) {}
 
+        /**
+         * Contains details from the increase shards calculation.
+         *
+         * @param writeIndexLoadForIncrease The load considered for the increase shards calculation (i.e. one of write index load metrics
+         *     from the {@link Decision.Inputs}, as determined by {@link Decision.Inputs#increaseShardsMetric})
+         * @param optimalShardCountForIncrease The optimal shard count determined based on the load
+         * @param increaseResult If the optimal shard count is greater than the current shard count, a recommendation to increase the number
+         *     of shards (possibly after a cooldown period); otherwise, null
+         */
         record IncreaseCalculation(
             double writeIndexLoadForIncrease,
             int optimalShardCountForIncrease,
             @Nullable AutoShardingResult increaseResult
         ) {}
 
+        /**
+         * Contains details from the increase shards calculation.
+         *
+         * @param maxLoadWithinCooldown The load considered for the decrease shards calculation (i.e. a load metric determined by
+         *     {@link Decision.Inputs#increaseShardsMetric}, either for the write index or an older one within the cooldown period) and a
+         *     record of which index that corresponded to
+         * @param optimalShardCountForDecrease The optimal shard count determined based on the load
+         * @param decreaseResult If the optimal shard count is less than the current shard count, a recommendation to decrease the number
+         *     of shards (possibly after a cooldown period); otherwise, null
+         */
         record DecreaseCalculation(
             MaxLoadWithinCooldown maxLoadWithinCooldown,
             int optimalShardCountForDecrease,
@@ -636,7 +690,7 @@ public class DataStreamAutoShardingService {
     private static class DecisionBuffer {
 
         private final Comparator<Decision> comparator;
-        private final PriorityQueue<Decision> queue;
+        private final PriorityQueue<Decision> queue; // This is a Lucene PriorityQueue, which is bounded, unlike the JDK one.
 
         DecisionBuffer(int maxSize, Comparator<Decision> comparator) {
             this.comparator = comparator;
@@ -684,20 +738,16 @@ public class DataStreamAutoShardingService {
         private final DecisionBuffer highestLoadNonIncreaseDecisions;
 
         PeriodicDecisionLogger(LongSupplier nowSupplier) {
-            this(nowSupplier, null);
+            this(nowSupplier, PeriodicDecisionLogger::logFlushedDecision);
         }
 
         // Exists to allow a fake logger to be injected in tests
-        PeriodicDecisionLogger(LongSupplier nowSupplier, @Nullable Consumer<FlushedDecisions> logConsumer) {
+        PeriodicDecisionLogger(LongSupplier nowSupplier, Consumer<FlushedDecisions> logConsumer) {
             this.nowSupplier = nowSupplier;
             this.highestLoadIncreaseDecisions = new DecisionBuffer(BUFFER_SIZE, HIGHEST_LOAD_COMPARATOR);
             this.highestLoadNonIncreaseDecisions = new DecisionBuffer(BUFFER_SIZE, HIGHEST_LOAD_COMPARATOR);
             this.lastFlushMillis = new AtomicLong(nowSupplier.getAsLong());
-            if (logConsumer == null) {
-                this.logConsumer = PeriodicDecisionLogger::logFlushedDecision;
-            } else {
-                this.logConsumer = logConsumer;
-            }
+            this.logConsumer = logConsumer;
         }
 
         record FlushedDecisions(List<Decision> highestLoadIncreaseDecisions, List<Decision> highestLoadNonIncreaseDecisions) {}

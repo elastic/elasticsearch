@@ -280,9 +280,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         source().writeTo(out);
         out.writeNamedWriteable(query());
         out.writeNamedWriteableCollection(fields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            out.writeOptionalNamedWriteable(queryBuilder());
-        }
+       out.writeOptionalNamedWriteable(queryBuilder());
     }
 
     @Override

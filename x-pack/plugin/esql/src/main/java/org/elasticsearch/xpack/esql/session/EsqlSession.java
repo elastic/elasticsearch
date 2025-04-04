@@ -50,6 +50,8 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
+import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -63,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -119,6 +122,7 @@ public class EsqlSession {
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private Set<String> configuredClusters;
+    private final InferenceRunner inferenceRunner;
 
     public EsqlSession(
         String sessionId,
@@ -146,6 +150,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
+        this.inferenceRunner = services.inferenceRunner();
         this.preMapper = new PreMapper(services);
     }
 
@@ -335,7 +340,7 @@ public class EsqlSession {
 
         Function<PreAnalysisResult, LogicalPlan> analyzeAction = (l) -> {
             Analyzer analyzer = new Analyzer(
-                new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution),
+                new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution, l.inferenceResolution),
                 verifier
             );
             LogicalPlan plan = analyzer.analyze(parsed);
@@ -367,7 +372,9 @@ public class EsqlSession {
 
         var listener = SubscribableListener.<EnrichResolution>newForked(
             l -> enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, l)
-        ).<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l));
+        )
+            .<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l))
+            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
         for (var index : preAnalysis.lookupIndices) {
             listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(index, preAnalysisResult, l); });
@@ -580,6 +587,14 @@ public class EsqlSession {
         }
     }
 
+    private void resolveInferences(
+        List<InferencePlan> inferencePlans,
+        PreAnalysisResult preAnalysisResult,
+        ActionListener<PreAnalysisResult> l
+    ) {
+        inferenceRunner.resolveInferenceIds(inferencePlans, l.map(preAnalysisResult::withInferenceResolution));
+    }
+
     static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
@@ -746,18 +761,44 @@ public class EsqlSession {
         Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
         Set<String> fieldNames,
-        Set<String> wildcardJoinIndices
+        Set<String> wildcardJoinIndices,
+        InferenceResolution inferenceResolution
     ) {
         PreAnalysisResult(EnrichResolution newEnrichResolution) {
-            this(null, new HashMap<>(), newEnrichResolution, Set.of(), Set.of());
+            this(null, new HashMap<>(), newEnrichResolution, Set.of(), Set.of(), InferenceResolution.EMPTY);
         }
 
         PreAnalysisResult withEnrichResolution(EnrichResolution newEnrichResolution) {
-            return new PreAnalysisResult(indices(), lookupIndices(), newEnrichResolution, fieldNames(), wildcardJoinIndices());
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                newEnrichResolution,
+                fieldNames(),
+                wildcardJoinIndices(),
+                inferenceResolution()
+            );
+        }
+
+        PreAnalysisResult withInferenceResolution(InferenceResolution newInferenceResolution) {
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                enrichResolution(),
+                fieldNames(),
+                wildcardJoinIndices(),
+                newInferenceResolution
+            );
         }
 
         PreAnalysisResult withIndexResolution(IndexResolution newIndexResolution) {
-            return new PreAnalysisResult(newIndexResolution, lookupIndices(), enrichResolution(), fieldNames(), wildcardJoinIndices());
+            return new PreAnalysisResult(
+                newIndexResolution,
+                lookupIndices(),
+                enrichResolution(),
+                fieldNames(),
+                wildcardJoinIndices(),
+                inferenceResolution()
+            );
         }
 
         PreAnalysisResult addLookupIndexResolution(String index, IndexResolution newIndexResolution) {
@@ -766,11 +807,25 @@ public class EsqlSession {
         }
 
         PreAnalysisResult withFieldNames(Set<String> newFields) {
-            return new PreAnalysisResult(indices(), lookupIndices(), enrichResolution(), newFields, wildcardJoinIndices());
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                enrichResolution(),
+                newFields,
+                wildcardJoinIndices(),
+                inferenceResolution()
+            );
         }
 
         public PreAnalysisResult withWildcardJoinIndices(Set<String> wildcardJoinIndices) {
-            return new PreAnalysisResult(indices(), lookupIndices(), enrichResolution(), fieldNames(), wildcardJoinIndices);
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                enrichResolution(),
+                fieldNames(),
+                wildcardJoinIndices,
+                inferenceResolution()
+            );
         }
     }
 }

@@ -36,4 +36,16 @@ public class InferenceExceptionTests extends ESTestCase {
         );
         assertThat(testException.status(), equalTo(RestStatus.BAD_REQUEST));
     }
+
+    public void testNullCause() throws Exception {
+        InferenceException testException = new InferenceException("test exception", null);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        testException.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        assertThat(Strings.toString(builder), equalTo("{\"type\":\"inference_exception\",\"reason\":\"test exception\"}"));
+        assertThat(testException.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
 }

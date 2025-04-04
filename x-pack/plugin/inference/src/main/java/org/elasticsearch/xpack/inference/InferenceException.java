@@ -20,12 +20,6 @@ public class InferenceException extends ElasticsearchException {
     public RestStatus status() {
         // Override status so that we get the status of the cause while retaining the message of the inference exception when emitting to
         // XContent
-        RestStatus status = RestStatus.INTERNAL_SERVER_ERROR;
-        Throwable cause = getCause();
-        if (cause != null) {
-            status = ExceptionsHelper.status(cause);
-        }
-
-        return status;
+        return ExceptionsHelper.status(getCause());
     }
 }

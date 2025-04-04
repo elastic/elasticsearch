@@ -2,4 +2,4 @@ pr: 125062
 summary: "Add `multi_match` function #121525"
 area: Search
 type: feature
-issues: []
+issues: [121525]

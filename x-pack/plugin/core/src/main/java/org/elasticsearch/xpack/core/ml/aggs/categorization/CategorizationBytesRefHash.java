@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization;
+package org.elasticsearch.xpack.core.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -13,6 +13,9 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Releasable;
 
 public class CategorizationBytesRefHash implements Releasable {
+
+    private static final String NAME = "categorize_text";
+    private static final String CATEGORIZATION_FILTERS = "categorization_filters";
 
     private final BytesRefHash bytesRefHash;
 
@@ -53,8 +56,8 @@ public class CategorizationBytesRefHash implements Releasable {
                     "more than [{}] unique terms encountered. "
                         + "Consider restricting the documents queried or adding [{}] in the {} configuration",
                     Integer.MAX_VALUE,
-                    CategorizeTextAggregationBuilder.CATEGORIZATION_FILTERS.getPreferredName(),
-                    CategorizeTextAggregationBuilder.NAME
+                    CATEGORIZATION_FILTERS,
+                    NAME
                 )
             );
         }

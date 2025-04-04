@@ -130,6 +130,7 @@ public class ComputeService {
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
+    private final MlServices mlServices;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -139,6 +140,7 @@ public class ComputeService {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         ClusterService clusterService,
+        MlServices mlServices,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactory blockFactory
@@ -161,6 +163,7 @@ public class ComputeService {
             dataNodeComputeHandler
         );
         this.exchangeService = exchangeService;
+        this.mlServices = mlServices;
     }
 
     public void execute(
@@ -428,6 +431,7 @@ public class ComputeService {
                 context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
+                mlServices,
                 new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis()),
                 contexts
             );

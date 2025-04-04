@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary.PartOfSpeech;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.CategorizationPartOfSpeechDictionary.PartOfSpeech;
 
 import java.io.IOException;
 

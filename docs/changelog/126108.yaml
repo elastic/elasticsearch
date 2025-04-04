@@ -1,0 +1,5 @@
+pr: 126108
+summary: Decouple the esql plugin from the ML plugin by removing explicit dependency
+area: Machine Learning
+type: enhancement
+issues: []

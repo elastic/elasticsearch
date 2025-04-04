@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Plan that detects change points in a list of values. See also:
  * <ul>
  * <li> {@link org.elasticsearch.compute.operator.ChangePointOperator}
- * <li> {@link org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector}
+ * <li> {@link org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangePointDetector}
  * </ul>
  *
  * ChangePoint should always run on the coordinating node after the data is collected

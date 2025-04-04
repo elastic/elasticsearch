@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization;
+package org.elasticsearch.xpack.core.ml.aggs.categorization;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.util.set.Sets;
@@ -482,7 +482,7 @@ public class TokenListCategory implements Accountable {
     /**
      * This should get set once, after creation of the object, when it gets put into an aggregation bucket.
      */
-    void setBucketOrd(long bucketOrd) {
+    public void setBucketOrd(long bucketOrd) {
         assert bucketOrd >= 0 : "Attempt to set bucketOrd to negative number " + bucketOrd;
         assert this.bucketOrd == -1 || this.bucketOrd == bucketOrd
             : "Attempt to change bucketOrd from " + this.bucketOrd + " to " + bucketOrd;

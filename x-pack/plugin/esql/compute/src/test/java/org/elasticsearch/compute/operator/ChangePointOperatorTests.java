@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetectorImpl;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -71,7 +72,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple() {
-        return new ChangePointOperator.Factory(0, null, 0, 0);
+        return new ChangePointOperator.Factory(new ChangePointDetectorImpl(), 0, null, 0, 0);
     }
 
     @Override

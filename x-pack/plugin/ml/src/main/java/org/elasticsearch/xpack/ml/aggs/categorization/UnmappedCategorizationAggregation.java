@@ -12,6 +12,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.InternalCategorizationAggregation;
 
 import java.util.List;
 import java.util.Map;

@@ -12,18 +12,24 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
-import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangePointDetector;
+import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangeType;
 
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractBucket;
-import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
+import static org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper.extractBucket;
+import static org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
 
 public class ChangePointAggregator extends SiblingPipelineAggregator {
 
-    public ChangePointAggregator(String name, String bucketsPath, Map<String, Object> metadata) {
+    private final ChangePointDetector changePointDetector;
+
+    public ChangePointAggregator(ChangePointDetector changePointDetector, String name, String bucketsPath, Map<String, Object> metadata) {
         super(name, new String[] { bucketsPath }, metadata);
+        this.changePointDetector = changePointDetector;
+
     }
 
     @Override
@@ -44,7 +50,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
         MlAggsHelper.DoubleBucketValues bucketValues = maybeBucketValues.get();
 
-        ChangeType change = ChangePointDetector.getChangeType(bucketValues);
+        ChangeType change = changePointDetector.getChangeType(bucketValues);
 
         ChangePointBucket changePointBucket = null;
         if (change.changePoint() != ChangeType.NO_CHANGE_POINT) {

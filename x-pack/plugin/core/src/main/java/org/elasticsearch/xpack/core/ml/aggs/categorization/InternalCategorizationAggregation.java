@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization;
+package org.elasticsearch.xpack.core.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -109,12 +109,12 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
         public Bucket(StreamInput in) throws IOException {
             // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-            if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+            if (in.getTransportVersion().before(AbstractCategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
                 throw new ElasticsearchStatusException(
                     "["
-                        + CategorizeTextAggregationBuilder.NAME
+                        + AbstractCategorizeTextAggregationBuilder.NAME
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                        + AbstractCategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                         + "] or higher and others have a version before this",
                     RestStatus.BAD_REQUEST
                 );
@@ -128,12 +128,12 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-            if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+            if (out.getTransportVersion().before(AbstractCategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
                 throw new ElasticsearchStatusException(
                     "["
-                        + CategorizeTextAggregationBuilder.NAME
+                        + AbstractCategorizeTextAggregationBuilder.NAME
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                        + AbstractCategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                         + "] or higher and others have a version before this",
                     RestStatus.BAD_REQUEST
                 );
@@ -177,11 +177,11 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return aggregations;
         }
 
-        void setAggregations(InternalAggregations aggregations) {
+        public void setAggregations(InternalAggregations aggregations) {
             this.aggregations = aggregations;
         }
 
-        long getBucketOrd() {
+        public long getBucketOrd() {
             return bucketOrd;
         }
 
@@ -211,7 +211,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     private final int requiredSize;
     private final long minDocCount;
 
-    protected InternalCategorizationAggregation(
+    public InternalCategorizationAggregation(
         String name,
         int requiredSize,
         long minDocCount,
@@ -221,7 +221,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         this(name, requiredSize, minDocCount, similarityThreshold, metadata, new ArrayList<>());
     }
 
-    protected InternalCategorizationAggregation(
+    public InternalCategorizationAggregation(
         String name,
         int requiredSize,
         long minDocCount,
@@ -239,12 +239,12 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     public InternalCategorizationAggregation(StreamInput in) throws IOException {
         super(in);
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+        if (in.getTransportVersion().before(AbstractCategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
             throw new ElasticsearchStatusException(
                 "["
-                    + CategorizeTextAggregationBuilder.NAME
+                    + AbstractCategorizeTextAggregationBuilder.NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                    + AbstractCategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );
@@ -258,12 +258,12 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+        if (out.getTransportVersion().before(AbstractCategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
             throw new ElasticsearchStatusException(
                 "["
-                    + CategorizeTextAggregationBuilder.NAME
+                    + AbstractCategorizeTextAggregationBuilder.NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                    + AbstractCategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );
@@ -301,7 +301,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     @Override
     public String getWriteableName() {
-        return CategorizeTextAggregationBuilder.NAME;
+        return AbstractCategorizeTextAggregationBuilder.NAME;
     }
 
     @Override

@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangeType;
 
 import java.util.Arrays;
 

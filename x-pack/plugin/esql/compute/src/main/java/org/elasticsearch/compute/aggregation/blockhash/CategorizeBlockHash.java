@@ -30,12 +30,12 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.CategorizationBytesRefHash;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.SerializableTokenListCategory;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.TokenListCategorizer;
+import org.elasticsearch.xpack.core.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
-import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
-import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -83,11 +83,11 @@ public class CategorizeBlockHash extends BlockHash {
             try {
                 Objects.requireNonNull(analysisRegistry);
                 analyzer = new CategorizationAnalyzer(analysisRegistry, ANALYZER_CONFIG);
+                this.evaluator = new CategorizeEvaluator(analyzer);
             } catch (Exception e) {
                 categorizer.close();
                 throw new RuntimeException(e);
             }
-            this.evaluator = new CategorizeEvaluator(analyzer);
         } else {
             this.evaluator = null;
         }

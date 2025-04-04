@@ -16,7 +16,6 @@ module org.elasticsearch.compute {
     // required due to dependency on org.elasticsearch.common.util.concurrent.AbstractAsyncTask
     requires org.apache.logging.log4j;
     requires org.elasticsearch.logging;
-    requires org.elasticsearch.ml;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.xcore;

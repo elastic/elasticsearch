@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.ml.job.categorization;
+package org.elasticsearch.xpack.core.ml.job.categorization;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -126,4 +126,7 @@ public class CategorizationAnalyzer implements Releasable {
         }
     }
 
+    public interface Factory {
+        CategorizationAnalyzer get(AnalysisRegistry analysisRegistry);
+    }
 }

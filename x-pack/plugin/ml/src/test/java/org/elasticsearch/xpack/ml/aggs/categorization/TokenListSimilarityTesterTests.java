@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
-import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategory.TokenAndWeight;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.TokenListCategory.TokenAndWeight;
+import org.elasticsearch.xpack.core.ml.aggs.categorization.TokenListSimilarityTester;
 
 import java.util.List;
 

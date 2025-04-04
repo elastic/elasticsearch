@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.core.ml.aggs.changepoint.ChangeType;
 
 import java.util.List;
 

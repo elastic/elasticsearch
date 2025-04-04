@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -64,7 +65,7 @@ public class SingleInputSenderExecutableActionTests extends ESTestCase {
 
     public void testMoreThanOneInput() {
         var badInput = mock(EmbeddingsInput.class);
-        var input = List.of("one", "two");
+        var input = List.of(new ChunkInferenceInput("one"), new ChunkInferenceInput("two"));
         when(badInput.getInputs()).thenReturn(input);
         when(badInput.isSingleInput()).thenReturn(false);
         var actualException = new AtomicReference<Exception>();

@@ -35,7 +35,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
         // track used references
-        var used = plan.outputSet();
+        var used = plan.outputSet().asBuilder();
         // while going top-to-bottom (upstream)
         var pl = plan.transformDown(p -> {
             // Note: It is NOT required to do anything special for binary plans like JOINs. It is perfectly fine that transformDown descends
@@ -73,22 +73,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                             } else {
                                 // Aggs cannot produce pages with 0 columns, so retain one grouping.
                                 remaining = List.of(Expressions.attribute(aggregate.groupings().get(0)));
-                                p = new Aggregate(
-                                    aggregate.source(),
-                                    aggregate.child(),
-                                    aggregate.aggregateType(),
-                                    aggregate.groupings(),
-                                    remaining
-                                );
+                                p = aggregate.with(aggregate.groupings(), remaining);
                             }
                         } else {
-                            p = new Aggregate(
-                                aggregate.source(),
-                                aggregate.child(),
-                                aggregate.aggregateType(),
-                                aggregate.groupings(),
-                                remaining
-                            );
+                            p = aggregate.with(aggregate.groupings(), remaining);
                         }
                     }
                 } else if (p instanceof Eval eval) {
@@ -126,7 +114,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * Prunes attributes from the list not found in the given set.
      * Returns null if no changed occurred.
      */
-    private static <N extends NamedExpression> List<N> removeUnused(List<N> named, AttributeSet used) {
+    private static <N extends NamedExpression> List<N> removeUnused(List<N> named, AttributeSet.Builder used) {
         var clone = new ArrayList<>(named);
         var it = clone.listIterator(clone.size());
 

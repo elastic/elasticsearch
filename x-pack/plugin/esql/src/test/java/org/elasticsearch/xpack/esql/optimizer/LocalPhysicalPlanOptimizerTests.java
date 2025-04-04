@@ -1660,7 +1660,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testMultiMatchOptionsPushDown() {
         String query = """
             from test
-            | where MULTI_MATCH("Anna", first_name, last_name, {"slop": 10, "analyzer": "auto",
+            | where MULTI_MATCH("Anna", first_name, last_name, {"fuzzy_rewrite": "constant_score", "slop": 10, "analyzer": "auto",
             "auto_generate_synonyms_phrase_query": "false", "fuzziness": "auto", "fuzzy_transpositions": false, "lenient": "false",
             "max_expansions": 10, "minimum_should_match": 3, "operator": "AND", "prefix_length": 20, "tie_breaker": 1.0,
             "type": "best_fields"})
@@ -1676,6 +1676,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .autoGenerateSynonymsPhraseQuery(false)
             .operator(Operator.fromString("AND"))
             .fuzziness(Fuzziness.fromString("auto"))
+            .fuzzyRewrite("constant_score")
             .fuzzyTranspositions(false)
             .lenient(false)
             .maxExpansions(10)

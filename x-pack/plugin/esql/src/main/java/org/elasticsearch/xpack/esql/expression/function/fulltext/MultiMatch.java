@@ -50,6 +50,7 @@ import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZINESS_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_REWRITE_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.LENIENT_FIELD;
@@ -124,6 +125,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         entry(ANALYZER_FIELD.getPreferredName(), KEYWORD),
         entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), BOOLEAN),
         entry(FUZZINESS_FIELD.getPreferredName(), KEYWORD),
+        entry(FUZZY_REWRITE_FIELD.getPreferredName(), KEYWORD),
         entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), BOOLEAN),
         entry(LENIENT_FIELD.getPreferredName(), BOOLEAN),
         entry(MAX_EXPANSIONS_FIELD.getPreferredName(), INTEGER),
@@ -189,6 +191,20 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
                     type = "keyword",
                     valueHint = { "AUTO", "1", "2" },
                     description = "Maximum edit distance allowed for matching."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "fuzzy_rewrite",
+                    type = "keyword",
+                    valueHint = {
+                        "constant_score_blended",
+                        "constant_score",
+                        "constant_score_boolean",
+                        "top_terms_blended_freqs_N",
+                        "top_terms_boost_N",
+                        "top_terms_N" },
+                    description = "Method used to rewrite the query. See the rewrite parameter for valid values and more information. "
+                        + "If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of "
+                        + "top_terms_blended_freqs_${max_expansions} by default."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzzy_transpositions",

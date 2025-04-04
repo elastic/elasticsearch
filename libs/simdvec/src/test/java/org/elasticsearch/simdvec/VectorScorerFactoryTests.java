@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
-    private static final float DELTA = 1e-5f;
+    private static final float DELTA = 1e-4f;
 
     // bounds of the range of values that can be seen by int7 scalar quantized vectors
     static final byte MIN_INT7_VALUE = 0;

@@ -96,7 +96,7 @@ COPY --from=builder /bin/tini /bin/tini
 
 WORKDIR /usr/share/elasticsearch
 
-COPY --from=builder /usr/share/elasticsearch .
+COPY --from=builder --chown=0:0 /usr/share/elasticsearch .
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 # vendor. The latter is superior in several ways.

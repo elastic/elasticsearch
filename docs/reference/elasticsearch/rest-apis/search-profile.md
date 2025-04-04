@@ -861,9 +861,9 @@ And here is the fetch profile:
 
 Since this is debugging information about the way that Elasticsearch executes the fetch it can change from request to request and version to version. Even patch versions may change the output here. That lack of consistency is what makes it useful for debugging.
 
-Anyway! `time_in_nanos` measures the time total time of the fetch phase. The `breakdown` counts and times the our per-[segment](https://www.elastic.co/guide/en/elastic-stack-glossary/current/terms.md#glossary-segment) preparation in `next_reader` and the time taken loading stored fields in `load_stored_fields`. Debug contains miscellaneous non-timing information, specifically `stored_fields` lists the stored fields that fetch will have to load. If it is an empty list then fetch will entirely skip loading stored fields.
+Anyway! `time_in_nanos` measures the time total time of the fetch phase. The `breakdown` counts and times the our per-segment preparation in `next_reader` and the time taken loading stored fields in `load_stored_fields`. Debug contains miscellaneous non-timing information, specifically `stored_fields` lists the stored fields that fetch will have to load. If it is an empty list then fetch will entirely skip loading stored fields.
 
-The `children` section lists the sub-phases that do the actual fetching work and the `breakdown` has counts and timings for the per-[segment](https://www.elastic.co/guide/en/elastic-stack-glossary/current/terms.md#glossary-segment) preparation in `next_reader` and the per document fetching in `process`.
+The `children` section lists the sub-phases that do the actual fetching work and the `breakdown` has counts and timings for the per-segment preparation in `next_reader` and the per document fetching in `process`.
 
 ::::{note}
 We try hard to load all of the stored fields that we will need for the fetch up front. This tends to make the `_source` phase a couple of microseconds per hit. In that case the true cost of `_source` phase is hidden in the `load_stored_fields` component of the breakdown. It’s possible to entirely skip loading stored fields by setting `"_source": false, "stored_fields": ["_none_"]`.
@@ -961,7 +961,7 @@ In the `dfs.statistics` portion of this response we see a `time_in_nanos` which 
 
 #### Profiling kNN search [profiling-knn-search]
 
-A [k-nearest neighbor (kNN)](knn-search.md#approximate-knn) search runs during the dfs phase.
+A k-nearest neighbor (kNN) search runs during the dfs phase.
 
 The following is an example of setting `profile` to `true` on a search that has a `knn` section:
 

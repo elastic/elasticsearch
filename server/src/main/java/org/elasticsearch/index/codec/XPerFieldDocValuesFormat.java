@@ -41,7 +41,7 @@ import java.util.Map;
  */
 public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
     /** Name of this {@link DocValuesFormat}. */
-    public static final String PER_FIELD_NAME = "PerFieldDV40";
+    public static final String PER_FIELD_NAME = "ESPerFieldDV819";
 
     /** {@link FieldInfo} attribute name used to store the format name for each field. */
     public static final String PER_FIELD_FORMAT_KEY = XPerFieldDocValuesFormat.class.getSimpleName() + ".format";

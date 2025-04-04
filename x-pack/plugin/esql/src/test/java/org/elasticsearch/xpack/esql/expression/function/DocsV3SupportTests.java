@@ -52,6 +52,12 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
+    public void testStringFunctionLink() {
+        String text = "a known order like <<esql-split>>.";
+        String expected = "a known order like [`SPLIT`](" + ESQL + "/functions-operators/string-functions.md#esql-split).";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
     public void testOperatorLink() {
         String text = "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.";
         String expected = """

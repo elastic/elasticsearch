@@ -385,7 +385,7 @@ public abstract class DocsV3Support {
         } else if (cmd.startsWith("date_")) {
             return "/reference/query-languages/esql/functions-operators/date-time-functions.md";
         } else if (cmd.equals("split")) {
-            return "/reference/query-languages/esql/functions-operators/date-time-functions.md";
+            return "/reference/query-languages/esql/functions-operators/string-functions.md";
         } else {
             return "/reference/query-languages/esql/functions-operators/aggregation-functions.md";
         }

@@ -14,8 +14,8 @@ import org.gradle.api.internal.tasks.TaskDependencyFactory;
 import org.gradle.api.plugins.jvm.internal.DefaultJvmTestSuite;
 import org.gradle.api.tasks.SourceSetContainer;
 
-public abstract class DefaultYamlRestTestSuite extends DefaultJvmTestSuite implements YamlRestTestSuite {
-    public DefaultYamlRestTestSuite(
+public abstract class DefaultJavaRestTestSuite extends DefaultJvmTestSuite implements JavaRestTestSuite {
+    public DefaultJavaRestTestSuite(
         String name,
         SourceSetContainer sourceSets,
         ConfigurationContainer configurations,

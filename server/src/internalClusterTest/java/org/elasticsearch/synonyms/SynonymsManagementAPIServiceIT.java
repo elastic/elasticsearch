@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.plugins.Plugin;
@@ -309,7 +310,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         // Override health method check to simulate a timeout in checking the synonyms index
         synonymsManagementAPIService = new SynonymsManagementAPIService(client()) {
             @Override
-            void checkSynonymsIndexHealth(int timeout, ActionListener<ClusterHealthResponse> listener) {
+            void checkSynonymsIndexHealth(TimeValue timeout, ActionListener<ClusterHealthResponse> listener) {
                 ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
                 ClusterHealthResponse response = new ClusterHealthResponse(randomIdentifier(),
                     new String[]{SynonymsManagementAPIService.SYNONYMS_INDEX_CONCRETE_NAME},
@@ -365,12 +366,12 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         updateLatch.await(5, TimeUnit.SECONDS);
 
-        // But, we can still create a synonyms set with timeout 0
+        // But, we can still create a synonyms set with timeout -1
         CountDownLatch putWithoutTimeoutLatch = new CountDownLatch(1);
         synonymsManagementAPIService.putSynonymsSet(
             synonymSetId,
             randomSynonymsSet(1, 1),
-            0,
+            TimeValue.MINUS_ONE,
             new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
@@ -391,7 +392,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService.putSynonymRule(
             synonymSetId,
             randomSynonymRule(randomIdentifier()),
-            0,
+            TimeValue.MINUS_ONE,
             new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {

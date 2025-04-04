@@ -14,6 +14,7 @@ import org.elasticsearch.action.synonyms.SynonymUpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -41,7 +42,7 @@ public class RestPutSynonymRuleAction extends BaseRestHandler {
         PutSynonymRuleAction.Request request = new PutSynonymRuleAction.Request(
             restRequest.param("synonymsSet"),
             restRequest.param("synonymRuleId"),
-            restRequest.paramAsInt("timeout", PutSynonymRuleAction.DEFAULT_TIMEOUT),
+            RestUtils.getAckTimeout(restRequest),
             restRequest.content(),
             restRequest.getXContentType()
         );

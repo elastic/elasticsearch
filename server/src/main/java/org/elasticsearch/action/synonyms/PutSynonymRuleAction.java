@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -35,7 +36,7 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
     public static final PutSynonymRuleAction INSTANCE = new PutSynonymRuleAction();
     public static final String NAME = "cluster:admin/synonym_rules/put";
 
-    public static final int DEFAULT_TIMEOUT = 5;
+    public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
     public PutSynonymRuleAction() {
         super(NAME);
@@ -44,7 +45,7 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
     public static class Request extends ActionRequest {
         private final String synonymsSetId;
         private final SynonymRule synonymRule;
-        private final int timeout;
+        private final TimeValue timeout;
 
         public static final ParseField SYNONYMS_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_FIELD);
         private static final ConstructingObjectParser<SynonymRule, String> PARSER = new ConstructingObjectParser<>(
@@ -62,14 +63,15 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             this.synonymsSetId = in.readString();
             this.synonymRule = new SynonymRule(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_UPDATE_TIMEOUT)) {
-                this.timeout = in.readInt();
+                this.timeout = in.readTimeValue();
             } else {
                 this.timeout = DEFAULT_TIMEOUT;
             }
         }
 
-        public Request(String synonymsSetId, String synonymRuleId, int timeout, BytesReference content, XContentType contentType)
+        public Request(String synonymsSetId, String synonymRuleId, TimeValue timeout, BytesReference content, XContentType contentType)
             throws IOException {
+            Objects.requireNonNull(timeout);
             this.synonymsSetId = synonymsSetId;
             try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)) {
                 this.synonymRule = PARSER.apply(parser, synonymRuleId);
@@ -79,7 +81,8 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             this.timeout = timeout;
         }
 
-        Request(String synonymsSetId, SynonymRule synonymRule, int timeout) {
+        Request(String synonymsSetId, SynonymRule synonymRule, TimeValue timeout) {
+            Objects.requireNonNull(timeout);
             this.synonymsSetId = synonymsSetId;
             this.synonymRule = synonymRule;
             this.timeout = timeout;
@@ -94,13 +97,6 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             if (Strings.isNullOrEmpty(synonymRule.id())) {
                 validationException = ValidateActions.addValidationError("synonym rule id must be specified", validationException);
             }
-            if (timeout < 0) {
-                validationException = ValidateActions.addValidationError("timeout must be greater than or equal to 0", validationException);
-            }
-            String error = synonymRule.validate();
-            if (error != null) {
-                validationException = ValidateActions.addValidationError(error, validationException);
-            }
 
             return validationException;
         }
@@ -111,7 +107,7 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             out.writeString(synonymsSetId);
             synonymRule.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_UPDATE_TIMEOUT)) {
-                out.writeInt(timeout);
+                out.writeTimeValue(timeout);
             }
         }
 
@@ -123,7 +119,7 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             return synonymRule;
         }
 
-        public int timeout() {
+        public TimeValue timeout() {
             return timeout;
         }
 

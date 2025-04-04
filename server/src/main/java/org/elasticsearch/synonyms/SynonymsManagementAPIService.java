@@ -306,7 +306,7 @@ public class SynonymsManagementAPIService {
         });
     }
 
-    public void putSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, int timeout, ActionListener<SynonymsReloadResult> listener) {
+    public void putSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, TimeValue timeout, ActionListener<SynonymsReloadResult> listener) {
         if (synonymsSet.length > maxSynonymsSets) {
             listener.onFailure(
                 new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + maxSynonymsSets)
@@ -377,7 +377,7 @@ public class SynonymsManagementAPIService {
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(listener);
     }
 
-    public void putSynonymRule(String synonymsSetId, SynonymRule synonymRule, int timeout, ActionListener<SynonymsReloadResult> listener) {
+    public void putSynonymRule(String synonymsSetId, SynonymRule synonymRule, TimeValue timeout, ActionListener<SynonymsReloadResult> listener) {
         checkSynonymSetExists(synonymsSetId, listener.delegateFailureAndWrap((l1, obj) -> {
             // Count synonym rules to check if we're at maximum
             BoolQueryBuilder queryFilter = QueryBuilders.boolQuery()
@@ -399,13 +399,13 @@ public class SynonymsManagementAPIService {
                             new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + maxSynonymsSets)
                         );
                     } else {
-                        indexSynonymRule(synonymsSetId, synonymRule, searchListener, timeout);
+                        indexSynonymRule(synonymsSetId, synonymRule, timeout, searchListener);
                     }
                 }));
         }));
     }
 
-    private void indexSynonymRule(String synonymsSetId, SynonymRule synonymRule, ActionListener<SynonymsReloadResult> listener, int timeout)
+    private void indexSynonymRule(String synonymsSetId, SynonymRule synonymRule, TimeValue timeout, ActionListener<SynonymsReloadResult> listener)
         throws IOException {
         IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymsSetId, synonymRule).setRefreshPolicy(
             WriteRequest.RefreshPolicy.IMMEDIATE
@@ -557,10 +557,10 @@ public class SynonymsManagementAPIService {
         boolean preview,
         ActionListener<SynonymsReloadResult> listener,
         UpdateSynonymsResultStatus synonymsOperationResult,
-        int timeout
+        TimeValue timeout
     ) {
         // Ensure synonyms index is searchable if timeout is present
-        if (timeout > 0) {
+        if (TimeValue.MINUS_ONE.equals(timeout) == false) {
             checkSynonymsIndexHealth(timeout, listener.delegateFailure((l, response) -> {
                 if (response.isTimedOut()) {
                     l.onFailure(new IndexCreationException("synonyms index [" + SYNONYMS_ALIAS_NAME + "] is not searchable. "
@@ -576,8 +576,8 @@ public class SynonymsManagementAPIService {
     }
 
     // Allows checking failures in tests
-    void checkSynonymsIndexHealth(int timeout, ActionListener<ClusterHealthResponse> listener) {
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(TimeValue.timeValueSeconds(timeout), SYNONYMS_ALIAS_NAME)
+    void checkSynonymsIndexHealth(TimeValue timeout, ActionListener<ClusterHealthResponse> listener) {
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(timeout, SYNONYMS_ALIAS_NAME)
             .waitForGreenStatus();
 
         client.execute(TransportClusterHealthAction.TYPE, healthRequest, listener);

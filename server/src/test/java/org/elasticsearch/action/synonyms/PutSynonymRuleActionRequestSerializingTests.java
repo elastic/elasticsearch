@@ -22,7 +22,7 @@ public class PutSynonymRuleActionRequestSerializingTests extends AbstractWireSer
 
     @Override
     protected PutSynonymRuleAction.Request createTestInstance() {
-        return new PutSynonymRuleAction.Request(randomIdentifier(), SynonymsTestUtils.randomSynonymRule(), randomNonNegativeInt());
+        return new PutSynonymRuleAction.Request(randomIdentifier(), SynonymsTestUtils.randomSynonymRule(), randomTimeValue());
     }
 
     @Override

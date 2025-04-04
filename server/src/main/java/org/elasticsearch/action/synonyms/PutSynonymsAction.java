@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -46,7 +47,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
     public static class Request extends ActionRequest {
         private final String synonymsSetId;
         private final SynonymRule[] synonymRules;
-        private final int timeout;
+        private final TimeValue timeout;
 
         public static final ParseField SYNONYMS_SET_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_SET_FIELD);
         private static final ConstructingObjectParser<SynonymRule[], Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
@@ -64,13 +65,15 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             this.synonymsSetId = in.readString();
             this.synonymRules = in.readArray(SynonymRule::new, SynonymRule[]::new);
             if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_UPDATE_TIMEOUT)) {
-                this.timeout = in.readInt();
+                this.timeout = in.readTimeValue();
             } else {
                 this.timeout = DEFAULT_TIMEOUT;
             }
         }
 
-        public Request(String synonymsSetId, int timeout, BytesReference content, XContentType contentType) throws IOException {
+        public Request(String synonymsSetId, TimeValue timeout, BytesReference content, XContentType contentType) throws IOException {
+            Objects.requireNonNull(timeout);
+            Objects.requireNonNull(synonymsSetId);
             this.synonymsSetId = synonymsSetId;
             this.timeout = timeout;
             try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)) {
@@ -80,7 +83,10 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             }
         }
 
-        Request(String synonymsSetId, SynonymRule[] synonymRules, int timeout) {
+        Request(String synonymsSetId, SynonymRule[] synonymRules, TimeValue timeout) {
+            Objects.requireNonNull(timeout);
+            Objects.requireNonNull(synonymsSetId);
+            Objects.requireNonNull(synonymRules);
             this.synonymsSetId = synonymsSetId;
             this.synonymRules = synonymRules;
             this.timeout = timeout;
@@ -107,7 +113,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             out.writeString(synonymsSetId);
             out.writeArray(synonymRules);
             if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_UPDATE_TIMEOUT)) {
-                out.writeInt(timeout);
+                out.writeTimeValue(timeout);
             }
         }
 
@@ -115,7 +121,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             return synonymsSetId;
         }
 
-        public int timeout() {
+        public TimeValue timeout() {
             return timeout;
         }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Symbol;
 
 import java.io.IOException;
 
@@ -27,7 +28,7 @@ public class NamedDiffableValueSerializer<T extends NamedDiffable<T>> extends Di
 
     @Override
     public T read(StreamInput in, String key) throws IOException {
-        return in.readNamedWriteable(tClass, key);
+        return in.readNamedWriteable(tClass, Symbol.lookupOrThrow(key));
     }
 
     @Override
@@ -43,6 +44,6 @@ public class NamedDiffableValueSerializer<T extends NamedDiffable<T>> extends Di
     @SuppressWarnings("unchecked")
     @Override
     public Diff<T> readDiff(StreamInput in, String key) throws IOException {
-        return in.readNamedWriteable(NamedDiff.class, key);
+        return in.readNamedWriteable(NamedDiff.class, Symbol.lookupOrThrow(key));
     }
 }

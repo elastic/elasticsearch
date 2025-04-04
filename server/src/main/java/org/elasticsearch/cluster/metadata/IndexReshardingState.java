@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * IndexReshardingState is an abstract class holding the persistent state of a generic resharding operation. It contains
@@ -380,8 +381,8 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return false;
         }
 
-        public boolean allTargetsSplit() {
-            return Arrays.stream(targetShards).allMatch(target -> target == TargetShardState.SPLIT);
+        public Stream<TargetShardState> targetStates() {
+            return Arrays.stream(targetShards);
         }
 
         /**

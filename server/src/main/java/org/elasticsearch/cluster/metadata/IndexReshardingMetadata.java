@@ -217,14 +217,9 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         IndexReshardingState.Split.TargetShardState newTargetState
     ) {
         assert state instanceof IndexReshardingState.Split;
-        IndexReshardingState.Split splitState = (IndexReshardingState.Split) state;
-        IndexReshardingState.Split.TargetShardState[] newTargets = Arrays.copyOf(
-            splitState.targetShards(),
-            splitState.targetShards().length
-        );
-        int i = shardId.getId() - state.shardCountBefore();
-        newTargets[i] = newTargetState;
-        return new IndexReshardingMetadata(new IndexReshardingState.Split(splitState.sourceShards(), newTargets));
+        IndexReshardingState.Split.Builder builder = new IndexReshardingState.Split.Builder((IndexReshardingState.Split) state);
+        builder.setTargetShardState(shardId.getId(), newTargetState);
+        return new IndexReshardingMetadata(builder.build());
     }
 
     /**

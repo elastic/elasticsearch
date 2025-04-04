@@ -531,7 +531,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             String inferenceId = "test_model";
             String fieldName = randomFieldName(depth);
 
-            DenseVectorFieldMapper.IndexOptions indexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
+            DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
             Exception exc = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
                 b.startObject(fieldName);
                 b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
@@ -566,7 +566,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
             String inferenceId = model.getInferenceEntityId();
 
-            DenseVectorFieldMapper.IndexOptions expectedIndexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
+            DenseVectorFieldMapper.DenseVectorIndexOptions expectedIndexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
             MapperService mapperService = createMapperService(mapping(b -> {
                 b.startObject(fieldName);
                 b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
@@ -647,7 +647,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService,
         String fieldName,
         boolean expectedModelSettings,
-        DenseVectorFieldMapper.IndexOptions expectedIndexOptions
+        DenseVectorFieldMapper.DenseVectorIndexOptions expectedIndexOptions
     ) {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertNotNull(mapper);
@@ -702,7 +702,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
 
         if (expectedIndexOptions != null) {
-            DenseVectorFieldMapper.IndexOptions indexOptions = semanticFieldMapper.fieldType().getIndexOptions();
+            DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions = semanticFieldMapper.fieldType().getIndexOptions();
             assertNotNull(indexOptions);
             assertEquals(expectedIndexOptions, indexOptions);
         } else {

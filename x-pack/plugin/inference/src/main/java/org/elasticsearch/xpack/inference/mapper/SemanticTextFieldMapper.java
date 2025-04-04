@@ -53,6 +53,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -179,11 +180,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             Objects::toString
         ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
 
-        private final Parameter<DenseVectorFieldMapper.IndexOptions> indexOptions = new Parameter<>(
+        private final Parameter<IndexOptions> indexOptions = new Parameter<>(
             INDEX_OPTIONS_FIELD,
             true,
             () -> null,
-            (n, c, o) -> DenseVectorFieldMapper.parseIndexOptions(n, o, c.indexVersionCreated()),
+            (n, c, o) -> SemanticTextField.parseIndexOptionsFromMap(n, o, c.indexVersionCreated()),
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
             XContentBuilder::field,
             Objects::toString
@@ -216,19 +217,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 indexSettings
             );
         }
-        //
-        // private void validateInference(
-        // @Nullable MinimalServiceSettings minimalServiceSettings,
-        // @Nullable DenseVectorFieldMapper.IndexOptions indexOptions
-        // ) {
-        // if (minimalServiceSettings != null && indexOptions != null) {
-        // if (minimalServiceSettings.taskType() == SPARSE_EMBEDDING) {
-        // throw new IllegalArgumentException(
-        // "[" + INDEX_OPTIONS_FIELD + "] not supported for [" + SPARSE_EMBEDDING + "] task type"
-        // );
-        // }
-        // }
-        // }
 
         public Builder setInferenceId(String id) {
             this.inferenceId.setValue(id);
@@ -577,7 +565,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final String inferenceId;
         private final String searchInferenceId;
         private final MinimalServiceSettings modelSettings;
-        private final DenseVectorFieldMapper.IndexOptions indexOptions;
+        private final IndexOptions indexOptions;
         private final ObjectMapper inferenceField;
         private final boolean useLegacyFormat;
 
@@ -586,7 +574,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             String inferenceId,
             String searchInferenceId,
             MinimalServiceSettings modelSettings,
-            DenseVectorFieldMapper.IndexOptions indexOptions,
+            IndexOptions indexOptions,
             ObjectMapper inferenceField,
             boolean useLegacyFormat,
             Map<String, String> meta
@@ -631,7 +619,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return modelSettings;
         }
 
-        public DenseVectorFieldMapper.IndexOptions getIndexOptions() {
+        public IndexOptions getIndexOptions() {
             return indexOptions;
         }
 
@@ -949,7 +937,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         boolean useLegacyFormat,
         @Nullable MinimalServiceSettings modelSettings,
-        @Nullable DenseVectorFieldMapper.IndexOptions indexOptions,
+        @Nullable IndexOptions indexOptions,
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings
     ) {
@@ -962,7 +950,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         boolean useLegacyFormat,
         @Nullable MinimalServiceSettings modelSettings,
-        @Nullable DenseVectorFieldMapper.IndexOptions indexOptions,
+        @Nullable IndexOptions indexOptions,
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings
     ) {
@@ -988,7 +976,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static Mapper.Builder createEmbeddingsField(
         IndexVersion indexVersionCreated,
         MinimalServiceSettings modelSettings,
-        DenseVectorFieldMapper.IndexOptions indexOptions,
+        IndexOptions indexOptions,
         boolean useLegacyFormat
     ) {
         return switch (modelSettings.taskType()) {
@@ -1013,7 +1001,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
                 if (indexOptions != null) {
-                    denseVectorMapperBuilder.indexOptions(indexOptions);
+                    DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
+                        (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions;
+                    denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
                 }
 
                 yield denseVectorMapperBuilder;
@@ -1033,14 +1023,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return false;
     }
 
-    private static boolean canMergeIndexOptions(
-        DenseVectorFieldMapper.IndexOptions previous,
-        DenseVectorFieldMapper.IndexOptions current,
-        Conflicts conflicts
-    ) {
+    private static boolean canMergeIndexOptions(IndexOptions previous, IndexOptions current, Conflicts conflicts) {
         if (Objects.equals(previous, current) || previous == null || current == null) {
             return true;
         }
+
+        // TODO allow updates if they're allowed by dense vector mapper
 
         conflicts.addConflict(INDEX_OPTIONS_FIELD, "Incompatible index options");
         return false;

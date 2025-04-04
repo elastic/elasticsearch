@@ -14,8 +14,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
 import org.elasticsearch.index.codec.XPerFieldDocValuesFormat;
 
-import java.io.IOException;
-
 /**
  * Contains logic to determine whether optimized merge can occur.
  */
@@ -25,8 +23,7 @@ class DocValuesConsumerUtil {
 
     record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField) {}
 
-    static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo fieldInfo)
-        throws IOException {
+    static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo fieldInfo) {
         if (optimizedMergeEnabled == false || mergeState.needsIndexSort == false) {
             return UNSUPPORTED;
         }

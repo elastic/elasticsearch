@@ -6,7 +6,7 @@ mapped_pages:
 
 # LOOKUP JOIN [esql-lookup-join-reference]
 
-The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) processing command combines data from your {esql} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
+The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
 Teams often have data scattered across multiple indices – like logs, IPs, user IDs, hosts, employees etc. Without a direct way to enrich or correlate each event with reference data, root-cause analysis, security checks, and operational insights become time-consuming.
 
@@ -108,7 +108,7 @@ FROM employees
 To use `LOOKUP JOIN`, the following requirements must be met:
 
 * **Compatible data types**: The join key and join field in the lookup index must have compatible data types. This means:
-  * The data types must either be identical or be internally represented as the same type in {esql}
+  * The data types must either be identical or be internally represented as the same type in {{esql}}
   * Numeric types follow these compatibility rules:
     * `short` and `byte` are compatible with `integer` (all represented as `int`)
     * `float`, `half_float`, and `scaled_float` are compatible with `double` (all represented as `double`)

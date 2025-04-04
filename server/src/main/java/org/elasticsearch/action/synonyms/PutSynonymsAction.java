@@ -129,7 +129,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return timeout == request.timeout
+            return Objects.equals(timeout, request.timeout)
                 && Objects.equals(synonymsSetId, request.synonymsSetId)
                 && Arrays.equals(synonymRules, request.synonymRules);
         }

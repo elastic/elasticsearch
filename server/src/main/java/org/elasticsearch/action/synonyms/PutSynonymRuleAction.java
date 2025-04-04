@@ -129,12 +129,12 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
 
         @Override
         public boolean equals(Object o) {
-            if (o instanceof Request request) {
-                return timeout == request.timeout
-                    && Objects.equals(synonymsSetId, request.synonymsSetId)
-                    && Objects.equals(synonymRule, request.synonymRule);
-            }
-            return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(timeout, request.timeout)
+                && Objects.equals(synonymsSetId, request.synonymsSetId)
+                && Objects.equals(synonymRule, request.synonymRule);
         }
 
         @Override

@@ -436,6 +436,57 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         }
     }
 
+    public void testRecoverHollowShardsAsIndexShardsWithDisabledHollowing() throws Exception {
+        startMasterOnlyNode();
+        var indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .build();
+        String indexNodeA = startIndexNode(indexNodeSettings);
+
+        var indexName = randomIdentifier();
+        int numberOfShards = randomIntBetween(1, 5);
+        createIndex(indexName, indexSettings(numberOfShards, 0).build());
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        indexDocs(indexName, randomIntBetween(16, 64));
+        flush(indexName);
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+            assertFalse(indexEngine.isLastCommitHollow());
+        }
+
+        String indexNodeB = startIndexNode(indexNodeSettings);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        ensureGreen(indexName);
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+        }
+        assertThat(
+            getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, getTelemetryPlugin(indexNodeB)),
+            equalTo((long) numberOfShards)
+        );
+
+        // If we restart the node with the hollow shard feature flag disabled, shards should be initialized with an index engine
+        internalCluster().stopNode(indexNodeB);
+        ensureStableCluster(2);
+        String indexNodeC = startIndexNode(
+            Settings.builder().put(indexNodeSettings).put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build()
+        );
+        ensureGreen(indexName);
+        var hollowShardsServiceC = internalCluster().getInstance(HollowShardsService.class, indexNodeC);
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+            hollowShardsServiceC.ensureHollowShard(indexShard.shardId(), false);
+        }
+        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, getTelemetryPlugin(indexNodeC)), equalTo(0L));
+    }
+
     public void testRelocateHollowableShards() throws Exception {
         startMasterOnlyNode();
         final var indexNodeSettings = Settings.builder().put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1)).build();

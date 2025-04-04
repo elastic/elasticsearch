@@ -16,6 +16,5 @@ dependencies {
 }
 
 tasks.named("test").configure {
-  // TODO NOMERGE should be AWS_REGION environment variable but env 'AWS_REGION', 'es-test-region' doesn't work:
-  systemProperty 'aws.region', 'es-test-region'
+  environment 'AWS_REGION', 'es-test-region'
 }

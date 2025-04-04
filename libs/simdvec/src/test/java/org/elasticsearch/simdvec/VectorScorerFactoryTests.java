@@ -50,6 +50,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
+    private static final float DELTA = 1e-5f;
+
     // bounds of the range of values that can be seen by int7 scalar quantized vectors
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;
@@ -278,7 +280,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
                         var expected = luceneScore(sim, qVectors[idx0], qVectors[idx1], correction, corrections[idx0], corrections[idx1]);
                         var scorer = factory.getInt7SQVectorScorer(VectorSimilarityType.of(sim), values, vectors[idx0]).get();
-                        assertThat(scorer.score(idx1), equalTo(expected));
+                        assertEquals(scorer.score(idx1), expected, DELTA);
                     }
                 }
             }

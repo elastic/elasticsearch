@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -344,11 +345,12 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     private Map<String, Object> getOptions() throws InvalidArgumentException {
+        Map<String, Object> options = new HashMap<>();
+        options.put(MatchQueryBuilder.LENIENT_FIELD.getPreferredName(), true);
         if (options() == null) {
-            return null;
+            return options;
         }
 
-        Map<String, Object> matchOptions = new HashMap<>();
         for (EntryExpression entry : ((MapExpression) options()).entryExpressions()) {
             Expression optionExpr = entry.key();
             Expression valueExpr = entry.value();
@@ -366,7 +368,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
                 );
             }
             try {
-                matchOptions.put(optionName, DataTypeConverter.convert(optionValue, dataType));
+                options.put(optionName, DataTypeConverter.convert(optionValue, dataType));
             } catch (InvalidArgumentException e) {
                 throw new InvalidArgumentException(
                     format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText(), e.getMessage())
@@ -374,7 +376,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             }
         }
 
-        return matchOptions;
+        return options;
     }
 
     @Override

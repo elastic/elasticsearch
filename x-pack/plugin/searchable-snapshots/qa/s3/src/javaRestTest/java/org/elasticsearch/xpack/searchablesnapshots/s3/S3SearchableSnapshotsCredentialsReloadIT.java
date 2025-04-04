@@ -27,7 +27,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -75,11 +74,6 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @Before
-    public void skipFips() {
-        assumeFalse("getting these tests to run in a FIPS JVM is kinda fiddly and we don't really need the extra coverage", inFipsJvm());
-    }
-
     public void testReloadCredentialsFromKeystore() throws IOException {
         final TestHarness testHarness = new TestHarness();
         testHarness.putRepository();
@@ -88,9 +82,9 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         final String accessKey1 = randomIdentifier();
         repositoryAccessKey = accessKey1;
         keystoreSettings.put("s3.client.default.access_key", accessKey1);
-        keystoreSettings.put("s3.client.default.secret_key", randomIdentifier());
+        keystoreSettings.put("s3.client.default.secret_key", randomSecretKey());
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         testHarness.createFrozenSearchableSnapshotIndex();
 
@@ -110,7 +104,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         logger.info("--> update keystore contents");
         keystoreSettings.put("s3.client.default.access_key", accessKey2);
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         // Check access using refreshed credentials
         logger.info("--> expect success");
@@ -128,11 +122,11 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
         repositoryAccessKey = accessKey1;
         keystoreSettings.put("s3.client.default.access_key", accessKey1);
-        keystoreSettings.put("s3.client.default.secret_key", randomIdentifier());
+        keystoreSettings.put("s3.client.default.secret_key", randomSecretKey());
         keystoreSettings.put("s3.client." + alternativeClient + ".access_key", accessKey2);
-        keystoreSettings.put("s3.client." + alternativeClient + ".secret_key", randomIdentifier());
+        keystoreSettings.put("s3.client." + alternativeClient + ".secret_key", randomSecretKey());
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         testHarness.createFrozenSearchableSnapshotIndex();
 
@@ -164,7 +158,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         final String accessKey1 = randomIdentifier();
         final String accessKey2 = randomValueOtherThan(accessKey1, ESTestCase::randomIdentifier);
 
-        testHarness.putRepository(b -> b.put("access_key", accessKey1).put("secret_key", randomIdentifier()));
+        testHarness.putRepository(b -> b.put("access_key", accessKey1).put("secret_key", randomSecretKey()));
         repositoryAccessKey = accessKey1;
 
         testHarness.createFrozenSearchableSnapshotIndex();
@@ -182,7 +176,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
         // Adjust repository to use new client
         logger.info("--> update repository metadata");
-        testHarness.putRepository(b -> b.put("access_key", accessKey2).put("secret_key", randomIdentifier()));
+        testHarness.putRepository(b -> b.put("access_key", accessKey2).put("secret_key", randomSecretKey()));
 
         // Check access using refreshed credentials
         logger.info("--> expect success");

@@ -81,6 +81,7 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
         }
         metadataDataStreamsService.setDataStreamOptions(
+            state.projectId(),
             dataStreamNames,
             request.getOptions(),
             request.ackTimeout(),

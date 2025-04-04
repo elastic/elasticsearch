@@ -147,6 +147,13 @@ setup:
           { "index": {} }
           { "product": "Laptop", "cost": 500}
 
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model_alias:
+        model_id: "ltr-model"
+        model_alias: "ltr-model-alias"
+
 ---
 "Test rescore with stored model":
   - do:
@@ -263,12 +270,6 @@ setup:
 "Test rescore using model alias":
   - skip:
       features: headers
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      ml.put_trained_model_alias:
-        model_id: "ltr-model"
-        model_alias: "ltr-model-alias"
   - do:
       search:
         index: store

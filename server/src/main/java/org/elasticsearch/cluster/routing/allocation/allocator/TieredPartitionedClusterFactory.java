@@ -128,6 +128,7 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
 
             private final BalancedShardsAllocator.NodeSorter searchNodeSorter;
             private final BalancedShardsAllocator.NodeSorter indexingNodeSorter;
+            private final List<BalancedShardsAllocator.NodeSorter> allNodeSorters;
 
             TieredPartitionedNodeSorter(BalancedShardsAllocator.ModelNode[] allNodes, BalancedShardsAllocator.Balancer balancer) {
                 final BalancedShardsAllocator.ModelNode[] searchNodes = Arrays.stream(allNodes)
@@ -139,11 +140,17 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
                 assert nodePartitionsAreDisjointAndUnionToAll(allNodes, searchNodes, indexingNodes);
                 searchNodeSorter = new BalancedShardsAllocator.NodeSorter(searchNodes, searchWeightFunction, balancer);
                 indexingNodeSorter = new BalancedShardsAllocator.NodeSorter(indexingNodes, indexingWeightFunction, balancer);
+                // sometimes (probably just in tests) we only have indexing nodes
+                if (searchNodes.length == 0) {
+                    allNodeSorters = List.of(indexingNodeSorter);
+                } else {
+                    allNodeSorters = List.of(indexingNodeSorter, searchNodeSorter);
+                }
             }
 
             @Override
             public Collection<BalancedShardsAllocator.NodeSorter> allNodeSorters() {
-                return List.of(searchNodeSorter, indexingNodeSorter);
+                return allNodeSorters;
             }
 
             @Override

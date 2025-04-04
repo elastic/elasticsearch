@@ -834,10 +834,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         long modelMemoryLimitBytes = ByteSizeValue.ofMb(randomIntBetween(10, 1000)).getBytes();
         long peakModelBytes = randomLongBetween(100000, modelMemoryLimitBytes - 1);
         long modelBytes = randomLongBetween(1, peakModelBytes - 1);
+        long actualMemoryUsageBytes = randomLongBetween(262144, peakModelBytes - 1);
         AssignmentMemoryBasis assignmentMemoryBasis = randomFrom(AssignmentMemoryBasis.values());
         modelSizeStats = new ModelSizeStats.Builder("foo").setModelBytesMemoryLimit(modelMemoryLimitBytes)
             .setPeakModelBytes(peakModelBytes)
             .setModelBytes(modelBytes)
+            .setActualMemoryUsageBytes(actualMemoryUsageBytes)
             .setAssignmentMemoryBasis(assignmentMemoryBasis)
             .build();
         when(autodetectCommunicator.getModelSizeStats()).thenReturn(modelSizeStats);
@@ -850,6 +852,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             case MODEL_MEMORY_LIMIT -> modelMemoryLimitBytes;
             case CURRENT_MODEL_BYTES -> modelBytes;
             case PEAK_MODEL_BYTES -> peakModelBytes;
+            case ACTUAL_MEMORY_USAGE_BYTES -> actualMemoryUsageBytes;
         };
         assertThat(manager.getOpenProcessMemoryUsage(), equalTo(ByteSizeValue.ofBytes(expectedSizeBytes)));
     }

@@ -213,6 +213,7 @@ public class TransportVersions {
     public static final TransportVersion REMOTE_EXCEPTION = def(9_044_0_00);
     public static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = def(9_045_0_00);
     public static final TransportVersion ADD_PROJECT_ID_TO_DSL_ERROR_INFO = def(9_046_0_00);
+    public static final TransportVersion ML_AD_ACTUAL_MEMORY_USAGE = def(9_047_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

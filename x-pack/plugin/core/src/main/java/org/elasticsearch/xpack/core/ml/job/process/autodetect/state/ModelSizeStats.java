@@ -41,6 +41,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
      */
     public static final ParseField MODEL_BYTES_FIELD = new ParseField("model_bytes");
     public static final ParseField PEAK_MODEL_BYTES_FIELD = new ParseField("peak_model_bytes");
+    public static final ParseField ACTUAL_MEMORY_USAGE_BYTES = new ParseField("actual_memory_usage_bytes");
     public static final ParseField MODEL_BYTES_EXCEEDED_FIELD = new ParseField("model_bytes_exceeded");
     public static final ParseField MODEL_BYTES_MEMORY_LIMIT_FIELD = new ParseField("model_bytes_memory_limit");
     public static final ParseField TOTAL_BY_FIELD_COUNT_FIELD = new ParseField("total_by_field_count");
@@ -74,6 +75,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         parser.declareString((modelSizeStat, s) -> {}, Result.RESULT_TYPE);
         parser.declareLong(Builder::setModelBytes, MODEL_BYTES_FIELD);
         parser.declareLong(Builder::setPeakModelBytes, PEAK_MODEL_BYTES_FIELD);
+        parser.declareLong(Builder::setActualMemoryUsageBytes, ACTUAL_MEMORY_USAGE_BYTES);
         parser.declareLong(Builder::setModelBytesExceeded, MODEL_BYTES_EXCEEDED_FIELD);
         parser.declareLong(Builder::setModelBytesMemoryLimit, MODEL_BYTES_MEMORY_LIMIT_FIELD);
         parser.declareLong(Builder::setBucketAllocationFailuresCount, BUCKET_ALLOCATION_FAILURES_COUNT_FIELD);
@@ -152,6 +154,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
      * 1. The job's model_memory_limit
      * 2. The current model memory, i.e. what's reported in model_bytes of this object
      * 3. The peak model memory, i.e. what's reported in peak_model_bytes of this object
+     * 4. The actual memory usage, i.e. what's reported in actual_memory_usage_bytes of this object
      * The field storing this enum can also be <code>null</code>, which means the
      * assignment code will decide on the fly - this was the old behaviour prior
      * to 7.11.
@@ -159,7 +162,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public enum AssignmentMemoryBasis implements Writeable {
         MODEL_MEMORY_LIMIT,
         CURRENT_MODEL_BYTES,
-        PEAK_MODEL_BYTES;
+        PEAK_MODEL_BYTES,
+        ACTUAL_MEMORY_USAGE_BYTES;
 
         public static AssignmentMemoryBasis fromString(String statusName) {
             return valueOf(statusName.trim().toUpperCase(Locale.ROOT));
@@ -183,6 +187,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     private final String jobId;
     private final long modelBytes;
     private final Long peakModelBytes;
+    private final Long actualMemoryUsageBytes;
     private final Long modelBytesExceeded;
     private final Long modelBytesMemoryLimit;
     private final long totalByFieldCount;
@@ -206,6 +211,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         String jobId,
         long modelBytes,
         Long peakModelBytes,
+        Long actualMemoryUsageBytes,
         Long modelBytesExceeded,
         Long modelBytesMemoryLimit,
         long totalByFieldCount,
@@ -228,6 +234,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         this.jobId = jobId;
         this.modelBytes = modelBytes;
         this.peakModelBytes = peakModelBytes;
+        this.actualMemoryUsageBytes = actualMemoryUsageBytes;
         this.modelBytesExceeded = modelBytesExceeded;
         this.modelBytesMemoryLimit = modelBytesMemoryLimit;
         this.totalByFieldCount = totalByFieldCount;
@@ -252,6 +259,11 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         jobId = in.readString();
         modelBytes = in.readVLong();
         peakModelBytes = in.readOptionalLong();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_AD_ACTUAL_MEMORY_USAGE)) {
+            actualMemoryUsageBytes = in.readOptionalLong();
+        } else {
+            actualMemoryUsageBytes = null;
+        }
         modelBytesExceeded = in.readOptionalLong();
         modelBytesMemoryLimit = in.readOptionalLong();
         totalByFieldCount = in.readVLong();
@@ -293,6 +305,9 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         out.writeString(jobId);
         out.writeVLong(modelBytes);
         out.writeOptionalLong(peakModelBytes);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_AD_ACTUAL_MEMORY_USAGE)) {
+            out.writeOptionalLong(actualMemoryUsageBytes);
+        }
         out.writeOptionalLong(modelBytesExceeded);
         out.writeOptionalLong(modelBytesMemoryLimit);
         out.writeVLong(totalByFieldCount);
@@ -338,6 +353,9 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         builder.field(MODEL_BYTES_FIELD.getPreferredName(), modelBytes);
         if (peakModelBytes != null) {
             builder.field(PEAK_MODEL_BYTES_FIELD.getPreferredName(), peakModelBytes);
+        }
+        if (actualMemoryUsageBytes != null) {
+            builder.field(ACTUAL_MEMORY_USAGE_BYTES.getPreferredName(), actualMemoryUsageBytes);
         }
         if (modelBytesExceeded != null) {
             builder.field(MODEL_BYTES_EXCEEDED_FIELD.getPreferredName(), modelBytesExceeded);
@@ -389,6 +407,10 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
     public Long getPeakModelBytes() {
         return peakModelBytes;
+    }
+
+    public Long getActualMemoryUsageBytes() {
+        return actualMemoryUsageBytes;
     }
 
     public Long getModelBytesExceeded() {
@@ -479,6 +501,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             jobId,
             modelBytes,
             peakModelBytes,
+            actualMemoryUsageBytes,
             modelBytesExceeded,
             modelBytesMemoryLimit,
             totalByFieldCount,
@@ -517,6 +540,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
         return this.modelBytes == that.modelBytes
             && Objects.equals(this.peakModelBytes, that.peakModelBytes)
+            && this.actualMemoryUsageBytes == that.actualMemoryUsageBytes
             && Objects.equals(this.modelBytesExceeded, that.modelBytesExceeded)
             && Objects.equals(this.modelBytesMemoryLimit, that.modelBytesMemoryLimit)
             && this.totalByFieldCount == that.totalByFieldCount
@@ -543,6 +567,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         private final String jobId;
         private long modelBytes;
         private Long peakModelBytes;
+        private Long actualMemoryUsageBytes;
         private Long modelBytesExceeded;
         private Long modelBytesMemoryLimit;
         private long totalByFieldCount;
@@ -573,6 +598,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             this.jobId = modelSizeStats.jobId;
             this.modelBytes = modelSizeStats.modelBytes;
             this.peakModelBytes = modelSizeStats.peakModelBytes;
+            this.actualMemoryUsageBytes = modelSizeStats.actualMemoryUsageBytes;
             this.modelBytesExceeded = modelSizeStats.modelBytesExceeded;
             this.modelBytesMemoryLimit = modelSizeStats.modelBytesMemoryLimit;
             this.totalByFieldCount = modelSizeStats.totalByFieldCount;
@@ -600,6 +626,12 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
         public Builder setPeakModelBytes(long peakModelBytes) {
             this.peakModelBytes = peakModelBytes;
+            return this;
+        }
+
+        public Builder setActualMemoryUsageBytes(long actualMemoryUsageBytes)
+        {
+            this.actualMemoryUsageBytes = actualMemoryUsageBytes;
             return this;
         }
 
@@ -700,6 +732,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
                 jobId,
                 modelBytes,
                 peakModelBytes,
+                actualMemoryUsageBytes,
                 modelBytesExceeded,
                 modelBytesMemoryLimit,
                 totalByFieldCount,

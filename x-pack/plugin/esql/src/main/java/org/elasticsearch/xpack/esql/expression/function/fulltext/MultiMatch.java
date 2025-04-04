@@ -255,7 +255,9 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
                     name = "type",
                     type = "object",
                     valueHint = { "'best_fields'" },
-                    description = "Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>."
+                    description = "Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, "
+                        + "`cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. "
+                        + "See <<multi-match-types,multi_match types>>."
                 ), },
             description = "(Optional) Additional options for MultiMatch, "
                 + "passed as <<esql-function-named-params,function named parameters>>.\"\n"

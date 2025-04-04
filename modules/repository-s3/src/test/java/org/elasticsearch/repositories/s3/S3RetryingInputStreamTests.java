@@ -16,8 +16,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.Streams;

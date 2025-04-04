@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING;
@@ -130,11 +131,12 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
 
             TieredPartitionedNodeSorter(BalancedShardsAllocator.ModelNode[] allNodes, BalancedShardsAllocator.Balancer balancer) {
                 final BalancedShardsAllocator.ModelNode[] searchNodes = Arrays.stream(allNodes)
-                    .filter(n -> n.getRoutingNode().node().hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()))
+                    .filter(n -> n.getRoutingNode().node().getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE))
                     .toArray(BalancedShardsAllocator.ModelNode[]::new);
                 final BalancedShardsAllocator.ModelNode[] indexingNodes = Arrays.stream(allNodes)
-                    .filter(n -> n.getRoutingNode().node().hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()))
+                    .filter(n -> n.getRoutingNode().node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
                     .toArray(BalancedShardsAllocator.ModelNode[]::new);
+                assert nodePartitionsAreDisjointAndUnionToAll(allNodes, searchNodes, indexingNodes);
                 searchNodeSorter = new BalancedShardsAllocator.NodeSorter(searchNodes, searchWeightFunction, balancer);
                 indexingNodeSorter = new BalancedShardsAllocator.NodeSorter(indexingNodes, indexingWeightFunction, balancer);
             }
@@ -154,6 +156,18 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
                     throw new IllegalArgumentException("Unsupported shard role [" + shard.role() + "]");
                 }
             }
+        }
+
+        private static boolean nodePartitionsAreDisjointAndUnionToAll(
+            BalancedShardsAllocator.ModelNode[] allNodes,
+            BalancedShardsAllocator.ModelNode[] searchNodes,
+            BalancedShardsAllocator.ModelNode[] indexingNodes
+        ) {
+            return allNodes.length == searchNodes.length + indexingNodes.length
+                && Stream.concat(Arrays.stream(searchNodes), Arrays.stream(indexingNodes))
+                    .map(BalancedShardsAllocator.ModelNode::getNodeId)
+                    .distinct()
+                    .count() == allNodes.length;
         }
     }
 }

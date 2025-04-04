@@ -24,7 +24,6 @@ setup:
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:
@@ -79,7 +78,6 @@ setup:
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:
@@ -186,7 +184,6 @@ setup:
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:
@@ -232,7 +229,6 @@ setup:
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:
@@ -326,7 +322,6 @@ setup:
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:
@@ -378,7 +373,6 @@ setup:
         index: .synonyms
         wait_for_status: green
 
-
   - do:
       indices.stats: { index: test_index }
 
@@ -406,7 +400,6 @@ setup:
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:

@@ -357,6 +357,7 @@ public final class DataStreamTestHelper {
             dataStreamName,
             generation,
             metadata,
+            null,
             randomBoolean(),
             replicated,
             false, // Some tests don't work well with system data streams, since these data streams require special handling

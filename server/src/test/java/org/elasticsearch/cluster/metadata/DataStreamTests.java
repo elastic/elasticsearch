@@ -178,6 +178,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             name,
             generation,
             metadata,
+            null,
             isHidden,
             isReplicated,
             isSystem,

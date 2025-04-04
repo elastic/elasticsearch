@@ -27,8 +27,10 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -45,6 +47,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -65,6 +68,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
@@ -114,6 +118,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final long generation;
     @Nullable
     private final Map<String, Object> metadata;
+    @Nullable
+    private final ComposableIndexTemplate indexTemplateOverrides;
     private final boolean hidden;
     private final boolean replicated;
     private final boolean system;
@@ -133,6 +139,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> indices,
         long generation,
         Map<String, Object> metadata,
+        @Nullable ComposableIndexTemplate indexTemplateOverrides,
         boolean hidden,
         boolean replicated,
         boolean system,
@@ -148,6 +155,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             name,
             generation,
             metadata,
+            null,
             hidden,
             replicated,
             system,
@@ -165,6 +173,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         String name,
         long generation,
         Map<String, Object> metadata,
+        @Nullable ComposableIndexTemplate indexTemplateOverrides,
         boolean hidden,
         boolean replicated,
         boolean system,
@@ -179,6 +188,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.name = name;
         this.generation = generation;
         this.metadata = metadata;
+        this.indexTemplateOverrides = indexTemplateOverrides;
         assert system == false || hidden; // system indices must be hidden
         this.hidden = hidden;
         this.replicated = replicated;
@@ -231,10 +241,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
             dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : null;
         }
+        final ComposableIndexTemplate indexTemplateOverrides;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TEMPLATES_IN_DATA_STREAMS)) {
+            indexTemplateOverrides = in.readOptionalWriteable(ComposableIndexTemplate::new);
+        } else {
+            indexTemplateOverrides = null;
+        }
         return new DataStream(
             name,
             generation,
             metadata,
+            indexTemplateOverrides,
             hidden,
             replicated,
             system,
@@ -323,6 +340,106 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public boolean rolloverOnWrite() {
         return backingIndices.rolloverOnWrite;
+    }
+
+    public ComposableIndexTemplate getIndexTemplateOverrides() {
+        return indexTemplateOverrides;
+    }
+
+    public ComposableIndexTemplate getEffectiveIndexTemplate(ProjectMetadata projectMetadata) {
+        return mergeTemplates(getMatchingIndexTemplate(projectMetadata), indexTemplateOverrides);
+    }
+
+    private ComposableIndexTemplate getMatchingIndexTemplate(ProjectMetadata projectMetadata) {
+        return lookupTemplateForDataStream(name, projectMetadata, false);
+    }
+
+    public static ComposableIndexTemplate mergeTemplates(
+        ComposableIndexTemplate originalTemplate,
+        ComposableIndexTemplate templateOverrides
+    ) {
+        if (originalTemplate == null) {
+            return templateOverrides;
+        }
+        if (templateOverrides == null) {
+            return originalTemplate;
+        }
+        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = originalTemplate.toBuilder();
+        Template.Builder mergedTemplateBuilder;
+        if (originalTemplate.template() == null) {
+            if (templateOverrides.template() == null) {
+                return originalTemplate; // no merging can be done
+            }
+            mergedTemplateBuilder = Template.builder(templateOverrides.template());
+        } else {
+            mergedTemplateBuilder = Template.builder(originalTemplate.template());
+        }
+        if (originalTemplate.template() != null && templateOverrides.template() != null) {
+            CompressedXContent originalMappings = originalTemplate.template().mappings();
+            CompressedXContent overriddenMappings = templateOverrides.template().mappings();
+            CompressedXContent mergedMappings = null;
+            try {
+                mergedMappings = mergeMappings(originalMappings, overriddenMappings);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            mergedTemplateBuilder.mappings(mergedMappings);
+
+            Settings originalSettings = originalTemplate.template().settings();
+            Settings overriddenSettings = templateOverrides.template().settings();
+            Settings.Builder settingsBuilder = Settings.builder().put(originalSettings).put(overriddenSettings);
+            for (String settingName : settingsBuilder.keys()) {
+                if (settingsBuilder.get(settingName) == null) {
+                    settingsBuilder.remove(settingName);
+                }
+            }
+            mergedTemplateBuilder.settings(settingsBuilder);
+            mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
+        }
+        return mergedIndexTemplateBuilder.build();
+    }
+
+    private static CompressedXContent mergeMappings(@Nullable CompressedXContent originalMapping, CompressedXContent mappingAddition)
+        throws IOException {
+        if (mappingAddition == null) {
+            return originalMapping;
+        }
+        if (originalMapping == null) {
+            return mappingAddition;
+        }
+        Map<String, Object> combinedMappingMap = new HashMap<>();
+        combinedMappingMap.putAll(XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON).v2());
+        XContentHelper.update(
+            combinedMappingMap,
+            XContentHelper.convertToMap(mappingAddition.uncompressed(), true, XContentType.JSON).v2(),
+            true
+        );
+        if (combinedMappingMap.isEmpty()) {
+            return null;
+        } else {
+            return convertMappingMapToXContent(combinedMappingMap);
+        }
+    }
+
+    private static CompressedXContent convertMappingMapToXContent(Map<String, Object> rawAdditionalMapping) throws IOException {
+        CompressedXContent compressedXContent;
+        if (rawAdditionalMapping == null || rawAdditionalMapping.isEmpty()) {
+            compressedXContent = null;
+        } else {
+            try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawAdditionalMapping)) {
+                compressedXContent = mappingFromXContent(parser);
+            }
+        }
+        return compressedXContent;
+    }
+
+    private static CompressedXContent mappingFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + token);
+        }
     }
 
     /**
@@ -1258,6 +1375,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TEMPLATES_IN_DATA_STREAMS)) {
+            out.writeOptionalWriteable(indexTemplateOverrides);
+        }
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -1278,6 +1398,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField FAILURE_ROLLOVER_ON_WRITE_FIELD = new ParseField("failure_rollover_on_write");
     public static final ParseField FAILURE_AUTO_SHARDING_FIELD = new ParseField("failure_auto_sharding");
     public static final ParseField DATA_STREAM_OPTIONS_FIELD = new ParseField("options");
+    public static final ParseField INDEX_TEMPLATE_OVERRIDES_FIELD = new ParseField("index_template_overrides");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
@@ -1302,10 +1423,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 dataStreamOptions = DataStreamOptions.FAILURE_STORE_ENABLED;
             }
         }
+        ComposableIndexTemplate indexTemplateOverrides;
+        if (args[17] != null) {
+            indexTemplateOverrides = (ComposableIndexTemplate) args[17];
+        } else {
+            indexTemplateOverrides = null;
+        }
         return new DataStream(
             (String) args[0],
             (Long) args[2],
             (Map<String, Object>) args[3],
+            indexTemplateOverrides,
             args[4] != null && (boolean) args[4],
             args[5] != null && (boolean) args[5],
             args[6] != null && (boolean) args[6],
@@ -1370,6 +1498,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 DATA_STREAM_OPTIONS_FIELD
             );
         }
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ComposableIndexTemplate.parse(p),
+            INDEX_TEMPLATE_OVERRIDES_FIELD
+        );
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -1418,6 +1551,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             if (dataStreamOptions.isEmpty() == false) {
                 builder.field(DATA_STREAM_OPTIONS_FIELD.getPreferredName());
                 dataStreamOptions.toXContent(builder, params);
+            }
+            if (indexTemplateOverrides != null) {
+                builder.field(INDEX_TEMPLATE_OVERRIDES_FIELD.getPreferredName());
+                indexTemplateOverrides.toXContent(builder, params);
             }
         }
         if (indexMode != null) {
@@ -1774,6 +1911,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private long generation = 1;
         @Nullable
         private Map<String, Object> metadata = null;
+        private ComposableIndexTemplate indexTemplateOverrides = null;
         private boolean hidden = false;
         private boolean replicated = false;
         private boolean system = false;
@@ -1801,6 +1939,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             name = dataStream.name;
             generation = dataStream.generation;
             metadata = dataStream.metadata;
+            indexTemplateOverrides = dataStream.indexTemplateOverrides;
             hidden = dataStream.hidden;
             replicated = dataStream.replicated;
             system = dataStream.system;
@@ -1829,6 +1968,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         public Builder setMetadata(Map<String, Object> metadata) {
             this.metadata = metadata;
+            return this;
+        }
+
+        public Builder setIndexTemplateOverrides(ComposableIndexTemplate indexTemplateOverrides) {
+            this.indexTemplateOverrides = indexTemplateOverrides;
             return this;
         }
 
@@ -1892,6 +2036,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 name,
                 generation,
                 metadata,
+                indexTemplateOverrides,
                 hidden,
                 replicated,
                 system,

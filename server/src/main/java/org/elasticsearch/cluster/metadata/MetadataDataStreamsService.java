@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -40,6 +42,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -493,6 +496,53 @@ public class MetadataDataStreamsService {
             }
         });
         return MetadataDeleteIndexService.deleteIndices(newState.projectState(projectState.projectId()), backingIndicesToRemove, settings);
+    }
+
+    public void updateSettings(
+        ProjectResolver projectResolver,
+        final UpdateSettingsRequest request,
+        List<String> dataStreamNames,
+        Settings updatedSettings,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        if (dataStreamNames.isEmpty()) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+        clusterService.submitUnbatchedStateUpdateTask(
+            "updating settings on data streams [" + String.join(", ", dataStreamNames) + "]",
+            new AckedClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout(), request.ackTimeout(), listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    ProjectMetadata projectMetadata = currentState.projectState(projectResolver.getProjectId()).metadata();
+                    ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+                    Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
+                    for (String dataStreamName : dataStreamNames) {
+                        DataStream dataStream = dataStreamMap.get(dataStreamName);
+                        Settings existingSettings = Settings.EMPTY;
+                        ComposableIndexTemplate existingIndexTemplateOverrides = dataStream.getIndexTemplateOverrides();
+                        if (existingIndexTemplateOverrides != null) {
+                            Template existingTemplate = dataStream.getIndexTemplateOverrides().template();
+                            if (existingTemplate != null) {
+                                Settings settings = existingTemplate.settings();
+                                if (settings != null) {
+                                    existingSettings = settings;
+                                }
+                            }
+                        }
+                        Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings).put(updatedSettings);
+                        // Currently, the only thing we support having in template overrides is settings:
+                        ComposableIndexTemplate indexTemplateOverrides = ComposableIndexTemplate.builder()
+                            .template(Template.builder().settings(mergedSettingsBuilder))
+                            .build();
+                        DataStream.Builder dataStreamBuilder = dataStream.copy().setIndexTemplateOverrides(indexTemplateOverrides);
+                        projectMetadataBuilder.removeDataStream(dataStreamName);
+                        projectMetadataBuilder.put(dataStreamBuilder.build());
+                    }
+                    return ClusterState.builder(currentState).putProjectMetadata(projectMetadataBuilder).build();
+                }
+            }
+        );
     }
 
     /**

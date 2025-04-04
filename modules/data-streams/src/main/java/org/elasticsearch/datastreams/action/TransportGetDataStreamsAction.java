@@ -257,18 +257,18 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 }
             } else {
+                ComposableIndexTemplate effectiveTemplate = dataStream.getEffectiveIndexTemplate(state.metadata());
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
-                if (indexTemplate != null) {
-                    Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
+                if (effectiveTemplate != null && effectiveTemplate.template() != null) {
+                    Settings settings;
+                    if (effectiveTemplate.template() != null && effectiveTemplate.template().settings() != null) {
+                        settings = effectiveTemplate.template().settings();
+                    } else {
+                        settings = Settings.EMPTY;
+                    }
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
-                    if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
-                        indexMode = resolveMode(
-                            state,
-                            indexSettingProviders,
-                            dataStream,
-                            settings,
-                            state.metadata().templatesV2().get(indexTemplate)
-                        );
+                    if (indexMode == null) {
+                        indexMode = resolveMode(state, indexSettingProviders, dataStream, settings, effectiveTemplate);
                     }
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 } else {

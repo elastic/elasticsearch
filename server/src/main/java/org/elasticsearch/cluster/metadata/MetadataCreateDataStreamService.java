@@ -333,6 +333,7 @@ public class MetadataCreateDataStreamService {
             dataStreamName,
             initialGeneration,
             template.metadata() != null ? Map.copyOf(template.metadata()) : null,
+            null,
             hidden,
             false,
             isSystem,
@@ -464,15 +465,31 @@ public class MetadataCreateDataStreamService {
     }
 
     public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, ProjectMetadata projectMetadata) {
+        return lookupTemplateForDataStream(dataStreamName, projectMetadata, true);
+    }
+
+    public static ComposableIndexTemplate lookupTemplateForDataStream(
+        String dataStreamName,
+        ProjectMetadata projectMetadata,
+        boolean throwExceptionIfMissing
+    ) {
         final String v2Template = MetadataIndexTemplateService.findV2Template(projectMetadata, dataStreamName, false);
         if (v2Template == null) {
-            throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
+            if (throwExceptionIfMissing) {
+                throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
+            } else {
+                return null;
+            }
         }
         ComposableIndexTemplate composableIndexTemplate = projectMetadata.templatesV2().get(v2Template);
         if (composableIndexTemplate.getDataStreamTemplate() == null) {
-            throw new IllegalArgumentException(
-                "matching index template [" + v2Template + "] for data stream [" + dataStreamName + "] has no data stream template"
-            );
+            if (throwExceptionIfMissing) {
+                throw new IllegalArgumentException(
+                    "matching index template [" + v2Template + "] for data stream [" + dataStreamName + "] has no data stream template"
+                );
+            } else {
+                return null;
+            }
         }
         return composableIndexTemplate;
     }

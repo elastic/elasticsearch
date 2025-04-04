@@ -356,25 +356,20 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         // Update a rule fails
         CountDownLatch updateLatch = new CountDownLatch(1);
-        synonymsManagementAPIService.putSynonymRule(
-            synonymSetId,
-            randomSynonymRule(randomIdentifier()),
-            timeout,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                    fail("Shouldn't have been able to update synonyms with a timeout in synonyms index health");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // Expected
-                    assertTrue(e instanceof IndexCreationException);
-                    assertTrue(e.getMessage().contains("synonyms index [.synonyms] is not searchable"));
-                    updateLatch.countDown();
-                }
+        synonymsManagementAPIService.putSynonymRule(synonymSetId, randomSynonymRule(randomIdentifier()), timeout, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                fail("Shouldn't have been able to update synonyms with a timeout in synonyms index health");
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                // Expected
+                assertTrue(e instanceof IndexCreationException);
+                assertTrue(e.getMessage().contains("synonyms index [.synonyms] is not searchable"));
+                updateLatch.countDown();
+            }
+        });
 
         updateLatch.await(5, TimeUnit.SECONDS);
 

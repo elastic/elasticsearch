@@ -32,8 +32,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -50,14 +48,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressForbidden(reason = "test requires to set a System property to allow insecure settings when running in IDE")
 public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
-
-    static {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            // required for client settings overwriting when running in IDE
-            System.setProperty("es.allow_insecure_settings", "true");
-            return null;
-        });
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

@@ -457,9 +457,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          */
         private long addFieldInferenceRequests(BulkItemRequest item, int itemIndex, Map<String, List<FieldInferenceRequest>> requestsMap) {
             boolean isUpdateRequest = false;
-            final IndexRequest indexRequest;
+            final IndexRequestWithIndexingPressure indexRequest;
             if (item.request() instanceof IndexRequest ir) {
-                indexRequest = ir;
+                indexRequest = new IndexRequestWithIndexingPressure(ir);
             } else if (item.request() instanceof UpdateRequest updateRequest) {
                 isUpdateRequest = true;
                 if (updateRequest.script() != null) {
@@ -473,15 +473,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     );
                     return 0;
                 }
-                indexRequest = updateRequest.doc();
+                indexRequest = new IndexRequestWithIndexingPressure(updateRequest.doc());
             } else {
                 // ignore delete request
                 return 0;
             }
 
-            final Map<String, Object> docMap = indexRequest.sourceAsMap();
+            final Map<String, Object> docMap = indexRequest.getIndexRequest().sourceAsMap();
             long inputLength = 0;
-            boolean indexingPressureIncremented = false;
             for (var entry : fieldInferenceMap.values()) {
                 String field = entry.getName();
                 String inferenceId = entry.getInferenceId();
@@ -501,6 +500,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                          * This ensures that the field is treated as intentionally cleared,
                          * preventing any unintended carryover of prior inference results.
                          */
+                        if (incrementIndexingPressure(indexRequest, itemIndex) == false) {
+                            return inputLength;
+                        }
+
                         var slot = ensureResponseAccumulatorSlot(itemIndex);
                         slot.addOrUpdateResponse(
                             new FieldInferenceResponse(field, sourceField, null, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
@@ -541,30 +544,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     List<FieldInferenceRequest> requests = requestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                     int offsetAdjustment = 0;
                     for (String v : values) {
+                        if (incrementIndexingPressure(indexRequest, itemIndex) == false) {
+                            return inputLength;
+                        }
+
                         if (v.isBlank()) {
                             slot.addOrUpdateResponse(
                                 new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                             );
                         } else {
-                            if (indexingPressureIncremented == false) {
-                                try {
-                                    incrementIndexingPressure(indexRequest.source().ramBytesUsed());
-                                } catch (EsRejectedExecutionException e) {
-                                    // TODO: Safe to assume ID is set/generated at this point?
-                                    addInferenceResponseFailure(
-                                        itemIndex,
-                                        new InferenceException(
-                                            "Insufficient memory available to perform inference on document [" + indexRequest.id() + "]",
-                                            e
-                                        )
-                                    );
-
-                                    return inputLength;
-                                }
-
-                                indexingPressureIncremented = true;
-                            }
-
                             requests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
                             inputLength += v.length();
                         }
@@ -580,12 +568,50 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             return inputLength;
         }
 
-        private void incrementIndexingPressure(long sourceSize) throws EsRejectedExecutionException {
-            IndexingPressure.Coordinating coordinatingIndexingPressure = coordinatingWrapper.coordinating();
-            if (coordinatingIndexingPressure != null) {
-                // Track operation count as one operation per document source update
-                coordinatingIndexingPressure.increment(1, sourceSize);
+        private static class IndexRequestWithIndexingPressure {
+            private final IndexRequest indexRequest;
+            private boolean indexingPressureIncremented;
+
+            private IndexRequestWithIndexingPressure(IndexRequest indexRequest) {
+                this.indexRequest = indexRequest;
+                this.indexingPressureIncremented = false;
             }
+
+            private IndexRequest getIndexRequest() {
+                return indexRequest;
+            }
+
+            private boolean isIndexingPressureIncremented() {
+                return indexingPressureIncremented;
+            }
+
+            private void setIndexingPressureIncremented() {
+                this.indexingPressureIncremented = true;
+            }
+        }
+
+        private boolean incrementIndexingPressure(IndexRequestWithIndexingPressure indexRequest, int itemIndex) {
+            boolean success = true;
+            IndexingPressure.Coordinating coordinatingIndexingPressure = coordinatingWrapper.coordinating();
+            if (coordinatingIndexingPressure != null && indexRequest.isIndexingPressureIncremented() == false) {
+                try {
+                    // Track operation count as one operation per document source update
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().ramBytesUsed());
+                    indexRequest.setIndexingPressureIncremented();
+                } catch (EsRejectedExecutionException e) {
+                    // TODO: Safe to assume ID is set/generated at this point?
+                    addInferenceResponseFailure(
+                        itemIndex,
+                        new InferenceException(
+                            "Insufficient memory available to update source on document [" + indexRequest.getIndexRequest().id() + "]",
+                            e
+                        )
+                    );
+                    success = false;
+                }
+            }
+
+            return success;
         }
 
         private boolean isInferenceRequired(InferenceFieldMetadata inferenceFieldMetadata, Map<String, Object> docMap) {

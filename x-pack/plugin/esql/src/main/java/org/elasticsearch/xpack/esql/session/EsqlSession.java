@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
-import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -59,7 +58,6 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -356,14 +354,14 @@ public class EsqlSession {
                 )
             )
             .collect(Collectors.toSet());
-        final List<TableInfo> indices = preAnalysis.indices;
+        final List<IndexPattern> indices = preAnalysis.indices;
 
         EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, configuredClusters, verifier.licenseState());
 
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
             configuredClusters,
             indices.stream()
-                .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().indexPattern())))
+                .flatMap(index -> Arrays.stream(Strings.commaDelimitedListToStringArray(index.indexPattern())))
                 .toArray(String[]::new)
         ).keySet();
 
@@ -371,8 +369,8 @@ public class EsqlSession {
             l -> enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, l)
         ).<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l));
         // first resolve the lookup indices, then the main indices
-        for (TableInfo lookupIndex : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(lookupIndex, preAnalysisResult, l); });
+        for (var index : preAnalysis.lookupIndices) {
+            listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(index, preAnalysisResult, l); });
         }
         listener.<PreAnalysisResult>andThen((l, result) -> {
             // resolve the main indices
@@ -415,8 +413,7 @@ public class EsqlSession {
         }).addListener(logicalPlanListener);
     }
 
-    private void preAnalyzeLookupIndex(TableInfo tableInfo, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
-        IndexPattern table = tableInfo.id();
+    private void preAnalyzeLookupIndex(IndexPattern table, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
         Set<String> fieldNames = result.wildcardJoinIndices().contains(table.indexPattern()) ? IndexResolver.ALL_FIELDS : result.fieldNames;
         // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
@@ -429,7 +426,7 @@ public class EsqlSession {
     }
 
     private void preAnalyzeIndices(
-        List<TableInfo> indices,
+        List<IndexPattern> indices,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
@@ -442,8 +439,7 @@ public class EsqlSession {
         } else if (indices.size() == 1) {
             // known to be unavailable from the enrich policy API call
             Map<String, Exception> unavailableClusters = result.enrichResolution.getUnavailableClusters();
-            TableInfo tableInfo = indices.get(0);
-            IndexPattern table = tableInfo.id();
+            IndexPattern table = indices.getFirst();
 
             Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
                 configuredClusters,
@@ -587,9 +583,6 @@ public class EsqlSession {
     static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
-            return result.withFieldNames(IndexResolver.ALL_FIELDS);
-        }
-        if (parsed.anyMatch(plan -> plan instanceof Fork)) {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 

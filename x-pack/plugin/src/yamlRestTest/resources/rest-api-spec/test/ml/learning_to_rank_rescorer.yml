@@ -260,6 +260,31 @@ setup:
   - length: { hits.hits: 0 }
 
 ---
+"Test rescore using model alias":
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model_alias:
+        model_id: "ltr-model"
+        model_alias: "ltr-model-alias"
+  - do:
+      search:
+        index: store
+        size: 3
+        body: >
+          {
+            "rescore": {
+              "window_size": 10,
+              "learning_to_rank": { "model_id": "ltr-model-alias" }
+            }
+          }
+  - match: { hits.hits.0._score: 17.0 }
+  - match: { hits.hits.1._score: 17.0 }
+  - match: { hits.hits.2._score: 14.0 }
+
+---
 "Test model input validation":
   - skip:
       features: headers

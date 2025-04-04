@@ -20,7 +20,10 @@ package co.elastic.elasticsearch.stateless.engine;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+
+import java.util.function.LongSupplier;
 
 public record HollowShardsMetrics(
     MeterRegistry meterRegistry,
@@ -31,14 +34,15 @@ public record HollowShardsMetrics(
     LongUpDownCounter hollowShards
 ) {
 
-    public static final HollowShardsMetrics NOOP = HollowShardsMetrics.from(MeterRegistry.NOOP);
+    public static final HollowShardsMetrics NOOP = HollowShardsMetrics.from(MeterRegistry.NOOP, () -> 0L);
     public static final String HOLLOW_SUCCESS_TOTAL = "es.hollow_shards_metrics.hollow.success.total";
     public static final String HOLLOW_TIME_MILLIS = "es.hollow_shards_metrics.hollow.time";
     public static final String UNHOLLOW_SUCCESS_TOTAL = "es.hollow_shards_metrics.unhollow.success.total";
     public static final String UNHOLLOW_TIME_MILLIS = "es.hollow_shards_metrics.unhollow.time";
     public static final String HOLLOW_SHARDS_TOTAL = "es.hollow_shards_metrics.hollow_shards.total";
+    public static final String HOLLOWABLE_SHARDS_TOTAL = "es.hollow_shards_metrics.hollowable_shards.total";
 
-    public static HollowShardsMetrics from(MeterRegistry meterRegistry) {
+    public static HollowShardsMetrics from(MeterRegistry meterRegistry, LongSupplier amountOfHollowableShardsSupplier) {
         var hollowSuccessCounter = meterRegistry.registerLongCounter(
             HOLLOW_SUCCESS_TOTAL,
             "The number of times a shard was succesfully hollowed",
@@ -55,6 +59,12 @@ public record HollowShardsMetrics(
             HOLLOW_SHARDS_TOTAL,
             "Amount of the current hollow shards on the node",
             "count"
+        );
+        meterRegistry.registerLongGauge(
+            HOLLOWABLE_SHARDS_TOTAL,
+            "Amount of the current hollowable shards on the node",
+            "count",
+            () -> new LongWithAttributes(amountOfHollowableShardsSupplier.getAsLong())
         );
         return new HollowShardsMetrics(meterRegistry, hollowSuccessCounter, unhollowSuccessCounter, hollowTime, unhollowTime, hollowShards);
     }

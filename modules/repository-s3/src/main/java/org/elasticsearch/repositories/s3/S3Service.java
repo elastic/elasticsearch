@@ -234,7 +234,6 @@ class S3Service extends AbstractLifecycleComponent {
     }
 
     protected S3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings, SdkHttpClient httpClient) {
-        // TODO NOMERGE ensure this has all the same config features as the v1 SDK
         var s3clientBuilder = S3Client.builder();
         s3clientBuilder.httpClient(httpClient);
         s3clientBuilder.overrideConfiguration(buildConfiguration(clientSettings, isStateless));

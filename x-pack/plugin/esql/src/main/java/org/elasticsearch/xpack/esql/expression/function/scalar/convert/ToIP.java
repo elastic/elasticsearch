@@ -11,8 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -232,16 +230,16 @@ public class ToIP extends AbstractConvertFunction {
     private static final BuildFactory FROM_KEYWORD_LEADING_ZEROS_ARE_DECIMAL = (
         source,
         field) -> new ParseIpLeadingZerosAreDecimalEvaluator.Factory(
-        source,
-        field,
-        driverContext -> new BreakingBytesRefBuilder(driverContext.breaker(), "to_ip")
-    );
+            source,
+            field,
+            driverContext -> new BreakingBytesRefBuilder(driverContext.breaker(), "to_ip")
+        );
 
     private static final BuildFactory FROM_KEYWORD_LEADING_ZEROS_ARE_OCTAL = (
         source,
         field) -> new ParseIpLeadingZerosAreOctalEvaluator.Factory(
-        source,
-        field,
-        driverContext -> new BreakingBytesRefBuilder(driverContext.breaker(), "to_ip")
-    );
+            source,
+            field,
+            driverContext -> new BreakingBytesRefBuilder(driverContext.breaker(), "to_ip")
+        );
 }

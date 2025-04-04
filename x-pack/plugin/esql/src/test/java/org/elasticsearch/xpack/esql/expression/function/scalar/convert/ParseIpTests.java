@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -18,9 +16,9 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
-import java.util.List;
 
 import java.net.InetAddress;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 

@@ -26,7 +26,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 @Warmup(iterations = 5)

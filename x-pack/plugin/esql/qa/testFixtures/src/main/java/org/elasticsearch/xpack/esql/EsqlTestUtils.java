@@ -12,6 +12,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -71,6 +72,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -151,6 +154,8 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassificatio
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
@@ -383,8 +388,20 @@ public final class EsqlTestUtils {
         null,
         mock(ClusterService.class),
         mock(IndexNameExpressionResolver.class),
-        null
+        null,
+        mockInferenceRunner()
     );
+
+    @SuppressWarnings("unchecked")
+    private static InferenceRunner mockInferenceRunner() {
+        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
+        doAnswer(i -> {
+            i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
+            return null;
+        }).when(inferenceRunner).resolveInferenceIds(any(), any());
+
+        return inferenceRunner;
+    }
 
     private EsqlTestUtils() {}
 
@@ -459,6 +476,10 @@ public final class EsqlTestUtils {
 
     public static EnrichResolution emptyPolicyResolution() {
         return new EnrichResolution();
+    }
+
+    public static InferenceResolution emptyInferenceResolution() {
+        return InferenceResolution.EMPTY;
     }
 
     public static SearchStats statsForExistingField(String... names) {

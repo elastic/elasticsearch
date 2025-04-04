@@ -56,6 +56,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
+    | {this.isDevVersion()}? rerankCommand
     ;
 
 whereCommand
@@ -365,4 +366,8 @@ joinCondition
 
 joinPredicate
     : valueExpression
+    ;
+
+rerankCommand
+    : DEV_RERANK queryText=constant ON fields WITH inferenceId=identifierOrParameter
     ;

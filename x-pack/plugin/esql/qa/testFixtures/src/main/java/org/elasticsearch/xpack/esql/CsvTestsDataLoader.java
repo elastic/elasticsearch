@@ -362,6 +362,47 @@ public class CsvTestsDataLoader {
         return true;
     }
 
+    public static void createRerankInferenceEndpoint(RestClient client) throws IOException {
+        Request request = new Request("PUT", "_inference/rerank/test_reranker");
+        request.setJsonEntity("""
+            {
+                "service": "test_reranking_service",
+                "service_settings": {
+                    "model_id": "my_model",
+                    "api_key": "abc64"
+                },
+                "task_settings": {
+                    "use_text_length": true
+                }
+            }
+            """);
+        client.performRequest(request);
+    }
+
+    public static void deleteRerankInferenceEndpoint(RestClient client) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", "_inference/rerank/test_reranker"));
+        } catch (ResponseException e) {
+            // 404 here means the endpoint was not created
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
+    }
+
+    public static boolean clusterHasRerankInferenceEndpoint(RestClient client) throws IOException {
+        Request request = new Request("GET", "_inference/rerank/test_reranker");
+        try {
+            client.performRequest(request);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                return false;
+            }
+            throw e;
+        }
+        return true;
+    }
+
     private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
         URL policyMapping = CsvTestsDataLoader.class.getResource("/" + policyFileName);
         if (policyMapping == null) {

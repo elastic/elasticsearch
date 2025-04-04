@@ -92,6 +92,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
         }
 
+        protected TaskSettings getTasksSettingsFromMap(Map<String, Object> taskSettingsMap) {
+            return TestRerankingServiceExtension.TestTaskSettings.fromMap(taskSettingsMap);
+        }
+
         @Override
         protected TaskSettings getTasksSettingsFromMap(Map<String, Object> taskSettingsMap) {
             return TestRerankingServiceExtension.TestTaskSettings.fromMap(taskSettingsMap);

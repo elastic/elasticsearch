@@ -59,6 +59,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -95,6 +96,7 @@ import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKING_SETTINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
@@ -122,6 +124,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_HANDLE_EMPTY_INPUT = new NodeFeature("semantic_text.handle_empty_input");
     public static final NodeFeature SEMANTIC_TEXT_SKIP_INFERENCE_FIELDS = new NodeFeature("semantic_text.skip_inference_fields");
     public static final NodeFeature SEMANTIC_TEXT_BIT_VECTOR_SUPPORT = new NodeFeature("semantic_text.bit_vector_support");
+    public static final NodeFeature SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG = new NodeFeature("semantic_text.support_chunking_config");
     public static final NodeFeature SEMANTIC_TEXT_INDEX_OPTIONS = new NodeFeature("semantic_text.index_options");
 
     public static final String CONTENT_TYPE = "semantic_text";
@@ -190,6 +193,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             Objects::toString
         ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeIndexOptions);
 
+        @SuppressWarnings("unchecked")
+        private final Parameter<ChunkingSettings> chunkingSettings = new Parameter<>(
+            CHUNKING_SETTINGS_FIELD,
+            true,
+            () -> null,
+            (n, c, o) -> SemanticTextField.parseChunkingSettingsFromMap(o),
+            mapper -> ((SemanticTextFieldType) mapper.fieldType()).chunkingSettings,
+            XContentBuilder::field,
+            Objects::toString
+        ).acceptsNull();
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
@@ -233,9 +247,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return this;
         }
 
+        public Builder setChunkingSettings(ChunkingSettings value) {
+            this.chunkingSettings.setValue(value);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { inferenceId, searchInferenceId, modelSettings, indexOptions, meta };
+            return new Parameter<?>[] { inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions, meta };
         }
 
         @Override
@@ -277,6 +296,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     inferenceId.getValue(),
                     searchInferenceId.getValue(),
                     modelSettings.getValue(),
+                    chunkingSettings.getValue(),
                     indexOptions.getValue(),
                     inferenceField,
                     useLegacyFormat,
@@ -536,7 +556,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         String[] copyFields = sourcePaths.toArray(String[]::new);
         // ensure consistent order
         Arrays.sort(copyFields);
-        return new InferenceFieldMetadata(fullPath(), fieldType().getInferenceId(), fieldType().getSearchInferenceId(), copyFields);
+        ChunkingSettings fieldTypeChunkingSettings = fieldType().getChunkingSettings();
+        Map<String, Object> asMap = fieldTypeChunkingSettings != null ? fieldTypeChunkingSettings.asMap() : null;
+
+        return new InferenceFieldMetadata(fullPath(), fieldType().getInferenceId(), fieldType().getSearchInferenceId(), copyFields, asMap);
     }
 
     @Override
@@ -565,6 +588,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final String inferenceId;
         private final String searchInferenceId;
         private final MinimalServiceSettings modelSettings;
+        private final ChunkingSettings chunkingSettings;
         private final IndexOptions indexOptions;
         private final ObjectMapper inferenceField;
         private final boolean useLegacyFormat;
@@ -574,6 +598,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             String inferenceId,
             String searchInferenceId,
             MinimalServiceSettings modelSettings,
+            ChunkingSettings chunkingSettings,
             IndexOptions indexOptions,
             ObjectMapper inferenceField,
             boolean useLegacyFormat,
@@ -583,6 +608,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             this.inferenceId = inferenceId;
             this.searchInferenceId = searchInferenceId;
             this.modelSettings = modelSettings;
+            this.chunkingSettings = chunkingSettings;
             this.indexOptions = indexOptions;
             this.inferenceField = inferenceField;
             this.useLegacyFormat = useLegacyFormat;
@@ -617,6 +643,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         public MinimalServiceSettings getModelSettings() {
             return modelSettings;
+        }
+
+        public ChunkingSettings getChunkingSettings() {
+            return chunkingSettings;
         }
 
         public IndexOptions getIndexOptions() {
@@ -895,7 +925,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         useLegacyFormat,
                         name(),
                         null,
-                        new SemanticTextField.InferenceResult(inferenceId, modelSettings, chunkMap),
+                        new SemanticTextField.InferenceResult(inferenceId, modelSettings, chunkingSettings, chunkMap),
                         source.sourceContentType()
                     )
                 );

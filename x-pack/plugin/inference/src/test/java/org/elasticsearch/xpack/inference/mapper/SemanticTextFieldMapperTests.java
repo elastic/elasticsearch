@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.XFeatureField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -93,6 +94,8 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FI
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -643,11 +646,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    private static void assertSemanticTextField(MapperService mapperService, String fieldName, boolean expectedModelSettings) {
+        assertSemanticTextField(mapperService, fieldName, expectedModelSettings, null);
+    }
+
     private static void assertSemanticTextField(
         MapperService mapperService,
         String fieldName,
         boolean expectedModelSettings,
-        DenseVectorFieldMapper.DenseVectorIndexOptions expectedIndexOptions
+        ChunkingSettings expectedChunkingSettings
     ) {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertNotNull(mapper);
@@ -701,12 +708,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             assertNull(semanticFieldMapper.fieldType().getModelSettings());
         }
 
-        if (expectedIndexOptions != null) {
-            DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions = semanticFieldMapper.fieldType().getIndexOptions();
-            assertNotNull(indexOptions);
-            assertEquals(expectedIndexOptions, indexOptions);
+        if (expectedChunkingSettings != null) {
+            assertNotNull(semanticFieldMapper.fieldType().getChunkingSettings());
+            assertEquals(expectedChunkingSettings, semanticFieldMapper.fieldType().getChunkingSettings());
         } else {
-            assertNull(semanticFieldMapper.fieldType().getIndexOptions());
+            assertNull(semanticFieldMapper.fieldType().getChunkingSettings());
         }
     }
 
@@ -733,9 +739,22 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
             Model model1 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
             Model model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+            ChunkingSettings chunkingSettings = null; // Some chunking settings configs can produce different Lucene docs counts
             XContentBuilder mapping = mapping(b -> {
-                addSemanticTextMapping(b, fieldName1, model1.getInferenceEntityId(), setSearchInferenceId ? searchInferenceId : null);
-                addSemanticTextMapping(b, fieldName2, model2.getInferenceEntityId(), setSearchInferenceId ? searchInferenceId : null);
+                addSemanticTextMapping(
+                    b,
+                    fieldName1,
+                    model1.getInferenceEntityId(),
+                    setSearchInferenceId ? searchInferenceId : null,
+                    chunkingSettings
+                );
+                addSemanticTextMapping(
+                    b,
+                    fieldName2,
+                    model2.getInferenceEntityId(),
+                    setSearchInferenceId ? searchInferenceId : null,
+                    chunkingSettings
+                );
             });
 
             MapperService mapperService = createMapperService(mapping, useLegacyFormat);
@@ -761,8 +780,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         useLegacyFormat,
                         b,
                         List.of(
-                            randomSemanticText(useLegacyFormat, fieldName1, model1, List.of("a b", "c"), XContentType.JSON),
-                            randomSemanticText(useLegacyFormat, fieldName2, model2, List.of("d e f"), XContentType.JSON)
+                            randomSemanticText(
+                                useLegacyFormat,
+                                fieldName1,
+                                model1,
+                                chunkingSettings,
+                                List.of("a b", "c"),
+                                XContentType.JSON
+                            ),
+                            randomSemanticText(useLegacyFormat, fieldName2, model2, chunkingSettings, List.of("d e f"), XContentType.JSON)
                         )
                     )
                 )
@@ -843,7 +869,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     public void testMissingInferenceId() throws IOException {
         final MapperService mapperService = createMapperService(
-            mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)),
+            mapping(b -> addSemanticTextMapping(b, "field", "my_id", null, null)),
             useLegacyFormat
         );
 
@@ -869,8 +895,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(ex.getCause().getMessage(), containsString("Required [inference_id]"));
     }
 
-    public void testMissingModelSettings() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)), useLegacyFormat);
+    public void testMissingModelSettingsAndChunks() throws IOException {
+        MapperService mapperService = createMapperService(
+            mapping(b -> addSemanticTextMapping(b, "field", "my_id", null, null)),
+            useLegacyFormat
+        );
         IllegalArgumentException ex = expectThrows(
             DocumentParsingException.class,
             IllegalArgumentException.class,
@@ -882,11 +911,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     )
                 )
         );
-        assertThat(ex.getCause().getMessage(), containsString("Required [model_settings, chunks]"));
+        // Model settings may be null here so we only error on chunks
+        assertThat(ex.getCause().getMessage(), containsString("Required [chunks]"));
     }
 
     public void testMissingTaskType() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)), useLegacyFormat);
+        MapperService mapperService = createMapperService(
+            mapping(b -> addSemanticTextMapping(b, "field", "my_id", null, null)),
+            useLegacyFormat
+        );
         IllegalArgumentException ex = expectThrows(
             DocumentParsingException.class,
             IllegalArgumentException.class,
@@ -945,10 +978,43 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertMapperService.accept(byteMapperService, DenseVectorFieldMapper.ElementType.BYTE);
     }
 
+    public void testSettingAndUpdatingChunkingSettings() throws IOException {
+        Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
+        String fieldName = "field";
+
+        SemanticTextField randomSemanticText = randomSemanticText(
+            useLegacyFormat,
+            fieldName,
+            model,
+            chunkingSettings,
+            List.of("a"),
+            XContentType.JSON
+        );
+
+        MapperService mapperService = createMapperService(
+            mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, chunkingSettings)),
+            useLegacyFormat
+        );
+        assertSemanticTextField(mapperService, fieldName, false, chunkingSettings);
+
+        ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
+        merge(mapperService, mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, newChunkingSettings)));
+        assertSemanticTextField(mapperService, fieldName, false, newChunkingSettings);
+    }
+
     public void testModelSettingsRequiredWithChunks() throws IOException {
         // Create inference results where model settings are set to null and chunks are provided
         Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-        SemanticTextField randomSemanticText = randomSemanticText(useLegacyFormat, "field", model, List.of("a"), XContentType.JSON);
+        ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
+        SemanticTextField randomSemanticText = randomSemanticText(
+            useLegacyFormat,
+            "field",
+            model,
+            chunkingSettings,
+            List.of("a"),
+            XContentType.JSON
+        );
         SemanticTextField inferenceResults = new SemanticTextField(
             randomSemanticText.useLegacyFormat(),
             randomSemanticText.fieldName(),
@@ -956,13 +1022,14 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             new SemanticTextField.InferenceResult(
                 randomSemanticText.inference().inferenceId(),
                 null,
+                randomSemanticText.inference().chunkingSettings(),
                 randomSemanticText.inference().chunks()
             ),
             randomSemanticText.contentType()
         );
 
         MapperService mapperService = createMapperService(
-            mapping(b -> addSemanticTextMapping(b, "field", model.getInferenceEntityId(), null)),
+            mapping(b -> addSemanticTextMapping(b, "field", model.getInferenceEntityId(), null, chunkingSettings)),
             useLegacyFormat
         );
         SourceToParse source = source(b -> addSemanticTextInferenceResults(useLegacyFormat, b, List.of(inferenceResults)));
@@ -1001,7 +1068,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             useLegacyFormat,
             fieldName,
             List.of(),
-            new SemanticTextField.InferenceResult(inferenceId, modelSettings, Map.of()),
+            new SemanticTextField.InferenceResult(inferenceId, modelSettings, generateRandomChunkingSettings(), Map.of()),
             XContentType.JSON
         );
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
@@ -1073,13 +1140,19 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         XContentBuilder mappingBuilder,
         String fieldName,
         String inferenceId,
-        String searchInferenceId
+        String searchInferenceId,
+        ChunkingSettings chunkingSettings
     ) throws IOException {
         mappingBuilder.startObject(fieldName);
         mappingBuilder.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
         mappingBuilder.field("inference_id", inferenceId);
         if (searchInferenceId != null) {
             mappingBuilder.field("search_inference_id", searchInferenceId);
+        }
+        if (chunkingSettings != null) {
+            mappingBuilder.startObject("chunking_settings");
+            mappingBuilder.mapContents(chunkingSettings.asMap());
+            mappingBuilder.endObject();
         }
         mappingBuilder.endObject();
     }

@@ -1279,7 +1279,8 @@ public class Stateless extends Plugin
                 // in the HollowShardService, and we want to use (or reset the engine to) the HollowIndexEngine. When unhollowing
                 // a hollow shard, the shard is marked hollow in the HollowShardService and we would like to reset the engine to
                 // the IndexEngine in order to flush a new blob and complete unhollowing.
-                if (hollowShardsService.get().isHollowShard(config.getShardId()) == false
+                if (hollowShardsService.get().isFeatureEnabled()
+                    && hollowShardsService.get().isHollowShard(config.getShardId()) == false
                     && IndexEngine.isLastCommitHollow(segmentCommitInfos)) {
                     logger.info("--> Using hollow engine for shard {}", config.getShardId());
                     return new HollowIndexEngine(config, getCommitService(), hollowShardsService.get());

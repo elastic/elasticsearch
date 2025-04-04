@@ -679,6 +679,8 @@ public abstract class DocsV3Support {
                 case UNARY -> RailRoadDiagram.prefixOperator(op.symbol(), "v");
                 case SEARCH -> RailRoadDiagram.infixOperator("field", op.symbol(), "query");
                 case NULL_PREDICATES -> RailRoadDiagram.suffixOperator("field", op.symbol());
+                case IN -> RailRoadDiagram.infixOperator("field", op.symbol(), "values");
+                case LIKE_AND_RLIKE -> RailRoadDiagram.infixOperator("field", op.symbol(), "pattern");
                 case CAST -> RailRoadDiagram.infixOperator("field", op.symbol(), "type");
                 default -> buildFunctionSignatureSvg();
             });

@@ -20,6 +20,7 @@ import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
@@ -76,7 +77,7 @@ public class SynonymsManagementAPIService {
 
     private static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
     private static final int SYNONYMS_INDEX_FORMAT = 2;
-    private static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
+    static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
     private static final String SYNONYMS_ALIAS_NAME = ".synonyms";
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
     // Stores the synonym set the rule belongs to
@@ -376,7 +377,7 @@ public class SynonymsManagementAPIService {
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(listener);
     }
 
-    public void putSynonymRule(String synonymsSetId, SynonymRule synonymRule, ActionListener<SynonymsReloadResult> listener, int timeout) {
+    public void putSynonymRule(String synonymsSetId, SynonymRule synonymRule, int timeout, ActionListener<SynonymsReloadResult> listener) {
         checkSynonymSetExists(synonymsSetId, listener.delegateFailureAndWrap((l1, obj) -> {
             // Count synonym rules to check if we're at maximum
             BoolQueryBuilder queryFilter = QueryBuilders.boolQuery()
@@ -560,9 +561,7 @@ public class SynonymsManagementAPIService {
     ) {
         // Ensure synonyms index is searchable if timeout is present
         if (timeout > 0) {
-            ClusterHealthRequest healthRequest = new ClusterHealthRequest(TimeValue.timeValueSeconds(timeout), SYNONYMS_ALIAS_NAME)
-                .waitForGreenStatus();
-            client.execute(TransportClusterHealthAction.TYPE, healthRequest, listener.delegateFailure((l, response) -> {
+            checkSynonymsIndexHealth(timeout, listener.delegateFailure((l, response) -> {
                 if (response.isTimedOut()) {
                     l.onFailure(new IndexCreationException("synonyms index [" + SYNONYMS_ALIAS_NAME + "] is not searchable. "
                         + response.getActiveShardsPercent() + "% shards are active", null));
@@ -574,6 +573,14 @@ public class SynonymsManagementAPIService {
         } else {
             reloadAnalyzers(synonymSetId, preview, listener, synonymsOperationResult);
         }
+    }
+
+    // Allows checking failures in tests
+    void checkSynonymsIndexHealth(int timeout, ActionListener<ClusterHealthResponse> listener) {
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(TimeValue.timeValueSeconds(timeout), SYNONYMS_ALIAS_NAME)
+            .waitForGreenStatus();
+
+        client.execute(TransportClusterHealthAction.TYPE, healthRequest, listener);
     }
 
     private <T> void reloadAnalyzers(
@@ -597,7 +604,7 @@ public class SynonymsManagementAPIService {
         return synonymsSetId + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
     }
 
-    static Settings settings() {
+    private static Settings settings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")

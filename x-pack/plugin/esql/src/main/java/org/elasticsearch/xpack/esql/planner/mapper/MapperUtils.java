@@ -131,7 +131,7 @@ class MapperUtils {
     }
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
-        if (aggregate instanceof TimeSeriesAggregate) {
+        if (aggregate instanceof TimeSeriesAggregate ts) {
             return new TimeSeriesAggregateExec(
                 aggregate.source(),
                 child,
@@ -139,7 +139,8 @@ class MapperUtils {
                 aggregate.aggregates(),
                 aggMode,
                 intermediateAttributes,
-                null
+                null,
+                ts.timeBucket()
             );
         } else {
             return new AggregateExec(

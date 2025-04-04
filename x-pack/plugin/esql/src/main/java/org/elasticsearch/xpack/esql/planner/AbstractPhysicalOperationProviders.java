@@ -174,8 +174,9 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels))
             );
             // time-series aggregation
-            if (aggregateExec instanceof TimeSeriesAggregateExec) {
+            if (aggregateExec instanceof TimeSeriesAggregateExec ts) {
                 operatorFactory = new TimeSeriesAggregationOperator.Factory(
+                    ts.timeBucketRounding(context.foldCtx()),
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,
                     aggregatorFactories,

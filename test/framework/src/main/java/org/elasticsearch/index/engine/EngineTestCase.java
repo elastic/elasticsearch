@@ -305,7 +305,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineLock()
+            config.getEngineResetLock()
         );
     }
 
@@ -339,7 +339,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineLock()
+            config.getEngineResetLock()
         );
     }
 
@@ -373,7 +373,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineLock()
+            config.getEngineResetLock()
         );
     }
 
@@ -879,7 +879,7 @@ public abstract class EngineTestCase extends ESTestCase {
             indexCommitListener,
             true,
             mapperService,
-            new EngineReadWriteLock()
+            new EngineResetLock()
         );
     }
 
@@ -921,7 +921,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineLock()
+            config.getEngineResetLock()
         );
     }
 

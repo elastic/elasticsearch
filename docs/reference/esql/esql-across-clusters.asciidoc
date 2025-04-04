@@ -525,8 +525,9 @@ FROM my-index-000001,cluster*:my-index-*,cluster_three:-my-index-000001
 [[ccq-skip-unavailable-clusters]]
 ==== Optional remote clusters
 
-{ccs-cap} for {esql} will ignore the remote cluster which is disconnected from the querying cluster unless its
-`skip_unavailable` setting is set to `false`, in which case the query will fail.
+{ccs-cap} for {esql} will set the remote cluster which is disconnected from the querying cluster to `skipped`
+and continue the query with other clusters, unless the cluster's `skip_unavailable` setting is set to `false`,
+in which case the query will fail.
 
 [discrete]
 [[ccq-during-upgrade]]

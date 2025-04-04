@@ -87,8 +87,18 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(queriedIndices, equalTo(Set.of("events_2023")));
                 queriedIndices.clear();
             }
+            try (EsqlQueryResponse resp = run("from events_* | WHERE @timestamp >= date_parse(\"yyyy-MM-dd\", \"2023-01-01\")")) {
+                assertThat(getValuesList(resp), hasSize(4));
+                assertThat(queriedIndices, equalTo(Set.of("events_2023")));
+                queriedIndices.clear();
+            }
 
             try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").lt("2023-01-01"))) {
+                assertThat(getValuesList(resp), hasSize(3));
+                assertThat(queriedIndices, equalTo(Set.of("events_2022")));
+                queriedIndices.clear();
+            }
+            try (EsqlQueryResponse resp = run("from events_* | WHERE @timestamp < date_parse(\"yyyy-MM-dd\", \"2023-01-01\")")) {
                 assertThat(getValuesList(resp), hasSize(3));
                 assertThat(queriedIndices, equalTo(Set.of("events_2022")));
                 queriedIndices.clear();
@@ -105,12 +115,34 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(queriedIndices, equalTo(Set.of("events_2022", "events_2023")));
                 queriedIndices.clear();
             }
+            try (
+                EsqlQueryResponse resp = run(
+                    "from events_* "
+                        + "| WHERE @timestamp > date_parse(\"yyyy-MM-dd\", \"2022-01-01\") "
+                        + "AND @timestamp < date_parse(\"yyyy-MM-dd\", \"2023-12-31\")"
+                )
+            ) {
+                assertThat(getValuesList(resp), hasSize(7));
+                assertThat(queriedIndices, equalTo(Set.of("events_2022", "events_2023")));
+                queriedIndices.clear();
+            }
 
             try (
                 EsqlQueryResponse resp = run(
                     "from events_*",
                     randomPragmas(),
                     new RangeQueryBuilder("@timestamp").gt("2021-01-01").lt("2021-12-31")
+                )
+            ) {
+                assertThat(getValuesList(resp), hasSize(0));
+                assertThat(queriedIndices, empty());
+                queriedIndices.clear();
+            }
+            try (
+                EsqlQueryResponse resp = run(
+                    "from events_* "
+                        + "| WHERE @timestamp > date_parse(\"yyyy-MM-dd\", \"2023-01-01\") "
+                        + "AND @timestamp < date_parse(\"yyyy-MM-dd\", \"2023-01-01\")"
                 )
             ) {
                 assertThat(getValuesList(resp), hasSize(0));

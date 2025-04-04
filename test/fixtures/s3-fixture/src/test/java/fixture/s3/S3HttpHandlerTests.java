@@ -61,6 +61,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             queryParts.add("delimiter=" + delimiter);
         }
         if (randomBoolean()) {
+            // test both ListObjects and ListObjectsV2 - they only differ in terms of pagination but S3HttpHandler doesn't do that
             queryParts.add("list-type=2");
         }
         Randomness.shuffle(queryParts);

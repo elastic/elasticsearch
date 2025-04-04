@@ -240,27 +240,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     /**
-     * Returns the currently configured delta threshold
-     */
-    public float getThreshold() {
-        return balancerSettings.getThreshold();
-    }
-
-    /**
-     * Returns the index related weight factor.
-     */
-    public float getIndexBalance() {
-        return balancerSettings.getIndexBalanceFactor();
-    }
-
-    /**
-     * Returns the shard related weight factor.
-     */
-    public float getShardBalance() {
-        return balancerSettings.getShardBalanceFactor();
-    }
-
-    /**
      * A {@link Balancer}
      */
     public static class Balancer {

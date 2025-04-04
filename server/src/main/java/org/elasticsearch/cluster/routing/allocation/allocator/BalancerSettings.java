@@ -34,10 +34,16 @@ public class BalancerSettings {
         clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = value);
     }
 
+    /**
+     * Returns the index related weight factor.
+     */
     public float getIndexBalanceFactor() {
         return indexBalanceFactor;
     }
 
+    /**
+     * Returns the shard related weight factor.
+     */
     public float getShardBalanceFactor() {
         return shardBalanceFactor;
     }
@@ -50,6 +56,9 @@ public class BalancerSettings {
         return diskUsageBalanceFactor;
     }
 
+    /**
+     * Returns the currently configured delta threshold
+     */
     public float getThreshold() {
         return threshold;
     }

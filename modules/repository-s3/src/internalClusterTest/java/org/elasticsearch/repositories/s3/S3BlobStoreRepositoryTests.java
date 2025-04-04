@@ -111,21 +111,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
 
     private String region;
-    private S3ClientSettings.AwsSignerOverrideType signerOverride;
     private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
 
     @Override
     public void setUp() throws Exception {
         if (randomBoolean()) {
             region = "test-region";
-        }
-        if (region != null && randomBoolean()) {
-            signerOverride = randomFrom(
-                S3ClientSettings.AwsSignerOverrideType.SDKV2_AWS_V4_SIGNER_TYPE,
-                S3ClientSettings.AwsSignerOverrideType.SDKV2_AWS_S3_V4_SIGNER_TYPE
-            );
-        } else if (randomBoolean()) {
-            signerOverride = S3ClientSettings.AwsSignerOverrideType.SDKV2_AWS_V4_SIGNER_TYPE;
         }
         shouldFailCompleteMultipartUploadRequest.set(false);
         super.setUp();
@@ -181,9 +172,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         if (randomBoolean()) {
             builder.put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), randomBoolean());
-        }
-        if (signerOverride != null) {
-            builder.put(S3ClientSettings.SIGNER_OVERRIDE.getConcreteSettingForNamespace("test").getKey(), signerOverride);
         }
         if (region != null) {
             builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);

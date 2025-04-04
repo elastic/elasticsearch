@@ -12,10 +12,6 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import software.amazon.awssdk.auth.signer.Aws4Signer;
-import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
-import software.amazon.awssdk.core.signer.NoOpSigner;
-import software.amazon.awssdk.core.signer.Signer;
 
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -30,7 +26,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * A container for settings used to create an S3 client.
@@ -185,36 +180,11 @@ final class S3ClientSettings {
         key -> Setting.simpleString(key, Property.NodeScope)
     );
 
-    public enum AwsSignerOverrideType {
-        // AWS SDK V1 Signer types.
-        // Supported for upgrade compatibility, ultimately converted to a V2 equivalent.
-        // Note: AWS4UnsignedPayloadSignerType is no longer supported, there is no equivalent in V2 short of a custom signer.
-        // Note: QueryStringSigner is deprecated in V2, thus not given support.
-        // TODO NOMERGE let's find better names for these things and make this less of a breaking change
-        // TODO NOMERGE: why are these Signer types deprecated? What's the alternative?
-        SDKV1_AWS_V4_SIGNER_TYPE("Aws4SignerType", Aws4Signer::create),
-        SDKV1_AWS_S3_V4_SIGNER_TYPE("AwsS3V4Signer", AwsS3V4Signer::create),
-        SDKV1_NOOP_SIGNER_TYPE("NoopSigner", NoOpSigner::new),
-
-        // AWS SDK V2 Signer types
-        SDKV2_AWS_V4_SIGNER_TYPE("Aws4Signer", Aws4Signer::create),
-        SDKV2_AWS_S3_V4_SIGNER_TYPE("AwsS3V4Signer", AwsS3V4Signer::create),
-        SDKV2_NOOP_SIGNER_TYPE("NoopSigner", NoOpSigner::new);
-
-        final String signerName;
-        final Supplier<Signer> signerFactory;
-
-        AwsSignerOverrideType(String signerName, Supplier<Signer> signerFactory) {
-            this.signerName = signerName;
-            this.signerFactory = signerFactory;
-        }
-    }
-
-    /** An override for the signer to use. */
-    static final Setting.AffixSetting<AwsSignerOverrideType> SIGNER_OVERRIDE = Setting.affixKeySetting(
+    /** Formerly an override for the signer to use, now unused. */
+    static final Setting.AffixSetting<String> UNUSED_SIGNER_OVERRIDE = Setting.affixKeySetting(
         PREFIX,
         "signer_override",
-        key -> Setting.enumSetting(AwsSignerOverrideType.class, key, AwsSignerOverrideType.SDKV2_AWS_V4_SIGNER_TYPE, Property.NodeScope)
+        key -> Setting.simpleString(key, Property.NodeScope, Property.Deprecated)
     );
 
     /** Credentials to authenticate with s3. */
@@ -258,9 +228,6 @@ final class S3ClientSettings {
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
-    /** Signer override to use or empty string to use default. */ // TODO NOMERGE fix comment
-    final AwsSignerOverrideType signerOverride; // TODO NOMERGE document somewhat breaking change
-
     private S3ClientSettings(
         AwsCredentials credentials,
         String endpoint,
@@ -274,8 +241,7 @@ final class S3ClientSettings {
         int maxRetries,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
-        String region,
-        AwsSignerOverrideType signerOverride
+        String region
     ) {
         this.credentials = credentials;
         this.endpoint = endpoint;
@@ -290,7 +256,6 @@ final class S3ClientSettings {
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
         this.region = region;
-        this.signerOverride = signerOverride;
     }
 
     /**
@@ -328,7 +293,6 @@ final class S3ClientSettings {
             newCredentials = credentials;
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
-        final AwsSignerOverrideType newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
         if (Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort
@@ -339,8 +303,7 @@ final class S3ClientSettings {
             && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
-            && Objects.equals(region, newRegion)
-            && Objects.equals(signerOverride, newSignerOverride)) {
+            && Objects.equals(region, newRegion)) {
             return this;
         }
         return new S3ClientSettings(
@@ -356,8 +319,7 @@ final class S3ClientSettings {
             newMaxRetries,
             newPathStyleAccess,
             newDisableChunkedEncoding,
-            newRegion,
-            newSignerOverride
+            newRegion
         );
     }
 
@@ -463,8 +425,7 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
-                getConfigValue(settings, clientName, REGION),
-                getConfigValue(settings, clientName, SIGNER_OVERRIDE)
+                getConfigValue(settings, clientName, REGION)
             );
         }
     }
@@ -489,8 +450,7 @@ final class S3ClientSettings {
             && Objects.equals(proxyUsername, that.proxyUsername)
             && Objects.equals(proxyPassword, that.proxyPassword)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
-            && Objects.equals(region, that.region)
-            && Objects.equals(signerOverride, that.signerOverride);
+            && Objects.equals(region, that.region);
     }
 
     @Override
@@ -507,8 +467,7 @@ final class S3ClientSettings {
             maxRetries,
             maxConnections,
             disableChunkedEncoding,
-            region,
-            signerOverride
+            region
         );
     }
 

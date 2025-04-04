@@ -18,10 +18,6 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
 
     protected abstract Settings repositorySettings();
 
-    protected boolean abortWritesPermitted() {
-        return true;
-    }
-
     public void testRepositoryAnalysis() throws Exception {
         final String repositoryType = repositoryType();
         final Settings repositorySettings = repositorySettings();
@@ -36,9 +32,6 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
         request.addParameter("max_blob_size", randomFrom("1mb", "10mb"));
         request.addParameter("timeout", "120s");
         request.addParameter("seed", Long.toString(randomLong()));
-        if (abortWritesPermitted() == false) {
-            request.addParameter("rarely_abort_writes", "false");
-        }
         assertOK(client().performRequest(request));
     }
 

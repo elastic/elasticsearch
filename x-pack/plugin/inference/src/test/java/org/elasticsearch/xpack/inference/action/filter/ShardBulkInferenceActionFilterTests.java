@@ -613,7 +613,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testIndexingPressureTripsOnEstimatedInferenceBytes() throws Exception {
+    public void testIndexingPressureTripsOnInferenceRequestGeneration() throws Exception {
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "1b").build()
         );
@@ -637,7 +637,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertNull(request.items()[0].getPrimaryResponse());
                 assertNull(request.items()[2].getPrimaryResponse());
 
-                BulkItemResponse doc1Response = request.items()[1].getPrimaryResponse();
+                BulkItemRequest doc1Request = request.items()[1];
+                BulkItemResponse doc1Response = doc1Request.getPrimaryResponse();
                 assertNotNull(doc1Response);
                 assertTrue(doc1Response.isFailed());
                 BulkItemResponse.Failure doc1Failure = doc1Response.getFailure();
@@ -648,10 +649,95 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertThat(doc1Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
                 assertThat(doc1Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));
 
+                IndexRequest doc1IndexRequest = getIndexRequestOrNull(doc1Request.request());
+                assertThat(doc1IndexRequest, notNullValue());
+                assertThat(doc1IndexRequest.source(), equalTo(BytesReference.bytes(doc1Source)));
+
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
                 verify(coordinatingIndexingPressure).increment(1, BytesReference.bytes(doc1Source).ramBytesUsed());
                 verify(coordinatingIndexingPressure, times(1)).increment(anyInt(), anyLong());
+
+                // Verify that the coordinating indexing pressure is maintained through downstream action filters
+                verify(coordinatingIndexingPressure, never()).close();
+
+                // Call the listener once the request is successfully processed, like is done in the production code path
+                listener.onResponse(null);
+            } finally {
+                chainExecuted.countDown();
+            }
+        };
+        ActionListener<BulkShardResponse> actionListener = (ActionListener<BulkShardResponse>) mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            "sparse_field",
+            new InferenceFieldMetadata("sparse_field", sparseModel.getInferenceEntityId(), new String[] { "sparse_field" }, null)
+        );
+
+        BulkItemRequest[] items = new BulkItemRequest[3];
+        items[0] = new BulkItemRequest(0, new IndexRequest("index").id("doc_0").source("non_inference_field", "foo"));
+        items[1] = new BulkItemRequest(1, new IndexRequest("index").id("doc_1").source(doc1Source));
+        items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source("non_inference_field", "baz"));
+
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(inferenceFieldMap);
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+
+        IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+        assertThat(coordinatingIndexingPressure, notNullValue());
+        verify(coordinatingIndexingPressure).close();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIndexingPressureTripsOnInferenceResponseHandling() throws Exception {
+        final XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
+        final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
+            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), (BytesReference.bytes(doc1Source).ramBytesUsed() + 1) + "b").build()
+        );
+
+        final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        sparseModel.putResult("bar", randomChunkedInferenceEmbedding(sparseModel, List.of("bar")));
+
+        final ShardBulkInferenceActionFilter filter = createFilter(
+            threadPool,
+            Map.of(sparseModel.getInferenceEntityId(), sparseModel),
+            useLegacyFormat,
+            true
+        );
+        filter.setIndexingPressure(indexingPressure);
+
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
+            try {
+                assertNull(request.getInferenceFieldMap());
+                assertThat(request.items().length, equalTo(3));
+
+                assertNull(request.items()[0].getPrimaryResponse());
+                assertNull(request.items()[2].getPrimaryResponse());
+
+                BulkItemRequest doc1Request = request.items()[1];
+                BulkItemResponse doc1Response = doc1Request.getPrimaryResponse();
+                assertNotNull(doc1Response);
+                assertTrue(doc1Response.isFailed());
+                BulkItemResponse.Failure doc1Failure = doc1Response.getFailure();
+                assertThat(
+                    doc1Failure.getCause().getMessage(),
+                    containsString("Insufficient memory available to insert inference results into document [doc_1]")
+                );
+                assertThat(doc1Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+                assertThat(doc1Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));
+
+                IndexRequest doc1IndexRequest = getIndexRequestOrNull(doc1Request.request());
+                assertThat(doc1IndexRequest, notNullValue());
+                assertThat(doc1IndexRequest.source(), equalTo(BytesReference.bytes(doc1Source)));
+
+                IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+                assertThat(coordinatingIndexingPressure, notNullValue());
+                verify(coordinatingIndexingPressure).increment(1, BytesReference.bytes(doc1Source).ramBytesUsed());
+                verify(coordinatingIndexingPressure).increment(eq(0), longThat(l -> l > 0));
+                verify(coordinatingIndexingPressure, times(2)).increment(anyInt(), anyLong());
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
                 verify(coordinatingIndexingPressure, never()).close();

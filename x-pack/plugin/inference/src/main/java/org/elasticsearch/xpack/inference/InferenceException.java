@@ -8,24 +8,11 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.ElasticsearchWrapperException;
 
-public class InferenceException extends ElasticsearchException {
+public class InferenceException extends ElasticsearchException implements ElasticsearchWrapperException {
     public InferenceException(String message, Throwable cause, Object... args) {
         super(message, cause, args);
     }
 
-    @Override
-    public RestStatus status() {
-        // Override status so that we get the status of the cause while retaining the message of the inference exception when emitting to
-        // XContent
-        RestStatus status = RestStatus.INTERNAL_SERVER_ERROR;
-        Throwable cause = getCause();
-        if (cause != null) {
-            status = ExceptionsHelper.status(cause);
-        }
-
-        return status;
-    }
 }

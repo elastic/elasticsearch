@@ -505,7 +505,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 .bucket(blobStore.bucket())
                 .key(blobStore.blobContainer(repository.basePath().add("test-multipart-upload")).path().buildAsString() + danglingBlobName)
                 .overrideConfiguration(
-                    // NOMERGE: check this conversion makes sense.
                     AwsRequestOverrideConfiguration.builder()
                         .putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey())
                         .build()
@@ -518,7 +517,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 .bucket(blobStore.bucket())
                 .prefix(repository.basePath().buildAsString())
                 .overrideConfiguration(
-                    // NOMERGE: check this conversion makes sense.
                     AwsRequestOverrideConfiguration.builder()
                         .putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey())
                         .build()

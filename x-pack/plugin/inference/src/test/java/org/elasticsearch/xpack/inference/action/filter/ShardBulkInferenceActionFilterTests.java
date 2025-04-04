@@ -533,7 +533,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             addSemanticTextInferenceResults(
                 useLegacyFormat,
                 doc5Source,
-                List.of(randomSemanticText(useLegacyFormat, "sparse_field", sparseModel, List.of("a test value"), XContentType.JSON))
+                List.of(randomSemanticText(useLegacyFormat, "sparse_field", sparseModel, null, List.of("a test value"), XContentType.JSON))
             );
             doc5Source.endObject();
         }
@@ -582,9 +582,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
             "sparse_field",
-            new InferenceFieldMetadata("sparse_field", sparseModel.getInferenceEntityId(), new String[] { "sparse_field" }),
+            new InferenceFieldMetadata("sparse_field", sparseModel.getInferenceEntityId(), new String[] { "sparse_field" }, null),
             "dense_field",
-            new InferenceFieldMetadata("dense_field", denseModel.getInferenceEntityId(), new String[] { "dense_field" })
+            new InferenceFieldMetadata("dense_field", denseModel.getInferenceEntityId(), new String[] { "dense_field" }, null)
         );
 
         BulkItemRequest[] items = new BulkItemRequest[10];
@@ -667,7 +667,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
             "sparse_field",
-            new InferenceFieldMetadata("sparse_field", sparseModel.getInferenceEntityId(), new String[] { "sparse_field" })
+            new InferenceFieldMetadata("sparse_field", sparseModel.getInferenceEntityId(), new String[] { "sparse_field" }, null)
         );
 
         BulkItemRequest[] items = new BulkItemRequest[3];

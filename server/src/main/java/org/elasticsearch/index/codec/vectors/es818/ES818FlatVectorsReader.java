@@ -119,7 +119,7 @@ public class ES818FlatVectorsReader extends FlatVectorsReader {
         IOContext context
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
-        IndexInput in = state.directory instanceof DirectIODirectory did
+        IndexInput in = state.directory instanceof DirectIOIndexInputSupplier did
             ? did.openInputDirect(fileName, context)
             : state.directory.openInput(fileName, context);
         boolean success = false;

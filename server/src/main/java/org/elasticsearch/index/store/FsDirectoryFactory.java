@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
@@ -25,7 +26,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.vectors.es818.DirectIODirectory;
+import org.elasticsearch.index.codec.vectors.es818.DirectIOIndexInputSupplier;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -115,17 +116,17 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
-    static final class HybridDirectory extends NIOFSDirectory implements DirectIODirectory {
+    static final class HybridDirectory extends NIOFSDirectory implements DirectIOIndexInputSupplier {
         private final MMapDirectory delegate;
-        private final org.apache.lucene.misc.store.DirectIODirectory directIODelegate;
+        private final DirectIODirectory directIODelegate;
 
         HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
 
-            org.apache.lucene.misc.store.DirectIODirectory directIO;
+            DirectIODirectory directIO;
             try {
-                directIO = new org.apache.lucene.misc.store.DirectIODirectory(delegate) {
+                directIO = new DirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT) {
                     @Override
                     protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
                         return true;

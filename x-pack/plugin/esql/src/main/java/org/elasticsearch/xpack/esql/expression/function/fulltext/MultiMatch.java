@@ -270,9 +270,8 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         Expression query = in.readNamedWriteable(Expression.class);
         List<Expression> fields = in.readNamedWriteableCollectionAsList(Expression.class);
         QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
+       queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+
         return new MultiMatch(source, query, fields, null, queryBuilder);
     }
 

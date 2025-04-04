@@ -629,8 +629,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setActualMemoryUsageBytes(long actualMemoryUsageBytes)
-        {
+        public Builder setActualMemoryUsageBytes(long actualMemoryUsageBytes) {
             this.actualMemoryUsageBytes = actualMemoryUsageBytes;
             return this;
         }

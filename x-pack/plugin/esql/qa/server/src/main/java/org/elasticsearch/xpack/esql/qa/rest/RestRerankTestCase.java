@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.qa.rest;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Before;
 
@@ -23,6 +23,14 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteRerankInfere
 import static org.hamcrest.core.StringContains.containsString;
 
 public class RestRerankTestCase extends ESRestTestCase {
+
+    @Before
+    public void skipWhenRerankDisabled() throws IOException {
+        assumeTrue(
+            "Requires RERANK capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.RERANK.capabilityName()))
+        );
+    }
 
     @Before
     @After
@@ -77,8 +85,6 @@ public class RestRerankTestCase extends ESRestTestCase {
     }
 
     public void testRerankWithSingleField() throws IOException {
-        assumeTrue("rerank capability not available", Build.current().isSnapshot());
-
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
@@ -98,8 +104,6 @@ public class RestRerankTestCase extends ESRestTestCase {
     }
 
     public void testRerankWithMultipleFields() throws IOException {
-        assumeTrue("rerank capability not available", Build.current().isSnapshot());
-
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
@@ -119,8 +123,6 @@ public class RestRerankTestCase extends ESRestTestCase {
     }
 
     public void testRerankWithPositionalParams() throws IOException {
-        assumeTrue("rerank capability not available", Build.current().isSnapshot());
-
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
@@ -140,8 +142,6 @@ public class RestRerankTestCase extends ESRestTestCase {
     }
 
     public void testRerankWithNamedParams() throws IOException {
-        assumeTrue("rerank capability not available", Build.current().isSnapshot());
-
         String query = """
             FROM rerank-test-index
             | WHERE match(title, ?queryText)
@@ -161,8 +161,6 @@ public class RestRerankTestCase extends ESRestTestCase {
     }
 
     public void testRerankWithMissingInferenceId() {
-        assumeTrue("rerank capability not available", Build.current().isSnapshot());
-
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")

@@ -86,6 +86,9 @@ toc:
     children:
       - file: esql/esql-syntax.md
       - file: esql/esql-commands.md
+        children:
+          - file: esql/commands/source-commands.md
+          - file: esql/commands/processing-commands.md
       - file: esql/esql-functions-operators.md
         children:
           - file: esql/functions-operators/aggregation-functions.md

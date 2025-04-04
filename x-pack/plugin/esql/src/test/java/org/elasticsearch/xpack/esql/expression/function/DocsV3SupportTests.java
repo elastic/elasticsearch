@@ -69,13 +69,13 @@ public class DocsV3SupportTests extends ESTestCase {
 
     public void testCommandLink() {
         String text = "use a <<esql-where>> command to remove rows";
-        String expected = "use a [`WHERE`](" + ESQL + "/esql-commands.md#esql-where) command to remove rows";
+        String expected = "use a [`WHERE`](" + ESQL + "/commands/processing-commands.md#esql-where) command to remove rows";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testStatsCommandLink() {
         String text = "Combine `DATE_TRUNC` with <<esql-stats-by>>";
-        String expected = "Combine `DATE_TRUNC` with [`STATS`](" + ESQL + "/esql-commands.md#esql-stats-by)";
+        String expected = "Combine `DATE_TRUNC` with [`STATS`](" + ESQL + "/commands/processing-commands.md#esql-stats-by)";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
@@ -273,7 +273,7 @@ public class DocsV3SupportTests extends ESTestCase {
             | 6 |
 
             To count the number of times an expression returns `TRUE` use a
-            [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command
+            [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) command
             to remove rows that shouldn’t be included
 
             ```esql

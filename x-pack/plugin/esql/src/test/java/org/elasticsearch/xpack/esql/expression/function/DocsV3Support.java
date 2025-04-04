@@ -373,7 +373,7 @@ public abstract class DocsV3Support {
 
     private String parentFileFor(String cmd) {
         if (knownCommands.containsKey(cmd)) {
-            return "/reference/query-languages/esql/esql-commands.md";
+            return "/reference/query-languages/esql/commands/processing-commands.md";
         } else if (cmd.startsWith("mv_")) {
             return "/reference/query-languages/esql/functions-operators/mv-functions.md";
         } else if (cmd.contains("-operator")) {

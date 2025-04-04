@@ -15,7 +15,7 @@ mapped_pages:
 * [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md): the ignored source document fields. The field is of the type [keyword](/reference/elasticsearch/mapping-reference/keyword.md).
 * `_score`: when enabled, the final score assigned to each row matching an ES|QL query. Scoring will be updated when using [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md).
 
-To enable the access to these fields, the [`FROM`](/reference/query-languages/esql/esql-commands.md#esql-from) source command needs to be provided with a dedicated directive:
+To enable the access to these fields, the [`FROM`](/reference/query-languages/esql/commands/source-commands.md#esql-from) source command needs to be provided with a dedicated directive:
 
 ```esql
 FROM index METADATA _index, _id

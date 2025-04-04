@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb;
+package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
@@ -16,24 +16,37 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
-public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
+/**
+ * Evolved from {@link org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat} and has the following changes:
+ * <ul>
+ *     <li>Moved numDocsWithField metadata statistic from SortedNumericEntry to NumericEntry. This allows for always summing
+ *     numDocsWithField during segment merging, otherwise numDocsWithField needs to be computed for each segment merge per field.</li>
+ *     <li>Moved docsWithFieldOffset, docsWithFieldLength, jumpTableEntryCount, denseRankPower metadata properties in the format to be
+ *     after values metadata. So that the jump table can be stored after the values, which allows for iterating once over the merged
+ *     view of all values. If index sorting is active merging a doc value field requires a merge sort which can be very cpu intensive.
+ *     The previous format always has to merge sort a doc values field multiple times, so doing the merge sort just once saves on
+ *     cpu resources.</li>
+ * </ul>
+ */
+public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
     static final int NUMERIC_BLOCK_SHIFT = 7;
     public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
     static final int NUMERIC_BLOCK_MASK = NUMERIC_BLOCK_SIZE - 1;
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
-    static final String CODEC_NAME = "ES87TSDB";
-    static final String DATA_CODEC = "ES87TSDBDocValuesData";
+    static final String CODEC_NAME = "ES819TSDB";
+    static final String DATA_CODEC = "ES819TSDBDocValuesData";
     static final String DATA_EXTENSION = "dvd";
-    static final String META_CODEC = "ES87TSDBDocValuesMetadata";
+    static final String META_CODEC = "ES819TSDBDocValuesMetadata";
     static final String META_EXTENSION = "dvm";
-    static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_START;
     static final byte NUMERIC = 0;
     static final byte BINARY = 1;
     static final byte SORTED = 2;
     static final byte SORTED_SET = 3;
     static final byte SORTED_NUMERIC = 4;
+
+    static final int VERSION_START = 0;
+    static final int VERSION_CURRENT = VERSION_START;
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -43,17 +56,18 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final int TERMS_DICT_REVERSE_INDEX_SIZE = 1 << TERMS_DICT_REVERSE_INDEX_SHIFT;
     static final int TERMS_DICT_REVERSE_INDEX_MASK = TERMS_DICT_REVERSE_INDEX_SIZE - 1;
 
-    public ES87TSDBDocValuesFormat() {
+    /** Default constructor. */
+    public ES819TSDBDocValuesFormat() {
         super(CODEC_NAME);
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        throw new UnsupportedOperationException("writing es87 doc values is no longer supported");
+        return new ES819TSDBDocValuesConsumer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
     }
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new ES87TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        return new ES819TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
     }
 }

@@ -357,7 +357,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             }
             doFetchPageAsync(false, ActionListener.wrap(r -> {
                 if (r.finished()) {
-                    completionListenerRef.compareAndSet(null, SubscribableListener.newSucceeded(null));
+                    completionListenerRef.compareAndSet(null, SubscribableListener.nullSuccess());
                 }
                 listener.onResponse(r);
             }, e -> close(ActionListener.running(() -> listener.onFailure(e)))));

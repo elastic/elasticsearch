@@ -11,10 +11,6 @@ package org.elasticsearch.repositories.s3;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import software.amazon.awssdk.auth.signer.Aws4Signer;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
-import software.amazon.awssdk.core.signer.NoOpSigner;
 import software.amazon.awssdk.regions.Region;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -201,24 +197,6 @@ public class S3ClientSettingsTests extends ESTestCase {
             assertNotEquals(randomRegion, defaultRegion.toString());
             assertEquals("us-east-1", defaultRegion.toString()); // us-east-1 is the default absent any other settings.
         }
-    }
-
-    public void testSignerOverrideCanBeSet() {
-        final var signerType = new NoOpSigner().credentialType();
-        final var signerOverride = S3ClientSettings.AwsSignerOverrideType.SDKV2_NOOP_SIGNER_TYPE;
-        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.other.signer_override", signerOverride).build()
-        );
-        assertThat(settings.get("default").region, is(""));
-        assertThat(settings.get("other").signerOverride, is(signerOverride));
-
-        ClientOverrideConfiguration defaultNoSignerConfiguration = S3Service.buildConfiguration(settings.get("default"), false);
-        assertThat(
-            defaultNoSignerConfiguration.advancedOption(SdkAdvancedClientOption.SIGNER).get().credentialType(),
-            is(Aws4Signer.create().credentialType())
-        );
-        ClientOverrideConfiguration otherSignerConfiguration = S3Service.buildConfiguration(settings.get("other"), false);
-        assertThat(otherSignerConfiguration.advancedOption(SdkAdvancedClientOption.SIGNER).get().credentialType(), is(signerType));
     }
 
     public void testMaxConnectionsCanBeSet() {

@@ -165,10 +165,10 @@ public class DataStreamAutoShardingService {
     private volatile WriteLoadMetric decreaseShardsMetric;
 
     public DataStreamAutoShardingService(Settings settings, ClusterService clusterService, LongSupplier nowSupplier) {
-        this(settings, clusterService, nowSupplier, createPeriodLoggingDecisionConsumer(nowSupplier));
+        this(settings, clusterService, nowSupplier, createPeriodicLoggingDecisionConsumer(nowSupplier));
     }
 
-    private static Consumer<Decision> createPeriodLoggingDecisionConsumer(LongSupplier nowSupplier) {
+    private static Consumer<Decision> createPeriodicLoggingDecisionConsumer(LongSupplier nowSupplier) {
         PeriodicDecisionLogger periodicDecisionLogger = new PeriodicDecisionLogger(nowSupplier);
         return periodicDecisionLogger::maybeLogDecision;
     }

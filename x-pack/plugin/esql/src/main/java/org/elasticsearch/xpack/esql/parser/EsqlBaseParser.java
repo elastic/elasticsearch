@@ -27,10 +27,10 @@ public class EsqlBaseParser extends ParserConfig {
   public static final int
     LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, DEV_CHANGE_POINT=4, ENRICH=5, 
     EXPLAIN=6, DISSECT=7, EVAL=8, GROK=9, LIMIT=10, ROW=11, SORT=12, STATS=13, 
-    WHERE=14, DEV_INLINESTATS=15, FROM=16, DEV_METRICS=17, DEV_FORK=18, JOIN_LOOKUP=19, 
-    DEV_JOIN_FULL=20, DEV_JOIN_LEFT=21, DEV_JOIN_RIGHT=22, DEV_LOOKUP=23, 
-    MV_EXPAND=24, DROP=25, KEEP=26, DEV_INSIST=27, DEV_RRF=28, RENAME=29, 
-    SHOW=30, UNKNOWN_CMD=31, CHANGE_POINT_LINE_COMMENT=32, CHANGE_POINT_MULTILINE_COMMENT=33, 
+    WHERE=14, DEV_INLINESTATS=15, FROM=16, DEV_TIME_SERIES=17, DEV_FORK=18, 
+    JOIN_LOOKUP=19, DEV_JOIN_FULL=20, DEV_JOIN_LEFT=21, DEV_JOIN_RIGHT=22, 
+    DEV_LOOKUP=23, MV_EXPAND=24, DROP=25, KEEP=26, DEV_INSIST=27, DEV_RRF=28, 
+    RENAME=29, SHOW=30, UNKNOWN_CMD=31, CHANGE_POINT_LINE_COMMENT=32, CHANGE_POINT_MULTILINE_COMMENT=33, 
     CHANGE_POINT_WS=34, ON=35, WITH=36, ENRICH_POLICY_NAME=37, ENRICH_LINE_COMMENT=38, 
     ENRICH_MULTILINE_COMMENT=39, ENRICH_WS=40, ENRICH_FIELD_LINE_COMMENT=41, 
     ENRICH_FIELD_MULTILINE_COMMENT=42, ENRICH_FIELD_WS=43, SETTING=44, SETTING_LINE_COMMENT=45, 
@@ -57,7 +57,7 @@ public class EsqlBaseParser extends ParserConfig {
   public static final int
     RULE_singleStatement = 0, RULE_query = 1, RULE_sourceCommand = 2, RULE_processingCommand = 3, 
     RULE_whereCommand = 4, RULE_dataType = 5, RULE_rowCommand = 6, RULE_fields = 7, 
-    RULE_field = 8, RULE_fromCommand = 9, RULE_metricsCommand = 10, RULE_indexPatternAndMetadataFields = 11, 
+    RULE_field = 8, RULE_fromCommand = 9, RULE_timeSeriesCommand = 10, RULE_indexPatternAndMetadataFields = 11, 
     RULE_indexPattern = 12, RULE_clusterString = 13, RULE_selectorString = 14, 
     RULE_indexString = 15, RULE_metadata = 16, RULE_evalCommand = 17, RULE_statsCommand = 18, 
     RULE_aggFields = 19, RULE_aggField = 20, RULE_qualifiedName = 21, RULE_qualifiedNamePattern = 22, 
@@ -83,7 +83,7 @@ public class EsqlBaseParser extends ParserConfig {
   private static String[] makeRuleNames() {
     return new String[] {
       "singleStatement", "query", "sourceCommand", "processingCommand", "whereCommand", 
-      "dataType", "rowCommand", "fields", "field", "fromCommand", "metricsCommand", 
+      "dataType", "rowCommand", "fields", "field", "fromCommand", "timeSeriesCommand", 
       "indexPatternAndMetadataFields", "indexPattern", "clusterString", "selectorString", 
       "indexString", "metadata", "evalCommand", "statsCommand", "aggFields", 
       "aggField", "qualifiedName", "qualifiedNamePattern", "qualifiedNamePatterns", 
@@ -126,7 +126,7 @@ public class EsqlBaseParser extends ParserConfig {
     return new String[] {
       null, "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "DEV_CHANGE_POINT", 
       "ENRICH", "EXPLAIN", "DISSECT", "EVAL", "GROK", "LIMIT", "ROW", "SORT", 
-      "STATS", "WHERE", "DEV_INLINESTATS", "FROM", "DEV_METRICS", "DEV_FORK", 
+      "STATS", "WHERE", "DEV_INLINESTATS", "FROM", "DEV_TIME_SERIES", "DEV_FORK", 
       "JOIN_LOOKUP", "DEV_JOIN_FULL", "DEV_JOIN_LEFT", "DEV_JOIN_RIGHT", "DEV_LOOKUP", 
       "MV_EXPAND", "DROP", "KEEP", "DEV_INSIST", "DEV_RRF", "RENAME", "SHOW", 
       "UNKNOWN_CMD", "CHANGE_POINT_LINE_COMMENT", "CHANGE_POINT_MULTILINE_COMMENT", 
@@ -390,8 +390,8 @@ public class EsqlBaseParser extends ParserConfig {
     public ShowCommandContext showCommand() {
       return getRuleContext(ShowCommandContext.class,0);
     }
-    public MetricsCommandContext metricsCommand() {
-      return getRuleContext(MetricsCommandContext.class,0);
+    public TimeSeriesCommandContext timeSeriesCommand() {
+      return getRuleContext(TimeSeriesCommandContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public SourceCommandContext(ParserRuleContext parent, int invokingState) {
@@ -454,7 +454,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(172);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(173);
-        metricsCommand();
+        timeSeriesCommand();
         }
         break;
       }
@@ -1054,39 +1054,39 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class MetricsCommandContext extends ParserRuleContext {
-    public TerminalNode DEV_METRICS() { return getToken(EsqlBaseParser.DEV_METRICS, 0); }
+  public static class TimeSeriesCommandContext extends ParserRuleContext {
+    public TerminalNode DEV_TIME_SERIES() { return getToken(EsqlBaseParser.DEV_TIME_SERIES, 0); }
     public IndexPatternAndMetadataFieldsContext indexPatternAndMetadataFields() {
       return getRuleContext(IndexPatternAndMetadataFieldsContext.class,0);
     }
     @SuppressWarnings("this-escape")
-    public MetricsCommandContext(ParserRuleContext parent, int invokingState) {
+    public TimeSeriesCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_metricsCommand; }
+    @Override public int getRuleIndex() { return RULE_timeSeriesCommand; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterMetricsCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterTimeSeriesCommand(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitMetricsCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitTimeSeriesCommand(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitMetricsCommand(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitTimeSeriesCommand(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final MetricsCommandContext metricsCommand() throws RecognitionException {
-    MetricsCommandContext _localctx = new MetricsCommandContext(_ctx, getState());
-    enterRule(_localctx, 20, RULE_metricsCommand);
+  public final TimeSeriesCommandContext timeSeriesCommand() throws RecognitionException {
+    TimeSeriesCommandContext _localctx = new TimeSeriesCommandContext(_ctx, getState());
+    enterRule(_localctx, 20, RULE_timeSeriesCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
       setState(229);
-      match(DEV_METRICS);
+      match(DEV_TIME_SERIES);
       setState(230);
       indexPatternAndMetadataFields();
       }

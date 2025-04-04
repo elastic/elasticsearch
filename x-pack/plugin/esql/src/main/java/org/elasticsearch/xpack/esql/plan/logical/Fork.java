@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,21 +29,24 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
- * A Fork is a {@code Plan} with one child, but holds several logical subplans, e.g.
+ * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
  */
-public class Fork extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisPlanVerificationAware {
-    public static final String FORK_FIELD = "_fork";
+public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware {
 
-    private final List<LogicalPlan> subPlans;
+    public static final String FORK_FIELD = "_fork";
     List<Attribute> lazyOutput;
 
-    public Fork(Source source, LogicalPlan child, List<LogicalPlan> subPlans) {
-        super(source, child);
-        if (subPlans.size() < 2) {
-            throw new IllegalArgumentException("requires more than two subqueries, got:" + subPlans.size());
+    public Fork(Source source, List<LogicalPlan> children) {
+        super(source, children);
+        if (children.size() < 2) {
+            throw new IllegalArgumentException("requires more than two subqueries, got:" + children.size());
         }
-        this.subPlans = subPlans;
+    }
+
+    @Override
+    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+        return new Fork(source(), newChildren);
     }
 
     @Override
@@ -56,28 +59,22 @@ public class Fork extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysi
         throw new UnsupportedOperationException("not serialized");
     }
 
-    public List<LogicalPlan> subPlans() {
-        return subPlans;
-    }
-
-    @Override
-    public LogicalPlan surrogate() {
-        var newChildren = subPlans.stream().map(p -> surrogateSubPlan(child(), p)).toList();
-        return new Merge(source(), newChildren);
-    }
-
     @Override
     public boolean expressionsResolved() {
-        if (child().resolved() && subPlans.stream().allMatch(LogicalPlan::resolved) == false) {
+        if (children().stream().allMatch(LogicalPlan::resolved) == false) {
+            return false;
+        }
+
+        if (children().stream().anyMatch(p -> p.outputSet().names().contains("<no-fields>"))) {
             return false;
         }
 
         // Here we check if all sub plans output the same column names.
         // If they don't then FORK was not resolved.
-        Set<String> firstOutputNames = subPlans.getFirst().outputSet().names();
+        List<String> firstOutputNames = children().getFirst().output().stream().map(Attribute::name).collect(Collectors.toList());
         Holder<Boolean> resolved = new Holder<>(true);
-        subPlans.stream().skip(1).forEach(subPlan -> {
-            Set<String> names = subPlan.outputSet().names();
+        children().stream().skip(1).forEach(subPlan -> {
+            List<String> names = subPlan.output().stream().map(Attribute::name).collect(Collectors.toList());
             if (names.equals(firstOutputNames) == false) {
                 resolved.set(false);
             }
@@ -88,46 +85,11 @@ public class Fork extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysi
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Fork::new, child(), subPlans);
-    }
-
-    static List<LogicalPlan> replaceEmptyStubs(List<LogicalPlan> subQueries, LogicalPlan newChild) {
-        List<Attribute> attributes = List.copyOf(newChild.output());
-        return subQueries.stream().map(subquery -> {
-            var newStub = new StubRelation(subquery.source(), attributes);
-            return subquery.transformUp(StubRelation.class, stubRelation -> newStub);
-        }).toList();
-    }
-
-    @Override
-    public Fork replaceChild(LogicalPlan newChild) {
-        var newSubQueries = replaceEmptyStubs(subPlans, newChild);
-        return new Fork(source(), newChild, newSubQueries);
-    }
-
-    /**
-     * Returns the surrogate subplan
-     */
-    private LogicalPlan surrogateSubPlan(LogicalPlan source, LogicalPlan subplan) {
-        // Replaces the stubbed source with the actual source.
-        LogicalPlan stubbed = subplan.transformUp(StubRelation.class, stubRelation -> source);
-
-        // align the output
-        List<Attribute> subplanOutput = new ArrayList<>();
-
-        for (Attribute mainAttr : output()) {
-            for (Attribute subAttr : subplan.output()) {
-                if (mainAttr.name().equals(subAttr.name())) {
-                    subplanOutput.add(subAttr);
-                }
-            }
-        }
-
-        return new Keep(source(), stubbed, subplanOutput);
+        return NodeInfo.create(this, Fork::new, children());
     }
 
     public Fork replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new Fork(source(), child(), subPlans);
+        return new Fork(source(), subPlans);
     }
 
     @Override
@@ -142,9 +104,9 @@ public class Fork extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysi
         List<Attribute> output = new ArrayList<>();
         Set<String> names = new HashSet<>();
 
-        for (var subPlan : subPlans) {
+        for (var subPlan : children()) {
             for (var attr : subPlan.output()) {
-                if (names.contains(attr.name()) == false) {
+                if (names.contains(attr.name()) == false && attr.name().equals(Analyzer.NO_FIELDS_NAME) == false) {
                     names.add(attr.name());
                     output.add(attr);
                 }
@@ -155,7 +117,7 @@ public class Fork extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysi
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subPlans);
+        return Objects.hash(Fork.class, children());
     }
 
     @Override
@@ -166,11 +128,9 @@ public class Fork extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysi
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (super.equals(o) == false) {
-            return false;
-        }
         Fork other = (Fork) o;
-        return Objects.equals(subPlans, other.subPlans);
+
+        return Objects.equals(children(), other.children());
     }
 
     @Override
@@ -184,13 +144,13 @@ public class Fork extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysi
         }
         Fork fork = (Fork) plan;
 
-        Map<String, DataType> outputTypes = fork.subPlans()
+        Map<String, DataType> outputTypes = fork.children()
             .getFirst()
             .output()
             .stream()
             .collect(Collectors.toMap(Attribute::name, Attribute::dataType));
 
-        fork.subPlans().stream().skip(1).forEach(subPlan -> {
+        fork.children().stream().skip(1).forEach(subPlan -> {
             for (Attribute attr : subPlan.output()) {
                 var actual = attr.dataType();
                 var expected = outputTypes.get(attr.name());

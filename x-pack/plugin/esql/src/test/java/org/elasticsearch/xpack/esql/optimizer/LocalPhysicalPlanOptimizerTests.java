@@ -38,8 +38,8 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -1340,9 +1340,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             )
         );
         // emp_no
-        assertThat(projections.get(1), instanceOf(ReferenceAttribute.class));
+        assertThat(projections.get(1), instanceOf(FieldAttribute.class));
         // first_name
-        assertThat(projections.get(2), instanceOf(ReferenceAttribute.class));
+        assertThat(projections.get(2), instanceOf(FieldAttribute.class));
 
         // last_name --> first_name
         var nullAlias = Alias.unwrap(projections.get(8));
@@ -1487,7 +1487,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             case KEYWORD -> randomAlphaOfLength(5);
             case IP -> NetworkAddress.format(randomIp(randomBoolean()));
             case TEXT -> randomAlphaOfLength(50);
-            case SEMANTIC_TEXT -> randomAlphaOfLength(5);
             case VERSION -> VersionUtils.randomVersion(random()).toString();
             default -> throw new IllegalArgumentException("Unexpected type: " + dataType);
         };

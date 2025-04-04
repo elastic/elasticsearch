@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -79,13 +80,21 @@ public class InferenceDefinition {
 
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
         preProcess(fields);
+
+        InferenceModel inferenceModel = trainedModel;
+
+        if (config instanceof LearningToRankConfig) {
+            assert trainedModel instanceof BoundedInferenceModel;
+            inferenceModel = new BoundedWindowInferenceModel((BoundedInferenceModel) trainedModel);
+        }
+
         if (config.requestingImportance() && trainedModel.supportsFeatureImportance() == false) {
             throw ExceptionsHelper.badRequestException(
                 "Feature importance is not supported for the configured model of type [{}]",
                 trainedModel.getName()
             );
         }
-        return trainedModel.infer(fields, config, config.requestingImportance() ? getDecoderMap() : Collections.emptyMap());
+        return inferenceModel.infer(fields, config, config.requestingImportance() ? getDecoderMap() : Collections.emptyMap());
     }
 
     public TargetType getTargetType() {

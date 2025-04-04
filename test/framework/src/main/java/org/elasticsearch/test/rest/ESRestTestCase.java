@@ -2705,4 +2705,21 @@ public abstract class ESRestTestCase extends ESTestCase {
     ) {
         assertMap(result, mapMatcher.entry("columns", columnMatcher).entry("values", valuesMatcher));
     }
+
+    public static final String FIPS_KEYSTORE_PASSWORD = "keystore-password";
+
+    /**
+     * @return a REST {@link Request} which will reload the keystore in the test cluster.
+     */
+    protected final Request createReloadSecureSettingsRequest() {
+        try {
+            return newXContentRequest(
+                HttpMethod.POST,
+                "/_nodes/reload_secure_settings",
+                (b, p) -> inFipsJvm() ? b.field("secure_settings_password", FIPS_KEYSTORE_PASSWORD) : b
+            );
+        } catch (IOException e) {
+            throw new AssertionError("impossible", e);
+        }
+    }
 }

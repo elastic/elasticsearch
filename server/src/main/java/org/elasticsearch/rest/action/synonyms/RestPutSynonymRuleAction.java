@@ -21,6 +21,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.action.synonyms.PutSynonymRuleAction.DEFAULT_TIMEOUT;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -52,5 +53,10 @@ public class RestPutSynonymRuleAction extends BaseRestHandler {
             request,
             new RestToXContentListener<>(channel, SynonymUpdateResponse::status, r -> null)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SynonymPutCapabilities.CAPABILITIES;
     }
 }

@@ -82,6 +82,14 @@ setup:
 
 ---
 "Timeout can be specified":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{set_id}/{rule_id}
+          capabilities: [ put_synonyms_timeout ]
+      reason: "synonyms timeout capability needed"
+
   - do:
       synonyms.put_synonym_rule:
         set_id: "test-synonyms"
@@ -93,6 +101,17 @@ setup:
   - match: { result: "created" }
   - match: { reload_analyzers_details._shards.total: 0 }
   - length: { reload_analyzers_details.reload_details: 0 }
+
+  # Validates timeout values
+  - do:
+      catch: /as a time value:\ negative durations are not supported/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        timeout: -100s
+        body:
+          synonyms_set:
+            - synonyms: "bye, goodbye"
 
 ---
 "Validation failure tests":
@@ -135,13 +154,3 @@ setup:
         rule_id: "test-id-0"
         body:
           synonyms: "bye, goodbye,  "
-
-  - do:
-      catch: /as a time value:\ negative durations are not supported/
-      synonyms.put_synonym_rule:
-        set_id: "test-synonyms"
-        rule_id: "test-id-0"
-        timeout: -100s
-        body:
-          synonyms_set:
-            - synonyms: "bye, goodbye"

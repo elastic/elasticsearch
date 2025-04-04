@@ -29,7 +29,7 @@ FROM employees
 The goal isn’t to provide **exactly** the target number of buckets,
 it’s to pick a range that people are comfortable with that provides at most the target number of buckets.
 
-Combine `BUCKET` with an [aggregation](/reference/query-languages/esql/esql-functions-operators.md#esql-agg-functions) to create a histogram:
+Combine `BUCKET` with an [aggregation](/reference/query-languages/esql/functions-operators/aggregation-functions.md) to create a histogram:
 
 ```esql
 FROM employees

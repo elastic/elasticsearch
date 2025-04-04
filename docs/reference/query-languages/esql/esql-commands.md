@@ -232,7 +232,7 @@ ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
 | --- | --- | --- |
 | 2023-01-23T12:15:00.000Z | some text | 127.0.0.1 |
 
-By default, `DISSECT` outputs keyword string columns. To convert to another type, use [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions):
+By default, `DISSECT` outputs keyword string columns. To convert to another type, use [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):
 
 ```esql
 ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
@@ -495,7 +495,7 @@ ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
 | --- | --- | --- | --- |
 | 2023-01-23T12:15:00.000Z | 127.0.0.1 | `some.email@foo.com` | 42 |
 
-For other type conversions, use [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions):
+For other type conversions, use [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):
 
 ```esql
 ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
@@ -913,30 +913,34 @@ Individual `null` values are skipped when computing aggregations.
 
 **Description**
 
-The `STATS` processing command groups rows according to a common value and calculates one or more aggregated values over the grouped rows. For the calculation of each aggregated value, the rows in a group can be filtered with `WHERE`. If `BY` is omitted, the output table contains exactly one row with the aggregations applied over the entire dataset.
+The `STATS` processing command groups rows according to a common value
+and calculates one or more aggregated values over the grouped rows. For the
+calculation of each aggregated value, the rows in a group can be filtered with
+`WHERE`. If `BY` is omitted, the output table contains exactly one row with
+the aggregations applied over the entire dataset.
 
-The following [aggregation functions](/reference/query-languages/esql/esql-functions-operators.md#esql-agg-functions) are supported:
+The following [aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md) are supported:
 
-* [`AVG`](/reference/query-languages/esql/esql-functions-operators.md#esql-avg)
-* [`COUNT`](/reference/query-languages/esql/esql-functions-operators.md#esql-count)
-* [`COUNT_DISTINCT`](/reference/query-languages/esql/esql-functions-operators.md#esql-count_distinct)
-* [`MAX`](/reference/query-languages/esql/esql-functions-operators.md#esql-max)
-* [`MEDIAN`](/reference/query-languages/esql/esql-functions-operators.md#esql-median)
-* [`MEDIAN_ABSOLUTE_DEVIATION`](/reference/query-languages/esql/esql-functions-operators.md#esql-median_absolute_deviation)
-* [`MIN`](/reference/query-languages/esql/esql-functions-operators.md#esql-min)
-* [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile)
-* [preview] [`ST_CENTROID_AGG`](/reference/query-languages/esql/esql-functions-operators.md#esql-st_centroid_agg)
-* [preview] [`ST_EXTENT_AGG`](/reference/query-languages/esql/esql-functions-operators.md#esql-st_extent_agg)
-* [`STD_DEV`](/reference/query-languages/esql/esql-functions-operators.md#esql-std_dev)
-* [`SUM`](/reference/query-languages/esql/esql-functions-operators.md#esql-sum)
-* [`TOP`](/reference/query-languages/esql/esql-functions-operators.md#esql-top)
-* [`VALUES`](/reference/query-languages/esql/esql-functions-operators.md#esql-values)
-* [`WEIGHTED_AVG`](/reference/query-languages/esql/esql-functions-operators.md#esql-weighted_avg)
+* [`AVG`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-avg)
+* [`COUNT`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-count)
+* [`COUNT_DISTINCT`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-count_distinct)
+* [`MAX`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-max)
+* [`MEDIAN`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-median)
+* [`MEDIAN_ABSOLUTE_DEVIATION`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-median_absolute_deviation)
+* [`MIN`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-min)
+* [`PERCENTILE`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-percentile)
+* [preview] [`ST_CENTROID_AGG`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-st_centroid_agg)
+* [preview] [`ST_EXTENT_AGG`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-st_extent_agg)
+* [`STD_DEV`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-std_dev)
+* [`SUM`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-sum)
+* [`TOP`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-top)
+* [`VALUES`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-values)
+* [`WEIGHTED_AVG`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-weighted_avg)
 
-The following [grouping functions](/reference/query-languages/esql/esql-functions-operators.md#esql-group-functions) are supported:
+The following [grouping functions](/reference/query-languages/esql/functions-operators/grouping-functions.md) are supported:
 
-* [`BUCKET`](/reference/query-languages/esql/esql-functions-operators.md#esql-bucket)
-* [preview] [`CATEGORIZE`](/reference/query-languages/esql/esql-functions-operators.md#esql-categorize)
+* [`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-bucket)
+* [preview] [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize)
 
 ::::{note}
 `STATS` without any groups is much much faster than adding a group.
@@ -944,7 +948,12 @@ The following [grouping functions](/reference/query-languages/esql/esql-function
 
 
 ::::{note}
-Grouping on a single expression is currently much more optimized than grouping on many expressions. In some tests we have seen grouping on a single `keyword` column to be five times faster than grouping on two `keyword` columns. Do not try to work around this by combining the two columns together with something like [`CONCAT`](/reference/query-languages/esql/esql-functions-operators.md#esql-concat) and then grouping - that is not going to be faster.
+Grouping on a single expression is currently much more optimized than grouping
+on many expressions. In some tests we have seen grouping on a single `keyword`
+column to be five times faster than grouping on two `keyword` columns. Do
+not try to work around this by combining the two columns together with
+something like [`CONCAT`](/reference/query-languages/esql/functions-operators/string-functions.md#esql-concat) and then grouping - that is not going to
+be faster.
 ::::
 
 
@@ -1122,11 +1131,14 @@ FROM employees
 
 ## `WHERE` [esql-where]
 
-The `WHERE` processing command produces a table that contains all the rows from the input table for which the provided condition evaluates to `true`.
+The `WHERE` processing command produces a table that contains all the rows from
+the input table for which the provided condition evaluates to `true`.
 
 ::::{tip}
-In case of value exclusions, fields with `null` values will be excluded from search results. In this context a `null` means either there is an explicit `null` value in the document or there is no value at all. For example: `WHERE field != "value"` will be interpreted as `WHERE field != "value" AND field IS NOT NULL`.
-
+In case of value exclusions, fields with `null` values will be excluded from search results.
+In this context a `null` means either there is an explicit `null` value in the document or
+there is no value at all. For example: `WHERE field != "value"` will be interpreted as
+`WHERE field != "value" AND field IS NOT NULL`.
 ::::
 
 
@@ -1164,7 +1176,8 @@ FROM sample_data
 | WHERE @timestamp > NOW() - 1 hour
 ```
 
-`WHERE` supports various [functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions). For example the [`LENGTH`](/reference/query-languages/esql/esql-functions-operators.md#esql-length) function:
+`WHERE` supports various [functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions).
+For example the [`LENGTH`](/reference/query-languages/esql/functions-operators/string-functions.md#esql-length) function:
 
 ```esql
 FROM employees
@@ -1200,9 +1213,10 @@ FROM employees
 | --- |
 | 84 |
 
-For matching text, you can use [full text search functions](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions) like `MATCH`.
+For matching text, you can use [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) like `MATCH`.
 
-Use [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match) to perform a [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on a specified field.
+Use [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) to perform a
+[match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on a specified field.
 
 Match can be used on text fields, as well as other field types like boolean, dates, and numeric types.
 
@@ -1223,7 +1237,7 @@ FROM books
 | 3293 | Danny Faulkner |
 
 ::::{tip}
-You can also use the shorthand [match operator](/reference/query-languages/esql/esql-functions-operators.md#esql-search-operators) `:` instead of `MATCH`.
+You can also use the shorthand [match operator](/reference/query-languages/esql/functions-operators/operators.md#esql-search-operators) `:` instead of `MATCH`.
 
 ::::
 
@@ -1311,4 +1325,4 @@ ROW a = 1, b = 4, c = 3
 | --- | --- | --- |
 | 1 | 4 | 3 |
 
-For a complete list of all operators, refer to [Operators](/reference/query-languages/esql/esql-functions-operators.md#esql-operators).
+For a complete list of all operators, refer to [Operators](/reference/query-languages/esql/esql-functions-operators.md#esql-operators-overview).

@@ -50,7 +50,7 @@ A dissect pattern is defined by the parts of the string that will be discarded. 
 
 An empty key (`%{}`) or [named skip key](#esql-named-skip-key) can be used to match values, but exclude the value from the output.
 
-All matched values are output as keyword string data types. Use the [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions) to convert to another data type.
+All matched values are output as keyword string data types. Use the [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md) to convert to another data type.
 
 Dissect also supports [key modifiers](#esql-dissect-key-modifiers) that can change dissect’s default behavior. For example, you can instruct dissect to ignore certain fields, append fields, skip over padding, etc.
 
@@ -91,7 +91,7 @@ ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
 | --- | --- | --- |
 | 2023-01-23T12:15:00.000Z | some text | 127.0.0.1 |
 
-By default, `DISSECT` outputs keyword string columns. To convert to another type, use [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions):
+By default, `DISSECT` outputs keyword string columns. To convert to another type, use [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):
 
 ```esql
 ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
@@ -265,7 +265,7 @@ The `SYNTAX` is the name of the pattern that matches your text. For example, `3.
 
 The `SEMANTIC` is the identifier you give to the piece of text being matched. For example, `3.44` could be the duration of an event, so you could call it simply `duration`. Further, a string `55.3.244.1` might identify the `client` making a request.
 
-By default, matched values are output as keyword string data types. To convert a semantic’s data type, suffix it with the target data type. For example `%{NUMBER:num:int}`, which converts the `num` semantic from a string to an integer. Currently the only supported conversions are `int` and `float`. For other types, use the [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions).
+By default, matched values are output as keyword string data types. To convert a semantic’s data type, suffix it with the target data type. For example `%{NUMBER:num:int}`, which converts the `num` semantic from a string to an integer. Currently the only supported conversions are `int` and `float`. For other types, use the [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md).
 
 For an overview of the available patterns, refer to [GitHub](https://github.com/elastic/elasticsearch//blob/master/libs/grok/src/main/resources/patterns). You can also retrieve a list of all patterns using a [REST API](/reference/enrich-processor/grok-processor.md#grok-processor-rest-get).
 
@@ -316,7 +316,7 @@ ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
 | --- | --- | --- | --- |
 | 2023-01-23T12:15:00.000Z | 127.0.0.1 | `some.email@foo.com` | 42 |
 
-For other type conversions, use [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions):
+For other type conversions, use [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):
 
 ```esql
 ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"

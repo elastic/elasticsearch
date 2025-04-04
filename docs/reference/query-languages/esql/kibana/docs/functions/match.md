@@ -12,7 +12,7 @@ as well as other field types like keyword, boolean, dates, and numeric types.
 Match can use [function named parameters](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/esql-syntax#esql-function-named-params) to specify additional options for the match query.
 All [match query parameters](https://www.elastic.co/docs/reference/elasticsearch/query-languages/query-dsl/query-dsl-match-query#match-field-params) are supported.
 
-For a simplified syntax, you can use the [match operator](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/esql-functions-operators#esql-search-operators) `:` operator instead of `MATCH`.
+For a simplified syntax, you can use the [match operator](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/functions-operators/operators#esql-search-operators) `:` operator instead of `MATCH`.
 
 `MATCH` returns true if the provided query matches the row.
 

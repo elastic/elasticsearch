@@ -114,7 +114,7 @@ To use `LOOKUP JOIN`, the following requirements must be met:
     * `float`, `half_float`, and `scaled_float` are compatible with `double` (all represented as `double`)
   * For text fields: You can only use text fields as the join key on the left-hand side of the join and only if they have a `.keyword` subfield
 
-To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions) if needed.
+To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md) if needed.
 
 For a complete list of supported data types and their internal representations, see the [Supported Field Types documentation](/reference/query-languages/esql/limitations.md#_supported_types).
 

@@ -148,6 +148,7 @@ public abstract class DocsV3Support {
             entry("esql-enrich-data", "esql/esql-enrich-data.md"),
             entry("esql-examples", "esql/esql-examples.md"),
             entry("esql-functions-operators", "esql/esql-functions-operators.md"),
+            entry("esql-agg-functions", "esql/functions-operators/aggregation-functions.md"),
             entry("esql-implicit-casting", "esql/esql-implicit-casting.md"),
             entry("esql-metadata-fields", "esql/esql-metadata-fields.md"),
             entry("esql-multivalued-fields", "esql/esql-multivalued-fields.md"),
@@ -343,9 +344,7 @@ public abstract class DocsV3Support {
         // Old-style links within ES|QL reference
         if (key.startsWith("esql-")) {
             String cmd = parts[0].replace("esql-", "");
-            String parentFile = knownCommands.containsKey(cmd)
-                ? "/reference/query-languages/esql/esql-commands.md"
-                : "/reference/query-languages/esql/esql-functions-operators.md";
+            String parentFile = parentFileFor(cmd);
             return makeLink(key, "esql-", parentFile);
         }
         // Old-style links to Query DSL pages
@@ -371,6 +370,26 @@ public abstract class DocsV3Support {
         };
     }
 
+    private String parentFileFor(String cmd) {
+        if (knownCommands.containsKey(cmd)) {
+            return "/reference/query-languages/esql/esql-commands.md";
+        } else if (cmd.startsWith("mv_")) {
+            return "/reference/query-languages/esql/functions-operators/mv-functions.md";
+        } else if (cmd.contains("-operator")) {
+            return "/reference/query-languages/esql/functions-operators/operators.md";
+        } else if (cmd.startsWith("st_")) {
+            return "/reference/query-languages/esql/functions-operators/spatial-functions.md";
+        } else if (cmd.startsWith("to_")) {
+            return "/reference/query-languages/esql/functions-operators/type-conversion-functions.md";
+        } else if (cmd.startsWith("date_")) {
+            return "/reference/query-languages/esql/functions-operators/date-time-functions.md";
+        } else if (cmd.equals("split")) {
+            return "/reference/query-languages/esql/functions-operators/date-time-functions.md";
+        } else {
+            return "/reference/query-languages/esql/functions-operators/aggregation-functions.md";
+        }
+    }
+
     private String makeLink(String key, String prefix, String parentFile) {
         String displayText = key.substring(prefix.length());
         if (knownCommands.containsKey(displayText)) {
@@ -382,13 +401,13 @@ public abstract class DocsV3Support {
             if (comma > 0) {
                 key = prefix + displayText.substring(0, comma);
                 displayText = displayText.substring(comma + 1).trim();
-            } else if (parentFile.contains("esql/esql-")) {
+            } else if (parentFile.contains("esql/esql-") || parentFile.contains("esql/functions-operators")) {
                 // For ES|QL commands and functions we normally make uppercase code
                 displayText = "`" + displayText.toUpperCase(Locale.ROOT) + "`";
             }
         }
-        if (parentFile.contains("/" + key + ".md")) {
-            // The current docs-builder trips off all link targets that match the filename, so we need to do the same
+        if (parentFile.contains("/" + key + ".md") || parentFile.contains("/" + key.replaceAll("esql-", "") + ".md")) {
+            // The current docs-builder strips off all link targets that match the filename, so we need to do the same
             return String.format(Locale.ROOT, "[%s](%s)", displayText, parentFile);
         } else {
             return String.format(Locale.ROOT, "[%s](%s#%s)", displayText, parentFile, key);

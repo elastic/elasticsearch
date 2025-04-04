@@ -151,7 +151,12 @@ In addition, when [querying multiple indexes](docs-content://explore-analyze/que
 
 ## Full-text search [esql-limitations-full-text-search]
 
-[preview] {{esql}}'s support for [full-text search](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions) is currently in Technical Preview. One limitation of full-text search is that it is necessary to use the search function, like [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match), in a [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command directly after the [`FROM`](/reference/query-languages/esql/esql-commands.md#esql-from) source command, or close enough to it. Otherwise, the query will fail with a validation error.
+[preview] {{esql}}'s support for [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is currently in Technical Preview.
+One limitation of full-text search is that it is necessary to use the search function,
+like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
+in a [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command directly after the
+[`FROM`](/reference/query-languages/esql/esql-commands.md#esql-from) source command, or close enough to it.
+Otherwise, the query will fail with a validation error.
 
 For example, this query is valid:
 
@@ -168,7 +173,12 @@ FROM books
 | WHERE MATCH(author, "Faulkner")
 ```
 
-Note that, because of [the way {{esql}} treats `text` values](#esql-limitations-text-fields), any queries on `text` fields that do not explicitly use the full-text functions, [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match), [`QSTR`](/reference/query-languages/esql/esql-functions-operators.md#esql-qstr) or [`KQL`](/reference/query-languages/esql/esql-functions-operators.md#esql-kql), will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
+Note that, because of [the way {{esql}} treats `text` values](#esql-limitations-text-fields),
+any queries on `text` fields that do not explicitly use the full-text functions,
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr) or
+[`KQL`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-kql),
+will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
 
 
 ## `text` fields behave like `keyword` fields [esql-limitations-text-fields]
@@ -184,7 +194,11 @@ For example, the following query will return a column `greatest` of type `keywor
 | EVAL greatest = GREATEST(field1, field2, field3)
 ```
 
-Note that {{esql}}'s retrieval of `keyword` subfields may have unexpected consequences. Other than when explicitly using the full-text functions, [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match) and [`QSTR`](/reference/query-languages/esql/esql-functions-operators.md#esql-qstr), any {{esql}} query on a `text` field is case-sensitive.
+Note that {{esql}}'s retrieval of `keyword` subfields may have unexpected consequences.
+Other than when explicitly using the full-text functions,
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) and
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr),
+any {{esql}} query on a `text` field is case-sensitive.
 
 For example, after indexing a field of type `text` with the value `Elasticsearch query language`, the following `WHERE` clause does not match because the `LIKE` operator is case-sensitive:
 
@@ -206,7 +220,9 @@ As a workaround, use wildcards and regular expressions. For example:
 
 Furthermore, a subfield may have been mapped with a [normalizer](/reference/elasticsearch/mapping-reference/normalizer.md), which can transform the original string. Or it may have been mapped with [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md), which can truncate the string. None of these mapping operations are applied to an {{esql}} query, which may lead to false positives or negatives.
 
-To avoid these issues, a best practice is to be explicit about the field that you query, and query `keyword` sub-fields instead of `text` fields. Or consider using one of the [full-text search](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions) functions.
+To avoid these issues, a best practice is to be explicit about the field that you query,
+and query `keyword` sub-fields instead of `text` fields.
+Or consider using one of the [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) functions.
 
 
 ## Using {{esql}} to query multiple indices [esql-multi-index-limitations]
@@ -265,7 +281,10 @@ The `GROK` command does not support configuring [custom patterns](/reference/enr
 
 ## Multivalue limitations [esql-limitations-mv]
 
-{{esql}} [supports multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md), but functions return `null` when applied to a multivalued field, unless documented otherwise. Work around this limitation by converting the field to single value with one of the [multivalue functions](/reference/query-languages/esql/esql-functions-operators.md#esql-mv-functions).
+{{esql}} [supports multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md),
+but functions return `null` when applied to a multivalued field, unless documented otherwise.
+Work around this limitation by converting the field to single value with one of the
+[multivalue functions](/reference/query-languages/esql/functions-operators/mv-functions.md).
 
 
 ## Timezone support [esql-limitations-timezone]

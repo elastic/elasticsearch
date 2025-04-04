@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import java.io.IOException;
@@ -24,7 +25,6 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -32,6 +32,28 @@ import java.util.function.Supplier;
  * calls. This class encapsulates ThreadLocal metrics access.
  */
 public class GcsRepositoryStatsCollector {
+
+    static final TimeProvider NOOP_TIMER = new TimeProvider() {
+        @Override
+        public long relativeTimeInMillis() {
+            return 0;
+        }
+
+        @Override
+        public long relativeTimeInNanos() {
+            return 0;
+        }
+
+        @Override
+        public long rawRelativeTimeInMillis() {
+            return 0;
+        }
+
+        @Override
+        public long absoluteTimeInMillis() {
+            return 0;
+        }
+    };
 
     private static final ThreadLocal<OperationStats> OPERATION_STATS = new ThreadLocal<>();
 
@@ -44,61 +66,58 @@ public class GcsRepositoryStatsCollector {
         var stats = getThreadLocal();
         var code = response.getStatusCode();
         stats.reqAtt += 1;
-        if (((code >= 200 && code < 300) || code == 308) == false) {
+        stats.isLastReqSuccess = true;
+        if (((code >= 200 && code < 300) || code == 308 || code == 404) == false) {
             stats.reqErr += 1;
+            stats.isLastReqSuccess = false;
             switch (code) {
-                case 404 -> stats.reqBillableErr += 1;
                 case 416 -> stats.reqErrRange += 1;
                 case 429 -> stats.reqErrThrottle += 1;
             }
         }
     };
+
     /**
      * Track operations for billing and REST API
      */
-    private final EnumMap<OperationPurpose, EnumMap<StorageOperation, OpsCollector>> restMetering;
+    private final EnumMap<OperationPurpose, EnumMap<StorageOperation, Collector>> collectors;
+
     /**
      * Telemetry (APM)
      */
     private final RepositoriesMetrics telemetry;
     private final EnumMap<OperationPurpose, EnumMap<StorageOperation, Map<String, Object>>> telemetryAttributes;
-    /**
-     * track request duration
-     */
-    private final LongSupplier timer;
+    private final TimeProvider timer;
 
     GcsRepositoryStatsCollector() {
-        this(() -> 0L, new RepositoryMetadata(GoogleCloudStorageRepository.TYPE, "", Settings.EMPTY), RepositoriesMetrics.NOOP);
+        this(NOOP_TIMER, new RepositoryMetadata(GoogleCloudStorageRepository.TYPE, "", Settings.EMPTY), RepositoriesMetrics.NOOP);
     }
 
-    GcsRepositoryStatsCollector(LongSupplier timer, RepositoryMetadata metadata, RepositoriesMetrics repositoriesMetrics) {
+    GcsRepositoryStatsCollector(TimeProvider timer, RepositoryMetadata metadata, RepositoriesMetrics repositoriesMetrics) {
         this.timer = timer;
         this.telemetry = repositoriesMetrics;
-        this.restMetering = new EnumMap<>(OperationPurpose.class);
+        this.collectors = new EnumMap<>(OperationPurpose.class);
         for (var purpose : OperationPurpose.values()) {
-            var operationsMap = new EnumMap<StorageOperation, OpsCollector>(StorageOperation.class);
+            var operationsMap = new EnumMap<StorageOperation, Collector>(StorageOperation.class);
             for (var op : StorageOperation.values()) {
-                operationsMap.put(op, new OpsCollector(new LongAdder(), new LongAdder()));
+                operationsMap.put(op, new Collector(new LongAdder(), new LongAdder()));
             }
-            restMetering.put(purpose, operationsMap);
+            collectors.put(purpose, operationsMap);
         }
         this.telemetryAttributes = new EnumMap<>(OperationPurpose.class);
-        if (repositoriesMetrics != RepositoriesMetrics.NOOP) {
-            for (var purpose : OperationPurpose.values()) {
-                var purposeMap = new EnumMap<StorageOperation, Map<String, Object>>(StorageOperation.class);
-                telemetryAttributes.put(purpose, purposeMap);
-                for (var operation : StorageOperation.values()) {
-                    var attrMap = RepositoriesMetrics.createAttributesMap(metadata, purpose, operation.key);
-                    purposeMap.put(operation, attrMap);
-                }
+        for (var purpose : OperationPurpose.values()) {
+            var purposeMap = new EnumMap<StorageOperation, Map<String, Object>>(StorageOperation.class);
+            telemetryAttributes.put(purpose, purposeMap);
+            for (var operation : StorageOperation.values()) {
+                var attrMap = RepositoriesMetrics.createAttributesMap(metadata, purpose, operation.key);
+                purposeMap.put(operation, attrMap);
             }
         }
     }
 
-    private static OperationStats initAndGetThreadLocal(OperationPurpose purpose, StorageOperation operation, long time) {
+    private static OperationStats initAndGetThreadLocal(OperationPurpose purpose, StorageOperation operation) {
         assert OPERATION_STATS.get() == null : "cannot init stats, thread local is not empty";
         var stats = new OperationStats(purpose, operation);
-        stats.startTimeMs = time;
         OPERATION_STATS.set(stats);
         return stats;
     }
@@ -124,9 +143,26 @@ public class GcsRepositoryStatsCollector {
      */
     public <T> T continueWithStats(OperationStats stats, IOSupplier<T> blobFn) throws IOException {
         setThreadLocal(stats);
+        var t = timer.absoluteTimeInMillis();
         try {
             return blobFn.get();
         } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
+            clearThreadLocal();
+        }
+    }
+
+    /**
+     * Final step in continual collection
+     */
+    public void finishRunnable(OperationStats stats, IORunnable runnable) throws IOException {
+        setThreadLocal(stats);
+        var t = timer.absoluteTimeInMillis();
+        try {
+            runnable.run();
+        } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
+            collect(stats);
             clearThreadLocal();
         }
     }
@@ -134,38 +170,24 @@ public class GcsRepositoryStatsCollector {
     /**
      * Continue collecting metrics with given OperationStats. Useful for readers and writers.
      */
-    public void continueWithStats(OperationStats stats, IORunnable runnable) throws IOException {
-        setThreadLocal(stats);
+    public void collectIORunnable(OperationPurpose purpose, StorageOperation operation, IORunnable runnable) throws IOException {
+        var stats = initAndGetThreadLocal(purpose, operation);
+        var t = timer.absoluteTimeInMillis();
         try {
             runnable.run();
         } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
             clearThreadLocal();
         }
     }
 
-    /**
-     * Final step in continual collection
-     */
-    public void finishAndCollect(OperationStats stats, IORunnable runnable) throws IOException {
-        setThreadLocal(stats);
+    public void collectRunnable(OperationPurpose purpose, StorageOperation operation, Runnable runnable) {
+        var t = timer.absoluteTimeInMillis();
+        var stats = initAndGetThreadLocal(purpose, operation);
         try {
             runnable.run();
-            stats.isSuccess = true;
         } finally {
-            collect(stats);
-            clearThreadLocal();
-        }
-    }
-
-    /**
-     * Final step in continual collection
-     */
-    public void finishAndCollect(OperationStats stats, Runnable runnable) {
-        setThreadLocal(stats);
-        try {
-            runnable.run();
-            stats.isSuccess = true;
-        } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
             collect(stats);
             clearThreadLocal();
         }
@@ -174,29 +196,28 @@ public class GcsRepositoryStatsCollector {
     /**
      * Executes GCS Storage operation in a wrapper that stores metrics in ThreadLocal
      */
-    public <T> T runAndCollect(OperationPurpose purpose, StorageOperation operation, IOSupplier<T> blobFn) throws IOException {
-        var stats = initAndGetThreadLocal(purpose, operation, timer.getAsLong());
+    public <T> T collectIOSupplier(OperationPurpose purpose, StorageOperation operation, IOSupplier<T> blobFn) throws IOException {
+        var t = timer.absoluteTimeInMillis();
+        var stats = initAndGetThreadLocal(purpose, operation);
         try {
-            var result = blobFn.get();
-            stats.isSuccess = true;
-            return result;
+            return blobFn.get();
         } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
             collect(stats);
             clearThreadLocal();
-
         }
     }
 
     /**
      * Executes GCS Storage operation in a wrapper that stores metrics in ThreadLocal
      */
-    public <T> T runAndCollectUnchecked(OperationPurpose purpose, StorageOperation operation, Supplier<T> supplier) {
-        var stats = initAndGetThreadLocal(purpose, operation, timer.getAsLong());
+    public <T> T collectSupplier(OperationPurpose purpose, StorageOperation operation, Supplier<T> blobFn) {
+        var t = timer.absoluteTimeInMillis();
+        var stats = initAndGetThreadLocal(purpose, operation);
         try {
-            var result = supplier.get();
-            stats.isSuccess = true;
-            return result;
+            return blobFn.get();
         } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
             collect(stats);
             clearThreadLocal();
         }
@@ -208,65 +229,47 @@ public class GcsRepositoryStatsCollector {
         }
         var purpose = stats.purpose;
         var operation = stats.operation;
-        var opOk = 0;
-        var opErr = 0;
-        switch (operation) {
-            case GET, LIST -> {
-                opOk = stats.reqAtt - stats.reqErr + stats.reqBillableErr;
-                opErr = stats.reqBillableErr;
-            }
-            case INSERT -> {
-                opOk = stats.isSuccess ? 1 : 0;
-                opErr = stats.isSuccess ? 0 : 1;
-            }
-        }
-        if (opOk > 0) {
-            var opStats = restMetering.get(purpose).get(operation);
-            assert opStats != null;
-            opStats.operations.add(opOk);
-            opStats.requests.add(stats.reqAtt - stats.reqErr + stats.reqBillableErr);
-        }
+        var operationSuccess = stats.isLastReqSuccess ? 1 : 0;
+        var operationErr = stats.isLastReqSuccess ? 0 : 1;
+        var collector = collectors.get(purpose).get(operation);
+        assert collector != null;
+        collector.operations.add(operationSuccess);
+        collector.requests.add(stats.reqAtt);
 
-        if (telemetry != RepositoriesMetrics.NOOP) {
-            var attr = telemetryAttributes.get(stats.purpose).get(stats.operation);
-            assert attr != null;
-            telemetry.operationCounter().incrementBy(opOk, attr);
-            telemetry.unsuccessfulOperationCounter().incrementBy(opErr, attr);
-            telemetry.requestCounter().incrementBy(stats.reqAtt, attr);
-            telemetry.exceptionCounter().incrementBy(stats.reqErr, attr);
-            telemetry.exceptionHistogram().record(stats.reqErr, attr);
-            telemetry.throttleCounter().incrementBy(stats.reqErrThrottle, attr);
-            telemetry.throttleHistogram().record(stats.reqErrThrottle, attr);
-            telemetry.requestRangeNotSatisfiedExceptionCounter().incrementBy(stats.reqErrRange, attr);
-            telemetry.httpRequestTimeInMillisHistogram().record(stats.startTimeMs, attr);
-        }
+        var attr = telemetryAttributes.get(purpose).get(operation);
+        assert attr != null;
+        telemetry.operationCounter().incrementBy(operationSuccess, attr);
+        telemetry.unsuccessfulOperationCounter().incrementBy(operationErr, attr);
+        telemetry.requestCounter().incrementBy(stats.reqAtt, attr);
+        telemetry.exceptionCounter().incrementBy(stats.reqErr, attr);
+        telemetry.exceptionHistogram().record(stats.reqErr, attr);
+        telemetry.throttleCounter().incrementBy(stats.reqErrThrottle, attr);
+        telemetry.throttleHistogram().record(stats.reqErrThrottle, attr);
+        telemetry.requestRangeNotSatisfiedExceptionCounter().incrementBy(stats.reqErrRange, attr);
+        telemetry.httpRequestTimeInMillisHistogram().record(stats.totalDuration, attr);
     }
 
     public Map<String, BlobStoreActionStats> operationsStats(boolean isServerless) {
         var out = new HashMap<String, BlobStoreActionStats>();
-        if (isServerless) {
-            // Map<'Purpose_Operation', <operations, requests>
-            for (var purposeKv : restMetering.entrySet()) {
-                for (var operationKv : restMetering.get(purposeKv.getKey()).entrySet()) {
-                    var stat = operationKv.getValue();
-                    var ops = stat.operations.sum();
-                    var req = stat.requests.sum();
-                    out.put(purposeKv.getKey().getKey() + "_" + operationKv.getKey().key(), new BlobStoreActionStats(ops, req));
-                }
-            }
-        } else {
-            // Map<'Operation', <operations, requests>
-            for (var purposeKv : restMetering.entrySet()) {
-                for (var operationKv : purposeKv.getValue().entrySet()) {
-                    out.compute(operationKv.getKey().key(), (k, v) -> {
-                        var stat = operationKv.getValue();
-                        var ops = stat.operations.sum();
-                        // TODO update map with (ops,req) when azure ready
-                        // var req = stat.requests.sum();
+        // Map<'Purpose_Operation', <operations, requests>
+        for (var purposeCollector : collectors.entrySet()) {
+            for (var operationCollector : collectors.get(purposeCollector.getKey()).entrySet()) {
+                var collector = operationCollector.getValue();
+                var operations = collector.operations.sum();
+                var requests = collector.requests.sum();
+                if (isServerless) {
+                    // Map<'Purpose_Operation', <operations, requests>
+                    out.put(
+                        purposeCollector.getKey().getKey() + "_" + operationCollector.getKey().key(),
+                        new BlobStoreActionStats(operations, requests)
+                    );
+                } else {
+                    // merge all purposes into Map<'Operation', <operations, requests>
+                    out.compute(operationCollector.getKey().key(), (k, v) -> {
                         if (v == null) {
-                            return new BlobStoreActionStats(ops, ops);
+                            return new BlobStoreActionStats(operations, requests);
                         } else {
-                            return new BlobStoreActionStats(v.operations() + ops, v.operations() + ops);
+                            return v.add(new BlobStoreActionStats(operations, requests));
                         }
                     });
                 }
@@ -275,5 +278,5 @@ public class GcsRepositoryStatsCollector {
         return out;
     }
 
-    record OpsCollector(LongAdder operations, LongAdder requests) {}
+    record Collector(LongAdder operations, LongAdder requests) {}
 }

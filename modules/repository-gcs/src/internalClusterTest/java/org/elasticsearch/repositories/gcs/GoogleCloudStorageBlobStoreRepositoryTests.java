@@ -17,7 +17,6 @@ import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
-import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -57,8 +56,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
@@ -106,7 +103,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+        if (delegate instanceof FakeOAuth2HttpHandler) {
+            return new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+        } else {
+            return new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
+        }
     }
 
     @Override
@@ -220,6 +221,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
             container.deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single(key));
         }
+    }
+
+    @Override
+    public void testRequestStats() throws Exception {
+        super.testRequestStats();
     }
 
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
@@ -357,8 +363,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @SuppressForbidden(reason = "this tests uses a HttpServer to emulate an GCS endpoint")
     private static class GoogleCloudStorageStatsCollectorHttpHandler extends HttpStatsCollectorHandler {
 
-        public static final Pattern contentRangeMatcher = Pattern.compile("bytes \\d+-(\\d+)/(\\d+)");
-
         GoogleCloudStorageStatsCollectorHttpHandler(final HttpHandler delegate) {
             super(delegate);
         }
@@ -366,33 +370,17 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         @Override
         public void maybeTrack(HttpExchange exchange) {
             final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-            final Headers requestHeaders = exchange.getRequestHeaders();
             if (Regex.simpleMatch("GET */storage/v1/b/*/o/*", request)) {
                 trackRequest(StorageOperation.GET.key());
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
                 trackRequest(StorageOperation.LIST.key());
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=resumable*", request)) {
-                // Resumable uploads are billed as a single operation, that's the reason we're tracking the request only first part
-                // See https://cloud.google.com/storage/docs/resumable-uploads#introduction
+                trackRequest(StorageOperation.INSERT.key());
+            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*uploadType=resumable*", request)) {
                 trackRequest(StorageOperation.INSERT.key());
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
                 trackRequest(StorageOperation.INSERT.key());
             }
-        }
-
-        boolean isLastPart(Headers requestHeaders) {
-            if (requestHeaders.containsKey("Content-range") == false) return false;
-
-            // https://cloud.google.com/storage/docs/json_api/v1/parameters#contentrange
-            final String contentRange = requestHeaders.getFirst("Content-range");
-
-            final Matcher matcher = contentRangeMatcher.matcher(contentRange);
-
-            if (matcher.matches() == false) return false;
-
-            String upperBound = matcher.group(1);
-            String totalLength = matcher.group(2);
-            return Integer.parseInt(upperBound) == Integer.parseInt(totalLength) - 1;
         }
     }
 }

@@ -35,7 +35,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
 
     @SuppressWarnings("this-escape")
     public GoogleCloudStoragePlugin(final Settings settings) {
-        var isServerless = settings.getAsBoolean(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false);
+        var isServerless = DiscoveryNode.isStateless(settings);
         this.storageService = createStorageService(isServerless);
         // eagerly load client settings so that secure settings are readable (not closed)
         reload(settings);
@@ -64,7 +64,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                new GcsRepositoryStatsCollector(() -> clusterService.threadPool().absoluteTimeInMillis(), metadata, repositoriesMetrics)
+                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics)
             )
         );
     }

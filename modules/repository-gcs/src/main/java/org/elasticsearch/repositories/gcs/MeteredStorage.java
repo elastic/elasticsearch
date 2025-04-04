@@ -23,7 +23,6 @@ import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
-import org.apache.lucene.util.IORunnable;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.SuppressForbidden;
@@ -79,12 +78,12 @@ public class MeteredStorage {
     }
 
     public MeteredBlobPage meteredList(OperationPurpose purpose, String bucket, Storage.BlobListOption... options) throws IOException {
-        var pages = statsCollector.runAndCollectUnchecked(purpose, LIST, () -> storage.list(bucket, options));
+        var pages = statsCollector.collectSupplier(purpose, LIST, () -> storage.list(bucket, options));
         return new MeteredBlobPage(statsCollector, purpose, pages);
     }
 
     public Blob meteredGet(OperationPurpose purpose, BlobId blobId) throws IOException {
-        return statsCollector.runAndCollect(purpose, GET, () -> storage.get(blobId));
+        return statsCollector.collectIOSupplier(purpose, GET, () -> storage.get(blobId));
     }
 
     public void meteredCreate(
@@ -95,7 +94,7 @@ public class MeteredStorage {
         int blobSize,
         Storage.BlobTargetOption... targetOptions
     ) throws IOException {
-        statsCollector.runAndCollect(purpose, INSERT, () -> storage.create(blobInfo, buffer, offset, blobSize, targetOptions));
+        statsCollector.collectIOSupplier(purpose, INSERT, () -> storage.create(blobInfo, buffer, offset, blobSize, targetOptions));
     }
 
     public StorageBatch batch() {
@@ -120,8 +119,7 @@ public class MeteredStorage {
     }
 
     public MeteredReadChannel meteredReader(OperationPurpose purpose, BlobId blobId, Storage.BlobSourceOption... options) {
-        var initStats = new OperationStats(purpose, GET);
-        return new MeteredReadChannel(statsCollector, initStats, storage.reader(blobId, options));
+        return new MeteredReadChannel(purpose, statsCollector, storage.reader(blobId, options));
     }
 
     /**
@@ -151,12 +149,15 @@ public class MeteredStorage {
         }
 
         public HttpResponse executeMedia() throws IOException {
-            return statsCollector.runAndCollect(purpose, GET, get::executeMedia);
+            return statsCollector.collectIOSupplier(purpose, GET, get::executeMedia);
         }
     }
 
     /**
-     * A delegating WriteChannel with metrics collection
+     * A delegating WriteChannel. Write channel performs at most one operation for all writes.
+     * This is implication of GCS billing, all insert operations, even resumable, are counted as one,
+     * despite number of parts. It's different from ReadChannel and BlobPage, where every read/list
+     * call is counted as separate operation.
      */
     @SuppressForbidden(reason = "wraps GCS channel")
     public static class MeteredWriteChannel implements WriteChannel {
@@ -192,33 +193,33 @@ public class MeteredStorage {
 
         @Override
         public void close() throws IOException {
-            statsCollector.finishAndCollect(stats, (IORunnable) writeChannel::close);
+            statsCollector.finishRunnable(stats, writeChannel::close);
         }
     }
 
     /**
-     * A delegating ReadChannel with metrics collection
+     * A delegating ReadChannel. Each method call is at most one storage operation, or none.
      */
     @SuppressForbidden(reason = "wraps GCS channel")
     public static class MeteredReadChannel implements ReadChannel {
         private final GcsRepositoryStatsCollector statsCollector;
         private final ReadChannel readChannel;
-        private final OperationStats stats;
+        private final OperationPurpose purpose;
 
-        MeteredReadChannel(GcsRepositoryStatsCollector statsCollector, OperationStats initStats, ReadChannel readChannel) {
+        MeteredReadChannel(OperationPurpose purpose, GcsRepositoryStatsCollector statsCollector, ReadChannel readChannel) {
             this.statsCollector = statsCollector;
             this.readChannel = readChannel;
-            this.stats = initStats;
+            this.purpose = purpose;
         }
 
         @Override
         public void close() {
-            statsCollector.finishAndCollect(stats, (Runnable) readChannel::close);
+            statsCollector.collectRunnable(purpose, GET, readChannel::close);
         }
 
         @Override
         public void seek(long position) throws IOException {
-            statsCollector.continueWithStats(stats, () -> readChannel.seek(position));
+            statsCollector.collectIORunnable(purpose, GET, () -> readChannel.seek(position));
         }
 
         @Override
@@ -228,7 +229,7 @@ public class MeteredStorage {
 
         @Override
         public RestorableState<ReadChannel> capture() {
-            return () -> new MeteredReadChannel(statsCollector, stats, readChannel.capture().restore());
+            return () -> new MeteredReadChannel(purpose, statsCollector, readChannel.capture().restore());
         }
 
         @Override
@@ -244,7 +245,7 @@ public class MeteredStorage {
 
         @Override
         public int read(ByteBuffer dst) throws IOException {
-            return statsCollector.continueWithStats(stats, () -> readChannel.read(dst));
+            return statsCollector.collectIOSupplier(purpose, GET, () -> readChannel.read(dst));
         }
 
         @Override
@@ -254,6 +255,9 @@ public class MeteredStorage {
 
     }
 
+    /**
+     * A delegating paginated blob list. Each list operation is at most one storage operation, or none.
+     */
     public static class MeteredBlobPage implements Page<Blob> {
         private final GcsRepositoryStatsCollector statsCollector;
         private final OperationPurpose purpose;
@@ -277,7 +281,7 @@ public class MeteredStorage {
 
         @Override
         public MeteredBlobPage getNextPage() {
-            var nextPage = statsCollector.runAndCollectUnchecked(purpose, LIST, pages::getNextPage);
+            var nextPage = statsCollector.collectSupplier(purpose, LIST, pages::getNextPage);
             if (nextPage != null) {
                 return new MeteredBlobPage(statsCollector, purpose, nextPage);
             } else {
@@ -304,12 +308,12 @@ public class MeteredStorage {
 
             @Override
             public boolean hasNext() {
-                return statsCollector.runAndCollectUnchecked(purpose, LIST, iterator::hasNext);
+                return statsCollector.collectSupplier(purpose, LIST, iterator::hasNext);
             }
 
             @Override
             public Blob next() {
-                return statsCollector.runAndCollectUnchecked(purpose, LIST, iterator::next);
+                return statsCollector.collectSupplier(purpose, LIST, iterator::next);
             }
         }
 

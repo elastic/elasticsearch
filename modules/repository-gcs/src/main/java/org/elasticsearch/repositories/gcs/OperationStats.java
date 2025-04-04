@@ -17,14 +17,14 @@ public class OperationStats {
     final StorageOperation operation;
 
     /**
-     * operation start time (system milliseconds)
+     * total time taken for the operation
      */
-    long startTimeMs;
+    long totalDuration;
 
     /**
-     * true if operation completed successfully
+     * true if last request is completed successfully
      */
-    boolean isSuccess;
+    boolean isLastReqSuccess;
 
     /**
      * request attempts including retires and multi part requests
@@ -35,11 +35,6 @@ public class OperationStats {
      * request errors, all unsuccessful request attempts {@code reqErr<=reqAtt}
      */
     int reqErr;
-
-    /**
-     * billable errors, such as 4xx, {@code reqBillableErr<=reqErr}
-     */
-    int reqBillableErr;
 
     /**
      * request throttles (429),  {@code reqErrThrottle<=reqErr}
@@ -54,7 +49,6 @@ public class OperationStats {
     OperationStats(OperationPurpose purpose, StorageOperation operation) {
         this.purpose = purpose;
         this.operation = operation;
-        this.startTimeMs = 0;
     }
 
     @Override
@@ -64,16 +58,14 @@ public class OperationStats {
             + purpose
             + ", operation="
             + operation
-            + ", startTimeMs="
-            + startTimeMs
-            + ", isSuccess="
-            + isSuccess
+            + ", totalDuration="
+            + totalDuration
+            + ", isLastReqSuccess="
+            + isLastReqSuccess
             + ", reqAtt="
             + reqAtt
             + ", reqErr="
             + reqErr
-            + ", reqBillableErr="
-            + reqBillableErr
             + ", reqErrThrottle="
             + reqErrThrottle
             + ", reqErrRange="

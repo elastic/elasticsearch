@@ -30,6 +30,8 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 public class Completion extends InferencePlan<Completion> implements GeneratingPlan<Completion>, SortAgnostic{
 
+    public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Completion", Completion::new);
     private final Expression prompt;
     private final Attribute targetField;

@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -735,6 +736,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitFields(ctx.fields()));
+    }
+
+    @Override
+    public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
+
+        Source source = source(ctx);
+
+        if (false == EsqlCapabilities.Cap.COMPLETION.isEnabled()) {
+            throw new ParsingException(source, "COMPLETION is in preview and only available in SNAPSHOT build");
+        }
+
+        Expression prompt = expression(ctx.prompt);
+        Literal inferenceId = inferenceId(ctx.inferenceId);
+        String targetFieldName = ctx.targetField == null ? Completion.DEFAULT_OUTPUT_FIELD_NAME : visitQualifiedName(ctx.targetField).name();
+        Attribute targetField = new ReferenceAttribute(source, targetFieldName, DataType.TEXT);
+
+        return p -> new Completion(source, p, inferenceId, prompt, targetField);
     }
 
     public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {

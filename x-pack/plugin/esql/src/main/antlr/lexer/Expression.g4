@@ -23,7 +23,6 @@ DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_
 DEV_RERANK : {this.isDevVersion()}? 'rerank'             -> pushMode(EXPRESSION_MODE);
 
 
-
 mode EXPRESSION_MODE;
 
 PIPE : '|' -> popMode;

@@ -1,0 +1,5 @@
+pr: 126294
+summary: TO_IP can handle leading zeros
+area: ES|QL
+type: enhancement
+issues: []

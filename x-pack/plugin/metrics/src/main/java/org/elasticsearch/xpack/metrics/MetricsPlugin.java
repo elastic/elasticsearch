@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.metrics;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,11 +29,6 @@ import java.util.function.Supplier;
 
 public class MetricsPlugin extends Plugin implements ActionPlugin {
     @Override
-    public Collection<?> createComponents(PluginServices services) {
-        return super.createComponents(services);
-    }
-
-    @Override
     public Collection<RestHandler> getRestHandlers(
         Settings settings,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -44,5 +41,10 @@ public class MetricsPlugin extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(new MetricsRestAction());
+    }
+
+    @Override
+    public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(new ActionHandler<>(MetricsTransportAction.TYPE, MetricsTransportAction.class));
     }
 }

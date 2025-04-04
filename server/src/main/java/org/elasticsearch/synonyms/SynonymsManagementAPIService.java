@@ -434,7 +434,7 @@ public class SynonymsManagementAPIService {
         );
     }
 
-    public void deleteSynonymRule(String synonymsSetId, String synonymRuleId, ActionListener<SynonymsReloadResult> listener, int timeout) {
+    public void deleteSynonymRule(String synonymsSetId, String synonymRuleId, ActionListener<SynonymsReloadResult> listener) {
         client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymsSetId, synonymRuleId))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, deleteResponse) -> {
@@ -453,7 +453,7 @@ public class SynonymsManagementAPIService {
                     return;
                 }
 
-                ensureSynonymsSearchableAndReloadAnalyzers(synonymsSetId, false, listener, UpdateSynonymsResultStatus.DELETED, timeout);
+                reloadAnalyzers(synonymsSetId, false, listener, UpdateSynonymsResultStatus.DELETED);
             }));
     }
 
@@ -508,10 +508,10 @@ public class SynonymsManagementAPIService {
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
     }
 
-    public void deleteSynonymsSet(String synonymSetId, ActionListener<AcknowledgedResponse> listener, int timeout) {
+    public void deleteSynonymsSet(String synonymSetId, ActionListener<AcknowledgedResponse> listener) {
 
         // Previews reloading the resource to understand its usage on indices
-        ensureSynonymsSearchableAndReloadAnalyzers(synonymSetId, true, listener.delegateFailure((reloadListener, reloadResult) -> {
+        reloadAnalyzers(synonymSetId, true, listener.delegateFailure((reloadListener, reloadResult) -> {
             Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadDetails = reloadResult.reloadAnalyzersResponse.getReloadDetails();
             if (reloadDetails.isEmpty() == false) {
                 Set<String> indices = reloadDetails.entrySet()
@@ -548,7 +548,7 @@ public class SynonymsManagementAPIService {
 
                 deleteObjectsListener.onResponse(AcknowledgedResponse.of(true));
             }));
-        }), null, timeout);
+        }), null);
     }
 
     private <T> void ensureSynonymsSearchableAndReloadAnalyzers(

@@ -41,6 +41,7 @@ public class RestPutSynonymRuleAction extends BaseRestHandler {
         PutSynonymRuleAction.Request request = new PutSynonymRuleAction.Request(
             restRequest.param("synonymsSet"),
             restRequest.param("synonymRuleId"),
+            restRequest.paramAsInt("timeout", PutSynonymRuleAction.DEFAULT_TIMEOUT),
             restRequest.content(),
             restRequest.getXContentType()
         );

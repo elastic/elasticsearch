@@ -39,6 +39,6 @@ public class TransportDeleteSynonymsAction extends HandledTransportAction<Delete
 
     @Override
     protected void doExecute(Task task, DeleteSynonymsAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        synonymsManagementAPIService.deleteSynonymsSet(request.synonymsSetId(), listener);
+        synonymsManagementAPIService.deleteSynonymsSet(request.synonymsSetId(), listener, timeout);
     }
 }

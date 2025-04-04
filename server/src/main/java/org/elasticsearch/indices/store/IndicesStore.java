@@ -158,6 +158,23 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
             }
 
             for (IndexRoutingTable indexRoutingTable : routingTable) {
+                indexRoutingTable.allShards().forEach(shardRouting -> {
+                    shardRouting.allShards().forEach(sr -> {
+                        System.out.println(
+                            "Shard "
+                                + sr.currentNodeId()
+                                + "/"
+                                + sr.index()
+                                + "/"
+                                + sr.id()
+                                + " - State "
+                                + sr.state()
+                                + " "
+                                + sr.shortSummary()
+                        );
+                    });
+                });
+
                 // Note, closed indices will not have any routing information, so won't be deleted
                 for (int i = 0; i < indexRoutingTable.size(); i++) {
                     IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);

@@ -1223,6 +1223,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         return Map.of("repo_type", "s3", "repo_name", "repository", "operation", "GetObject", "purpose", "Indices", "action", action);
     }
 
+    private static boolean isMultiDeleteRequest(HttpExchange exchange) {
+        return new S3HttpHandler("bucket").parseRequest(exchange).isMultiObjectDeleteRequest();
+    }
+
     /**
      * Asserts that an InputStream is fully consumed, or aborted, when it is closed
      */

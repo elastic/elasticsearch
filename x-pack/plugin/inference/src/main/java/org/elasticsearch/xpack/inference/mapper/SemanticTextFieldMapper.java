@@ -19,6 +19,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.metadata.SemanticTextIndexOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -53,7 +54,6 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -183,7 +183,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             Objects::toString
         ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
 
-        private final Parameter<IndexOptions> indexOptions = new Parameter<>(
+        private final Parameter<SemanticTextIndexOptions> indexOptions = new Parameter<>(
             INDEX_OPTIONS_FIELD,
             true,
             () -> null,
@@ -558,8 +558,16 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         Arrays.sort(copyFields);
         ChunkingSettings fieldTypeChunkingSettings = fieldType().getChunkingSettings();
         Map<String, Object> asMap = fieldTypeChunkingSettings != null ? fieldTypeChunkingSettings.asMap() : null;
+        SemanticTextIndexOptions indexOptions = fieldType().getIndexOptions();
 
-        return new InferenceFieldMetadata(fullPath(), fieldType().getInferenceId(), fieldType().getSearchInferenceId(), copyFields, asMap);
+        return new InferenceFieldMetadata(
+            fullPath(),
+            fieldType().getInferenceId(),
+            fieldType().getSearchInferenceId(),
+            copyFields,
+            asMap,
+            indexOptions
+        );
     }
 
     @Override
@@ -589,7 +597,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final String searchInferenceId;
         private final MinimalServiceSettings modelSettings;
         private final ChunkingSettings chunkingSettings;
-        private final IndexOptions indexOptions;
+        private final SemanticTextIndexOptions indexOptions;
         private final ObjectMapper inferenceField;
         private final boolean useLegacyFormat;
 
@@ -599,7 +607,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             String searchInferenceId,
             MinimalServiceSettings modelSettings,
             ChunkingSettings chunkingSettings,
-            IndexOptions indexOptions,
+            SemanticTextIndexOptions indexOptions,
             ObjectMapper inferenceField,
             boolean useLegacyFormat,
             Map<String, String> meta
@@ -649,7 +657,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return chunkingSettings;
         }
 
-        public IndexOptions getIndexOptions() {
+        public SemanticTextIndexOptions getIndexOptions() {
             return indexOptions;
         }
 
@@ -925,7 +933,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         useLegacyFormat,
                         name(),
                         null,
-                        new SemanticTextField.InferenceResult(inferenceId, modelSettings, chunkingSettings, chunkMap),
+                        new SemanticTextField.InferenceResult(inferenceId, modelSettings, chunkingSettings, indexOptions, chunkMap),
                         source.sourceContentType()
                     )
                 );
@@ -967,7 +975,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         boolean useLegacyFormat,
         @Nullable MinimalServiceSettings modelSettings,
-        @Nullable IndexOptions indexOptions,
+        @Nullable SemanticTextIndexOptions indexOptions,
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings
     ) {
@@ -980,7 +988,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         boolean useLegacyFormat,
         @Nullable MinimalServiceSettings modelSettings,
-        @Nullable IndexOptions indexOptions,
+        @Nullable SemanticTextIndexOptions indexOptions,
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings
     ) {
@@ -1006,7 +1014,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static Mapper.Builder createEmbeddingsField(
         IndexVersion indexVersionCreated,
         MinimalServiceSettings modelSettings,
-        IndexOptions indexOptions,
+        SemanticTextIndexOptions indexOptions,
         boolean useLegacyFormat
     ) {
         return switch (modelSettings.taskType()) {
@@ -1032,7 +1040,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
                 if (indexOptions != null) {
                     DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
-                        (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions;
+                        (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
                     denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
                 }
 
@@ -1053,7 +1061,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return false;
     }
 
-    private static boolean canMergeIndexOptions(IndexOptions previous, IndexOptions current, Conflicts conflicts) {
+    private static boolean canMergeIndexOptions(SemanticTextIndexOptions previous, SemanticTextIndexOptions current, Conflicts conflicts) {
         if (Objects.equals(previous, current) || previous == null || current == null) {
             return true;
         }

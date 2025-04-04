@@ -9,4 +9,35 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-public interface IndexOptions {}
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContent;
+
+import java.io.IOException;
+
+public abstract class IndexOptions implements ToXContent, Writeable {
+
+    public IndexOptions() {}
+
+    public abstract IndexOptions readFrom(StreamInput in) throws IOException;
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(getClass().getName());
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    public static IndexOptions readIndexOptions(StreamInput in) throws IOException {
+        String className = in.readString(); // Read the class name from the input
+        try {
+            Class<?> clazz = Class.forName(className);
+            IndexOptions instance = (IndexOptions) clazz.getDeclaredConstructor().newInstance();
+            return instance.readFrom(in);
+        } catch (ReflectiveOperationException e) {
+            throw new IOException("Failed to create instance of " + className, e);
+        }
+    }
+}

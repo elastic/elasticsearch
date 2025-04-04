@@ -195,7 +195,17 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     public MappedFieldType getMappedFieldType() {
-        return new SemanticTextFieldMapper.SemanticTextFieldType("field", "fake-inference-id", null, null, null, null, false, Map.of());
+        return new SemanticTextFieldMapper.SemanticTextFieldType(
+            "field",
+            "fake-inference-id",
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            Map.of()
+        );
     }
 
     @Override

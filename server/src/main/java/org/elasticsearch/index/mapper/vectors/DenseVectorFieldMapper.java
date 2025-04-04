@@ -37,6 +37,9 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
@@ -73,7 +76,6 @@ import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -1226,11 +1228,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
     }
 
-    public abstract static class DenseVectorIndexOptions implements ToXContent, IndexOptions {
+    public abstract static class DenseVectorIndexOptions extends IndexOptions {
         final VectorIndexType type;
 
         DenseVectorIndexOptions(VectorIndexType type) {
             this.type = type;
+        }
+
+        DenseVectorIndexOptions(StreamInput in) throws IOException {
+            this.type = in.readEnum(VectorIndexType.class);
         }
 
         abstract KnnVectorsFormat getVectorsFormat(ElementType elementType);
@@ -1242,6 +1248,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeEnum(type);
+            doWriteTo(out);
+        }
+
+        protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
         abstract boolean updatableTo(DenseVectorIndexOptions update);
 
@@ -1284,6 +1299,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
         QuantizedIndexOptions(VectorIndexType type, RescoreVector rescoreVector) {
             super(type);
             this.rescoreVector = rescoreVector;
+        }
+
+        QuantizedIndexOptions(StreamInput in) throws IOException {
+            super(in);
+            this.rescoreVector = in.readOptionalWriteable(RescoreVector::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalWriteable(rescoreVector);
+            doWriteTo(out);
         }
     }
 
@@ -1552,6 +1579,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.confidenceInterval = confidenceInterval;
         }
 
+        Int8FlatIndexOptions(StreamInput in) throws IOException {
+            super(in);
+            confidenceInterval = in.readOptionalFloat();
+        }
+
+        @Override
+        public IndexOptions readFrom(StreamInput in) throws IOException {
+            return new Int8FlatIndexOptions(in);
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalFloat(confidenceInterval);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -1599,6 +1642,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super(VectorIndexType.FLAT);
         }
 
+        FlatIndexOptions(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public IndexOptions readFrom(StreamInput in) throws IOException {
+            return new FlatIndexOptions(in);
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            // no additional fields to write
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -1643,6 +1700,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // The default confidence interval for int4 is dynamic quantiles, this provides the best relevancy and is
             // effectively required for int4 to behave well across a wide range of data.
             this.confidenceInterval = confidenceInterval == null ? 0f : confidenceInterval;
+        }
+
+        Int4HnswIndexOptions(StreamInput in) throws IOException {
+            super(in);
+            m = in.readInt();
+            efConstruction = in.readInt();
+            confidenceInterval = in.readFloat();
+        }
+
+        @Override
+        public IndexOptions readFrom(StreamInput in) throws IOException {
+            return new Int4HnswIndexOptions(in);
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeInt(m);
+            out.writeInt(efConstruction);
+            out.writeFloat(confidenceInterval);
         }
 
         @Override
@@ -1717,6 +1794,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.confidenceInterval = confidenceInterval == null ? 0f : confidenceInterval;
         }
 
+        Int4FlatIndexOptions(StreamInput in) throws IOException {
+            super(in);
+            confidenceInterval = in.readFloat();
+        }
+
+        @Override
+        public IndexOptions readFrom(StreamInput in) throws IOException {
+            return new Int4FlatIndexOptions(in);
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            out.writeFloat(confidenceInterval);
+        }
+
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
@@ -1774,6 +1866,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.m = m;
             this.efConstruction = efConstruction;
             this.confidenceInterval = confidenceInterval;
+        }
+
+        Int8HnswIndexOptions(StreamInput in) throws IOException {
+            super(in);
+            m = in.readInt();
+            efConstruction = in.readInt();
+            confidenceInterval = in.readFloat();
+        }
+
+        @Override
+        public IndexOptions readFrom(StreamInput in) throws IOException {
+            return new Int8HnswIndexOptions(in);
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            out.writeInt(m);
+            out.writeInt(efConstruction);
+            out.writeFloat(confidenceInterval);
         }
 
         @Override
@@ -1857,6 +1968,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.efConstruction = efConstruction;
         }
 
+        HnswIndexOptions(StreamInput in) throws IOException {
+            super(in);
+            m = in.readInt();
+            efConstruction = in.readInt();
+        }
+
+        @Override
+        public IndexOptions readFrom(StreamInput in) throws IOException {
+            return new HnswIndexOptions(in);
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            out.writeInt(m);
+            out.writeInt(efConstruction);
+        }
+
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             if (elementType == ElementType.BIT) {
@@ -1917,6 +2045,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.efConstruction = efConstruction;
         }
 
+        BBQHnswIndexOptions(StreamInput in) throws IOException {
+            super(in);
+            m = in.readInt();
+            efConstruction = in.readInt();
+        }
+
+        @Override
+        public IndexOptions readFrom(StreamInput in) throws IOException {
+            return new BBQHnswIndexOptions(in);
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            out.writeInt(m);
+            out.writeInt(efConstruction);
+        }
+
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
@@ -1968,6 +2113,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super(VectorIndexType.BBQ_FLAT, rescoreVector);
         }
 
+        BBQFlatIndexOptions(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public IndexOptions readFrom(StreamInput in) throws IOException {
+            return new BBQFlatIndexOptions(in);
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            // no additional fields to write
+        }
+
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
@@ -2009,9 +2168,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    record RescoreVector(float oversample) implements ToXContentObject {
+    record RescoreVector(float oversample) implements ToXContentObject, Writeable {
         static final String NAME = "rescore_vector";
         static final String OVERSAMPLE = "oversample";
+
+        RescoreVector(StreamInput in) throws IOException {
+            this(in.readFloat());
+        }
 
         static RescoreVector fromIndexOptions(Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
             Object rescoreVectorNode = indexOptionsMap.remove(NAME);
@@ -2041,6 +2204,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field(OVERSAMPLE, oversample);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeFloat(oversample);
         }
     }
 

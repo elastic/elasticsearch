@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.SemanticTextIndexOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -15,8 +16,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -35,7 +34,6 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -77,36 +75,12 @@ public record SemanticTextField(
     static final String MODEL_SETTINGS_FIELD = "model_settings";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
     static final String INDEX_OPTIONS_FIELD = "index_options";
-    static final String TYPE_FIELD = "type";
-
-    public enum SupportedIndexOptions {
-        DENSE_VECTOR("dense_vector") {
-            @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
-                return parseDenseVectorIndexOptionsFromMap(fieldName, map, indexVersion);
-            }
-        };
-
-        public final String value;
-
-        SupportedIndexOptions(String value) {
-            this.value = value;
-        }
-
-        public abstract IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion);
-
-        public static SupportedIndexOptions fromValue(String value) {
-            return Arrays.stream(SupportedIndexOptions.values())
-                .filter(option -> option.value.equals(value))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Unknown index options type [" + value + "]"));
-        }
-    }
 
     public record InferenceResult(
         String inferenceId,
         MinimalServiceSettings modelSettings,
         ChunkingSettings chunkingSettings,
+        SemanticTextIndexOptions indexOptions,
         Map<String, List<Chunk>> chunks
     ) {}
 
@@ -170,41 +144,23 @@ public record SemanticTextField(
         }
     }
 
-    static IndexOptions parseIndexOptionsFromMap(String fieldName, Object node, IndexVersion indexVersion) {
+    static SemanticTextIndexOptions parseIndexOptionsFromMap(String fieldName, Object node, IndexVersion indexVersion) {
 
         if (node == null) {
             return null;
         }
 
         Map<String, Object> map = XContentMapValues.nodeMapValue(node, INDEX_OPTIONS_FIELD);
-        if (map.size() == 1) {
-            return null;
+        if (map.size() != 1) {
+            throw new IllegalArgumentException("Too many index options provided, found [" + map.keySet() + "]");
         }
         Map.Entry<String, Object> entry = map.entrySet().iterator().next();
-        SupportedIndexOptions indexOptions = SupportedIndexOptions.fromValue(entry.getKey());
+        SemanticTextIndexOptions.SupportedIndexOptions indexOptions = SemanticTextIndexOptions.SupportedIndexOptions.fromValue(
+            entry.getKey()
+        );
         @SuppressWarnings("unchecked")
         Map<String, Object> indexOptionsMap = (Map<String, Object>) entry.getValue();
-        return indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion);
-    }
-
-    private static DenseVectorFieldMapper.DenseVectorIndexOptions parseDenseVectorIndexOptionsFromMap(
-        String fieldName,
-        Map<String, Object> map,
-        IndexVersion indexVersion
-    ) {
-        try {
-            Object type = map.remove(TYPE_FIELD);
-            if (type == null) {
-                throw new IllegalArgumentException("Required [" + TYPE_FIELD + "]");
-            }
-            DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
-                XContentMapValues.nodeStringValue(type.toString(), null)
-            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " [" + type + "]"));
-
-            return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion);
-        } catch (Exception exc) {
-            throw new ElasticsearchException(exc);
-        }
+        return new SemanticTextIndexOptions(indexOptions, indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion));
     }
 
     @Override
@@ -224,6 +180,9 @@ public record SemanticTextField(
         builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
         if (inference.chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
+        }
+        if (inference.indexOptions != null) {
+            builder.field(INDEX_OPTIONS_FIELD, inference.indexOptions);
         }
 
         if (useLegacyFormat) {
@@ -293,8 +252,15 @@ public record SemanticTextField(
             String inferenceId = (String) args[0];
             MinimalServiceSettings modelSettings = (MinimalServiceSettings) args[1];
             Map<String, Object> chunkingSettings = (Map<String, Object>) args[2];
-            Map<String, List<Chunk>> chunks = (Map<String, List<Chunk>>) args[3];
-            return new InferenceResult(inferenceId, modelSettings, ChunkingSettingsBuilder.fromMap(chunkingSettings, false), chunks);
+            SemanticTextIndexOptions indexOptions = (SemanticTextIndexOptions) args[3];
+            Map<String, List<Chunk>> chunks = (Map<String, List<Chunk>>) args[4];
+            return new InferenceResult(
+                inferenceId,
+                modelSettings,
+                ChunkingSettingsBuilder.fromMap(chunkingSettings, false),
+                indexOptions,
+                chunks
+            );
         }
     );
 

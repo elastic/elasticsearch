@@ -9,14 +9,12 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.tasks.CancellableTask;
@@ -61,25 +59,6 @@ public class ClusterStateRequest extends LocalClusterStateRequest implements Ind
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         waitForTimeout = in.readTimeValue();
         waitForMetadataVersion = in.readOptionalLong();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        getParentTask().writeTo(out);
-        out.writeTimeValue(masterTimeout());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeVLong(0L); // Master term
-        } // else no protection against routing loops in older versions
-        out.writeBoolean(true); // Local
-        out.writeBoolean(routingTable);
-        out.writeBoolean(nodes);
-        out.writeBoolean(metadata);
-        out.writeBoolean(blocks);
-        out.writeBoolean(customs);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeTimeValue(waitForTimeout);
-        out.writeOptionalLong(waitForMetadataVersion);
     }
 
     @Override

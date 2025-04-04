@@ -197,8 +197,8 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = CountDistinctBytesRefAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = CountDistinctBytesRefAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

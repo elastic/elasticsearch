@@ -178,6 +178,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecProvider;
@@ -554,7 +555,10 @@ public class Stateless extends Plugin
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(services.telemetryProvider().getMeterRegistry()));
         setAndGet(this.mergeMetrics, new MergeMetrics(services.telemetryProvider().getMeterRegistry()));
         components.add(this.mergeMetrics.get());
-        setAndGet(hollowShardMetrics, HollowShardsMetrics.from(services.telemetryProvider().getMeterRegistry()));
+        setAndGet(
+            hollowShardMetrics,
+            HollowShardsMetrics.from(services.telemetryProvider().getMeterRegistry(), this::amountOfHollowableShards)
+        );
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
 
@@ -1643,5 +1647,21 @@ public class Stateless extends Plugin
             IndexShard indexShard = indicesService.getShardOrNull(shardId);
             return indexShard == null || indexShard.routingEntry().relocating();
         }
+    }
+
+    private long amountOfHollowableShards() {
+        var hollowShardsService = this.hollowShardsService.get();
+        if (hollowShardsService == null) {
+            return 0;
+        }
+        long amountOfHollowableShards = 0;
+        for (IndexService indexShards : indicesService.get()) {
+            for (IndexShard indexShard : indexShards) {
+                if (hollowShardsService.isHollowableIndexShard(indexShard)) {
+                    amountOfHollowableShards++;
+                }
+            }
+        }
+        return amountOfHollowableShards;
     }
 }

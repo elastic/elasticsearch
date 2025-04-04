@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -46,6 +47,26 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
     public WordBoundaryChunkingSettings(StreamInput in) throws IOException {
         maxChunkSize = in.readInt();
         overlap = in.readInt();
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        return Map.of(
+            ChunkingSettingsOptions.STRATEGY.toString(),
+            STRATEGY.toString().toLowerCase(Locale.ROOT),
+            ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
+            maxChunkSize,
+            ChunkingSettingsOptions.OVERLAP.toString(),
+            overlap
+        );
+    }
+
+    public int maxChunkSize() {
+        return maxChunkSize;
+    }
+
+    public int overlap() {
+        return overlap;
     }
 
     public static WordBoundaryChunkingSettings fromMap(Map<String, Object> map) {
@@ -129,5 +150,10 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
     @Override
     public int hashCode() {
         return Objects.hash(maxChunkSize, overlap);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

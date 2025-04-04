@@ -297,6 +297,7 @@ class S3Service extends AbstractLifecycleComponent {
     static SdkHttpClient buildHttpClient(S3ClientSettings clientSettings, @Nullable /* to use default resolver */ DnsResolver dnsResolver) {
         ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
 
+        // TODO NOMERGE: test maxConnections and readTimeoutMillis settings.
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
         httpClientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
 
@@ -694,17 +695,9 @@ class S3Service extends AbstractLifecycleComponent {
             return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(consumer).handle(this::resultHandler));
         }
 
-        // TODO NOMERGE: I changed this so I could test successfully that a log message occurs.
-        // resultHandler doesn't appear to be invoked. I'm not sure how the original code works (haven't looked yet).
         @Override
         public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
-            try {
-                return SocketAccess.doPrivileged(() -> delegate.resolveIdentity());
-            } catch (Exception e) {
-                logger.error(() -> "Unable to resolve identity from " + delegate, e);
-                throw e;
-            }
-            // return SocketAccess.doPrivileged(() -> delegate.resolveIdentity().handle(this::resultHandler));
+            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity().handle(this::resultHandler));
         }
 
         @Override

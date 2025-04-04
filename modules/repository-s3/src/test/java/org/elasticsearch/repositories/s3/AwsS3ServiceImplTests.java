@@ -199,7 +199,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSConfigurationTest(settings, null, -1, null, null, null, 5, 50000);
     }
 
-    // TODO NOMERGE unused params
     private void launchAWSConfigurationTest(
         Settings settings,
         String expectedProxyHost,
@@ -224,9 +223,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
         final ClientOverrideConfiguration configuration = S3Service.buildConfiguration(clientSettings, false);
         assertThat(configuration.retryStrategy().get().maxAttempts(), is(expectedMaxRetries + 1));
-
-        // TODO NOMERGE: consider whether this needs to be tested elsewhere.
-        // assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout)); // set on the httpClient
     }
 
     public void testEndpointSetting() {
@@ -279,20 +275,23 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testLoggingCredentialsProviderCatchesErrorsOnResolveIdentity() {
-        // Set up #resolveIdentity() to throw a fake exception.
+        // Set up #resolveIdentity() to return a future with an exception.
         var mockCredentialsProvider = Mockito.mock(AwsCredentialsProvider.class);
         String mockProviderErrorMessage = "mockProvider failed to generate credentials";
-        Mockito.when(mockCredentialsProvider.resolveIdentity()).thenThrow(new IllegalStateException(mockProviderErrorMessage));
-
+        Answer<CompletableFuture<? extends AwsCredentialsIdentity>> answer = invocation -> {
+            CompletableFuture<AwsCredentialsIdentity> future = new CompletableFuture<>();
+            future.completeExceptionally(new IllegalStateException(mockProviderErrorMessage));
+            return future;
+        };
+        Mockito.when(mockCredentialsProvider.resolveIdentity()).thenAnswer(answer);
         var mockLogger = Mockito.mock(Logger.class);
         var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockCredentialsProvider, mockLogger);
 
         // The S3Service.ErrorLoggingCredentialsProvider should log the error.
-        var exception = expectThrows(IllegalStateException.class, credentialsProvider::resolveIdentity);
-        assertEquals(mockProviderErrorMessage, exception.getMessage());
+        credentialsProvider.resolveIdentity();
 
         var messageSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
-        var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
+        var throwableCaptor = ArgumentCapgtor.forClass(Throwable.class);
         Mockito.verify(mockLogger).error(messageSupplierCaptor.capture(), throwableCaptor.capture());
 
         assertThat(messageSupplierCaptor.getValue().get().toString(), startsWith("Unable to resolve identity from"));

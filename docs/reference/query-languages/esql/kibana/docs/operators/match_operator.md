@@ -15,5 +15,5 @@ For using the function syntax, or adding [match query parameters](https://www.el
 
 ```esql
 FROM books
-| WHERE MATCH(author, "Faulkner")
+| WHERE author:"Faulkner"
 ```

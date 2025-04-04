@@ -14,9 +14,7 @@ import com.amazonaws.AbortedException;
 import com.amazonaws.DnsResolver;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.util.Base16;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -30,7 +28,9 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -80,7 +80,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntConsumer;
@@ -114,19 +113,19 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     private static final int MAX_NUMBER_SNAPSHOT_DELETE_RETRIES = 10;
     private S3Service service;
-    private AtomicBoolean shouldErrorOnDns;
+    private volatile boolean shouldErrorOnDns;
     private RecordingMeterRegistry recordingMeterRegistry;
 
     @Before
     public void setUp() throws Exception {
-        shouldErrorOnDns = new AtomicBoolean(false);
+        shouldErrorOnDns = false;
         service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class)) {
             @Override
             protected AmazonS3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
                 final AmazonS3ClientBuilder builder = super.buildClientBuilder(clientSettings);
                 final DnsResolver defaultDnsResolver = builder.getClientConfiguration().getDnsResolver();
                 builder.getClientConfiguration().setDnsResolver(host -> {
-                    if (shouldErrorOnDns.get() && randomBoolean() && randomBoolean()) {
+                    if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {
                         throw new UnknownHostException(host);
                     }
                     return defaultDnsResolver.resolve(host);
@@ -377,13 +376,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 }
             } else if (s3Request.isUploadPartRequest()) {
                 // upload part request
-                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                BytesReference bytes = Streams.readFully(md5);
+                BytesReference bytes = Streams.readFully(exchange.getRequestBody());
                 assertThat((long) bytes.length(), anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
                 assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
 
                 if (countDownUploads.decrementAndGet() % 2 == 0) {
-                    exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                    exchange.getResponseHeaders().add("ETag", getBase16MD5Digest(bytes));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     exchange.close();
                     return;
@@ -475,12 +473,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 }
             } else if (s3Request.isUploadPartRequest()) {
                 // upload part request
-                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                BytesReference bytes = Streams.readFully(md5);
+                BytesReference bytes = Streams.readFully(exchange.getRequestBody());
 
                 if (counterUploads.incrementAndGet() % 2 == 0) {
                     bytesReceived.addAndGet(bytes.length());
-                    exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                    exchange.getResponseHeaders().add("ETag", getBase16MD5Digest(bytes));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     exchange.close();
                     return;
@@ -667,7 +664,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         final byte[] bytes = randomBlobContent(512);
 
-        shouldErrorOnDns.set(true);
+        shouldErrorOnDns = true;
         final AtomicInteger failures = new AtomicInteger();
         @SuppressForbidden(reason = "use a http server")
         class FlakyReadHandler implements HttpHandler {
@@ -895,7 +892,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     @SuppressForbidden(reason = "use a http server")
-    private class ThrottlingDeleteHandler extends S3HttpHandler {
+    private static class ThrottlingDeleteHandler extends S3HttpHandler {
 
         private static final String THROTTLING_ERROR_CODE = "SlowDown";
 
@@ -920,7 +917,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            if (exchange.getRequestMethod().equals("POST") && exchange.getRequestURI().toString().startsWith("/bucket/?delete")) {
+            if (isMultiDeleteRequest(exchange)) {
                 onAttemptCallback.accept(numberOfDeleteAttempts.get());
                 numberOfDeleteAttempts.incrementAndGet();
                 if (throttleTimesBeforeSuccess.getAndDecrement() > 0) {
@@ -1024,7 +1021,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         int maxBulkDeleteSize = randomIntBetween(1, 10);
         final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null, maxBulkDeleteSize);
         httpServer.createContext("/", exchange -> {
-            if (exchange.getRequestMethod().equals("POST") && exchange.getRequestURI().toString().startsWith("/bucket/?delete")) {
+            if (isMultiDeleteRequest(exchange)) {
                 exchange.sendResponseHeaders(
                     randomFrom(
                         HttpStatus.SC_INTERNAL_SERVER_ERROR,
@@ -1058,7 +1055,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         final Pattern pattern = Pattern.compile("<Key>(.+?)</Key>");
         httpServer.createContext("/", exchange -> {
-            if (exchange.getRequestMethod().equals("POST") && exchange.getRequestURI().toString().startsWith("/bucket/?delete")) {
+            if (isMultiDeleteRequest(exchange)) {
                 final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
                 final var matcher = pattern.matcher(requestBody);
                 final StringBuilder deletes = new StringBuilder();
@@ -1103,6 +1100,21 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             assertThat(exception.getCause().getSuppressed().length, lessThan(S3BlobStore.MAX_DELETE_EXCEPTIONS));
             mockLog.awaitAllExpectationsMatched();
         }
+    }
+
+    private static String getBase16MD5Digest(BytesReference bytesReference) {
+        return MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5()));
+    }
+
+    public void testGetBase16MD5Digest() {
+        // from Wikipedia, see also org.elasticsearch.common.hash.MessageDigestsTests.testMd5
+        assertBase16MD5Digest("", "d41d8cd98f00b204e9800998ecf8427e");
+        assertBase16MD5Digest("The quick brown fox jumps over the lazy dog", "9e107d9d372bb6826bd81d3542a419d6");
+        assertBase16MD5Digest("The quick brown fox jumps over the lazy dog.", "e4d909c290d0fb1ca068ffaddf22cbd0");
+    }
+
+    private static void assertBase16MD5Digest(String input, String expectedDigestString) {
+        assertEquals(expectedDigestString, getBase16MD5Digest(new BytesArray(input)));
     }
 
     @Override
@@ -1193,6 +1205,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     private Map<String, Object> metricAttributes(String action) {
         return Map.of("repo_type", "s3", "repo_name", "repository", "operation", "GetObject", "purpose", "Indices", "action", action);
+    }
+
+    private static boolean isMultiDeleteRequest(HttpExchange exchange) {
+        return new S3HttpHandler("bucket").parseRequest(exchange).isMultiObjectDeleteRequest();
     }
 
     /**

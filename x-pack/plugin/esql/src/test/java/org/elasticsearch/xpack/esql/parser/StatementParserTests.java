@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -283,7 +284,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new Aggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
-                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -300,7 +300,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new Aggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
-                Aggregate.AggregateType.STANDARD,
                 List.of(),
                 List.of(
                     new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -313,7 +312,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithoutAggs() {
         assertEquals(
-            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(attribute("a")), List.of(attribute("a"))),
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
             processingCommand("stats by a")
         );
     }
@@ -348,7 +347,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
         assertEquals(
-            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(a), List.of(filter, a)),
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(a), List.of(filter, a)),
             processingCommand("stats min(a) where a > 1 by a")
         );
     }
@@ -371,13 +370,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var avg_filter = new Alias(EMPTY, "avg", new FilteredExpression(EMPTY, avg, avg_filter_ex));
 
         assertEquals(
-            new Aggregate(
-                EMPTY,
-                PROCESSING_CMD_INPUT,
-                Aggregate.AggregateType.STANDARD,
-                List.of(a),
-                List.of(min_alias, max_filter, avg_filter, a)
-            ),
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(a), List.of(min_alias, max_filter, avg_filter, a)),
             processingCommand("""
                 stats
                 min = min(a),
@@ -392,10 +385,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var a = attribute("a");
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
-        assertEquals(
-            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(), List.of(filter)),
-            processingCommand("stats min(a) where a > 1")
-        );
+        assertEquals(new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(), List.of(filter)), processingCommand("stats min(a) where a > 1"));
     }
 
     public void testInlineStatsWithGroups() {
@@ -414,7 +404,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 new Aggregate(
                     EMPTY,
                     PROCESSING_CMD_INPUT,
-                    Aggregate.AggregateType.STANDARD,
                     List.of(attribute("c"), attribute("d.e")),
                     List.of(
                         new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -443,7 +432,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 new Aggregate(
                     EMPTY,
                     PROCESSING_CMD_INPUT,
-                    Aggregate.AggregateType.STANDARD,
                     List.of(),
                     List.of(
                         new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -459,7 +447,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         List<String> commands = new ArrayList<>();
         commands.add("FROM");
         if (Build.current().isSnapshot()) {
-            commands.add("METRICS");
+            commands.add("TS");
         }
         for (String command : commands) {
             assertStringAsIndexPattern("foo", command + " \"foo\"");
@@ -561,7 +549,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Map<String, String> commands = new HashMap<>();
         commands.put("FROM {}", "line 1:6: ");
         if (Build.current().isSnapshot()) {
-            commands.put("METRICS {}", "line 1:9: ");
             commands.put("ROW x = 1 | LOOKUP_🐔 {} ON j", "line 1:22: ");
         }
         String lineNumber;
@@ -660,7 +647,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // comma separated indices, with exclusions
         // Invalid index names after removing exclusion fail, when there is no index name with wildcard before it
         for (String command : commands.keySet()) {
-            if (command.contains("LOOKUP_🐔") || command.contains("METRICS")) {
+            if (command.contains("LOOKUP_🐔") || command.contains("TS")) {
                 continue;
             }
 
@@ -700,7 +687,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Invalid index names, except invalid DateMath, are ignored if there is an index name with wildcard before it
         String dateMathError = "unit [D] not supported for date math [/D]";
         for (String command : commands.keySet()) {
-            if (command.contains("LOOKUP_🐔") || command.contains("METRICS")) {
+            if (command.contains("LOOKUP_🐔") || command.contains("TS")) {
                 continue;
             }
             lineNumber = command.contains("FROM") ? "line 1:9: " : "line 1:12: ";
@@ -1831,7 +1818,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Aggregate(
                         EMPTY,
                         relation("test"),
-                        Aggregate.AggregateType.STANDARD,
                         List.of(attribute("f.4.")),
                         List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f3.*")))), attribute("f.4."))
                     ),
@@ -1866,7 +1852,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Aggregate(
                         EMPTY,
                         relation("test"),
-                        Aggregate.AggregateType.STANDARD,
                         List.of(attribute("f.9.f10.*")),
                         List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f.7*.f8.")))), attribute("f.9.f10.*"))
                     ),
@@ -2213,8 +2198,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void assertStringAsIndexPattern(String string, String statement) {
-        if (Build.current().isSnapshot() == false && statement.contains("METRIC")) {
-            expectThrows(ParsingException.class, containsString("mismatched input 'METRICS' expecting {"), () -> statement(statement));
+        if (Build.current().isSnapshot() == false && statement.startsWith("TS ")) {
+            expectThrows(ParsingException.class, containsString("mismatched input 'TS' expecting {"), () -> statement(statement));
             return;
         }
         LogicalPlan from = statement(statement);
@@ -2319,20 +2304,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMetricsWithoutStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
 
-        assertStatement("METRICS foo", unresolvedTSRelation("foo"));
-        assertStatement("METRICS foo,bar", unresolvedTSRelation("foo,bar"));
-        assertStatement("METRICS foo*,bar", unresolvedTSRelation("foo*,bar"));
-        assertStatement("METRICS foo-*,bar", unresolvedTSRelation("foo-*,bar"));
-        assertStatement("METRICS foo-*,bar+*", unresolvedTSRelation("foo-*,bar+*"));
+        assertStatement("TS foo", unresolvedTSRelation("foo"));
+        assertStatement("TS foo,bar", unresolvedTSRelation("foo,bar"));
+        assertStatement("TS foo*,bar", unresolvedTSRelation("foo*,bar"));
+        assertStatement("TS foo-*,bar", unresolvedTSRelation("foo-*,bar"));
+        assertStatement("TS foo-*,bar+*", unresolvedTSRelation("foo-*,bar+*"));
     }
 
     public void testMetricsIdentifiers() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         Map<String, String> patterns = Map.ofEntries(
-            Map.entry("metrics foo,test-*", "foo,test-*"),
-            Map.entry("metrics 123-test@foo_bar+baz1", "123-test@foo_bar+baz1"),
-            Map.entry("metrics foo,   test,xyz", "foo,test,xyz"),
-            Map.entry("metrics <logstash-{now/M{yyyy.MM}}>", "<logstash-{now/M{yyyy.MM}}>")
+            Map.entry("ts foo,test-*", "foo,test-*"),
+            Map.entry("ts 123-test@foo_bar+baz1", "123-test@foo_bar+baz1"),
+            Map.entry("ts foo,   test,xyz", "foo,test,xyz"),
+            Map.entry("ts <logstash-{now/M{yyyy.MM}}>", "<logstash-{now/M{yyyy.MM}}>")
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
             assertStatement(e.getKey(), unresolvedTSRelation(e.getValue()));
@@ -2342,31 +2327,36 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testSimpleMetricsWithStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStatement(
-            "METRICS foo | STATS load=avg(cpu) BY ts",
-            new Aggregate(
+            "TS foo | STATS load=avg(cpu) BY ts",
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("ts")),
-                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
+                List.of(
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    attribute("ts")
+                ),
+                null
             )
         );
         assertStatement(
-            "METRICS foo,bar | STATS load=avg(cpu) BY ts",
-            new Aggregate(
+            "TS foo,bar | STATS load=avg(cpu) BY ts",
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("ts")),
-                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
+                List.of(
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    attribute("ts")
+                ),
+                null
             )
         );
         assertStatement(
-            "METRICS foo,bar | STATS load=avg(cpu),max(rate(requests)) BY ts",
-            new Aggregate(
+            "TS foo,bar | STATS load=avg(cpu),max(rate(requests)) BY ts",
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("ts")),
                 List.of(
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
@@ -2381,61 +2371,62 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         )
                     ),
                     attribute("ts")
-                )
+                ),
+                null
             )
         );
         assertStatement(
-            "METRICS foo* | STATS count(errors)",
-            new Aggregate(
+            "TS foo* | STATS count(errors)",
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(),
-                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
+                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors"))))),
+                null
             )
         );
         assertStatement(
-            "METRICS foo* | STATS a(b)",
-            new Aggregate(
+            "TS foo* | STATS a(b)",
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                null
             )
         );
         assertStatement(
-            "METRICS foo* | STATS a(b)",
-            new Aggregate(
+            "TS foo* | STATS a(b)",
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                null
             )
         );
         assertStatement(
-            "METRICS foo* | STATS a1(b2)",
-            new Aggregate(
+            "TS foo* | STATS a1(b2)",
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(),
-                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
+                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2"))))),
+                null
             )
         );
         assertStatement(
-            "METRICS foo*,bar* | STATS b = min(a) by c, d.e",
-            new Aggregate(
+            "TS foo*,bar* | STATS b = min(a) by c, d.e",
+            new TimeSeriesAggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*,bar*"),
-                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
                     attribute("c"),
                     attribute("d.e")
-                )
+                ),
+                null
             )
         );
     }
@@ -2465,12 +2456,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.TIME_SERIES, null, "METRICS");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.TIME_SERIES, null, "TS");
     }
 
     public void testMetricWithGroupKeyAsAgg() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        var queries = List.of("METRICS foo | STATS a BY a");
+        var queries = List.of("TS foo | STATS a BY a");
         for (String query : queries) {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }
@@ -2595,7 +2586,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 new Aggregate(
                     EMPTY,
                     relation("test"),
-                    Aggregate.AggregateType.STANDARD,
                     List.of(
                         new Alias(
                             EMPTY,
@@ -2711,7 +2701,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 new Aggregate(
                     EMPTY,
                     relation("test"),
-                    Aggregate.AggregateType.STANDARD,
                     List.of(
                         new Alias(
                             EMPTY,
@@ -3222,7 +3211,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                    ( LIMIT 5 )
             """);
         var fork = as(plan, Fork.class);
-        var subPlans = fork.subPlans();
+        var subPlans = fork.children();
 
         // first subplan
         var eval = as(subPlans.get(0), Eval.class);
@@ -3508,7 +3497,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Aggregate(
                             EMPTY,
                             relation("test"),
-                            Aggregate.AggregateType.STANDARD,
                             List.of(attribute("f.4.")),
                             List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f3.*")))), attribute("f.4."))
                         ),
@@ -3565,7 +3553,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Aggregate(
                             EMPTY,
                             relation("test"),
-                            Aggregate.AggregateType.STANDARD,
                             List.of(attribute("f.9.f10.*")),
                             List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f.7*.f8.")))), attribute("f.9.f10.*"))
                         ),
@@ -3925,7 +3912,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Aggregate(
                             EMPTY,
                             relation("test"),
-                            Aggregate.AggregateType.STANDARD,
                             List.of(attribute("f.4.")),
                             List.of(new Alias(EMPTY, "y", function("count", List.of(new Literal(EMPTY, "*", KEYWORD)))), attribute("f.4."))
                         ),

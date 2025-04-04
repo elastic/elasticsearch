@@ -406,19 +406,17 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     )
                                 );
                             } else {
-                                if (updateActualMemoryUsage(request, result, acc)) {
-                                    acc.addOrUpdateResponse(
-                                        new FieldInferenceResponse(
-                                            request.field(),
-                                            request.sourceField(),
-                                            useLegacyFormat ? request.input() : null,
-                                            request.inputOrder(),
-                                            request.offsetAdjustment(),
-                                            inferenceProvider.model,
-                                            result
-                                        )
-                                    );
-                                }
+                                acc.addOrUpdateResponse(
+                                    new FieldInferenceResponse(
+                                        request.field(),
+                                        request.sourceField(),
+                                        useLegacyFormat ? request.input() : null,
+                                        request.inputOrder(),
+                                        request.offsetAdjustment(),
+                                        inferenceProvider.model,
+                                        result
+                                    )
+                                );
                             }
                         }
                     }
@@ -715,6 +713,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
+            BytesReference originalSource = indexRequest.source();
             if (useLegacyFormat) {
                 var newDocMap = indexRequest.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
@@ -727,61 +726,27 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     indexRequest.source(builder);
                 }
             }
-        }
-
-        private boolean updateActualMemoryUsage(
-            FieldInferenceRequest request,
-            ChunkedInference chunkedInference,
-            FieldInferenceResponseAccumulator accumulator
-        ) {
-            boolean success = true;
+            long modifiedSourceSize = indexRequest.source().ramBytesUsed();
 
             IndexingPressure.Coordinating coordinatingIndexingPressure = coordinatingWrapper.coordinating();
-            if (coordinatingIndexingPressure == null) {
-                return success;
-            }
-
-            try {
-                final BulkItemRequest item = bulkShardRequest.items()[request.bulkItemIndex()];
-                final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
-
-                long chunkBytes = 0;
-                Iterator<ChunkedInference.Chunk> chunkIterator = chunkedInference.chunksAsByteReference(
-                    indexRequest.getContentType().xContent()
-                );
-                while (chunkIterator.hasNext()) {
-                    ChunkedInference.Chunk chunk = chunkIterator.next();
-                    chunkBytes += chunk.bytesReference().ramBytesUsed();
+            if (coordinatingIndexingPressure != null) {
+                // Add the indexing pressure from the source modifications.
+                // Don't increment operation count because we count one source update as one operation, and we already accounted for those
+                // in addFieldInferenceRequests.
+                try {
+                    coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.ramBytesUsed());
+                } catch (EsRejectedExecutionException e) {
+                    // TODO: Safe to assume ID is set/generated at this point?
+                    indexRequest.source(originalSource, indexRequest.getContentType());
+                    item.abort(
+                        item.index(),
+                        new InferenceException(
+                            "Insufficient memory available to insert inference results into document [" + indexRequest.id() + "]",
+                            e
+                        )
+                    );
                 }
-
-                // This doesn't count the bytes used for the inference metadata field structure (in the new format) or the field structure
-                // around the embeddings (in the legacy format), but it's a close approximation.
-                long bytesUsed = chunkBytes + indexRequest.source().ramBytesUsed();
-                if (bytesUsed <= estimatedInferenceRequestMemoryUsageInBytes) {
-                    // We've pre-allocated the estimated bytes. Discount against them until the estimate is exhausted.
-                    estimatedInferenceRequestMemoryUsageInBytes -= bytesUsed;
-                } else {
-                    // Determine the extent to which we've exceeded the estimate
-                    long bytesOverEstimate = bytesUsed - estimatedInferenceRequestMemoryUsageInBytes;
-                    estimatedInferenceRequestMemoryUsageInBytes = 0;
-
-                    // Don't increment the operation count because we already determined that when computing the estimate. We call increment
-                    // here to account for additional memory required by an operation we have already counted in the estimate.
-                    coordinatingIndexingPressure.increment(0, bytesOverEstimate);
-                }
-            } catch (EsRejectedExecutionException e) {
-                success = false;
-                accumulator.addFailure(
-                    new InferenceException("Insufficient memory available to perform inference on field [{}]", e, request.field)
-                );
-            } catch (Exception e) {
-                success = false;
-                accumulator.addFailure(
-                    new InferenceException("Exception when calculating memory usage for inference on field [{}]", e, request.field)
-                );
             }
-
-            return success;
         }
     }
 

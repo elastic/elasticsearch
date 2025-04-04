@@ -72,8 +72,6 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
         }
 
         public Request(String synonymsSetId, TimeValue timeout, BytesReference content, XContentType contentType) throws IOException {
-            Objects.requireNonNull(timeout);
-            Objects.requireNonNull(synonymsSetId);
             this.synonymsSetId = synonymsSetId;
             this.timeout = timeout;
             try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)) {
@@ -84,9 +82,6 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
         }
 
         Request(String synonymsSetId, SynonymRule[] synonymRules, TimeValue timeout) {
-            Objects.requireNonNull(timeout);
-            Objects.requireNonNull(synonymsSetId);
-            Objects.requireNonNull(synonymRules);
             this.synonymsSetId = synonymsSetId;
             this.synonymRules = synonymRules;
             this.timeout = timeout;

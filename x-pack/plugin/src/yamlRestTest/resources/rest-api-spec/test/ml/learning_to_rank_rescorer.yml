@@ -149,9 +149,6 @@ setup:
 
 ---
 "Test rescore with stored model":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
-
   - do:
       search:
         index: store
@@ -182,12 +179,11 @@ setup:
   - match: { hits.hits.0._score: 6.0 }
   - match: { hits.hits.1._score: 6.0 }
   - match: { hits.hits.2._score: 3.0 }
+
 ---
 "Test rescore with stored model and smaller window_size":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
-
   - do:
+      catch: bad_request
       search:
         index: store
         size: 5
@@ -198,16 +194,12 @@ setup:
               "learning_to_rank": { "model_id": "ltr-model" }
             }
           }
-  - match: { hits.hits.0._score: 17.0 }
-  - match: { hits.hits.1._score: 17.0 }
-  - match: { hits.hits.2._score: 1.0 }
-  - match: { hits.hits.3._score: 1.0 }
-  - match: { hits.hits.4._score: 1.0 }
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "action_request_validation_exception" }
+  - match: { error.root_cause.0.reason: "Validation Failed: 1: rescorer [window_size] is too small and should be at least the value of [from + size: 4] but was [2];" }
+
 ---
 "Test rescore with stored model and chained rescorers":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
-
   - do:
       search:
         index: store
@@ -216,11 +208,11 @@ setup:
           {
             "rescore": [
             {
-              "window_size": 4,
+              "window_size": 10,
               "query": { "rescore_query":{ "script_score": {"query": {"match_all": {}}, "script": {"source": "return 4"}}}}
             },
             {
-              "window_size": 3,
+              "window_size": 5,
               "learning_to_rank": { "model_id": "ltr-model" }
             },
             {
@@ -232,8 +224,9 @@ setup:
   - match: { hits.hits.0._score: 37.0 }
   - match: { hits.hits.1._score: 37.0 }
   - match: { hits.hits.2._score: 14.0 }
-  - match: { hits.hits.3._score: 5.0 }
-  - match: { hits.hits.4._score: 1.0 }
+  - match: { hits.hits.3._score: 6.0 }
+  - match: { hits.hits.4._score: 6.0 }
+
 ---
 "Test rescore with missing model":
   - do:
@@ -247,8 +240,12 @@ setup:
               "learning_to_rank": { "model_id": "ltr-missing" }
             }
           }
+  - match: { status: 404 }
+  - match: { error.root_cause.0.type: "resource_not_found_exception" }
+  - match: { error.root_cause.0.reason: "Could not find trained model [ltr-missing]" }
+
 ---
-"Test rescore with no hits model":
+"Test rescore with no hits":
   - do:
       search:
         index: store
@@ -261,6 +258,7 @@ setup:
             }
           }
   - length: { hits.hits: 0 }
+
 ---
 "Test model input validation":
   - skip:

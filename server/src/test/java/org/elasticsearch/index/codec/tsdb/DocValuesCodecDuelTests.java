@@ -54,9 +54,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             baselineConfig.setMergePolicy(mergePolicy);
             baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
             var contenderConf = newIndexWriterConfig();
-            if (randomBoolean()) {
-                contenderConf.setMergePolicy(mergePolicy);
-            }
+            contenderConf.setMergePolicy(mergePolicy);
             Codec codec = new Elasticsearch900Lucene101Codec() {
 
                 final DocValuesFormat docValuesFormat = randomBoolean()

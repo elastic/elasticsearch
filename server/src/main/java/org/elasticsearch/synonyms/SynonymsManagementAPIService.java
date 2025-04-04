@@ -306,7 +306,12 @@ public class SynonymsManagementAPIService {
         });
     }
 
-    public void putSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, TimeValue timeout, ActionListener<SynonymsReloadResult> listener) {
+    public void putSynonymsSet(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        TimeValue timeout,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
         if (synonymsSet.length > maxSynonymsSets) {
             listener.onFailure(
                 new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + maxSynonymsSets)
@@ -377,7 +382,12 @@ public class SynonymsManagementAPIService {
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(listener);
     }
 
-    public void putSynonymRule(String synonymsSetId, SynonymRule synonymRule, TimeValue timeout, ActionListener<SynonymsReloadResult> listener) {
+    public void putSynonymRule(
+        String synonymsSetId,
+        SynonymRule synonymRule,
+        TimeValue timeout,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
         checkSynonymSetExists(synonymsSetId, listener.delegateFailureAndWrap((l1, obj) -> {
             // Count synonym rules to check if we're at maximum
             BoolQueryBuilder queryFilter = QueryBuilders.boolQuery()
@@ -405,8 +415,12 @@ public class SynonymsManagementAPIService {
         }));
     }
 
-    private void indexSynonymRule(String synonymsSetId, SynonymRule synonymRule, TimeValue timeout, ActionListener<SynonymsReloadResult> listener)
-        throws IOException {
+    private void indexSynonymRule(
+        String synonymsSetId,
+        SynonymRule synonymRule,
+        TimeValue timeout,
+        ActionListener<SynonymsReloadResult> listener
+    ) throws IOException {
         IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymsSetId, synonymRule).setRefreshPolicy(
             WriteRequest.RefreshPolicy.IMMEDIATE
         );
@@ -563,8 +577,16 @@ public class SynonymsManagementAPIService {
         if (TimeValue.MINUS_ONE.equals(timeout) == false) {
             checkSynonymsIndexHealth(timeout, listener.delegateFailure((l, response) -> {
                 if (response.isTimedOut()) {
-                    l.onFailure(new IndexCreationException("synonyms index [" + SYNONYMS_ALIAS_NAME + "] is not searchable. "
-                        + response.getActiveShardsPercent() + "% shards are active", null));
+                    l.onFailure(
+                        new IndexCreationException(
+                            "synonyms index ["
+                                + SYNONYMS_ALIAS_NAME
+                                + "] is not searchable. "
+                                + response.getActiveShardsPercent()
+                                + "% shards are active",
+                            null
+                        )
+                    );
                     return;
                 }
 
@@ -577,8 +599,7 @@ public class SynonymsManagementAPIService {
 
     // Allows checking failures in tests
     void checkSynonymsIndexHealth(TimeValue timeout, ActionListener<ClusterHealthResponse> listener) {
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(timeout, SYNONYMS_ALIAS_NAME)
-            .waitForGreenStatus();
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(timeout, SYNONYMS_ALIAS_NAME).waitForGreenStatus();
 
         client.execute(TransportClusterHealthAction.TYPE, healthRequest, listener);
     }
@@ -587,9 +608,10 @@ public class SynonymsManagementAPIService {
         String synonymSetId,
         boolean preview,
         ActionListener<SynonymsReloadResult> listener,
-        UpdateSynonymsResultStatus synonymsOperationResult) {
+        UpdateSynonymsResultStatus synonymsOperationResult
+    ) {
 
-            // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
+        // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
         ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
         client.execute(
             TransportReloadAnalyzersAction.TYPE,

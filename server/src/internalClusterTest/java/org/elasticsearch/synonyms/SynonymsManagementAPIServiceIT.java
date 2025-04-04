@@ -63,19 +63,20 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             DEFAULT_TIMEOUT,
             new ActionListener<>() {
                 @Override
-            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                assertEquals(
-                    SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED,
-                    synonymsReloadResult.synonymsOperationResult()
-                );
-                putLatch.countDown();
-            }
+                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                    assertEquals(
+                        SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED,
+                        synonymsReloadResult.synonymsOperationResult()
+                    );
+                    putLatch.countDown();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
             }
-        });
+        );
 
         putLatch.await(5, TimeUnit.SECONDS);
 
@@ -137,65 +138,67 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             DEFAULT_TIMEOUT,
             new ActionListener<>() {
                 @Override
-            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                // Create as many rules as should fail
-                SynonymRule[] rules = randomSynonymsSet(atLeast(rulesToUpdate + 1));
-                CountDownLatch updatedRulesLatch = new CountDownLatch(rulesToUpdate);
-                for (int i = 0; i < rulesToUpdate; i++) {
-                    synonymsManagementAPIService.putSynonymRule(synonymSetId, rules[i], DEFAULT_TIMEOUT, new ActionListener<>() {
-                        @Override
-                        public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                            updatedRulesLatch.countDown();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            fail(e);
-                        }
-                    });
-                }
-                try {
-                    updatedRulesLatch.await(5, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    fail(e);
-                }
-
-                // Updating more rules fails
-                int rulesToInsert = rules.length - rulesToUpdate;
-                CountDownLatch insertRulesLatch = new CountDownLatch(rulesToInsert);
-                for (int i = rulesToUpdate; i < rulesToInsert; i++) {
-                    synonymsManagementAPIService.putSynonymRule(
-                        // Error here
-                        synonymSetId,
-                        rules[i],
-                        DEFAULT_TIMEOUT, new ActionListener<>() {
+                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                    // Create as many rules as should fail
+                    SynonymRule[] rules = randomSynonymsSet(atLeast(rulesToUpdate + 1));
+                    CountDownLatch updatedRulesLatch = new CountDownLatch(rulesToUpdate);
+                    for (int i = 0; i < rulesToUpdate; i++) {
+                        synonymsManagementAPIService.putSynonymRule(synonymSetId, rules[i], DEFAULT_TIMEOUT, new ActionListener<>() {
                             @Override
                             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                                fail("Shouldn't have been able to update a rule");
+                                updatedRulesLatch.countDown();
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                if (e instanceof IllegalArgumentException == false) {
-                                    fail(e);
-                                }
-                                updatedRulesLatch.countDown();
+                                fail(e);
                             }
-                        }
-                    );
+                        });
+                    }
+                    try {
+                        updatedRulesLatch.await(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        fail(e);
+                    }
+
+                    // Updating more rules fails
+                    int rulesToInsert = rules.length - rulesToUpdate;
+                    CountDownLatch insertRulesLatch = new CountDownLatch(rulesToInsert);
+                    for (int i = rulesToUpdate; i < rulesToInsert; i++) {
+                        synonymsManagementAPIService.putSynonymRule(
+                            // Error here
+                            synonymSetId,
+                            rules[i],
+                            DEFAULT_TIMEOUT,
+                            new ActionListener<>() {
+                                @Override
+                                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                                    fail("Shouldn't have been able to update a rule");
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    if (e instanceof IllegalArgumentException == false) {
+                                        fail(e);
+                                    }
+                                    updatedRulesLatch.countDown();
+                                }
+                            }
+                        );
+                    }
+                    try {
+                        insertRulesLatch.await(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        fail(e);
+                    }
                 }
-                try {
-                    insertRulesLatch.await(5, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
+
+                @Override
+                public void onFailure(Exception e) {
                     fail(e);
                 }
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-        });
+        );
 
         latch.await(5, TimeUnit.SECONDS);
     }
@@ -211,7 +214,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                 synonymsManagementAPIService.putSynonymRule(
                     synonymSetId,
                     synonymsSet[randomIntBetween(0, maxSynonymSets - 1)],
-                    DEFAULT_TIMEOUT, new ActionListener<>() {
+                    DEFAULT_TIMEOUT,
+                    new ActionListener<>() {
                         @Override
                         public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                             latch.countDown();
@@ -243,17 +247,22 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                 // Updating a rule fails
-                synonymsManagementAPIService.putSynonymRule(synonymSetId, randomSynonymRule(ruleId), DEFAULT_TIMEOUT, new ActionListener<>() {
-                    @Override
-                    public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                        fail("Should not create a new rule that does not exist when at max capacity");
-                    }
+                synonymsManagementAPIService.putSynonymRule(
+                    synonymSetId,
+                    randomSynonymRule(ruleId),
+                    DEFAULT_TIMEOUT,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                            fail("Should not create a new rule that does not exist when at max capacity");
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        latch.countDown();
+                        @Override
+                        public void onFailure(Exception e) {
+                            latch.countDown();
+                        }
                     }
-                });
+                );
             }
 
             @Override
@@ -312,9 +321,11 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             @Override
             void checkSynonymsIndexHealth(TimeValue timeout, ActionListener<ClusterHealthResponse> listener) {
                 ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
-                ClusterHealthResponse response = new ClusterHealthResponse(randomIdentifier(),
-                    new String[]{SynonymsManagementAPIService.SYNONYMS_INDEX_CONCRETE_NAME},
-                    clusterState);
+                ClusterHealthResponse response = new ClusterHealthResponse(
+                    randomIdentifier(),
+                    new String[] { SynonymsManagementAPIService.SYNONYMS_INDEX_CONCRETE_NAME },
+                    clusterState
+                );
                 response.setTimedOut(true);
                 listener.onResponse(response);
             }
@@ -323,24 +334,20 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         // Create a rule fails
         CountDownLatch putLatch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();
-        synonymsManagementAPIService.putSynonymsSet(
-            synonymSetId,
-            randomSynonymsSet(1, 1),
-            DEFAULT_TIMEOUT,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                    fail("Shouldn't have been able to create synonyms with a timeout in synonyms index health");
-                }
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(1, 1), DEFAULT_TIMEOUT, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                fail("Shouldn't have been able to create synonyms with a timeout in synonyms index health");
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    // Expected
-                    assertTrue(e instanceof IndexCreationException);
-                    assertTrue(e.getMessage().contains("synonyms index [.synonyms] is not searchable"));
-                    putLatch.countDown();
-                }
-            });
+            @Override
+            public void onFailure(Exception e) {
+                // Expected
+                assertTrue(e instanceof IndexCreationException);
+                assertTrue(e.getMessage().contains("synonyms index [.synonyms] is not searchable"));
+                putLatch.countDown();
+            }
+        });
 
         putLatch.await(5, TimeUnit.SECONDS);
 
@@ -349,7 +356,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService.putSynonymRule(
             synonymSetId,
             randomSynonymRule(randomIdentifier()),
-            DEFAULT_TIMEOUT, new ActionListener<>() {
+            DEFAULT_TIMEOUT,
+            new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                     fail("Shouldn't have been able to update synonyms with a timeout in synonyms index health");
@@ -362,28 +370,25 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                     assertTrue(e.getMessage().contains("synonyms index [.synonyms] is not searchable"));
                     updateLatch.countDown();
                 }
-            });
+            }
+        );
 
         updateLatch.await(5, TimeUnit.SECONDS);
 
         // But, we can still create a synonyms set with timeout -1
         CountDownLatch putWithoutTimeoutLatch = new CountDownLatch(1);
-        synonymsManagementAPIService.putSynonymsSet(
-            synonymSetId,
-            randomSynonymsSet(1, 1),
-            TimeValue.MINUS_ONE,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                    // Expected
-                    putLatch.countDown();
-                }
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(1, 1), TimeValue.MINUS_ONE, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                // Expected
+                putLatch.countDown();
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e);
-                }
-            });
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
 
         putWithoutTimeoutLatch.await(5, TimeUnit.SECONDS);
 
@@ -404,7 +409,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                 public void onFailure(Exception e) {
                     fail(e);
                 }
-            });
+            }
+        );
 
         putRuleWithoutTimeoutLatch.await(5, TimeUnit.SECONDS);
     }

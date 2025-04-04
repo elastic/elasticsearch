@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -185,7 +186,13 @@ public class MetadataReshardIndexService {
                     }
 
                     ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
-                        IndexMetadata.builder(indexMetadata).reshardingMetadata(reshardingMetadata.transitionSplitTargetToHandoff(shardId))
+                        IndexMetadata.builder(indexMetadata)
+                            .reshardingMetadata(
+                                reshardingMetadata.transitionSplitTargetToNewState(
+                                    shardId,
+                                    IndexReshardingState.Split.TargetShardState.HANDOFF
+                                )
+                            )
                     );
 
                     return ClusterState.builder(currentState).putProjectMetadata(projectMetadata.build()).build();

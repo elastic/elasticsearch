@@ -252,8 +252,8 @@ public class SamlObjectHandler {
     ) {
         final String issuerValue = issuer != null ? issuer.getValue() : "";
         logger.warn(
-            "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML " +
-                "metadata file/URL for this Identity Provider {}",
+            "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML "
+                + "metadata file/URL for this Identity Provider {}",
             issuerValue
         );
         final String msg = "SAML Signature [{}] could not be validated against [{}]";

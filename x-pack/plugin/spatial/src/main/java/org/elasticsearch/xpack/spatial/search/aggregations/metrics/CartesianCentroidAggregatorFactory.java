@@ -11,7 +11,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -41,13 +40,14 @@ class CartesianCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        InternalCartesianCentroid empty = InternalCartesianCentroid.empty(name, metadata);
-        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return empty;
-            }
-        };
+        return NonCollectingAggregator.withEmptyAggregation(
+            name,
+            context,
+            parent,
+            factories,
+            metadata,
+            InternalCartesianCentroid.empty(name, metadata)
+        );
     }
 
     @Override

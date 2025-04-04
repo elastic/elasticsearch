@@ -2175,10 +2175,18 @@ public class DateFormatters {
                 .with(weekFields.weekOfWeekBasedYear(), accessor.get(weekFields.weekOfWeekBasedYear()))
                 .with(TemporalAdjusters.previousOrSame(weekFields.getFirstDayOfWeek()));
         } else {
-            return LocalDate.ofEpochDay(0)
+            LocalDate localDate = LocalDate.ofEpochDay(0)
                 .with(weekFields.weekBasedYear(), accessor.get(weekFields.weekBasedYear()))
                 .with(TemporalAdjusters.previousOrSame(weekFields.getFirstDayOfWeek()));
-
+            // Note: we would often end here in case of a user mistakenly using YYYY (week-based year) instead of yyyy (year of era). So
+            // we're doing a best effort to also look at month-of-year and day-of-month.
+            if (accessor.isSupported(ChronoField.MONTH_OF_YEAR)) {
+                localDate = localDate.with(MONTH_OF_YEAR, accessor.get(MONTH_OF_YEAR));
+            }
+            if (accessor.isSupported(DAY_OF_MONTH)) {
+                localDate = localDate.with(DAY_OF_MONTH, accessor.get(DAY_OF_MONTH));
+            }
+            return localDate;
         }
     }
 

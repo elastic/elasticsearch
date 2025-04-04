@@ -151,6 +151,11 @@ public class ClusterModule extends AbstractModule {
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
         final BalancerSettings balancerSettings = new BalancerSettings(clusterService.getClusterSettings());
+        // I'm aware that the following is an anti-pattern and will implement as an SPI provider or plugin
+        // if we decide to go ahead with this.
+        final PartitionedClusterFactory partitionedClusterFactory = DiscoveryNode.isStateless(settings)
+            ? new TieredPartitionedClusterFactory(balancerSettings, clusterService.getClusterSettings())
+            : new GlobalPartitionedClusterFactory(balancerSettings);
         var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
             writeLoadForecaster,
             new GlobalPartitionedClusterFactory(balancerSettings)
@@ -159,6 +164,7 @@ public class ClusterModule extends AbstractModule {
             settings,
             clusterService.getClusterSettings(),
             balancerSettings,
+            partitionedClusterFactory,
             threadPool,
             clusterPlugins,
             clusterService,
@@ -448,6 +454,7 @@ public class ClusterModule extends AbstractModule {
         Settings settings,
         ClusterSettings clusterSettings,
         BalancerSettings balancerSettings,
+        PartitionedClusterFactory partitionedClusterFactory,
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
@@ -457,11 +464,6 @@ public class ClusterModule extends AbstractModule {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        // I'm aware that the following is an anti-pattern and will implement as an SPI provider or plugin
-        // if we decide to go ahead with this.
-        final PartitionedClusterFactory partitionedClusterFactory = DiscoveryNode.isStateless(settings)
-            ? new TieredPartitionedClusterFactory(balancerSettings, clusterSettings)
-            : new GlobalPartitionedClusterFactory(balancerSettings);
         allocators.put(
             BALANCED_ALLOCATOR,
             () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, partitionedClusterFactory)

@@ -457,12 +457,6 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/125668
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {range.Invalid boundaries date SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/126083
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {range.Invalid boundaries date}
-  issue: https://github.com/elastic/elasticsearch/issues/126084
 - class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
   method: testUpgradeModels {upgradedNodes=0}
   issue: https://github.com/elastic/elasticsearch/issues/125549

@@ -206,7 +206,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
                     type = "boolean",
                     valueHint = { "true", "false" },
                     description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned. "
-                        + "Defaults to false."
+                        + "Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
                     name = "max_expansions",

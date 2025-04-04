@@ -2332,7 +2332,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo"),
                 List.of(attribute("ts")),
-                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
+                List.of(
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    attribute("ts")
+                ),
+                null
             )
         );
         assertStatement(
@@ -2341,7 +2345,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
                 List.of(attribute("ts")),
-                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
+                List.of(
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    attribute("ts")
+                ),
+                null
             )
         );
         assertStatement(
@@ -2363,7 +2371,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         )
                     ),
                     attribute("ts")
-                )
+                ),
+                null
             )
         );
         assertStatement(
@@ -2372,7 +2381,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
+                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors"))))),
+                null
             )
         );
         assertStatement(
@@ -2381,7 +2391,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                null
             )
         );
         assertStatement(
@@ -2390,7 +2401,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                null
             )
         );
         assertStatement(
@@ -2399,7 +2411,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
+                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2"))))),
+                null
             )
         );
         assertStatement(
@@ -2412,7 +2425,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
                     attribute("c"),
                     attribute("d.e")
-                )
+                ),
+                null
             )
         );
     }

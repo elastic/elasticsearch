@@ -97,6 +97,10 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             if (Strings.isNullOrEmpty(synonymRule.id())) {
                 validationException = ValidateActions.addValidationError("synonym rule id must be specified", validationException);
             }
+            String error = synonymRule.validate();
+            if (error != null) {
+                validationException = ValidateActions.addValidationError(error, validationException);
+            }
 
             return validationException;
         }

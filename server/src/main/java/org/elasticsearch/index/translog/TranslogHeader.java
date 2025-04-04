@@ -96,7 +96,7 @@ final class TranslogHeader {
         return size;
     }
 
-    static int readHeaderVersion(final Path path, final FileChannel channel, final StreamInput in) throws IOException {
+    static int readHeaderVersion(final Path path, final StreamInput in) throws IOException {
         final int version;
         try {
             version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_PRIMARY_TERM, VERSION_PRIMARY_TERM);
@@ -110,16 +110,17 @@ final class TranslogHeader {
      * Read a translog header from the given path and file channel
      */
     static TranslogHeader read(final String translogUUID, final Path path, final FileChannel channel) throws IOException {
+        final long fileSize = channel.size();
         try {
             // This input is intentionally not closed because closing it will close the FileChannel.
             final BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(
-                new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel), channel.size()),
+                new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel), fileSize),
                 path.toString()
             );
-            final int version = readHeaderVersion(path, channel, in);
+            final int version = readHeaderVersion(path, in);
             // Read the translogUUID
             final int uuidLen = in.readInt();
-            if (uuidLen > channel.size()) {
+            if (uuidLen > fileSize) {
                 throw new TranslogCorruptedException(path.toString(), "UUID length can't be larger than the translog");
             }
             if (uuidLen <= 0) {
@@ -127,7 +128,7 @@ final class TranslogHeader {
             }
             final BytesRef uuid = new BytesRef(uuidLen);
             uuid.length = uuidLen;
-            in.read(uuid.bytes, uuid.offset, uuid.length);
+            in.readBytes(uuid.bytes, uuid.offset, uuid.length);
             // Read the primary term
             assert version == VERSION_PRIMARY_TERM;
             final long primaryTerm = in.readLong();

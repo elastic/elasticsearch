@@ -58,6 +58,7 @@ dependencies {
   runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
 
   testImplementation project(':test:fixtures:s3-fixture')
+  testImplementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
 
   internalClusterTestImplementation project(':test:fixtures:aws-fixture-utils')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')

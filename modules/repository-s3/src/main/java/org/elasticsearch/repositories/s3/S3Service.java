@@ -255,7 +255,6 @@ class S3Service extends AbstractLifecycleComponent {
         return s3clientBuilder;
     }
 
-    // TODO NOMERGE test this logic
     Region getClientRegion(S3ClientSettings clientSettings) {
         if (Strings.hasLength(clientSettings.region)) {
             return Region.of(clientSettings.region);

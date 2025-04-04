@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.qa.rest;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Before;
 
@@ -77,7 +77,7 @@ public class RestRerankTestCase extends ESRestTestCase {
     }
 
     public void testRerankWithSingleField() throws IOException {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.RERANK.isEnabled());
+        assumeTrue("rerank capability not available", Build.current().isSnapshot());
 
         String query = """
             FROM rerank-test-index
@@ -98,7 +98,7 @@ public class RestRerankTestCase extends ESRestTestCase {
     }
 
     public void testRerankWithMultipleFields() throws IOException {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.RERANK.isEnabled());
+        assumeTrue("rerank capability not available", Build.current().isSnapshot());
 
         String query = """
             FROM rerank-test-index
@@ -119,7 +119,7 @@ public class RestRerankTestCase extends ESRestTestCase {
     }
 
     public void testRerankWithPositionalParams() throws IOException {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.RERANK.isEnabled());
+        assumeTrue("rerank capability not available", Build.current().isSnapshot());
 
         String query = """
             FROM rerank-test-index
@@ -140,7 +140,7 @@ public class RestRerankTestCase extends ESRestTestCase {
     }
 
     public void testRerankWithNamedParams() throws IOException {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.RERANK.isEnabled());
+        assumeTrue("rerank capability not available", Build.current().isSnapshot());
 
         String query = """
             FROM rerank-test-index
@@ -161,7 +161,7 @@ public class RestRerankTestCase extends ESRestTestCase {
     }
 
     public void testRerankWithMissingInferenceId() {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.RERANK.isEnabled());
+        assumeTrue("rerank capability not available", Build.current().isSnapshot());
 
         String query = """
             FROM rerank-test-index

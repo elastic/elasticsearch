@@ -27,10 +27,10 @@
 :   (integer) Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.
 
 `type`
-:   (object) Controls internal execution strategy. Defaults to 'best_fields'.
+:   (object) Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.
 
 `lenient`
-:   (boolean) If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.
+:   (boolean) If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.
 
 `operator`
 :   (keyword) Boolean logic used to interpret text in the query value. Defaults to OR.

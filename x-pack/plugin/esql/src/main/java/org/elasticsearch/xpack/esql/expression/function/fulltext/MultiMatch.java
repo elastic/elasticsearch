@@ -140,8 +140,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         preview = true,
         description = """
             Use `MULTI_MATCH` to perform a <<query-dsl-multi-match-query,multi-match query>> on the specified field.
-            The multi_match query builds on the match query to allow multi-field queries.
-            """,
+            The multi_match query builds on the match query to allow multi-field queries.""",
         examples = {
             @Example(file = "multi-match-function", tag = "multi-match-with-field"),
             @Example(file = "multi-match-function", tag = "multi-match-with-named-function-params") },

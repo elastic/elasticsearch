@@ -22,7 +22,5 @@ public final class SynonymPutCapabilities {
 
     private static final String PUT_SYNONYMS_TIMEOUT = "put_synonyms_timeout";
 
-    public static final Set<String> CAPABILITIES = Set.of(
-        PUT_SYNONYMS_TIMEOUT
-    );
+    public static final Set<String> CAPABILITIES = Set.of(PUT_SYNONYMS_TIMEOUT);
 }

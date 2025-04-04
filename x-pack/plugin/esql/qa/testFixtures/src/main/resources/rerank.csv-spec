@@ -11,13 +11,14 @@ FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | RERANK "war and peace" ON title WITH test_reranker
 | KEEP book_no, title, author, _score
+| EVAL _score = ROUND(_score, 5)
 ;
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
-5327            | War and Peace                                         | Leo Tolstoy                                 | 0.03846153989434242
-4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
-9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.02083333395421505
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01515151560306549
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.03846
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.02083
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01515
 ;
 
 
@@ -29,13 +30,14 @@ FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | RERANK "war and peace" ON title, author WITH test_reranker
 | KEEP book_no, title, author, _score
+| EVAL _score = ROUND(_score, 5)
 ;
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
-5327            | War and Peace                                         | Leo Tolstoy                                 | 0.02083333395421505
-9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.014285714365541935
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.011363636702299118
-4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.009523809887468815
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.02083
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.01429
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01136
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.00952
 ;
 
 
@@ -49,12 +51,13 @@ FROM books METADATA _score
 | LIMIT 3
 | RERANK "war and peace" ON title WITH test_reranker
 | KEEP book_no, title, author, _score
+| EVAL _score = ROUND(_score, 5)
 ;
 
 book_no:keyword | title:text                         | author:text                                 | _score:double
-5327            | War and Peace                      | Leo Tolstoy                                 | 0.03846153989434242
-4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
-9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo                                 | 0.02083333395421505
+5327            | War and Peace                      | Leo Tolstoy                                 | 0.03846
+4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222
+9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo                                 | 0.02083
 ;
 
 
@@ -67,12 +70,13 @@ FROM books METADATA _score
 | RERANK "war and peace" ON title WITH test_reranker
 | KEEP book_no, title, author, _score
 | LIMIT 3
+| EVAL _score = ROUND(_score, 5)
 ;
 
 book_no:keyword | title:text                         | author:text                                 | _score:double
-5327            | War and Peace                      | Leo Tolstoy                                 | 0.03846153989434242
-4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
-9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo                                 | 0.02083333395421505
+5327            | War and Peace                      | Leo Tolstoy                                 | 0.03846
+4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222
+9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo                                 | 0.02083
 ;
 
 
@@ -84,14 +88,15 @@ FROM books
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | RERANK "war and peace" ON title WITH test_reranker
 | KEEP book_no, title, author, _score
+| EVAL _score = ROUND(_score, 5)
 ;
 
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
-5327            | War and Peace                                         | Leo Tolstoy                                 | 0.03846153989434242
-4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
-9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.02083333395421505
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01515151560306549
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.03846
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.02083
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01515
 ;
 
 
@@ -105,12 +110,13 @@ FROM books
 | KEEP book_no, title, author, _score
 | SORT author, title 
 | LIMIT 3
+| EVAL _score = ROUND(_score, 5)
 ;
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
-4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01515151560306549
-5327            | War and Peace                                         | Leo Tolstoy                                 | 0.03846153989434242
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01515
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.03846
 ;
 
 
@@ -126,9 +132,10 @@ FROM books METADATA _id, _index, _score
 | RERANK "Tolkien" ON title WITH test_reranker
 | LIMIT 2
 | KEEP book_no, title, author, _score
+| EVAL _score = ROUND(_score, 5)
 ;
 
 book_no:keyword | title:keyword                         | author:keyword                                   | _score:double
-5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 0.02631578966975212
-2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 0.019607843831181526
+5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 0.02632
+2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 0.01961
 ;

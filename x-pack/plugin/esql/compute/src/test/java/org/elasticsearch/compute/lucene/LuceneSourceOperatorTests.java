@@ -120,7 +120,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     protected Matcher<String> expectedDescriptionOfSimple() {
         return matchesRegex(
             "LuceneSourceOperator"
-                + "\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, scoreMode = (COMPLETE|COMPLETE_NO_SCORES)]"
+                + "\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, needsScore = (true|false)]"
         );
     }
 

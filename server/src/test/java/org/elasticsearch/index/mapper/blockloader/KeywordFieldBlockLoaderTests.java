@@ -27,7 +27,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected Object expected(Map<String, Object> fieldMapping, Object value) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
 
         var ignoreAbove = fieldMapping.get("ignore_above") == null
@@ -46,7 +46,9 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
             .filter(Objects::nonNull);
 
         boolean hasDocValues = hasDocValues(fieldMapping, false);
-        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE || params.syntheticSource();
+        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
+            || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
+            || params.syntheticSource();
         if (hasDocValues && useDocValues) {
             // Sorted and no duplicates
             var resultList = convertValues.andThen(Stream::distinct)

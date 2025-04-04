@@ -107,7 +107,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "Change your IdP configuration to use a different attribute *"
             + " that will not clash with any of [*]";
     private static final String SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE = "The XML Signature of this SAML message cannot be validated. "
-        + "Please verify that the saml realm uses the correct SAMLmetadata file/URL for this Identity Provider "
+        + "Please verify that the saml realm uses the correct SAML metadata file/URL for this Identity Provider "
         + "https://idp.saml.elastic.test/";
 
     private SamlAuthenticator authenticator;

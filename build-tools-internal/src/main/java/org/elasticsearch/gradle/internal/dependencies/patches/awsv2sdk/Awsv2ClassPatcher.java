@@ -34,6 +34,8 @@ public abstract class Awsv2ClassPatcher implements TransformAction<TransformPara
     private static final String JAR_FILE_TO_PATCH = "aws-query-protocol";
 
     private static final Map<String, Function<ClassWriter, ClassVisitor>> CLASS_PATCHERS = Map.ofEntries(
+        // This patcher is needed because of this AWS bug: https://github.com/aws/aws-sdk-java-v2/issues/5968
+        // As soon as the bug is resolved and we upgrade our AWS SDK v2 libraries, we can remove this.
         entry("software/amazon/awssdk/protocols/query/internal/marshall/ListQueryMarshaller.class", StringFormatInPathResolverPatcher::new)
     );
 

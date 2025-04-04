@@ -481,8 +481,6 @@ class S3Service extends AbstractLifecycleComponent {
      */
     static class CustomWebIdentityTokenCredentialsProvider implements AwsCredentialsProvider {
 
-        private static final String STS_HOSTNAME = "https://sts.amazonaws.com";
-
         static final String WEB_IDENTITY_TOKEN_FILE_LOCATION = "repository-s3/aws-web-identity-token-file";
 
         private StsWebIdentityTokenFileCredentialsProvider credentialsProvider;
@@ -538,6 +536,8 @@ class S3Service extends AbstractLifecycleComponent {
             );
 
             {
+                // TODO NOMERGE: is there any testing we need to add for this? We used to have a unit test that verified the regional stuff,
+                // but we're using this endpoint override instead of region now.
                 final var securityTokenServiceClientBuilder = StsClient.builder();
                 final var endpointOverride = jvmEnvironment.getProperty("org.elasticsearch.repositories.s3.stsEndpointOverride", null);
                 if (endpointOverride != null) {

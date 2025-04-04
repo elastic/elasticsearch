@@ -1933,6 +1933,41 @@ emp_no:long | hire_date:date_nanos     | yr:date_nanos            | mo:date_nano
 10002       | 1985-11-21T00:00:00.000Z | 1985-01-01T00:00:00.000Z | 1985-11-01T00:00:00.000Z
 ;
 
+MultiTypedDateTruncStatsBy
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| STATS c = count(emp_no) BY yr = DATE_TRUNC(1 year, hire_date)
+| SORT yr DESC
+| LIMIT 5
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+;
+
+MultiTypedDateTruncStatsByWithEval
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| EVAL yr = DATE_TRUNC(1 year, hire_date)
+| STATS c = count(emp_no) BY yr
+| SORT yr DESC
+| LIMIT 5
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+;
+
 MultiTypedBucketDateNanosByYear
 required_capability: implicit_casting_union_typed_numeric_and_date
 
@@ -1983,6 +2018,55 @@ c:long | mo:date_nanos
 22     | 1985-01-01T00:00:00.000Z
 ;
 
+MultiTypedBucketDateNanosInBothStatsAndBy
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| STATS c = count(*), b = BUCKET(hire_date, 1 year) + 1 year BY yr = BUCKET(hire_date, 1 year)
+| SORT yr DESC, c
+;
+
+c:long | b:date_nanos             | yr:date_nanos
+2      | 2000-01-01T00:00:00.000Z | 1999-01-01T00:00:00.000Z
+2      | 1998-01-01T00:00:00.000Z | 1997-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z | 1996-01-01T00:00:00.000Z
+10     | 1996-01-01T00:00:00.000Z | 1995-01-01T00:00:00.000Z
+8      | 1995-01-01T00:00:00.000Z | 1994-01-01T00:00:00.000Z
+6      | 1994-01-01T00:00:00.000Z | 1993-01-01T00:00:00.000Z
+16     | 1993-01-01T00:00:00.000Z | 1992-01-01T00:00:00.000Z
+12     | 1992-01-01T00:00:00.000Z | 1991-01-01T00:00:00.000Z
+24     | 1991-01-01T00:00:00.000Z | 1990-01-01T00:00:00.000Z
+26     | 1990-01-01T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+18     | 1989-01-01T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+30     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+22     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+22     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+;
+
+MultiTypedBucketDateNanosInBothStatsAndByWithAlias
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| STATS c = count(*), b = yr + 1 year BY yr = BUCKET(hire_date, 1 year)
+| SORT yr DESC, c
+;
+
+c:long | b:date_nanos             | yr:date_nanos
+2      | 2000-01-01T00:00:00.000Z | 1999-01-01T00:00:00.000Z
+2      | 1998-01-01T00:00:00.000Z | 1997-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z | 1996-01-01T00:00:00.000Z
+10     | 1996-01-01T00:00:00.000Z | 1995-01-01T00:00:00.000Z
+8      | 1995-01-01T00:00:00.000Z | 1994-01-01T00:00:00.000Z
+6      | 1994-01-01T00:00:00.000Z | 1993-01-01T00:00:00.000Z
+16     | 1993-01-01T00:00:00.000Z | 1992-01-01T00:00:00.000Z
+12     | 1992-01-01T00:00:00.000Z | 1991-01-01T00:00:00.000Z
+24     | 1991-01-01T00:00:00.000Z | 1990-01-01T00:00:00.000Z
+26     | 1990-01-01T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+18     | 1989-01-01T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+30     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+22     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+22     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+;
 
 MultiTypedEnrichOnNumericField
 required_capability: enrich_load

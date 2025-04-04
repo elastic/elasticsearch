@@ -207,10 +207,6 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
             } else if (request.isListObjectsRequest()) {
-                if (request.queryParameters().containsKey("list-type")) {
-                    throw new AssertionError("Test must be adapted for GET Bucket (List Objects) Version 2");
-                }
-
                 final StringBuilder list = new StringBuilder();
                 list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                 list.append("<ListBucketResult>");
@@ -223,6 +219,9 @@ public class S3HttpHandler implements HttpHandler {
                 if (delimiter != null) {
                     list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
                 }
+                // Would be good to test pagination here (the only real difference between ListObjects and ListObjectsV2) but for now
+                // we return all the results at once.
+                list.append("<IsTruncated>false</IsTruncated>");
                 for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
                     if (prefix != null && blob.getKey().startsWith("/" + bucket + "/" + prefix) == false) {
                         continue;
@@ -241,12 +240,9 @@ public class S3HttpHandler implements HttpHandler {
                     list.append("<Size>").append(blob.getValue().length()).append("</Size>");
                     list.append("</Contents>");
                 }
-                if (commonPrefixes.isEmpty() == false) {
-                    list.append("<CommonPrefixes>");
-                    commonPrefixes.forEach(commonPrefix -> list.append("<Prefix>").append(commonPrefix).append("</Prefix>"));
-                    list.append("</CommonPrefixes>");
-
-                }
+                commonPrefixes.forEach(
+                    commonPrefix -> list.append("<CommonPrefixes><Prefix>").append(commonPrefix).append("</Prefix></CommonPrefixes>")
+                );
                 list.append("</ListBucketResult>");
 
                 byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);

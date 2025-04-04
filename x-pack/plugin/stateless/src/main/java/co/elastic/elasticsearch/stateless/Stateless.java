@@ -1283,7 +1283,7 @@ public class Stateless extends Plugin
                     && hollowShardsService.get().isHollowShard(config.getShardId()) == false
                     && IndexEngine.isLastCommitHollow(segmentCommitInfos)) {
                     logger.info("--> Using hollow engine for shard {}", config.getShardId());
-                    return new HollowIndexEngine(config, getCommitService(), hollowShardsService.get());
+                    return new HollowIndexEngine(config, getCommitService(), hollowShardsService.get(), config.getMapperService());
                 }
                 return newIndexEngine(
                     newConfig,

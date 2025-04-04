@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -69,7 +70,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        Tracer tracer
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -78,6 +80,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             transportService,
             bigArrays,
             blockFactory,
+            tracer,
             true,
             TransportRequest::readFrom
         );

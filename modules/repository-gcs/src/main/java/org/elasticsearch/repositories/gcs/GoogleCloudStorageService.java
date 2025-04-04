@@ -69,15 +69,11 @@ public class GoogleCloudStorageService {
         return isServerless;
     }
 
-    private record ClientKey(String repositoryName) {}
-
     /**
      * Dictionary of client instances. Client instances are built lazily from the
-     * latest settings. Clients are cached by a composite OperationPurpose/repositoryName
-     * key.
-     * @see ClientKey
+     * latest settings. Clients are cached by a composite repositoryName key.
      */
-    private volatile Map<ClientKey, MeteredStorage> clientCache = emptyMap();
+    private volatile Map<String, MeteredStorage> clientCache = emptyMap();
 
     /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to
@@ -105,15 +101,14 @@ public class GoogleCloudStorageService {
      */
     public MeteredStorage client(final String clientName, final String repositoryName, final GcsRepositoryStatsCollector statsCollector)
         throws IOException {
-        ClientKey clientKey = new ClientKey(repositoryName);
         {
-            final MeteredStorage storage = clientCache.get(clientKey);
+            final MeteredStorage storage = clientCache.get(repositoryName);
             if (storage != null) {
                 return storage;
             }
         }
         synchronized (this) {
-            final MeteredStorage existing = clientCache.get(clientKey);
+            final MeteredStorage existing = clientCache.get(repositoryName);
 
             if (existing != null) {
                 return existing;
@@ -132,7 +127,7 @@ public class GoogleCloudStorageService {
 
             logger.debug(() -> format("creating GCS client with client_name [%s], endpoint [%s]", clientName, settings.getHost()));
             final MeteredStorage storage = createClient(settings, statsCollector);
-            clientCache = Maps.copyMapWithAddedEntry(clientCache, clientKey, storage);
+            clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
             return storage;
         }
     }
@@ -140,7 +135,7 @@ public class GoogleCloudStorageService {
     synchronized void closeRepositoryClients(String repositoryName) {
         clientCache = clientCache.entrySet()
             .stream()
-            .filter(entry -> entry.getKey().repositoryName().equals(repositoryName) == false)
+            .filter(entry -> entry.getKey().equals(repositoryName) == false)
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 

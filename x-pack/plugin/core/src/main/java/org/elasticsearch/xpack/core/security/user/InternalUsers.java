@@ -33,6 +33,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.util.Arrays;
@@ -283,7 +284,7 @@ public class InternalUsers {
         UsernamesField.SYNONYMS_USER_NAME,
         new RoleDescriptor(
             UsernamesField.SYNONYMS_ROLE_NAME,
-            null,
+            new String[] {"monitor"},
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(TransportReloadAnalyzersAction.TYPE.name()).build(), },

@@ -509,7 +509,7 @@ public class MetadataDataStreamsService {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
-        clusterService.submitUnbatchedStateUpdateTask(
+        submitUnbatchedTask(
             "updating settings on data streams [" + String.join(", ", dataStreamNames) + "]",
             new AckedClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout(), request.ackTimeout(), listener) {
                 @Override
@@ -534,6 +534,7 @@ public class MetadataDataStreamsService {
                         // Currently, the only thing we support having in template overrides is settings:
                         ComposableIndexTemplate indexTemplateOverrides = ComposableIndexTemplate.builder()
                             .template(Template.builder().settings(mergedSettingsBuilder))
+                            .indexPatterns(List.of())
                             .build();
                         DataStream.Builder dataStreamBuilder = dataStream.copy().setIndexTemplateOverrides(indexTemplateOverrides);
                         projectMetadataBuilder.removeDataStream(dataStreamName);

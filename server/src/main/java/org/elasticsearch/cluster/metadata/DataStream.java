@@ -203,6 +203,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             : "replicated data streams cannot be marked for lazy rollover";
         this.backingIndices = backingIndices;
         this.failureIndices = failureIndices;
+        if (indexTemplateOverrides != null && indexTemplateOverrides.indexPatterns() == null) {
+            throw new RuntimeException("Here i am");
+        }
     }
 
     public static DataStream read(StreamInput in) throws IOException {

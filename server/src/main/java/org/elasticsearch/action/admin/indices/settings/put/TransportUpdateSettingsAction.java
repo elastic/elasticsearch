@@ -139,7 +139,11 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             listener.onFailure(new IllegalStateException(message));
             return;
         }
-        List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.DEFAULT, request.indices());
+        List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
+            state,
+            IndicesOptions.lenientExpandOpenHidden(),
+            request.indices()
+        );
         metadataDataStreamsService.updateSettings(projectResolver, request, dataStreamNames, requestSettings, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {

@@ -218,8 +218,8 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = RateLongAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = RateLongAggregator.evaluateFinal(state, selected, evaluatorContext);
   }
 
   @Override

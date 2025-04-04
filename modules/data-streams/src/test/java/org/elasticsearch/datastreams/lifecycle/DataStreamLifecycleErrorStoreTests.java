@@ -15,6 +15,7 @@ import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -101,26 +102,94 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
         IntStream.range(0, 5).forEach(i -> errorStore.recordError(projectId, "test5", new NullPointerException("testing")));
 
         {
-            List<DslErrorInfo> entries = errorStore.getErrorsInfo(projectId, entry -> entry.retryCount() > 7, 100);
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 7, 100);
             assertThat(entries.size(), is(1));
-            assertThat(entries.get(0).indexName(), is("test20"));
+            assertThat(entries.getFirst().indexName(), is("test20"));
+            assertThat(entries.getFirst().projectId(), is(projectId));
         }
 
         {
-            List<DslErrorInfo> entries = errorStore.getErrorsInfo(projectId, entry -> entry.retryCount() > 7, 0);
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 7, 0);
             assertThat(entries.size(), is(0));
         }
 
         {
-            List<DslErrorInfo> entries = errorStore.getErrorsInfo(projectId, entry -> entry.retryCount() > 50, 100);
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 50, 100);
             assertThat(entries.size(), is(0));
         }
 
         {
-            List<DslErrorInfo> entries = errorStore.getErrorsInfo(projectId, entry -> entry.retryCount() > 2, 100);
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 2, 100);
             assertThat(entries.size(), is(2));
             assertThat(entries.get(0).indexName(), is("test20"));
+            assertThat(entries.get(0).projectId(), is(projectId));
             assertThat(entries.get(1).indexName(), is("test5"));
+            assertThat(entries.get(1).projectId(), is(projectId));
+        }
+    }
+
+    public void testGetFilteredEntriesForMultipleProjects() {
+        ProjectId projectId1 = randomProjectIdOrDefault();
+        ProjectId projectId2 = randomUniqueProjectId();
+        IntStream.range(0, 20).forEach(i -> errorStore.recordError(projectId1, "test20", new NullPointerException("testing")));
+        IntStream.range(0, 5).forEach(i -> errorStore.recordError(projectId2, "test5", new NullPointerException("testing")));
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 7, 100);
+            assertThat(entries.size(), is(1));
+            assertThat(entries.getFirst().indexName(), is("test20"));
+            assertThat(entries.getFirst().projectId(), is(projectId1));
+        }
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 7, 0);
+            assertThat(entries.size(), is(0));
+        }
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 50, 100);
+            assertThat(entries.size(), is(0));
+        }
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 2, 100);
+            assertThat(entries.size(), is(2));
+            assertThat(entries.get(0).indexName(), is("test20"));
+            assertThat(entries.get(0).projectId(), is(projectId1));
+            assertThat(entries.get(1).indexName(), is("test5"));
+            assertThat(entries.get(1).projectId(), is(projectId2));
+        }
+    }
+
+    public void testTotalErrorCount() {
+        ProjectId projectId1 = randomProjectIdOrDefault();
+        ProjectId projectId2 = randomUniqueProjectId();
+
+        {
+            // empty store
+            assertThat(errorStore.getTotalErrorEntries(), is(0));
+        }
+
+        {
+            // single project multiple indices
+            IntStream.range(1, 20).forEach(i -> errorStore.recordError(projectId1, "index1", new NullPointerException("testing")));
+            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId1, "index2", new NullPointerException("testing")));
+            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId1, "index2", new IOException("testing")));
+            assertThat(errorStore.getTotalErrorEntries(), is(2));
+        }
+
+        {
+            // clear store
+            errorStore.clearStore();
+            assertThat(errorStore.getTotalErrorEntries(), is(0));
+        }
+
+        {
+            // multiple projects
+            IntStream.range(1, 20).forEach(i -> errorStore.recordError(projectId1, "index1", new NullPointerException("testing")));
+            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId1, "index2", new IOException("testing")));
+            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId2, "index1", new NullPointerException("testing")));
+            assertThat(errorStore.getTotalErrorEntries(), is(3));
         }
     }
 }

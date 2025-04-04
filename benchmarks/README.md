@@ -107,6 +107,30 @@ gradlew -p benchmarks run --args ' MemoryStatsBenchmark -jvmArgs "-XX:+UnlockDia
 
 If you want `perf` to find the hot methods for you, then do add `-prof perfasm`.
 
+NOTE: `perfasm` will need more access:
+```
+sudo bash
+echo -1 > /proc/sys/kernel/perf_event_paranoid
+exit
+```
+
+If you get warnings like:
+```
+The perf event count is suspiciously low (0).
+```
+then check if you are bumping into [this](https://man.archlinux.org/man/perf-stat.1.en#INTEL_HYBRID_SUPPORT)
+by running:
+```
+perf stat -B dd if=/dev/zero of=/dev/null count=1000000
+```
+
+If you see lines like:
+```
+         765019980      cpu_atom/cycles/                 #    1.728 GHz                         (0.60%)
+        2258845959      cpu_core/cycles/                 #    5.103 GHz                         (99.18%)
+```
+then `perf` is just not going to work for you.
+
 ## Async Profiler
 
 Note: Linux and Mac only. Sorry Windows.

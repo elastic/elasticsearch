@@ -207,11 +207,6 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
             } else if (request.isListObjectsRequest()) {
-                final var listType = request.queryParameters().getOrDefault("list-type", List.of("1")).get(0);
-                if (request.queryParameters().containsKey("list-type") && listType.equals("2") == false) {
-                    throw new AssertionError("Unsupported list-type, must be absent or `2` but got " + listType);
-                }
-
                 final StringBuilder list = new StringBuilder();
                 list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                 list.append("<ListBucketResult>");

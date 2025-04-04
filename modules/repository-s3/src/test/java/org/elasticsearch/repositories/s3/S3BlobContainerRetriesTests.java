@@ -156,7 +156,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     @Override
     protected Class<? extends Exception> unresponsiveExceptionType() {
-        // TODO NOMERGE can we be more precise?
         return SdkException.class;
     }
 
@@ -832,7 +831,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     blobsToDelete.iterator()
                 )
             );
-            assertThat(exception.getCause(), instanceOf(SdkException.class /* TODO NOMERGE can we be more precise? */));
+            assertThat(exception.getCause(), instanceOf(SdkException.class));
             assertThat(handler.numberOfDeleteAttempts.get(), equalTo(interruptBeforeAttempt + 1));
             assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(0));
         } finally {
@@ -864,7 +863,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         );
         assertEquals(
             ThrottlingDeleteHandler.THROTTLING_ERROR_CODE,
-            asInstanceOf(S3Exception.class /* TODO NOMERGE can we be more precise? */, exception.getCause()).awsErrorDetails().errorCode()
+            asInstanceOf(S3Exception.class, exception.getCause()).awsErrorDetails().errorCode()
         );
         assertThat(handler.numberOfDeleteAttempts.get(), equalTo(expectedNumberOfBatches(numBlobsToDelete)));
         assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(0));
@@ -1062,10 +1061,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     private static boolean isMultiDeleteRequest(HttpExchange exchange) {
-        // TODO NOMERGE use S3HttpHandler#isMultiObjectDeleteRequest
-        return exchange.getRequestMethod().equals("POST")
-            && (exchange.getRequestURI().toString().startsWith("/bucket/?delete")
-                || exchange.getRequestURI().toString().startsWith("/bucket?delete"));
+        return new S3HttpHandler("bucket").parseRequest(exchange).isMultiObjectDeleteRequest();
     }
 
     public void testTrimmedLogAndCappedSuppressedErrorOnMultiObjectDeletionException() {

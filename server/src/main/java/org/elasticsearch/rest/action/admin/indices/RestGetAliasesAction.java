@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -84,67 +85,21 @@ public class RestGetAliasesAction extends BaseRestHandler {
     ) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
-        if (aliasesExplicitlyRequested || requestedAliases.length > 0) {
-            for (final Map.Entry<String, List<AliasMetadata>> cursor : responseAliasMap.entrySet()) {
-                final var aliases = cursor.getValue();
-                if (aliases.isEmpty() == false) {
-                    if (aliasesExplicitlyRequested) {
-                        // only display indices that have aliases
-                        indicesToDisplay.add(cursor.getKey());
-                    }
-                    if (requestedAliases.length > 0) {
-                        for (final AliasMetadata aliasMetadata : aliases) {
-                            returnedAliasNames.add(aliasMetadata.alias());
-                        }
-                    }
-                }
-            }
-        }
-        if (requestedAliases.length > 0) {
+        if (aliasesExplicitlyRequested) {
+            responseAliasMap.entrySet().stream().filter(entry -> entry.getValue().isEmpty() == false).forEach(entry -> {
+                // only display indices that have aliases
+                indicesToDisplay.add(entry.getKey());
+                entry.getValue().forEach(aliasMetadata -> returnedAliasNames.add(aliasMetadata.alias()));
+            });
+
             dataStreamAliases.entrySet()
                 .stream()
                 .flatMap(entry -> entry.getValue().stream())
                 .forEach(dataStreamAlias -> returnedAliasNames.add(dataStreamAlias.getName()));
         }
 
-        // compute explicitly requested aliases that have are not returned in the result
-        final SortedSet<String> missingAliases = new TreeSet<>();
-        // first wildcard index, leading "-" as an alias name after this index means
-        // that it is an exclusion
-        int firstWildcardIndex = requestedAliases.length;
-        for (int i = 0; i < requestedAliases.length; i++) {
-            if (Regex.isSimpleMatchPattern(requestedAliases[i])) {
-                firstWildcardIndex = i;
-                break;
-            }
-        }
-        for (int i = 0; i < requestedAliases.length; i++) {
-            if (Metadata.ALL.equals(requestedAliases[i])
-                || Regex.isSimpleMatchPattern(requestedAliases[i])
-                || (i > firstWildcardIndex && requestedAliases[i].charAt(0) == '-')) {
-                // only explicitly requested aliases will be called out as missing (404)
-                continue;
-            }
-            // check if aliases[i] is subsequently excluded
-            int j = Math.max(i + 1, firstWildcardIndex);
-            for (; j < requestedAliases.length; j++) {
-                if (requestedAliases[j].charAt(0) == '-') {
-                    // this is an exclude pattern
-                    if (Regex.simpleMatch(requestedAliases[j].substring(1), requestedAliases[i])
-                        || Metadata.ALL.equals(requestedAliases[j].substring(1))) {
-                        // aliases[i] is excluded by aliases[j]
-                        break;
-                    }
-                }
-            }
-            if (j == requestedAliases.length) {
-                // explicitly requested aliases[i] is not excluded by any subsequent "-" wildcard in expression
-                if (false == returnedAliasNames.contains(requestedAliases[i])) {
-                    // aliases[i] is not in the result set
-                    missingAliases.add(requestedAliases[i]);
-                }
-            }
-        }
+        // compute explicitly requested aliases that would not be returned in the result
+        final var missingAliases = computeMissingAliases(requestedAliases, returnedAliasNames);
 
         final RestStatus status;
         builder.startObject();
@@ -248,4 +203,50 @@ public class RestGetAliasesAction extends BaseRestHandler {
             });
     }
 
+    private static SortedSet<String> computeMissingAliases(String[] requestedAliases, Set<String> returnedAliasNames) {
+        if (requestedAliases.length == 0) {
+            return Collections.emptySortedSet();
+        }
+
+        final var missingAliases = new TreeSet<String>();
+
+        // first wildcard index, leading "-" as an alias name after this index means
+        // that it is an exclusion
+        int firstWildcardIndex = requestedAliases.length;
+        for (int i = 0; i < requestedAliases.length; i++) {
+            if (Regex.isSimpleMatchPattern(requestedAliases[i])) {
+                firstWildcardIndex = i;
+                break;
+            }
+        }
+        for (int i = 0; i < requestedAliases.length; i++) {
+            if (Metadata.ALL.equals(requestedAliases[i])
+                || Regex.isSimpleMatchPattern(requestedAliases[i])
+                || (i > firstWildcardIndex && requestedAliases[i].charAt(0) == '-')) {
+                // only explicitly requested aliases will be called out as missing (404)
+                continue;
+            }
+            // check if aliases[i] is subsequently excluded
+            int j = Math.max(i + 1, firstWildcardIndex);
+            for (; j < requestedAliases.length; j++) {
+                if (requestedAliases[j].charAt(0) == '-') {
+                    // this is an exclude pattern
+                    if (Regex.simpleMatch(requestedAliases[j].substring(1), requestedAliases[i])
+                        || Metadata.ALL.equals(requestedAliases[j].substring(1))) {
+                        // aliases[i] is excluded by aliases[j]
+                        break;
+                    }
+                }
+            }
+            if (j == requestedAliases.length) {
+                // explicitly requested aliases[i] is not excluded by any subsequent "-" wildcard in expression
+                if (false == returnedAliasNames.contains(requestedAliases[i])) {
+                    // aliases[i] is not in the result set
+                    missingAliases.add(requestedAliases[i]);
+                }
+            }
+        }
+
+        return missingAliases;
+    }
 }

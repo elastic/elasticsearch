@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
@@ -167,7 +168,11 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     private AttributeMap() {
-        delegate = new LinkedHashMap<>();
+        this(new LinkedHashMap<>());
+    }
+
+    private AttributeMap(int expectedSize) {
+        this(Maps.newLinkedHashMapWithExpectedSize(expectedSize));
     }
 
     public AttributeMap(Attribute key, E value) {
@@ -176,21 +181,19 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     public AttributeMap<E> combine(AttributeMap<E> other) {
-        AttributeMap<E> combine = new AttributeMap<>();
+        AttributeMap<E> combine = new AttributeMap<>(this.size() + other.size());
         combine.addAll(this);
         combine.addAll(other);
-
         return combine;
     }
 
     public AttributeMap<E> subtract(AttributeMap<E> other) {
-        AttributeMap<E> diff = new AttributeMap<>();
+        AttributeMap<E> diff = new AttributeMap<>(this.size());
         for (Entry<AttributeWrapper, E> entry : this.delegate.entrySet()) {
             if (other.delegate.containsKey(entry.getKey()) == false) {
                 diff.delegate.put(entry.getKey(), entry.getValue());
             }
         }
-
         return diff;
     }
 
@@ -198,7 +201,7 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
         AttributeMap<E> smaller = (other.size() > size() ? this : other);
         AttributeMap<E> larger = (smaller == this ? other : this);
 
-        AttributeMap<E> intersect = new AttributeMap<>();
+        AttributeMap<E> intersect = new AttributeMap<>(smaller.size());
         for (Entry<AttributeWrapper, E> entry : smaller.delegate.entrySet()) {
             if (larger.delegate.containsKey(entry.getKey())) {
                 intersect.delegate.put(entry.getKey(), entry.getValue());
@@ -392,13 +395,20 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     public static <E> Builder<E> builder() {
-        return new Builder<>();
+        return new Builder<>(new AttributeMap<>());
+    }
+
+    public static <E> Builder<E> builder(int expectedSize) {
+        return new Builder<>(new AttributeMap<>(expectedSize));
     }
 
     public static class Builder<E> {
-        private final AttributeMap<E> map = new AttributeMap<>();
 
-        private Builder() {}
+        private final AttributeMap<E> map;
+
+        private Builder(AttributeMap<E> map) {
+            this.map = map;
+        }
 
         public E put(Attribute attr, E value) {
             return map.add(attr, value);

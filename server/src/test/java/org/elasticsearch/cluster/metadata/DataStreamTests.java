@@ -1805,10 +1805,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(withFailureIndices.getFailuresLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
 
         DataStreamLifecycle lifecycle = DataStreamLifecycleTests.randomFailuresLifecycle();
-        DataStream withfailuresLifecycle = DataStream.builder("with-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
+        DataStream withFailuresLifecycle = DataStream.builder("with-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
             .setDataStreamOptions(new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), lifecycle)))
             .build();
-        assertThat(withfailuresLifecycle.getFailuresLifecycle(), equalTo(lifecycle));
+        assertThat(withFailuresLifecycle.getFailuresLifecycle(), equalTo(lifecycle));
     }
 
     private DataStream createDataStream(

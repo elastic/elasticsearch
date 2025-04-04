@@ -30,9 +30,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.DocumentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.shard.DenseVectorStats;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardFieldStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
@@ -51,15 +56,22 @@ public class HollowIndexEngine extends ReadOnlyEngine {
     private final StatelessCommitService statelessCommitService;
     private final HollowShardsService hollowShardsService;
     private final ShardFieldStats shardFieldStats;
+    private final DocsStats docsStats;
 
     @SuppressWarnings("this-escape")
-    public HollowIndexEngine(EngineConfig config, StatelessCommitService statelessCommitService, HollowShardsService hollowShardsService) {
+    public HollowIndexEngine(
+        EngineConfig config,
+        StatelessCommitService statelessCommitService,
+        HollowShardsService hollowShardsService,
+        MapperService mapperService
+    ) {
         // no index writer lock allows opening an HollowIndexEngine on top of an IndexEngine
         super(config, null, new TranslogStats(), false, Function.identity(), true, true);
         this.statelessCommitService = statelessCommitService;
         this.hollowShardsService = hollowShardsService;
         try (DirectoryReader reader = openDirectory(store.directory())) {
             shardFieldStats = shardFieldStats(reader.getContext().leaves());
+            docsStats = docsStats(reader);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -118,6 +130,26 @@ public class HollowIndexEngine extends ReadOnlyEngine {
     @Override
     public ShardFieldStats shardFieldStats() {
         return shardFieldStats;
+    }
+
+    @Override
+    public DocsStats docStats() {
+        return docsStats;
+    }
+
+    @Override
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        return new SegmentsStats();
+    }
+
+    @Override
+    public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
+        return new DenseVectorStats();
+    }
+
+    @Override
+    public SparseVectorStats sparseVectorStats(MappingLookup mappingLookup) {
+        return new SparseVectorStats();
     }
 
     public void callRefreshListeners() {

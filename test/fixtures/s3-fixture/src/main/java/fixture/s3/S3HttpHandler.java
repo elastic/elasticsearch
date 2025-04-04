@@ -201,10 +201,24 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (request.isPutObjectRequest()) {
-                final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                blobs.put(request.path(), blob.v2());
-                exchange.getResponseHeaders().add("ETag", blob.v1());
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                // a copy request is a put request with a copy source header
+                final var sourceBlobName = exchange.getRequestHeaders().get("X-amz-copy-source");
+                if (sourceBlobName != null) {
+                    var sourceBlob = blobs.get(sourceBlobName.getFirst());
+                    blobs.put(request.path(), sourceBlob);
+
+                    byte[] response = ("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <CopyObjectResult></CopyObjectResult>""").getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
+                } else {
+                    final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                    blobs.put(request.path(), blob.v2());
+                    exchange.getResponseHeaders().add("ETag", blob.v1());
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                }
 
             } else if (request.isListObjectsRequest()) {
                 if (request.queryParameters().containsKey("list-type")) {

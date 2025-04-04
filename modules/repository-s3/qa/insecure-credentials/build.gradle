@@ -16,6 +16,7 @@ dependencies {
   testImplementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
   testImplementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
   testImplementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:regions:${versions.awsv2sdk}"
   testImplementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
   testImplementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
   testImplementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"

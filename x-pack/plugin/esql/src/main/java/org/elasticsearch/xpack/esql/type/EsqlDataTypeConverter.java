@@ -122,7 +122,7 @@ public class EsqlDataTypeConverter {
         entry(GEO_POINT, ToGeoPoint::new),
         entry(GEO_SHAPE, ToGeoShape::new),
         entry(INTEGER, ToInteger::new),
-        entry(IP, ToIP::new),
+        entry(IP, (s, e) -> new ToIP(s, e, null)),
         entry(LONG, ToLong::new),
         // ToRadians, typeless
         entry(KEYWORD, ToString::new),

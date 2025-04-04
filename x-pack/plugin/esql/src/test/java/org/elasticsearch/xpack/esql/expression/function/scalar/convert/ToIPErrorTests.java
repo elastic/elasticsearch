@@ -27,7 +27,7 @@ public class ToIPErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToIP(source, args.get(0));
+        return new ToIP(source, args.get(0), args.get(1));
     }
 
     @Override

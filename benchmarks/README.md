@@ -82,19 +82,21 @@ To get realistic results, you should exercise care when running benchmarks. Here
 NOTE: Linux only. Sorry Mac and Windows.
 
 Disassembling is fun! Maybe not always useful, but always fun! Generally, you'll want to install `perf` and the JDK's `hsdis`.
-`perf` is generally available via `apg-get install perf` or `pacman -S perf`. `hsdis` you'll want to compile from source. is a little more involved. This worked
+`perf` is generally available via `apg-get install perf` or `pacman -S perf linux-tools`. `hsdis` you'll want to compile from source. is a little more involved. This worked
 on 2020-08-01:
 
 ```
 git clone git@github.com:openjdk/jdk.git
 cd jdk
-git checkout jdk-17-ga
-cd src/utils/hsdis
+git checkout jdk-24-ga
 # Get a known good binutils
 wget https://ftp.gnu.org/gnu/binutils/binutils-2.35.tar.gz
 tar xf binutils-2.35.tar.gz
-make BINUTILS=binutils-2.35 ARCH=amd64
-sudo cp build/linux-amd64/hsdis-amd64.so /usr/lib/jvm/java-17-openjdk/lib/server/
+bash configure --with-hsdis=binutils --with-binutils-src=binutils-2.35 \
+    --with-boot-jdk=~/.gradle/jdks/oracle_corporation-24-amd64-linux.2
+make build-hsdis
+cp ./build/linux-x86_64-server-release/jdk/lib/hsdis-amd64.so \
+    ~/.gradle/jdks/oracle_corporation-24-amd64-linux.2/lib/hsdis.so
 ```
 
 If you want to disassemble a single method do something like this:

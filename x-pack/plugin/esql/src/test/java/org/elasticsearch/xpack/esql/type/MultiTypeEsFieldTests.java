@@ -156,7 +156,7 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
                 case DOUBLE, FLOAT -> new ToDouble(Source.EMPTY, fromField);
                 case INTEGER -> new ToInteger(Source.EMPTY, fromField);
                 case LONG -> new ToLong(Source.EMPTY, fromField);
-                case IP -> new ToIP(Source.EMPTY, fromField);
+                case IP -> new ToIP(Source.EMPTY, fromField, null);
                 case KEYWORD -> new ToString(Source.EMPTY, fromField);
                 case GEO_POINT -> new ToGeoPoint(Source.EMPTY, fromField);
                 case GEO_SHAPE -> new ToGeoShape(Source.EMPTY, fromField);

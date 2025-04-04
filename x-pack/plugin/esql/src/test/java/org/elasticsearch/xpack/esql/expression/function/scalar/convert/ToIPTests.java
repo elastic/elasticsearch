@@ -10,64 +10,87 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.script.field.IPAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
-import java.net.Inet4Address;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.parseIP;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP.LeadingZeros.DECIMAL;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP.LeadingZeros.OCTAL;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP.LeadingZeros.REJECT;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ToIPTests extends AbstractScalarFunctionTestCase {
-    public ToIPTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    private final ToIP.LeadingZeros leadingZeros;
+
+    public ToIPTests(
+        @Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier,
+        @Name("leading_zeros") ToIP.LeadingZeros leadingZeros
+    ) {
         this.testCase = testCaseSupplier.get();
+        this.leadingZeros = leadingZeros;
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String read = "Attribute[channel=0]";
-        String stringEvaluator = "ToIPFromStringEvaluator[asString=" + read + "]";
-        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        List<Object[]> parameters = new ArrayList<>();
+        for (ToIP.LeadingZeros leadingZeros : new ToIP.LeadingZeros[] { null, REJECT, OCTAL, DECIMAL }) {
+            List<TestCaseSupplier> suppliers = new ArrayList<>();
+            // convert from IP to IP
+            TestCaseSupplier.forUnaryIp(suppliers, readEvaluator(), DataType.IP, v -> v, List.of());
 
-        // convert from IP to IP
-        TestCaseSupplier.forUnaryIp(suppliers, read, DataType.IP, v -> v, List.of());
+            // convert random string (i.e. not an IP representation) to IP `null`, with warnings.
+            TestCaseSupplier.forUnaryStrings(
+                suppliers,
+                stringEvaluator(leadingZeros),
+                DataType.IP,
+                bytesRef -> null,
+                bytesRef -> List.of(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: '" + bytesRef.utf8ToString() + "' is not an IP string literal."
+                )
+            );
 
-        // convert random string (i.e. not an IP representation) to IP `null`, with warnings.
-        TestCaseSupplier.forUnaryStrings(
-            suppliers,
-            stringEvaluator,
-            DataType.IP,
-            bytesRef -> null,
-            bytesRef -> List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: '" + bytesRef.utf8ToString() + "' is not an IP string literal."
-            )
-        );
+            // convert valid IPs shaped as strings
+            TestCaseSupplier.unary(
+                suppliers,
+                stringEvaluator(leadingZeros),
+                validIPsAsStrings(),
+                DataType.IP,
+                bytesRef -> parseIP(((BytesRef) bytesRef).utf8ToString()),
+                emptyList()
+            );
+            suppliers = anyNullIsNull(true, randomizeBytesRefsOffset(suppliers));
+            for (TestCaseSupplier supplier : suppliers) {
+                parameters.add(new Object[] { supplier, leadingZeros });
+            }
+        }
 
-        // convert valid IPs shaped as strings
-        TestCaseSupplier.unary(
-            suppliers,
-            stringEvaluator,
-            validIPsAsStrings(),
-            DataType.IP,
-            bytesRef -> parseIP(((BytesRef) bytesRef).utf8ToString()),
-            emptyList()
-        );
-        suppliers.add(new TestCaseSupplier("<ip> with leading 0s", List.of(DataType.KEYWORD), () -> {
+        parameters.add(new Object[] { exampleRejectingLeadingZeros(stringEvaluator(null)), null });
+        parameters.add(new Object[] { exampleRejectingLeadingZeros(stringEvaluator(REJECT)), REJECT });
+        parameters.add(new Object[] { exampleParsingLeadingZerosAsDecimal(stringEvaluator(DECIMAL)), DECIMAL });
+        return parameters;
+    }
+
+    private static TestCaseSupplier exampleRejectingLeadingZeros(String stringEvaluator) {
+        return new TestCaseSupplier("<ip> with leading 0s", List.of(DataType.KEYWORD), () -> {
             BytesRef withLeadingZeros = new BytesRef(randomIpWithLeadingZeros());
-            System.err.println(withLeadingZeros.utf8ToString());
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(withLeadingZeros, DataType.KEYWORD, "ip")),
                 stringEvaluator,
@@ -77,13 +100,40 @@ public class ToIPTests extends AbstractScalarFunctionTestCase {
                 .withWarning(
                     "Line 1:1: java.lang.IllegalArgumentException: '" + withLeadingZeros.utf8ToString() + "' is not an IP string literal."
                 );
-        }));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        });
+    }
+
+    private static TestCaseSupplier exampleParsingLeadingZerosAsDecimal(String stringEvaluator) {
+        return new TestCaseSupplier("<ip> with leading 0s", List.of(DataType.KEYWORD), () -> {
+            String ip = randomIpWithLeadingZeros();
+            BytesRef withLeadingZeros = new BytesRef(ip);
+            String withoutLeadingZeros = ParseIpTests.leadingZerosAreDecimalToIp(ip);
+            System.err.println("SADFADF " + ip + " " + withoutLeadingZeros);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(withLeadingZeros, DataType.KEYWORD, "ip")),
+                stringEvaluator,
+                DataType.IP,
+                equalTo(EsqlDataTypeConverter.stringToIP(withoutLeadingZeros))
+            );
+        });
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToIP(source, args.get(0));
+        return new ToIP(source, args.getFirst(), options());
+    }
+
+    private MapExpression options() {
+        if (leadingZeros == null) {
+            return null;
+        }
+        return new MapExpression(
+            Source.EMPTY,
+            List.of(
+                new Literal(Source.EMPTY, new BytesRef("leading_zeros"), DataType.KEYWORD),
+                new Literal(Source.EMPTY, new BytesRef(leadingZeros.toString().toLowerCase(Locale.ROOT)), DataType.KEYWORD)
+            )
+        );
     }
 
     private static List<TestCaseSupplier.TypedDataSupplier> validIPsAsStrings() {
@@ -103,11 +153,22 @@ public class ToIPTests extends AbstractScalarFunctionTestCase {
     }
 
     private static String randomIpWithLeadingZeros() {
-        byte[] address = randomValueOtherThanMany(
-            // < 0 is really >= 128 in the encoding.
-            (byte[] a) -> a[0] < 0 && a[1] < 0 && a[2] < 0 && a[3] < 0,
-            () -> randomIp(true).getAddress()
-        );
-        return String.format("%03d.%03d.%03d.%03d", address[0] & 0xff, address[1] & 0xff, address[2] & 0xff, address[3] & 0xff);
+        return randomValueOtherThanMany((String str) -> false == (str.startsWith("0") || str.contains(".0")), () -> {
+            byte[] addr = randomIp(true).getAddress();
+            return String.format("%03d.%03d.%03d.%03d", addr[0] & 0xff, addr[1] & 0xff, addr[2] & 0xff, addr[3] & 0xff);
+        });
+    }
+
+    private static String readEvaluator() {
+        return "Attribute[channel=0]";
+    }
+
+    private static String stringEvaluator(ToIP.LeadingZeros leadingZeros) {
+        return switch (leadingZeros) {
+            case null -> "ParseIpLeadingZerosRejectedEvaluator";
+            case REJECT -> "ParseIpLeadingZerosRejectedEvaluator";
+            case DECIMAL -> "ParseIpLeadingZerosAreDecimalEvaluator";
+            case OCTAL -> "ParseIpLeadingZerosAreOctalEvaluator";
+        } + "[string=" + readEvaluator() + "]";
     }
 }

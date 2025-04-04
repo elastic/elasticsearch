@@ -9,12 +9,11 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -479,13 +478,11 @@ final class CefParser {
 
     // visible for testing
     String toIP(String v) {
-        InetAddress address;
         try {
-            address = InetAddress.getByName(v);
-        } catch (UnknownHostException e) {
-            throw new IllegalArgumentException("Invalid IP address format");
+            return NetworkAddress.format(InetAddresses.forString(v));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid IP address format", e);
         }
-        return NetworkAddress.format(address);
     }
 
     private static String insertMACSeparators(String v) {

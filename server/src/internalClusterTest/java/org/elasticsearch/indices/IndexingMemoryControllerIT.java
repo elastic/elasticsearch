@@ -85,7 +85,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
                 config.getMapperService(),
-                config.getEngineLock()
+                config.getEngineResetLock()
             );
         }
 

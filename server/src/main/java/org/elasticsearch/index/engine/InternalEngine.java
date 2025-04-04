@@ -2056,7 +2056,7 @@ public class InternalEngine extends Engine {
                     // waiting for the write lock over the threads trying to acquire a (non-reentrant) read lock. Because refresh listeners
                     // are accessing the engine read lock, we need to ensure that they won't block if another thread is waiting for the
                     // engine write lock, so we acquire the read lock upfront before the refresh lock.
-                    final var engineReadLock = engineConfig.getEngineLock().readLock();
+                    final var engineReadLock = engineConfig.getEngineResetLock().readLock();
 
                     // it is intentional that we never refresh both internal / external together
                     if (block) {

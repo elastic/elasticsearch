@@ -9,21 +9,25 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.core.Assertions;
+
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Reentrant read/write lock used to guard engine changes in a shard.
+ * Reentrant read/write lock used to control accesses to a shard's engine that can be reset.
  *
- * Implemented as a simple wrapper around a {@link ReentrantReadWriteLock} to make it easier to add/override methods in the future.
+ * Implemented as a simple wrapper around a {@link ReentrantReadWriteLock} to make it easier to add/override methods.
  */
-public final class EngineReadWriteLock implements ReadWriteLock {
+public final class EngineResetLock implements ReadWriteLock {
 
     private final ReentrantReadWriteLock lock;
 
-    public EngineReadWriteLock() {
-        this.lock = new ReentrantReadWriteLock();
+    public EngineResetLock() {
+        this.lock = Assertions.ENABLED ? new QueuedWriterThreadsReentrantReadWriteLock() : new ReentrantReadWriteLock();
     }
 
     @Override
@@ -68,5 +72,25 @@ public final class EngineReadWriteLock implements ReadWriteLock {
      */
     public boolean isReadLockedByCurrentThread() {
         return lock.getReadHoldCount() > 0;
+    }
+
+    /**
+     * See {@link ReentrantReadWriteLock#getQueuedWriterThreads()}
+     */
+    public Collection<Thread> getQueuedWriterThreads() {
+        if (lock instanceof QueuedWriterThreadsReentrantReadWriteLock queuedLock) {
+            return queuedLock.queuedWriterThreads();
+        } else {
+            return List.of();
+        }
+    }
+
+    /**
+     * Extends ReentrantReadWriteLock to expose the protected {@link ReentrantReadWriteLock#getQueuedWriterThreads()} method
+     */
+    private static class QueuedWriterThreadsReentrantReadWriteLock extends ReentrantReadWriteLock {
+        Collection<Thread> queuedWriterThreads() {
+            return super.getQueuedWriterThreads();
+        }
     }
 }

@@ -2386,9 +2386,12 @@ public abstract class Engine implements Closeable {
         throw new UnsupportedOperationException("Doesn't support getting the latest segment generation");
     }
 
-    protected static <R extends ReferenceManager<ElasticsearchDirectoryReader>> R wrapForAssertions(R referenceManager, EngineConfig engineConfig) {
+    protected static <R extends ReferenceManager<ElasticsearchDirectoryReader>> R wrapForAssertions(
+        R referenceManager,
+        EngineConfig engineConfig
+    ) {
         if (Assertions.ENABLED) {
-            referenceManager.addListener(new AssertRefreshListenerHoldsEngineReadLock(engineConfig.getEngineLock()));
+            referenceManager.addListener(new AssertRefreshListenerHoldsEngineReadLock(engineConfig.getEngineResetLock()));
         }
         return referenceManager;
     }
@@ -2398,9 +2401,9 @@ public abstract class Engine implements Closeable {
      */
     private static class AssertRefreshListenerHoldsEngineReadLock implements ReferenceManager.RefreshListener {
 
-        private final EngineReadWriteLock engineLock;
+        private final EngineResetLock engineLock;
 
-        private AssertRefreshListenerHoldsEngineReadLock(EngineReadWriteLock engineLock) {
+        private AssertRefreshListenerHoldsEngineReadLock(EngineResetLock engineLock) {
             this.engineLock = Objects.requireNonNull(engineLock);
         }
 

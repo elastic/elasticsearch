@@ -193,6 +193,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
@@ -4515,7 +4516,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testResetEngineToGlobalCheckpoint() throws Exception {
+    public void testRollbackEngineToGlobalCheckpoint() throws Exception {
         IndexShard shard = newStartedShard(false);
         indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()));
         long maxSeqNoBeforeRollback = shard.seqNoStats().getMaxSeqNo();
@@ -4556,7 +4557,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
         shard.acquireAllReplicaOperationsPermits(shard.getOperationPrimaryTerm(), globalCheckpoint, 0L, ActionListener.wrap(r -> {
             try {
-                shard.resetEngineToGlobalCheckpoint();
+                shard.rollbackEngineToGlobalCheckpoint();
             } finally {
                 r.close();
                 engineResetLatch.countDown();
@@ -4604,9 +4605,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
     /**
      * This test simulates a scenario seen rarely in ConcurrentSeqNoVersioningIT. Closing a shard while engine is inside
-     * resetEngineToGlobalCheckpoint can lead to check index failure in integration tests.
+     * rollbackEngineToGlobalCheckpoint can lead to check index failure in integration tests.
      */
-    public void testCloseShardWhileResettingEngine() throws Exception {
+    public void testCloseShardWhileRollbackEngine() throws Exception {
         CountDownLatch readyToCloseLatch = new CountDownLatch(1);
         CountDownLatch closeDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
@@ -4644,7 +4645,7 @@ public class IndexShardTests extends IndexShardTestCase {
             0L,
             ActionListener.wrap(r -> {
                 try (r) {
-                    shard.resetEngineToGlobalCheckpoint();
+                    shard.rollbackEngineToGlobalCheckpoint();
                 } finally {
                     engineResetLatch.countDown();
                 }
@@ -4662,9 +4663,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
     /**
      * This test simulates a scenario seen rarely in ConcurrentSeqNoVersioningIT. While engine is inside
-     * resetEngineToGlobalCheckpoint snapshot metadata could fail
+     * rollbackEngineToGlobalCheckpoint snapshot metadata could fail
      */
-    public void testSnapshotWhileResettingEngine() throws Exception {
+    public void testSnapshotWhileRollbackEngine() throws Exception {
         CountDownLatch readyToSnapshotLatch = new CountDownLatch(1);
         CountDownLatch snapshotDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
@@ -4711,7 +4712,7 @@ public class IndexShardTests extends IndexShardTestCase {
             0L,
             ActionListener.wrap(r -> {
                 try (r) {
-                    shard.resetEngineToGlobalCheckpoint();
+                    shard.rollbackEngineToGlobalCheckpoint();
                 } finally {
                     engineResetLatch.countDown();
                 }
@@ -5061,7 +5062,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
                 config.getMapperService(),
-                config.getEngineLock()
+                config.getEngineResetLock()
             );
             return new InternalEngine(configWithWarmer);
         });
@@ -5099,62 +5100,136 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testCloseShardWhileRetainingEngine() throws Exception {
         final var primary = newStartedShard(true);
         try {
-            final var release = new CountDownLatch(1);
             final var hold = new PlainActionFuture<Engine>();
+            final var close = new PlainActionFuture<Void>();
+            final var release = new CountDownLatch(1);
+
             final var holdEngineThread = new Thread(() -> {
                 primary.withEngine(engine -> {
                     assertThat(engine, notNullValue());
                     EngineTestCase.ensureOpen(engine);
                     hold.onResponse(engine);
+
+                    safeGet(close);
+
+                    assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
+                    expectThrows(AlreadyClosedException.class, () -> primary.getEngine());
+                    assertThat(primary.getEngineOrNull(), nullValue());
+
                     safeAwait(release);
                     return null;
                 });
             });
             holdEngineThread.start();
 
-            final var secondReaderExecuting = new CountDownLatch(1);
-            final var closed = new CountDownLatch(1);
-            final var closeEngineThread = new Thread(() -> {
-                try {
-                    safeGet(hold);
-                    // Unfair ReentrantReadWriteLock would prioritize writers over readers to avoid starving writers,
-                    // hence we need to wait to close the engine until the second reader has acquired the read lock before
-                    // closing, otherwise the test would deadlock.
-                    safeAwait(secondReaderExecuting);
-                    closeShardNoCheck(primary);
-                    assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
-                    closed.countDown();
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-            });
-            closeEngineThread.start();
-
             final var retainedInstance = asInstanceOf(InternalEngine.class, safeGet(hold));
+            assertSame(retainedInstance, primary.getEngine());
             assertSame(retainedInstance, primary.getEngineOrNull());
             assertThat(primary.state(), equalTo(IndexShardState.STARTED));
             primary.withEngineOrNull(engine -> {
-                secondReaderExecuting.countDown();
                 assertSame(retainedInstance, engine);
                 EngineTestCase.ensureOpen(engine);
                 return null;
             });
 
-            release.countDown();
-            safeAwait(closed);
+            final var closeEngineThread = new Thread(() -> {
+                try {
+                    safeGet(hold);
+
+                    assertThat(primary.getEngineResetLock().isReadLocked(), equalTo(true));
+
+                    closeShardNoCheck(primary);
+
+                    assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
+                    expectThrows(AlreadyClosedException.class, () -> primary.getEngine());
+                    assertThat(primary.getEngineOrNull(), nullValue());
+
+                    close.onResponse(null);
+                } catch (IOException e) {
+                    close.onFailure(e);
+                }
+            });
+            closeEngineThread.start();
+            safeGet(close);
 
             assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
+            expectThrows(AlreadyClosedException.class, () -> primary.getEngine());
             assertThat(primary.getEngineOrNull(), nullValue());
             primary.withEngineOrNull(engine -> {
                 assertThat(engine, nullValue());
                 return null;
             });
 
-            holdEngineThread.join();
             closeEngineThread.join();
+            release.countDown();
+            holdEngineThread.join();
         } finally {
             IOUtils.close(primary.store());
         }
+    }
+
+    public void testResetEngineWhileRetainingEngine() throws Exception {
+        final var preparedForReset = new AtomicBoolean();
+        final var shard = newStartedShard(true, Settings.EMPTY, config -> {
+            if (preparedForReset.get()) {
+                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true);
+            } else {
+                return new InternalEngine(config) {
+                    @Override
+                    public void prepareForEngineReset() throws IOException {
+                        assertTrue(preparedForReset.compareAndSet(false, true));
+                    }
+                };
+            }
+        });
+        final var engineResetLock = shard.getEngine().getEngineConfig().getEngineResetLock();
+
+        final var release = new CountDownLatch(1);
+        final var hold = new PlainActionFuture<Engine>();
+        final var holdEngineThread = new Thread(() -> {
+            shard.withEngine(engine -> {
+                assertThat(engine, notNullValue());
+                EngineTestCase.ensureOpen(engine);
+                hold.onResponse(engine);
+                safeAwait(release, TimeValue.ONE_HOUR);
+                return null;
+            });
+        });
+        holdEngineThread.start();
+        safeGet(hold);
+
+        assertThat(shard.getEngine(), instanceOf(InternalEngine.class));
+
+        final var reset = new PlainActionFuture<Void>();
+        final var resetEngineThread = new Thread(() -> {
+            try {
+                safeGet(hold);
+                shard.acquirePrimaryOperationPermit(reset.delegateFailure((l, permit) -> {
+                    try (permit) {
+                        shard.resetEngine(newEngine -> {
+                            assertThat(engineResetLock.isWriteLockedByCurrentThread(), equalTo(true));
+                            assertThat(newEngine, instanceOf(ReadOnlyEngine.class));
+                        });
+                        assertThat(preparedForReset.get(), equalTo(true));
+                        l.onResponse(null);
+                    }
+                }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            } catch (Exception e) {
+                reset.onFailure(e);
+            }
+        });
+        resetEngineThread.start();
+
+        assertBusy(() -> assertThat(engineResetLock.getQueuedWriterThreads(), hasItem(resetEngineThread)));
+        assertThat(engineResetLock.isReadLocked(), equalTo(true));
+
+        release.countDown();
+        safeGet(reset);
+
+        holdEngineThread.join();
+        resetEngineThread.join();
+
+        closeShards(shard);
     }
 
     public void testShardExposesWriteLoadStats() throws Exception {

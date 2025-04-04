@@ -39,7 +39,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineReadWriteLock;
+import org.elasticsearch.index.engine.EngineResetLock;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
@@ -168,7 +168,7 @@ public class RefreshListenersTests extends ESTestCase {
             null,
             true,
             EngineTestCase.createMapperService(),
-            new EngineReadWriteLock()
+            new EngineResetLock()
         );
         engine = new InternalEngine(config);
         EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);

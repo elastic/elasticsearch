@@ -1,12 +1,11 @@
 ---
-navigation_title: "Deprecations"
+navigation_title: "Elasticsearch"
 ---
 
 # {{es}} deprecations [elasticsearch-deprecations]
+Review the deprecated functionality for your {{es}} version. While deprecations have no immediate impact, we strongly encourage you update your implementation after you upgrade.
 
-Over time, certain Elastic functionality becomes outdated and is replaced or removed. To help with the transition, Elastic deprecates functionality for a period before removal, giving you time to update your applications.
-
-Review the deprecated functionality for Elasticsearch. While deprecations have no immediate impact, we strongly encourage you update your implementation after you upgrade. To learn how to upgrade, check out [Upgrade](docs-content://deploy-manage/upgrade.md).
+To learn how to upgrade, check out <upgrade docs>.
 
 To give you insight into what deprecated features you’re using, {{es}}:
 
@@ -15,7 +14,13 @@ To give you insight into what deprecated features you’re using, {{es}}:
 * [Provides a deprecation info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-deprecations) that scans a cluster’s configuration and mappings for deprecated functionality.
 
 % ## Next version [elasticsearch-nextversion-deprecations]
+% **Release date:** Month day, year
 
-## 9.1.0 [elasticsearch-910-deprecations]
+## 8.2.0 [elasticsearch-820-deprecations]
+**Release date:** April 01, 2025
 
-No deprecations in this version.
+Search:
+* Test changelog entry 4_0 [#4000](https://github.com/elastic/elasticsearch/pull/4000) (issue: {es-issue}4001[#4001])
+* Test changelog entry 4_1 [#4002](https://github.com/elastic/elasticsearch/pull/4002) (issues: {es-issue}4003[#4003], {es-issue}4004[#4004])
+
+

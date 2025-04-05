@@ -19,24 +19,73 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
 public class ReleaseNotesGeneratorTest {
 
-    /**
-     * Check that the release notes can be correctly generated.
-     */
-    @Test
-    public void generateFile_rendersCorrectMarkup() throws Exception {
-        // given:
-        final String template = getResource("/templates/release-notes.asciidoc");
-        final String expectedOutput = getResource(
-            "/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest.generateFile.asciidoc"
-        );
+    private static final List<String> CHANGE_TYPES = List.of(
+        "breaking",
+        "breaking-java",
+        "bug",
+        "fixes",
+        "deprecation",
+        "enhancement",
+        "feature",
+        "features-enhancements",
+        "new-aggregation",
+        "regression",
+        "upgrade"
+    );
 
-        final Set<ChangelogEntry> entries = getEntries();
+    @Test
+    public void generateFile_index_rendersCorrectMarkup() throws Exception {
+        testTemplate("index.md");
+    }
+
+    @Test
+    public void generateFile_index_noHighlights_rendersCorrectMarkup() throws Exception {
+        Set<ChangelogEntry> entries = getEntries();
+        entries = entries.stream().filter(e -> e.getHighlight() == null).collect(Collectors.toSet());
+
+        testTemplate("index.md", "index.no-highlights.md", entries);
+    }
+
+    @Test
+    public void generateFile_index_noChanges_rendersCorrectMarkup() throws Exception {
+        Set<ChangelogEntry> entries = new HashSet<>();
+
+        testTemplate("index.md", "index.no-changes.md", entries);
+    }
+
+    @Test
+    public void generateFile_breakingChanges_rendersCorrectMarkup() throws Exception {
+        testTemplate("breaking-changes.md");
+    }
+
+    @Test
+    public void generateFile_deprecations_rendersCorrectMarkup() throws Exception {
+        testTemplate("deprecations.md");
+    }
+
+    public void testTemplate(String templateFilename) throws Exception {
+        testTemplate(templateFilename, templateFilename, null);
+    }
+
+    public void testTemplate(String templateFilename, String outputFilename) throws Exception {
+        testTemplate(templateFilename, outputFilename, null);
+    }
+
+    public void testTemplate(String templateFilename, String outputFilename, Set<ChangelogEntry> entries) throws Exception {
+        // given:
+        final String template = getResource("/templates/" + templateFilename);
+        final String expectedOutput = getResource("/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest." + outputFilename);
+
+        if (entries == null) {
+            entries = getEntries();
+        }
 
         // when:
         final String actualOutput = ReleaseNotesGenerator.generateFile(template, QualifiedVersion.of("8.2.0-SNAPSHOT"), entries);
@@ -47,23 +96,13 @@ public class ReleaseNotesGeneratorTest {
 
     private Set<ChangelogEntry> getEntries() {
         final Set<ChangelogEntry> entries = new HashSet<>();
-        entries.addAll(buildEntries(1, 2));
-        entries.addAll(buildEntries(2, 2));
-        entries.addAll(buildEntries(3, 2));
+        for (int i = 0; i < CHANGE_TYPES.size(); i++) {
+            entries.addAll(buildEntries(i, 2));
+        }
 
-        // Security issues are presented first in the notes
-        final ChangelogEntry securityEntry = new ChangelogEntry();
-        securityEntry.setArea("Security");
-        securityEntry.setType("security");
-        securityEntry.setSummary("Test security issue");
-        entries.add(securityEntry);
-
-        // known issues are presented after security issues
-        final ChangelogEntry knownIssue = new ChangelogEntry();
-        knownIssue.setArea("Search");
-        knownIssue.setType("known-issue");
-        knownIssue.setSummary("Test known issue");
-        entries.add(knownIssue);
+        entries.add(makeHighlightsEntry(5001, false));
+        entries.add(makeHighlightsEntry(5000, true));
+        entries.add(makeHighlightsEntry(5002, true));
 
         return entries;
     }
@@ -71,11 +110,9 @@ public class ReleaseNotesGeneratorTest {
     private List<ChangelogEntry> buildEntries(int seed, int count) {
         // Sample of possible areas from `changelog-schema.json`
         final List<String> areas = List.of("Aggregation", "Cluster", "Indices", "Mappings", "Search", "Security");
-        // Possible change types, with `breaking`, `breaking-java`, `known-issue` and `security` removed.
-        final List<String> types = List.of("bug", "deprecation", "enhancement", "feature", "new-aggregation", "regression", "upgrade");
 
         final String area = areas.get(seed % areas.size());
-        final String type = types.get(seed % types.size());
+        final String type = CHANGE_TYPES.get(seed % CHANGE_TYPES.size());
 
         final List<ChangelogEntry> entries = new ArrayList<>(count);
 
@@ -99,6 +136,30 @@ public class ReleaseNotesGeneratorTest {
         }
 
         return entries;
+    }
+
+    private List<ChangelogEntry> getHighlightsEntries() {
+        ChangelogEntry entry123 = makeHighlightsEntry(123, true);
+        ChangelogEntry entry456 = makeHighlightsEntry(456, true);
+        ChangelogEntry entry789 = makeHighlightsEntry(789, false);
+        // Return unordered list, to test correct re-ordering
+        return List.of(entry456, entry123, entry789);
+    }
+
+    private ChangelogEntry makeHighlightsEntry(int pr, boolean notable) {
+        ChangelogEntry entry = new ChangelogEntry();
+        entry.setPr(pr);
+        ChangelogEntry.Highlight highlight = new ChangelogEntry.Highlight();
+        entry.setHighlight(highlight);
+
+        highlight.setNotable(notable);
+        highlight.setTitle((notable ? "[Notable] " : "") + "Release highlight number " + pr);
+        highlight.setBody("Release highlight body number " + pr);
+        entry.setType("feature");
+        entry.setArea("Search");
+        entry.setSummary("");
+
+        return entry;
     }
 
     private String getResource(String name) throws Exception {

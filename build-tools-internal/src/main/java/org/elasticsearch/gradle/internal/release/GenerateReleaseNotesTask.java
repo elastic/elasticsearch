@@ -15,34 +15,31 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.Directory;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
-import static java.util.Comparator.naturalOrder;
 import static java.util.stream.Collectors.toSet;
 
 /**
@@ -53,17 +50,17 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     private final ConfigurableFileCollection changelogs;
 
-    private final RegularFileProperty releaseNotesIndexTemplate;
     private final RegularFileProperty releaseNotesTemplate;
     private final RegularFileProperty releaseHighlightsTemplate;
     private final RegularFileProperty breakingChangesTemplate;
-    private final RegularFileProperty migrationIndexTemplate;
+    private final RegularFileProperty deprecationsTemplate;
 
-    private final RegularFileProperty releaseNotesIndexFile;
     private final RegularFileProperty releaseNotesFile;
     private final RegularFileProperty releaseHighlightsFile;
-    private final RegularFileProperty breakingChangesMigrationFile;
-    private final RegularFileProperty migrationIndexFile;
+    private final RegularFileProperty breakingChangesFile;
+    private final RegularFileProperty deprecationsFile;
+
+    private final DirectoryProperty changelogBundleDirectory;
 
     private final GitWrapper gitWrapper;
 
@@ -71,17 +68,17 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     public GenerateReleaseNotesTask(ObjectFactory objectFactory, ExecOperations execOperations) {
         changelogs = objectFactory.fileCollection();
 
-        releaseNotesIndexTemplate = objectFactory.fileProperty();
         releaseNotesTemplate = objectFactory.fileProperty();
         releaseHighlightsTemplate = objectFactory.fileProperty();
         breakingChangesTemplate = objectFactory.fileProperty();
-        migrationIndexTemplate = objectFactory.fileProperty();
+        deprecationsTemplate = objectFactory.fileProperty();
 
-        releaseNotesIndexFile = objectFactory.fileProperty();
         releaseNotesFile = objectFactory.fileProperty();
         releaseHighlightsFile = objectFactory.fileProperty();
-        breakingChangesMigrationFile = objectFactory.fileProperty();
-        migrationIndexFile = objectFactory.fileProperty();
+        breakingChangesFile = objectFactory.fileProperty();
+        deprecationsFile = objectFactory.fileProperty();
+
+        changelogBundleDirectory = objectFactory.directoryProperty();
 
         gitWrapper = new GitWrapper(execOperations);
     }
@@ -94,64 +91,46 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             findAndUpdateUpstreamRemote(gitWrapper);
         }
 
-        LOGGER.info("Finding changelog files...");
+        LOGGER.info("Finding changelog bundles...");
 
-        final Map<QualifiedVersion, Set<File>> filesByVersion = partitionFilesByVersion(
-            gitWrapper,
-            currentVersion,
-            this.changelogs.getFiles()
-        );
+        List<ChangelogBundle> bundles = this.changelogBundleDirectory.getAsFileTree()
+            .getFiles()
+            .stream()
+            .map(ChangelogBundle::parse)
+            .sorted(Comparator.comparing(ChangelogBundle::generated).reversed())
+            .toList();
 
-        final List<ChangelogEntry> entries = new ArrayList<>();
-        final Map<QualifiedVersion, Set<ChangelogEntry>> changelogsByVersion = new HashMap<>();
-
-        filesByVersion.forEach((version, files) -> {
-            Set<ChangelogEntry> entriesForVersion = files.stream().map(ChangelogEntry::parse).collect(toSet());
-            entries.addAll(entriesForVersion);
-            changelogsByVersion.put(version, entriesForVersion);
-        });
-
-        final Set<QualifiedVersion> versions = getVersions(gitWrapper, currentVersion);
-
-        LOGGER.info("Updating release notes index...");
-        ReleaseNotesIndexGenerator.update(
-            versions,
-            this.releaseNotesIndexTemplate.get().getAsFile(),
-            this.releaseNotesIndexFile.get().getAsFile()
-        );
+        // Ensure that each changelog/PR only shows up once, in its earliest release
+        // TODO: This should only be for unreleased/non-final bundles
+        var uniquePrs = new HashSet<Integer>();
+        for (int i = bundles.size() - 1; i >= 0; i--) {
+            var bundle = bundles.get(i);
+            bundle.changelogs().removeAll(bundle.changelogs().stream().filter(c -> uniquePrs.contains(c.getPr())).toList());
+            uniquePrs.addAll(bundle.changelogs().stream().map(ChangelogEntry::getPr).toList());
+        }
 
         LOGGER.info("Generating release notes...");
-        final QualifiedVersion qualifiedVersion = QualifiedVersion.of(currentVersion);
-        ReleaseNotesGenerator.update(
-            this.releaseNotesTemplate.get().getAsFile(),
-            this.releaseNotesFile.get().getAsFile(),
-            qualifiedVersion,
-            changelogsByVersion.getOrDefault(qualifiedVersion, Set.of())
-        );
+        ReleaseNotesGenerator.update(this.releaseNotesTemplate.get().getAsFile(), this.releaseNotesFile.get().getAsFile(), bundles);
 
-        // Only update breaking changes and migration guide for new minors
-        if (qualifiedVersion.revision() == 0) {
-            LOGGER.info("Generating release highlights...");
-            ReleaseHighlightsGenerator.update(
-                this.releaseHighlightsTemplate.get().getAsFile(),
-                this.releaseHighlightsFile.get().getAsFile(),
-                entries
-            );
-
-            LOGGER.info("Generating breaking changes / deprecations notes...");
-            BreakingChangesGenerator.update(
-                this.breakingChangesTemplate.get().getAsFile(),
-                this.breakingChangesMigrationFile.get().getAsFile(),
-                entries
-            );
-
-            LOGGER.info("Updating migration/index...");
-            MigrationIndexGenerator.update(
-                getMinorVersions(versions),
-                this.migrationIndexTemplate.get().getAsFile(),
-                this.migrationIndexFile.get().getAsFile()
-            );
-        }
+        // Only update breaking changes and deprecations for new minors
+        // if (qualifiedVersion.revision() == 0) {
+        // LOGGER.info("Generating breaking changes / deprecations notes...");
+        // ReleaseNotesGenerator.update(
+        // this.breakingChangesTemplate.get().getAsFile(),
+        // this.breakingChangesFile.get().getAsFile(),
+        // qualifiedVersion,
+        // changelogsByVersion.getOrDefault(qualifiedVersion, Set.of()),
+        // bundles
+        // );
+        //
+        // ReleaseNotesGenerator.update(
+        // this.deprecationsTemplate.get().getAsFile(),
+        // this.deprecationsFile.get().getAsFile(),
+        // qualifiedVersion,
+        // changelogsByVersion.getOrDefault(qualifiedVersion, Set.of()),
+        // bundles
+        // );
+        // }
     }
 
     /**
@@ -185,79 +164,6 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     @VisibleForTesting
     static Set<MinorVersion> getMinorVersions(Set<QualifiedVersion> versions) {
         return versions.stream().map(MinorVersion::of).collect(toSet());
-    }
-
-    /**
-     * Group a set of files by the version in which they first appeared, up until the supplied version. Any files not
-     * present in an earlier version are assumed to have been introduced in the specified version.
-     *
-     * <p>This method works by finding all git tags prior to {@param versionString} in the same minor series, and
-     * examining the git tree for that tag. By doing this over each tag, it is possible to see how the contents
-     * of the changelog directory changed over time.
-     *
-     * @param gitWrapper used to call `git`
-     * @param versionString the "current" version. Does not require a tag in git.
-     * @param allFilesInCheckout the files to partition
-     * @return a mapping from version to the files added in that version.
-     */
-    @VisibleForTesting
-    static Map<QualifiedVersion, Set<File>> partitionFilesByVersion(
-        GitWrapper gitWrapper,
-        String versionString,
-        Set<File> allFilesInCheckout
-    ) {
-        if (needsGitTags(versionString) == false) {
-            return Map.of(QualifiedVersion.of(versionString), allFilesInCheckout);
-        }
-
-        QualifiedVersion currentVersion = QualifiedVersion.of(versionString);
-
-        // Find all tags for this minor series, using a wildcard tag pattern.
-        String tagWildcard = String.format(Locale.ROOT, "v%d.%d*", currentVersion.major(), currentVersion.minor());
-
-        final List<QualifiedVersion> earlierVersions = gitWrapper.listVersions(tagWildcard)
-            // Only keep earlier versions, and if `currentVersion` is a prerelease, then only prereleases too.
-            .filter(
-                each -> each.isBefore(currentVersion)
-                    && (currentVersion.isSnapshot() || (currentVersion.hasQualifier() == each.hasQualifier()))
-            )
-            .sorted(naturalOrder())
-            .toList();
-
-        if (earlierVersions.isEmpty()) {
-            throw new GradleException("Failed to find git tags prior to [v" + currentVersion + "]");
-        }
-
-        Map<QualifiedVersion, Set<File>> partitionedFiles = new HashMap<>();
-
-        Set<File> mutableAllFilesInCheckout = new HashSet<>(allFilesInCheckout);
-
-        // 1. For each earlier version
-        earlierVersions.forEach(earlierVersion -> {
-            // 2. Find all the changelog files it contained
-            Set<String> filesInTreeForVersion = gitWrapper.listFiles("v" + earlierVersion, "docs/changelog")
-                .map(line -> Path.of(line).getFileName().toString())
-                .collect(toSet());
-
-            Set<File> filesForVersion = new HashSet<>();
-            partitionedFiles.put(earlierVersion, filesForVersion);
-
-            // 3. Find the `File` object for each one
-            final Iterator<File> filesIterator = mutableAllFilesInCheckout.iterator();
-            while (filesIterator.hasNext()) {
-                File nextFile = filesIterator.next();
-                if (filesInTreeForVersion.contains(nextFile.getName())) {
-                    // 4. And remove it so that it is associated with the earlier version
-                    filesForVersion.add(nextFile);
-                    filesIterator.remove();
-                }
-            }
-        });
-
-        // 5. Associate whatever is left with the current version.
-        partitionedFiles.put(currentVersion, mutableAllFilesInCheckout);
-
-        return partitionedFiles;
     }
 
     /**
@@ -317,13 +223,13 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         this.changelogs.setFrom(files);
     }
 
-    @InputFile
-    public RegularFileProperty getReleaseNotesIndexTemplate() {
-        return releaseNotesIndexTemplate;
+    @InputDirectory
+    public DirectoryProperty getChangelogBundleDirectory() {
+        return changelogBundleDirectory;
     }
 
-    public void setReleaseNotesIndexTemplate(RegularFile file) {
-        this.releaseNotesIndexTemplate.set(file);
+    public void setChangelogBundleDirectory(Directory dir) {
+        this.changelogBundleDirectory.set(dir);
     }
 
     @InputFile
@@ -354,21 +260,12 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     }
 
     @InputFile
-    public RegularFileProperty getMigrationIndexTemplate() {
-        return migrationIndexTemplate;
+    public RegularFileProperty getDeprecationsTemplate() {
+        return deprecationsTemplate;
     }
 
-    public void setMigrationIndexTemplate(RegularFile file) {
-        this.migrationIndexTemplate.set(file);
-    }
-
-    @OutputFile
-    public RegularFileProperty getReleaseNotesIndexFile() {
-        return releaseNotesIndexFile;
-    }
-
-    public void setReleaseNotesIndexFile(RegularFile file) {
-        this.releaseNotesIndexFile.set(file);
+    public void setDeprecationsTemplate(RegularFile file) {
+        this.deprecationsTemplate.set(file);
     }
 
     @OutputFile
@@ -390,20 +287,20 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     }
 
     @OutputFile
-    public RegularFileProperty getBreakingChangesMigrationFile() {
-        return breakingChangesMigrationFile;
+    public RegularFileProperty getBreakingChangesFile() {
+        return breakingChangesFile;
     }
 
-    public void setBreakingChangesMigrationFile(RegularFile file) {
-        this.breakingChangesMigrationFile.set(file);
+    public void setBreakingChangesFile(RegularFile file) {
+        this.breakingChangesFile.set(file);
     }
 
     @OutputFile
-    public RegularFileProperty getMigrationIndexFile() {
-        return migrationIndexFile;
+    public RegularFileProperty getDeprecationsFile() {
+        return deprecationsFile;
     }
 
-    public void setMigrationIndexFile(RegularFile file) {
-        this.migrationIndexFile.set(file);
+    public void setDeprecationsFile(RegularFile file) {
+        this.deprecationsFile.set(file);
     }
 }

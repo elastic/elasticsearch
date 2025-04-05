@@ -1,0 +1,1102 @@
+version: 9.0.0
+generated: 2025-03-31T18:34:33.370656Z
+changelogs:
+  - pr: 113757
+    summary: Store arrays offsets for keyword fields natively with synthetic source instead of falling back to ignored source.
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 117642
+    summary: Adding endpoint creation validation to `ElasticInferenceService`
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 119503
+    summary: Support indices created in ESv6 and updated in ESV7 using different LuceneCodecs as archive in current version.
+    area: Search
+    type: bug
+    issues:
+      - 117042
+  - pr: 119546
+    summary: Introduce `FallbackSyntheticSourceBlockLoader` and apply it to keyword fields
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 119886
+    summary: Initial support for unmapped fields
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 119995
+    summary: "apm-data: Use representative count as event.success_count if available"
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 120751
+    summary: Adding support for binary embedding type to Cohere service embedding type
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 120774
+    summary: Retry ES|QL node requests on shard level failures
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 120869
+    summary: Threadpool merge scheduler
+    area: Engine
+    type: feature
+    issues: []
+  - pr: 120957
+    summary: Introduce `AllocationBalancingRoundSummaryService`
+    area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 120998
+    summary: ES|QL `change_point` processing command
+    area: Machine Learning
+    type: feature
+    issues: []
+  - pr: 121106
+    summary: Add `ModelRegistryMetadata` to Cluster State
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 121240
+    summary: Implement runtime skip_unavailable=true
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 121256
+    summary: Run `TransportEnrichStatsAction` on local node
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 121260
+    summary: Introduce a pre-mapping logical plan processing step
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 121324
+    summary: Support duplicate suggestions in completion field
+    area: Suggesters
+    type: bug
+    issues:
+      - 82432
+  - pr: 121327
+    summary: Reduce Data Loss in System Indices Migration
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 121370
+    summary: Improve SLM Health Indicator to cover missing snapshot
+    area: ILM+SLM
+    type: enhancement
+    issues: []
+  - pr: 121392
+    summary: Include data streams when converting an existing resource to a system resource
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 121548
+    summary: Adding support for specifying embedding type to Jina AI service settings
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 121667
+    summary: Add deprecation warning for flush API
+    area: Machine Learning
+    type: deprecation
+    issues:
+      - 121506
+    deprecation:
+      area: REST API
+      title: Add deprecation warning for flush API
+      details: "The anomaly detection job flush API is deprecated since it is only required for the post data API, which was deprecated since 7.11.0."
+      impact: "This should have a minimal impact on users as the flush API is only required for the post data API, which was deprecated since 7.11.0."
+      notable: false
+      essSettingChange: false
+  - pr: 121784
+    summary: Optionally allow text similarity reranking to fail
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 121787
+    summary: Added optional parameters to QSTR ES|QL function
+    area: Search
+    type: feature
+    issues:
+      - 120933
+  - pr: 121793
+    summary: ES|QL - Add scoring for full text functions disjunctions
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 121805
+    summary: Support subset of metrics in aggregate metric double
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 121827
+    summary: Updates to allow using Cohere binary embedding response in semantic search queries
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 121920
+    summary: Account for the `SearchHit` source in circuit breaker
+    area: Search
+    type: enhancement
+    issues:
+      - 89656
+  - pr: 121942
+    summary: Allow partial results in ES|QL
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 121948
+    summary: Add initial grammar and changes for FORK
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 121971
+    summary: Do not fetch reserved roles from native store when Get Role API is called
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 122062
+    summary: Upgrade `discovery-ec2` to AWS SDK v2
+    area: Discovery-Plugins
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Upgrade `discovery-ec2` to AWS SDK v2
+      details: |2-
+
+        In earlier versions of {es} the `discovery-ec2` plugin was based on the AWS SDK v1. AWS will withdraw support for this SDK before the end of the life of {es} {minor-version} so we must migrate to the newer AWS SDK v2.
+        Unfortunately there are several differences between the two AWS SDK versions which may require you to adjust your system configuration when upgrading to {es} {minor-version} or later. These differences include, but may not be limited to, the following items.
+        * AWS SDK v2 does not support the EC2 IMDSv1 protocol.
+        * AWS SDK v2 does not support the `aws.secretKey` or
+          `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
+
+        * AWS SDK v2 does not permit specifying a choice between HTTP and HTTPS so
+          the `discovery.ec2.protocol` setting is no longer effective.
+
+        * AWS SDK v2 does not accept an access key without a secret key or vice
+          versa.
+      impact: |2-
+
+        If you use the `discovery-ec2` plugin, test your upgrade thoroughly before upgrading any production workloads.
+        Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items.
+        * If you use IMDS to determine the availability zone of a node or to obtain
+          credentials for accessing the EC2 API, ensure that it supports the IMDSv2
+          protocol.
+
+        * If applicable, discontinue use of the `aws.secretKey` and
+          `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
+
+        * If applicable, specify that you wish to use the insecure HTTP protocol to
+          access the EC2 API by setting `discovery.ec2.endpoint` to a URL which
+          starts with `http://`.
+
+        * Either supply both an access key and a secret key using the keystore
+          settings `discovery.ec2.access_key` and `discovery.ec2.secret_key`, or
+          configure neither of these settings.
+      notable: true
+      essSettingChange: false
+  - pr: 122066
+    summary: Adding elser default endpoint for EIS
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 122074
+    summary: "If the Transform is configured to write to an alias as its destination index, when the delete_dest_index parameter is set to true, then the Delete API will now delete the write index backing the alias"
+    area: Transform
+    type: bug
+    issues:
+      - 121913
+  - pr: 122134
+    summary: Adding integration for VoyageAI embeddings and rerank models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 122218
+    summary: Integrate with `DeepSeek` API
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 122224
+    summary: Enable the use of nested field type with index.mode=time_series
+    area: Mapping
+    type: enhancement
+    issues:
+      - 120874
+  - pr: 122250
+    summary: "ESQL: Align `RENAME` behavior with `EVAL` for sequential processing"
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 121739
+  - pr: 122257
+    summary: Revive inlinestats
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 122272
+    summary: "[Inference API] Rename `model_id` prop to model in EIS sparse inference request body"
+    area: Inference
+    type: enhancement
+    issues: []
+  - pr: 122278
+    summary: Fix serialising the inference update request
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 122280
+    summary: Use `FallbackSyntheticSourceBlockLoader` for number fields
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 122293
+    summary: Add enterprise license check to inference action for semantic text fields
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 122326
+    summary: System Index Migration Failure Results in a Non-Recoverable State
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 122357
+    summary: Handle search timeout in `SuggestPhase`
+    area: Search
+    type: bug
+    issues:
+      - 122186
+  - pr: 122365
+    summary: Fix handling of auto expand replicas for stateless indices
+    area: Search
+    type: bug
+    issues: []
+  - pr: 122381
+    summary: Adds implementations of dotProduct and cosineSimilarity painless methods to operate on float vectors for byte fields
+    area: Vector Search
+    type: enhancement
+    issues:
+      - 117274
+  - pr: 122390
+    summary: Add health indicator impact to `HealthPeriodicLogger`
+    area: Health
+    type: enhancement
+    issues: []
+  - pr: 122409
+    summary: Allow setting the `type` in the reroute processor
+    area: Ingest Node
+    type: enhancement
+    issues:
+      - 121553
+  - pr: 122427
+    summary: Improve size limiting string message
+    area: Infra/Core
+    type: enhancement
+    issues: []
+  - pr: 122431
+    summary: Upgrade AWS SDK to v1.12.746
+    area: Snapshot/Restore
+    type: upgrade
+    issues: []
+  - pr: 122458
+    summary: '`DesiredBalanceReconciler` always returns `AllocationStats`'
+    area: Allocation
+    type: bug
+    issues: []
+  - pr: 122459
+    summary: Double parameter markers for identifiers
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 122486
+    summary: Add index mode to get data stream API
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 122575
+    summary: Return an empty suggestion when suggest phase times out
+    area: Suggesters
+    type: bug
+    issues:
+      - 122548
+  - pr: 122586
+    summary: "ESQL: Fix inconsistent results in using scaled_float field"
+    area: ES|QL
+    type: bug
+    issues:
+      - 122547
+  - pr: 122601
+    summary: Implicit numeric casting for CASE/GREATEST/LEAST
+    area: ES|QL
+    type: bug
+    issues:
+      - 121890
+  - pr: 122606
+    summary: Avoid serializing empty `_source` fields in mappings
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 122615
+    summary: Enable synthetic recovery source by default when synthetic source is enabled. Using synthetic recovery source significantly improves indexing performance compared to regular recovery source.
+    area: Mapping
+    type: enhancement
+    issues:
+      - 116726
+  - pr: 122637
+    summary: Use `FallbackSyntheticSourceBlockLoader` for `unsigned_long` and `scaled_float` fields
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 122638
+    summary: Expose `input_type` option at root level for `text_embedding` task type in Perform Inference API
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 117856
+  - pr: 122653
+    summary: Knn vector rescoring to sort score docs
+    area: Vector Search
+    type: bug
+    issues:
+      - 119711
+  - pr: 122660
+    summary: Render `aggregate_metric_double`
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 122708
+    summary: Support partial results in CCS in ES|QL
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 122731
+    summary: Fork post-snapshot-delete cleanup off master thread
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 122762
+    summary: "ESQL: Remove estimated row size assertion"
+    area: ES|QL
+    type: bug
+    issues:
+      - 121535
+  - pr: 122821
+    summary: Fix functions emitting warnings with no source
+    area: ES|QL
+    type: bug
+    issues:
+      - 122588
+  - pr: 122823
+    summary: Prevent Query Rule Creation with Invalid Numeric Match Criteria
+    area: Relevance
+    type: bug
+    issues: []
+  - pr: 122852
+    summary: Run `TransportGetDataStreamsAction` on local node
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 122857
+    summary: Run `TransportGetWatcherSettingsAction` on local node
+    area: Watcher
+    type: enhancement
+    issues: []
+  - pr: 122860
+    summary: Improved error message when index field type is invalid
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 122885
+    summary: Run `TransportExplainLifecycleAction` on local node
+    area: ILM+SLM
+    type: enhancement
+    issues: []
+  - pr: 122886
+    summary: Add support to VALUES aggregation for spatial types
+    area: ES|QL
+    type: bug
+    issues:
+      - 122413
+  - pr: 122890
+    summary: Introduce `allow_partial_results` setting in ES|QL
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 122891
+    summary: Pragma to load from stored fields
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 122905
+    summary: Updating `TransportRolloverAction.checkBlock` so that non-write-index blocks do not prevent data stream rollover
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 122921
+    summary: Run `TransportGetMappingsAction` on local node
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 122933
+    summary: Run XPack usage actions on local node
+    area: Stats
+    type: enhancement
+    issues: []
+  - pr: 122938
+    summary: Fix geoip databases index access after system feature migration (again)
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 122951
+    summary: Updates the deprecation info API to not warn about system indices and data streams
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 122960
+    summary: Deprecate Behavioral Analytics CRUD apis
+    area: Search
+    type: deprecation
+    issues: []
+    deprecation:
+      area: Search
+      title: Deprecate Behavioral Analytics CRUD apis
+      details: "Behavioral Analytics has been deprecated as of 9.0.0 and will be removed in a future release. The APIs will still work for now, but will emit warning headers that the API has been deprecated."
+      impact: Behavioral Analytics has been deprecated as of 9.0.0 and will be removed in a future release.
+      notable: false
+      essSettingChange: false
+  - pr: 122991
+    summary: "GCS blob store: add `OperationPurpose/Operation` stats counters"
+    area: Snapshot/Restore
+    type: enhancement
+    issues: []
+  - pr: 122999
+    summary: Store arrays offsets for ip fields natively with synthetic source
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 123010
+    summary: Hold store reference in `InternalEngine#performActionWithDirectoryReader(...)`
+    area: Engine
+    type: bug
+    issues:
+      - 122974
+  - pr: 123076
+    summary: Retry on streaming errors
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 123085
+    summary: Remove duplicated nested commands
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 123150
+    summary: Limit the number of chunks for semantic text to prevent high memory usage
+    area: Machine Learning
+    type: feature
+    issues: []
+  - pr: 123155
+    summary: Add `ElasticInferenceServiceCompletionServiceSettings`
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 123187
+    summary: Add bit vector support to semantic text
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 123197
+    summary: Fix early termination in `LuceneSourceOperator`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 123272
+    summary: Set Connect Timeout to 5s
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 123290
+    summary: Fix Driver status iterations and `cpuTime`
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 122967
+  - pr: 123296
+    summary: Avoid over collecting in Limit or Lucene Operator
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 123381
+    summary: Push down `StartsWith` and `EndsWith` functions to Lucene
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 123067
+  - pr: 123396
+    summary: Add initial grammar and planning for RRF (snapshot)
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 123427
+    summary: Reduce iteration complexity for plan traversal
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 123460
+    summary: "ES|QL: Support `::date` in inline cast"
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 116746
+  - pr: 123492
+    summary: Fix function registry concurrency issues on constructor
+    area: ES|QL
+    type: bug
+    issues:
+      - 123430
+  - pr: 123543
+    summary: Enhance memory accounting for document expansion and introduce max document size limit
+    area: CRUD
+    type: enhancement
+    issues: []
+  - pr: 123569
+    summary: Abort pending deletion on `IndicesService` close
+    area: Store
+    type: enhancement
+    issues: []
+  - pr: 123588
+    summary: Give Kibana user 'all' permissions for .entity_analytics.* indices
+    area: Infra/Core
+    type: enhancement
+    issues: []
+  - pr: 123589
+    summary: Revive some more of inlinestats functionality
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 123600
+    summary: Drop `TLS_RSA` cipher support for JDK 24
+    area: TLS
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Drop `TLS_RSA` cipher support for JDK 24
+      details: "This change removes `TLS_RSA` ciphers from the list of default supported ciphers, for Elasticsearch deployments running on JDK 24."
+      impact: "The dropped ciphers are `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, and `TLS_RSA_WITH_AES_128_CBC_SHA`. TLS connections to Elasticsearch using these ciphers will no longer work. Please configure your clients to use one of supported cipher suites."
+      notable: false
+      essSettingChange: false
+  - pr: 123630
+    summary: Limit number of suppressed S3 deletion errors
+    area: Snapshot/Restore
+    type: bug
+    issues:
+      - 123354
+  - pr: 123712
+    summary: Process ILM cluster state updates on another thread
+    area: ILM+SLM
+    type: enhancement
+    issues: []
+  - pr: 123728
+    summary: Allow skip shards with `_tier` and `_index` in ES|QL
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 123743
+    summary: Adjust exception thrown when unable to load hunspell dict
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 123757
+    summary: Fix concurrency issue in `ScriptSortBuilder`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 123761
+    summary: Have create index return a bad request on poor formatting
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 123763
+    summary: Skip semantic_text embedding generation when no content is provided.
+    area: Relevance
+    type: enhancement
+    issues: []
+  - pr: 123852
+    summary: Retry when the server can't be resolved (Google Cloud Storage)
+    area: Snapshot/Restore
+    type: enhancement
+    issues: []
+  - pr: 123890
+    summary: Do not let `ShardBulkInferenceActionFilter` unwrap / rewrap ESExceptions
+    area: Search
+    type: bug
+    issues: []
+  - pr: 124001
+    summary: Use a must boolean statement when pushing down to Lucene when scoring is also needed
+    area: ES|QL
+    type: bug
+    issues:
+      - 123967
+  - pr: 124025
+    summary: "[Inference API] Propagate product use case http header to EIS"
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 124048
+    summary: Handle long overflow in dates
+    area: Search
+    type: bug
+    issues:
+      - 112483
+  - pr: 124050
+    summary: Use `FallbackSyntheticSourceBlockLoader` for boolean and date fields
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 124062
+    summary: Upgrade to repository-gcs to use com.google.cloud:google-cloud-storage-bom:2.50.0
+    area: Snapshot/Restore
+    type: upgrade
+    issues: []
+  - pr: 124094
+    summary: ES|QL slow log
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 124107
+    summary: Avoid hoarding cluster state references during rollover
+    area: Indices APIs
+    type: bug
+    issues:
+      - 123893
+  - pr: 124149
+    summary: Retry ILM async action after reindexing data stream
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 124177
+    summary: "Improve error message for ( and ["
+    area: ES|QL
+    type: bug
+    issues:
+      - 124145
+  - pr: 124225
+    summary: "[Inference API] Fix output stream ordering in `InferenceActionProxy`"
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 124313
+    summary: Optimize memory usage in `ShardBulkInferenceActionFilter`
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 124335
+    summary: Change the order of the optimization rules
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 124363
+    summary: Set cause on create index request in create from action
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 124394
+    summary: Avoid `NamedWritable` in block serialization
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 124424
+    summary: Lazy collection copying during node transform
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 124446
+    summary: "ESQL: Fail in `AggregateFunction` when `LogicPlan` is not an `Aggregate`"
+    area: ES|QL
+    type: bug
+    issues:
+      - 124311
+  - pr: 124451
+    summary: Improve downsample performance by avoiding to read unnecessary dimension values when downsampling.
+    area: Downsampling
+    type: bug
+    issues: []
+  - pr: 124477
+    summary: Improve downsample performance by buffering docids and do bulk processing
+    area: Downsampling
+    type: enhancement
+    issues: []
+  - pr: 124527
+    summary: Avoid potentially throwing calls to Task#getDescription in model download
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 124540
+    summary: "ES|QL: Fix scoring for full text functions"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 124544
+    summary: Bump nimbus-jose-jwt to 10.0.2
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 124564
+    summary: Restore `TextSimilarityRankBuilder` XContent output
+    area: Ranking
+    type: bug
+    issues: []
+  - pr: 124574
+    summary: Allow passing several reserved state chunks in single process call
+    area: Infra/Settings
+    type: enhancement
+    issues: []
+  - pr: 124581
+    summary: New `vector_rescore` parameter as a quantized index type option
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 124594
+    summary: Store arrays offsets for numeric fields natively with synthetic source
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 124595
+    summary: '`ToAggregateMetricDouble` function'
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 124604
+    summary: Fix geoip databases index access after system feature migration (take 3)
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 124610
+    summary: Remove page alignment in exchange sink
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 124611
+    summary: Reuse child `outputSet` inside the plan where possible
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 124638
+    summary: Provide model size statistics as soon as an anomaly detection job is opened
+    area: Machine Learning
+    type: bug
+    issues:
+      - 121168
+  - pr: 124651
+    summary: Fix system data streams to be restorable from a snapshot
+    area: Infra/Core
+    type: bug
+    issues:
+      - 89261
+  - pr: 124662
+    summary: Let MLTQuery throw IAE when no analyzer is set
+    area: Search
+    type: bug
+    issues:
+      - 124562
+  - pr: 124669
+    summary: Release semantic_text as a GA feature
+    area: Mapping
+    type: feature
+    issues: []
+    highlight:
+      notable: true
+      title: Release semantic_text as a GA feature
+      body: semantic_text is now an official GA (generally available) feature! This field type allows you to easily set up and perform semantic search with minimal ramp up time.
+      pr: 124669
+  - pr: 124676
+    summary: TO_LOWER processes all values
+    area: ES|QL
+    type: bug
+    issues:
+      - 124002
+  - pr: 124690
+    summary: Avoid creating known_fields for every check in Alias
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 124722
+    summary: Add panama implementations of byte-bit and float-bit script operations
+    area: Vector Search
+    type: enhancement
+    issues:
+      - 117096
+  - pr: 124732
+    summary: Prevent rare starvation bug when using scaling `EsThreadPoolExecutor` with empty core pool size.
+    area: Infra/Core
+    type: bug
+    issues:
+      - 124667
+  - pr: 124738
+    summary: Upgrade AWS v2 SDK to 2.30.38
+    area: Machine Learning
+    type: upgrade
+    issues: []
+  - pr: 124739
+    summary: Improve rolling up metrics
+    area: Downsampling
+    type: enhancement
+    issues: []
+  - pr: 124769
+    summary: Migrate `model_version` to `model_id` when parsing persistent elser inference endpoints
+    area: Machine Learning
+    type: bug
+    issues:
+      - 124675
+  - pr: 124782
+    summary: "Aggs: Let terms run in global ords mode no match"
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 124784
+    summary: Merge template mappings properly during validation
+    area: Mapping
+    type: bug
+    issues:
+      - 123372
+  - pr: 124823
+    summary: Report failures on partial results
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 124841
+    summary: Pass `IndexReshardingMetadata` over the wire
+    area: Distributed
+    type: bug
+    issues: []
+  - pr: 124843
+    summary: Ignore _JAVA_OPTIONS
+    area: Infra/CLI
+    type: enhancement
+    issues: []
+  - pr: 124865
+    summary: "Permanently switch from Java SecurityManager to Entitlements. The Java SecurityManager has been deprecated since Java 17, and it is now completely disabled in Java 24. In order to retain an similar level of protection, Elasticsearch implemented its own protection mechanism, Entitlements. Starting with this version, Entitlements will permanently replace the Java SecurityManager."
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 124873
+    summary: Restore V8 REST compatibility around highlight `force_source` parameter
+    area: Highlighting
+    type: bug
+    issues: []
+  - pr: 124884
+    summary: System data streams are not being upgraded in the feature migration API
+    area: Infra/Core
+    type: bug
+    issues:
+      - 122949
+  - pr: 124898
+    summary: Add cache support in `TransportGetAllocationStatsAction`
+    area: Allocation
+    type: enhancement
+    issues:
+      - 110716
+  - pr: 124901
+    summary: Calculate concurrent node limit
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 124913
+    summary: Report `original_types`
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 124918
+    summary: Fix EQL double invoking listener
+    area: EQL
+    type: bug
+    issues: []
+  - pr: 124927
+    summary: Use `FallbackSyntheticSourceBlockLoader` for `shape` and `geo_shape`
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 124929
+    summary: Include failures in partial response
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 124931
+    summary: This PR fixes a bug whereby partial snapshots of system datastreams could be used to restore system features.
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 124936
+    summary: Indicate when errors represent timeouts
+    area: Infra/REST API
+    type: enhancement
+    issues: []
+  - pr: 125002
+    summary: Don't generate stacktrace in `TaskCancelledException`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 125023
+    summary: Fix `AlibabaCloudSearchCompletionAction` not accepting `ChatCompletionInputs`
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 125054
+    summary: Truncate `step_info` and error reason in ILM execution state and history
+    area: ILM+SLM
+    type: enhancement
+    issues:
+      - 124181
+  - pr: 125103
+    summary: Fix LTR query feature with phrases (and two-phase) queries
+    area: Ranking
+    type: bug
+    issues: []
+  - pr: 125117
+    summary: "Permanently switch from Java SecurityManager to Entitlements. The Java SecurityManager has been deprecated since Java 17, and it is now completely disabled in Java 24. In order to retain an similar level of protection, Elasticsearch implemented its own protection mechanism, Entitlements. Starting with this version, Entitlements will permanently replace the Java SecurityManager."
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 125159
+    summary: Update bundled JDK to Java 24
+    area: Packaging
+    type: upgrade
+    issues: []
+  - pr: 125171
+    summary: Reindex data stream indices on different nodes
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 125204
+    summary: Return a Conflict status code if the model deployment is stopped by a user
+    area: Machine Learning
+    type: bug
+    issues:
+      - 123745
+  - pr: 125213
+    summary: Run `TransportGetDataStreamOptionsAction` on local node
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 125214
+    summary: Run `TransportGetDataStreamLifecycleAction` on local node
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 125239
+    summary: Adding common rerank options to Perform Inference API
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 111273
+  - pr: 125244
+    summary: Disable logging in `ClusterFormationFailureHelper` on shutdown
+    area: Cluster Coordination
+    type: bug
+    issues:
+      - 105559
+  - pr: 125259
+    summary: Leverage scorer supplier in `QueryFeatureExtractor`
+    area: Ranking
+    type: enhancement
+    issues: []
+  - pr: 125345
+    summary: ESQL - date nanos range bug?
+    area: ES|QL
+    type: bug
+    issues:
+      - 125439
+  - pr: 125352
+    summary: Fix NPE in rolling over unknown target and return 404
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 125357
+    summary: Keep ordinals in conversion functions
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 125370
+    summary: Set default similarity for Cohere model to cosine
+    area: Machine Learning
+    type: bug
+    issues:
+      - 122878
+  - pr: 125404
+    summary: Check if the anomaly results index has been rolled over
+    area: Machine Learning
+    type: upgrade
+    issues: []
+  - pr: 125446
+    summary: Fix Semantic Text 8.x Upgrade Bug
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 125529
+    summary: Store arrays offsets for boolean fields natively with synthetic source
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 125595
+    summary: Esql - Fix lucene push down behavior when a range contains nanos and millis
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 125599
+    summary: Allow zero for `rescore_vector.oversample` to indicate by-passing oversample and rescoring
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 125606
+    summary: Rename deprecation index template
+    area: Infra/Logging
+    type: breaking
+    issues:
+      - 125445
+    breaking:
+      area: Logging
+      title: Rename deprecation index template
+      details: "The deprecation datastream contains log entries for deprecations that occured while Elasticsearch is running. The deprecation log entries had a mismatch in their dataset name. In order to avoid changing the dataset name in the existing datastream, a new datastream now exists."
+      impact: "If querying for deprecations previously using the `.logs-deprecation.elasticsearch-default` datastream, you should now use the `.logs-elasticsearch.deprecation-default` datastream."
+      notable: false
+      essSettingChange: false
+  - pr: 125636
+    summary: Make `numberOfChannels` consistent with layout map by removing duplicated `ChannelSet`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 125650
+    summary: Load `FieldInfos` from store if not yet initialised through a refresh on `IndexShard`
+    area: Search
+    type: bug
+    issues:
+      - 125483
+  - pr: 125659
+    summary: Non existing synonyms sets do not fail shard recovery for indices
+    area: Analysis
+    type: bug
+    issues:
+      - 125603
+  - pr: 125666
+    summary: Minor-Fixes Support 7x segments as archive in 8x / 9x
+    area: Search
+    type: bug
+    issues: []
+  - pr: 125709
+    summary: Store arrays offsets for unsigned long fields natively with synthetic source
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 125716
+    summary: Return appropriate error on null dims update instead of npe
+    area: Vector Search
+    type: bug
+    issues: []

@@ -55,9 +55,8 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
         project.getTasks().register("tagVersions", TagVersionsTask.class);
         project.getTasks().register("setCompatibleVersions", SetCompatibleVersionsTask.class, t -> t.setThisVersion(version));
 
-        final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
-            .getAsFileTree()
-            .matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
+        final Directory changeLogDirectory = projectDirectory.dir("docs/changelog");
+        final FileTree yamlFiles = changeLogDirectory.getAsFileTree().matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
 
         final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsTask = project.getTasks()
             .register("validateChangelogs", ValidateYamlAgainstSchemaTask.class, task -> {
@@ -68,6 +67,14 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
             });
 
+        final Function<Boolean, Action<BundleChangelogsTask>> configureBundleTask = shouldConfigureYamlFiles -> task -> {
+            task.setGroup("Documentation");
+            task.setDescription("Generates release notes from changelog files held in this checkout");
+            task.setChangelogs(yamlFiles);
+            task.setChangelogDirectory(changeLogDirectory);
+            task.setBundleFile(projectDirectory.file("docs/release-notes/changelogs-" + version.toString() + ".yml"));
+        };
+
         final Function<Boolean, Action<GenerateReleaseNotesTask>> configureGenerateTask = shouldConfigureYamlFiles -> task -> {
             task.setGroup("Documentation");
             if (shouldConfigureYamlFiles) {
@@ -77,36 +84,24 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                 task.setDescription("Generates stub release notes e.g. after feature freeze");
             }
 
-            task.setReleaseNotesIndexTemplate(projectDirectory.file(RESOURCES + "templates/release-notes-index.asciidoc"));
-            task.setReleaseNotesIndexFile(projectDirectory.file("docs/reference/release-notes.asciidoc"));
-
-            task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.asciidoc"));
-            task.setReleaseNotesFile(
-                projectDirectory.file(
-                    String.format(
-                        "docs/reference/release-notes/%d.%d.%d.asciidoc",
-                        version.getMajor(),
-                        version.getMinor(),
-                        version.getRevision()
-                    )
-                )
-            );
+            task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/index.md"));
+            task.setReleaseNotesFile(projectDirectory.file("docs/release-notes/index.md"));
 
             task.setReleaseHighlightsTemplate(projectDirectory.file(RESOURCES + "templates/release-highlights.asciidoc"));
             task.setReleaseHighlightsFile(projectDirectory.file("docs/reference/release-notes/highlights.asciidoc"));
 
-            task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.asciidoc"));
-            task.setBreakingChangesMigrationFile(
-                projectDirectory.file(
-                    String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor())
-                )
-            );
-            task.setMigrationIndexTemplate(projectDirectory.file(RESOURCES + "templates/migration-index.asciidoc"));
-            task.setMigrationIndexFile(projectDirectory.file("docs/reference/migration/index.asciidoc"));
+            task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.md"));
+            task.setBreakingChangesFile(projectDirectory.file("docs/release-notes/breaking-changes.md"));
+
+            task.setDeprecationsTemplate(projectDirectory.file(RESOURCES + "templates/deprecations.md"));
+            task.setDeprecationsFile(projectDirectory.file("docs/release-notes/deprecations.md"));
+
+            task.setChangelogBundleDirectory(projectDirectory.dir("docs/release-notes/changelog-bundles"));
 
             task.dependsOn(validateChangelogsTask);
         };
 
+        project.getTasks().register("bundleChangelogs", BundleChangelogsTask.class).configure(configureBundleTask.apply(true));
         project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(configureGenerateTask.apply(true));
         project.getTasks()
             .register("generateStubReleaseNotes", GenerateReleaseNotesTask.class)

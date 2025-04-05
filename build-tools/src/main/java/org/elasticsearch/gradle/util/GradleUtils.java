@@ -196,7 +196,7 @@ public abstract class GradleUtils {
     }
 
     public static void disableTransitiveDependencies(Configuration config) {
-        config.getDependencies().all(dep -> {
+        config.getDependencies().configureEach(dep -> {
             if (dep instanceof ModuleDependency
                 && dep instanceof ProjectDependency == false
                 && dep.getGroup().startsWith("org.elasticsearch") == false) {

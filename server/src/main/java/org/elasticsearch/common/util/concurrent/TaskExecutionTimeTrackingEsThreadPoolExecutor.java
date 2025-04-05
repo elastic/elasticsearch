@@ -33,6 +33,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
+    private volatile long lastPollTime = System.nanoTime();
+    private volatile long lastTotalExecutionTime = 0;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -87,6 +89,26 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      */
     public int getCurrentQueueSize() {
         return getQueue().size();
+    }
+
+    /**
+     * Returns the fraction of the maximum possible thread time that was actually used since the last time
+     * this method was called.
+     *
+     * @return the utilization as a fraction, in the range [0, 1]
+     */
+    public double pollUtilization() {
+        final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
+        final long currentPollTimeNanos = System.nanoTime();
+
+        final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;
+        final long timeSinceLastPoll = currentPollTimeNanos - lastPollTime;
+        final long maximumExecutionTimeSinceLastPollNanos = timeSinceLastPoll * getMaximumPoolSize();
+        final double utilizationSinceLastPoll = (double) totalExecutionTimeSinceLastPollNanos / maximumExecutionTimeSinceLastPollNanos;
+
+        lastTotalExecutionTime = currentTotalExecutionTimeNanos;
+        lastPollTime = currentPollTimeNanos;
+        return utilizationSinceLastPoll;
     }
 
     @Override

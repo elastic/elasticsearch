@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
+import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -50,7 +51,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
     @Override
     protected RankDocsQueryBuilder doCreateTestQueryBuilder() {
         RankDoc[] rankDocs = generateRandomRankDocs();
-        return new RankDocsQueryBuilder(rankDocs, null, false);
+        return new RankDocsQueryBuilder(rankDocs, null, false, randomFloat());
     }
 
     @Override
@@ -151,7 +152,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         rankDocs,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        false
+                        false,
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, totalHitsThreshold);
                     var col = searcher.search(q, topDocsManager);
@@ -172,7 +174,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         rankDocs,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        false
+                        false,
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
@@ -187,7 +190,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         rankDocs,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        true
+                        true,
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
@@ -204,7 +208,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         singleRankDoc,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        false
+                        false,
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(1, null, 0);
                     var col = searcher.search(q, topDocsManager);

@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.rank.RankRRFFeatures.LINEAR_RETRIEVER_SUPPORTED;
@@ -54,6 +55,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
     private final float[] weights;
     private final ScoreNormalizer[] normalizers;
+    private float minScore;
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<LinearRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -72,7 +74,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 normalizers[index] = component.normalizer;
                 index++;
             }
-            return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers);
+            return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers, DEFAULT_MIN_SCORE);
         }
     );
 
@@ -105,14 +107,21 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     LinearRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
-        this(innerRetrievers, rankWindowSize, getDefaultWeight(innerRetrievers.size()), getDefaultNormalizers(innerRetrievers.size()));
+        this(
+            innerRetrievers,
+            rankWindowSize,
+            getDefaultWeight(innerRetrievers.size()),
+            getDefaultNormalizers(innerRetrievers.size()),
+            DEFAULT_MIN_SCORE
+        );
     }
 
     public LinearRetrieverBuilder(
         List<RetrieverSource> innerRetrievers,
         int rankWindowSize,
         float[] weights,
-        ScoreNormalizer[] normalizers
+        ScoreNormalizer[] normalizers,
+        float minScore
     ) {
         super(innerRetrievers, rankWindowSize);
         if (weights.length != innerRetrievers.size()) {
@@ -121,13 +130,17 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         if (normalizers.length != innerRetrievers.size()) {
             throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
         }
+        if (minScore < 0) {
+            throw new IllegalArgumentException("[min_score] must be greater than 0, was: " + minScore);
+        }
         this.weights = weights;
         this.normalizers = normalizers;
+        this.minScore = minScore;
     }
 
     @Override
     protected LinearRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
-        LinearRetrieverBuilder clone = new LinearRetrieverBuilder(newChildRetrievers, rankWindowSize, weights, normalizers);
+        LinearRetrieverBuilder clone = new LinearRetrieverBuilder(newChildRetrievers, rankWindowSize, weights, normalizers, minScore);
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
         clone.retrieverName = retrieverName;
         return clone;
@@ -136,6 +149,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.trackScores(true);
+        sourceBuilder.trackTotalHits(true);
         return sourceBuilder;
     }
 
@@ -146,6 +160,9 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         for (int result = 0; result < rankResults.size(); result++) {
             final ScoreNormalizer normalizer = normalizers[result] == null ? IdentityScoreNormalizer.INSTANCE : normalizers[result];
             ScoreDoc[] originalScoreDocs = rankResults.get(result);
+            if (originalScoreDocs == null) {
+                continue;
+            }
             ScoreDoc[] normalizedScoreDocs = normalizer.normalizeScores(originalScoreDocs);
             for (int scoreDocIndex = 0; scoreDocIndex < normalizedScoreDocs.length; scoreDocIndex++) {
                 LinearRankDoc rankDoc = docsToRankResults.computeIfAbsent(
@@ -175,10 +192,17 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         // sort the results based on the final score, tiebreaker based on smaller doc id
         LinearRankDoc[] sortedResults = docsToRankResults.values().toArray(LinearRankDoc[]::new);
         Arrays.sort(sortedResults);
+        // Filter documents below minScore, with special handling for default minScore
+        LinearRankDoc[] filteredResults;
+        if (minScore == DEFAULT_MIN_SCORE) {
+            filteredResults = sortedResults;
+        } else {
+            filteredResults = Arrays.stream(sortedResults).filter(doc -> doc.score >= minScore).toArray(LinearRankDoc[]::new);
+        }
         // trim the results if needed, otherwise each shard will always return `rank_window_size` results.
-        LinearRankDoc[] topResults = new LinearRankDoc[Math.min(rankWindowSize, sortedResults.length)];
+        LinearRankDoc[] topResults = new LinearRankDoc[Math.min(rankWindowSize, filteredResults.length)];
         for (int rank = 0; rank < topResults.length; ++rank) {
-            topResults[rank] = sortedResults[rank];
+            topResults[rank] = filteredResults[rank];
             topResults[rank].rank = rank + 1;
         }
         return topResults;
@@ -204,5 +228,17 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.endArray();
         }
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+    }
+
+    @Override
+    public Float minScore() {
+        return minScore;
+    }
+
+    @Override
+    public RetrieverBuilder minScore(Float minScore) {
+        this.minScore = minScore != null ? minScore : DEFAULT_MIN_SCORE;
+        return this;
     }
 }

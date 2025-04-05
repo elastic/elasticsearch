@@ -198,6 +198,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             results::get
         );
         rankDocsRetrieverBuilder.retrieverName(retrieverName());
+        rankDocsRetrieverBuilder.minScore(minScore);
         return rankDocsRetrieverBuilder;
     }
 

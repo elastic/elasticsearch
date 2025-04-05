@@ -470,3 +470,6 @@ tests:
 - class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
   method: testLuceneVersionConstant
   issue: https://github.com/elastic/elasticsearch/issues/125638
+- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
+  method: test {p0=/11_nodes/Additional disk information}
+  issue: https://github.com/elastic/elasticsearch/issues/125905

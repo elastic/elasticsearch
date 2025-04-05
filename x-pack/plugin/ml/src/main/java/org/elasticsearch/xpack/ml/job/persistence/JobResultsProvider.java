@@ -1590,6 +1590,13 @@ public class JobResultsProvider {
                     handler.accept((storedPeak != null) ? storedPeak : latestModelSizeStats.getModelBytes());
                     return;
                 }
+                case ACTUAL_MEMORY_USAGE_BYTES -> {
+                    Long storedActualMemoryUsageBytes = latestModelSizeStats.getActualMemoryUsageBytes();
+                    handler.accept(
+                        (storedActualMemoryUsageBytes != null) ? storedActualMemoryUsageBytes : latestModelSizeStats.getModelBytes()
+                    );
+                    return;
+                }
             }
         }
 

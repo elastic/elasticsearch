@@ -408,6 +408,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.ClusterStateWaitThresholdBreachTests
   method: testWaitInShrunkShardsAllocatedExceedsThreshold
   issue: https://github.com/elastic/elasticsearch/issues/126348
+- class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
+  method: testSearchableSnapshotTotalShardsPerNode
+  issue: https://github.com/elastic/elasticsearch/issues/126354
 
 # Examples:
 #

@@ -86,16 +86,22 @@ public class RestGetAliasesAction extends BaseRestHandler {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
         if (aliasesExplicitlyRequested) {
-            responseAliasMap.entrySet().stream().filter(entry -> entry.getValue().isEmpty() == false).forEach(entry -> {
-                // only display indices that have aliases
-                indicesToDisplay.add(entry.getKey());
-                entry.getValue().forEach(aliasMetadata -> returnedAliasNames.add(aliasMetadata.alias()));
-            });
+            for (final Map.Entry<String, List<AliasMetadata>> cursor : responseAliasMap.entrySet()) {
+                final var aliases = cursor.getValue();
+                if (aliases.isEmpty() == false) {
+                    // only display indices that have aliases
+                    indicesToDisplay.add(cursor.getKey());
+                    for (final AliasMetadata aliasMetadata : cursor.getValue()) {
+                        returnedAliasNames.add(aliasMetadata.alias());
+                    }
+                }
+            }
 
-            dataStreamAliases.entrySet()
-                .stream()
-                .flatMap(entry -> entry.getValue().stream())
-                .forEach(dataStreamAlias -> returnedAliasNames.add(dataStreamAlias.getName()));
+            for (final Map.Entry<String, List<DataStreamAlias>> entry : dataStreamAliases.entrySet()) {
+                for (final DataStreamAlias dataStreamAlias : entry.getValue()) {
+                    returnedAliasNames.add(dataStreamAlias.getName());
+                }
+            }
         }
 
         // compute explicitly requested aliases that would not be returned in the result

@@ -1,0 +1,110 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.cluster.metadata;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
+
+public class SemanticTextIndexOptions implements ToXContent, Writeable {
+
+    private static final String TYPE_FIELD = "type";
+
+    private final SupportedIndexOptions type;
+    private final IndexOptions indexOptions;
+
+    public SemanticTextIndexOptions(SupportedIndexOptions type, IndexOptions indexOptions) {
+        this.type = type;
+        this.indexOptions = indexOptions;
+    }
+
+    public SemanticTextIndexOptions(StreamInput in) throws IOException {
+        this.type = SupportedIndexOptions.fromValue(in.readString());
+        this.indexOptions = IndexOptions.readIndexOptions(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(type.value);
+        indexOptions.writeTo(out);
+    }
+
+    public SupportedIndexOptions type() {
+        return type;
+    }
+
+    public IndexOptions indexOptions() {
+        return indexOptions;
+    }
+
+    public enum SupportedIndexOptions {
+        DENSE_VECTOR("dense_vector") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
+                return parseDenseVectorIndexOptionsFromMap(fieldName, map, indexVersion);
+            }
+        };
+
+        public final String value;
+
+        SupportedIndexOptions(String value) {
+            this.value = value;
+        }
+
+        public abstract IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion);
+
+        public static SupportedIndexOptions fromValue(String value) {
+            return Arrays.stream(SupportedIndexOptions.values())
+                .filter(option -> option.value.equals(value))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown index options type [" + value + "]"));
+        }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(type.value);
+        indexOptions.toXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    private static DenseVectorFieldMapper.DenseVectorIndexOptions parseDenseVectorIndexOptionsFromMap(
+        String fieldName,
+        Map<String, Object> map,
+        IndexVersion indexVersion
+    ) {
+        try {
+            Object type = map.remove(TYPE_FIELD);
+            if (type == null) {
+                throw new IllegalArgumentException("Required [" + TYPE_FIELD + "]");
+            }
+            DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
+                XContentMapValues.nodeStringValue(type.toString(), null)
+            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " [" + type + "]"));
+
+            return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion);
+        } catch (Exception exc) {
+            throw new ElasticsearchException(exc);
+        }
+    }
+}

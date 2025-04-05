@@ -1,0 +1,67 @@
+{
+  "index_patterns": ["content-chat-support-v1-*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "metadata": {
+          "properties": {
+            "support": {
+              "properties": {
+                "status": {
+                  "type": "keyword"
+                },
+                "assignee": {
+                  "properties": {
+                    "name": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "email_address": {
+                      "type": "keyword"
+                    },
+                    "id": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "category": {
+                  "type": "keyword"
+                },
+                "customer": {
+                  "properties": {
+                    "name": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "email_address": {
+                      "type": "keyword"
+                    },
+                    "id": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "resolved_at": {
+                  "type": "date"
+                },
+                "urgency": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "composed_of": ["base-template", "comments-template"],
+  "version": 1
+}

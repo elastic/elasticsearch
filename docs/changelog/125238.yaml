@@ -1,0 +1,6 @@
+pr: 125238
+summary: Sending slice requests to different nodes in `BulkByScrollParallelizationHelper`
+  to improve performance
+area: Reindex
+type: enhancement
+issues: []

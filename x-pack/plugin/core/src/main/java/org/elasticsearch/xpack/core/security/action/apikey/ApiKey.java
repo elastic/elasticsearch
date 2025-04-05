@@ -53,12 +53,14 @@ public final class ApiKey implements ToXContentObject {
         /**
          * Cross cluster type API keys can authenticate on the dedicated remote cluster server interface
          */
-        CROSS_CLUSTER;
+        CROSS_CLUSTER,
+        UNIVERSAL;
 
         public static Type parse(String value) {
             return switch (value.toLowerCase(Locale.ROOT)) {
                 case "rest" -> REST;
                 case "cross_cluster" -> CROSS_CLUSTER;
+                case "universal" -> UNIVERSAL;
                 default -> throw new IllegalArgumentException(
                     "invalid API key type ["
                         + value

@@ -8,8 +8,13 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.sender.AlibabaCloudSearchEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.AlibabaCloudSearchRerankRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.AlibabaCloudSearchSparseRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankModel;
@@ -17,6 +22,8 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.Alib
 
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
 /**
  * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the alibaba cloud search model type.
@@ -34,21 +41,29 @@ public class AlibabaCloudSearchActionCreator implements AlibabaCloudSearchAction
     public ExecutableAction create(AlibabaCloudSearchEmbeddingsModel model, Map<String, Object> taskSettings) {
         var overriddenModel = AlibabaCloudSearchEmbeddingsModel.of(model, taskSettings);
 
-        return new AlibabaCloudSearchEmbeddingsAction(sender, overriddenModel, serviceComponents);
+        var account = new AlibabaCloudSearchAccount(overriddenModel.getSecretSettings().apiKey());
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("AlibabaCloud Search text embeddings");
+        var requestCreator = AlibabaCloudSearchEmbeddingsRequestManager.of(account, overriddenModel, serviceComponents.threadPool());
+        return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
 
     @Override
     public ExecutableAction create(AlibabaCloudSearchSparseModel model, Map<String, Object> taskSettings) {
         var overriddenModel = AlibabaCloudSearchSparseModel.of(model, taskSettings);
-
-        return new AlibabaCloudSearchSparseAction(sender, overriddenModel, serviceComponents);
+        var account = new AlibabaCloudSearchAccount(overriddenModel.getSecretSettings().apiKey());
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("AlibabaCloud Search sparse embeddings");
+        var requestCreator = AlibabaCloudSearchSparseRequestManager.of(account, overriddenModel, serviceComponents.threadPool());
+        return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
 
     @Override
     public ExecutableAction create(AlibabaCloudSearchRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = AlibabaCloudSearchRerankModel.of(model, taskSettings);
 
-        return new AlibabaCloudSearchRerankAction(sender, overriddenModel, serviceComponents);
+        var account = new AlibabaCloudSearchAccount(overriddenModel.getSecretSettings().apiKey());
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("AlibabaCloud Search rerank");
+        var requestCreator = AlibabaCloudSearchRerankRequestManager.of(account, overriddenModel, serviceComponents.threadPool());
+        return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
 
     @Override

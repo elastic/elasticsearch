@@ -44,10 +44,13 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
     public static final String PER_FIELD_NAME = "ESPerFieldDV819";
 
     /** {@link FieldInfo} attribute name used to store the format name for each field. */
-    public static final String PER_FIELD_FORMAT_KEY = XPerFieldDocValuesFormat.class.getSimpleName() + ".format";
+    // FORK note: usage of PerFieldDocValuesFormat is needed for bwc purposes.
+    // (Otherwise, we load no fields from indices that use PerFieldDocValuesFormat)
+    public static final String PER_FIELD_FORMAT_KEY = PerFieldDocValuesFormat.class.getSimpleName() + ".format";
 
     /** {@link FieldInfo} attribute name used to store the segment suffix name for each field. */
-    public static final String PER_FIELD_SUFFIX_KEY = XPerFieldDocValuesFormat.class.getSimpleName() + ".suffix";
+    // FORK note: usage of PerFieldDocValuesFormat is needed for bwc purposes.
+    public static final String PER_FIELD_SUFFIX_KEY = PerFieldDocValuesFormat.class.getSimpleName() + ".suffix";
 
     /** Sole constructor. */
     protected XPerFieldDocValuesFormat() {
@@ -285,6 +288,7 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
             }
         }
 
+        // FORK note: the reason why PerFieldDocValuesFormat is forked:.
         public DocValuesProducer getDocValuesProducer(FieldInfo field) {
             return fields.get(field.number);
         }

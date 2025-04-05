@@ -656,6 +656,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
+        // TODO this call probably needs to be somewhere else where we want to fork the online prewarming of shards
+        OnlinePrewarmingService.unwrapDirectory(shard.store().directory()).prewarm();
         rewriteAndFetchShardRequest(
             shard,
             request,

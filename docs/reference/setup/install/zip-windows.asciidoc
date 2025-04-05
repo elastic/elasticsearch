@@ -106,7 +106,7 @@ default:
 +
 ["source","sh",subs="attributes"]
 ----
-C:\Program Files\elasticsearch-{version}{backslash}bin>bin\elasticsearch-service.bat start
+C:\Program Files\elasticsearch-{version}>.\bin\elasticsearch-service.bat start
 ----
 +
 NOTE: TLS is not enabled or configured when you start {es} as a service.
@@ -117,7 +117,7 @@ to the command line.
 +
 ["source","sh",subs="attributes"]
 ----
-C:\Program Files\elasticsearch-{version}{backslash}bin>\bin\elasticsearch-reset-password -u elastic
+C:\Program Files\elasticsearch-{version}>.\bin\elasticsearch-reset-password.bat -u elastic
 ----
 
 NOTE: While a JRE can be used for the {es} service, due to its use of a client

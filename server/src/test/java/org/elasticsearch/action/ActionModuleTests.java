@@ -75,7 +75,7 @@ public class ActionModuleTests extends ESTestCase {
     public void testPluginCantOverwriteBuiltinAction() {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
-            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+            public List<ActionHandler> getActions() {
                 return singletonList(new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
             }
         };
@@ -101,7 +101,7 @@ public class ActionModuleTests extends ESTestCase {
         final var action = new ActionType<>("fake");
         ActionPlugin registersFakeAction = new ActionPlugin() {
             @Override
-            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+            public List<ActionHandler> getActions() {
                 return singletonList(new ActionHandler<>(action, FakeTransportAction.class));
             }
         };

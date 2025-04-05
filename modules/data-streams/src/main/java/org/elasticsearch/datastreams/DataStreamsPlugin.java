@@ -10,8 +10,6 @@ package org.elasticsearch.datastreams;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -225,8 +223,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(CreateDataStreamAction.INSTANCE, CreateDataStreamTransportAction.class));
         actions.add(new ActionHandler<>(DeleteDataStreamAction.INSTANCE, DeleteDataStreamTransportAction.class));
         actions.add(new ActionHandler<>(GetDataStreamAction.INSTANCE, TransportGetDataStreamsAction.class));

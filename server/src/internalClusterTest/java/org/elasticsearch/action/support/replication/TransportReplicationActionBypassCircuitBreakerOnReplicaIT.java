@@ -11,8 +11,6 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -128,7 +126,7 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
         public TestPlugin() {}
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        public List<ActionHandler> getActions() {
             return List.of(new ActionHandler<>(TestAction.TYPE, TestAction.class));
         }
     }

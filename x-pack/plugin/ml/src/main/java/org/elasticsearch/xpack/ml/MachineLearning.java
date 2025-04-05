@@ -11,8 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.ActionFilter;
@@ -1511,8 +1509,8 @@ public class MachineLearning extends Plugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = new ArrayList<>();
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actionHandlers = new ArrayList<>();
         actionHandlers.add(new ActionHandler<>(XPackUsageFeatureAction.MACHINE_LEARNING, MachineLearningUsageTransportAction.class));
         actionHandlers.add(new ActionHandler<>(XPackInfoFeatureAction.MACHINE_LEARNING, MachineLearningInfoTransportAction.class));
         if (false == enabled) {

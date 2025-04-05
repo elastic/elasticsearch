@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -133,7 +131,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.SQL, SqlUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.SQL, SqlInfoTransportAction.class);
 

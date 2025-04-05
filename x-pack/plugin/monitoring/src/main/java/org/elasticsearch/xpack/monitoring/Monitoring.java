@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -172,7 +170,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.MONITORING, MonitoringUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
         return Arrays.asList(

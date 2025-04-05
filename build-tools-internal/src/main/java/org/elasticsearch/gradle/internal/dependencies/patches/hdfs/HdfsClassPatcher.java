@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.dependencies.patches.hdfs;
 
+import org.elasticsearch.gradle.internal.dependencies.patches.Utils;
 import org.gradle.api.artifacts.transform.CacheableTransform;
 import org.gradle.api.artifacts.transform.InputArtifact;
 import org.gradle.api.artifacts.transform.TransformAction;
@@ -20,28 +21,17 @@ import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
 import org.jetbrains.annotations.NotNull;
-import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-import java.util.jar.JarOutputStream;
 import java.util.regex.Pattern;
 
 import static java.util.Map.entry;
-import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
-import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 
 @CacheableTransform
 public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatcher.Parameters> {
@@ -99,51 +89,8 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
                 Map<String, Function<ClassWriter, ClassVisitor>> jarPatchers = new HashMap<>(patchers.jarPatchers());
                 File outputFile = outputs.file(inputFile.getName().replace(".jar", "-patched.jar"));
 
-                patchJar(inputFile, outputFile, jarPatchers);
-
-                if (jarPatchers.isEmpty() == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "error patching [%s] with [%s]: the jar does not contain [%s]",
-                            inputFile.getName(),
-                            patchers.artifactPattern().toString(),
-                            String.join(", ", jarPatchers.keySet())
-                        )
-                    );
-                }
+                Utils.patchJar(inputFile, outputFile, jarPatchers);
             });
-        }
-    }
-
-    private static void patchJar(File inputFile, File outputFile, Map<String, Function<ClassWriter, ClassVisitor>> jarPatchers) {
-        try (JarFile jarFile = new JarFile(inputFile); JarOutputStream jos = new JarOutputStream(new FileOutputStream(outputFile))) {
-            Enumeration<JarEntry> entries = jarFile.entries();
-            while (entries.hasMoreElements()) {
-                JarEntry entry = entries.nextElement();
-                String entryName = entry.getName();
-                // Add the entry to the new JAR file
-                jos.putNextEntry(new JarEntry(entryName));
-
-                Function<ClassWriter, ClassVisitor> classPatcher = jarPatchers.remove(entryName);
-                if (classPatcher != null) {
-                    byte[] classToPatch = jarFile.getInputStream(entry).readAllBytes();
-
-                    ClassReader classReader = new ClassReader(classToPatch);
-                    ClassWriter classWriter = new ClassWriter(classReader, COMPUTE_FRAMES | COMPUTE_MAXS);
-                    classReader.accept(classPatcher.apply(classWriter), 0);
-
-                    jos.write(classWriter.toByteArray());
-                } else {
-                    // Read the entry's data and write it to the new JAR
-                    try (InputStream is = jarFile.getInputStream(entry)) {
-                        is.transferTo(jos);
-                    }
-                }
-                jos.closeEntry();
-            }
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
         }
     }
 }

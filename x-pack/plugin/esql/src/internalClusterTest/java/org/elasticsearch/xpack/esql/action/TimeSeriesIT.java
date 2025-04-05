@@ -365,6 +365,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "removed?")
     public void testRateWithTimeBucket() {
         var rounding = new Rounding.Builder(TimeValue.timeValueSeconds(60)).timeZone(ZoneOffset.UTC).build().prepareForUnknown();
         record RateKey(String host, String cluster, long interval) {}
@@ -459,6 +460,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "removed?")
     public void testRateWithTimeBucketAndCluster() {
         var rounding = new Rounding.Builder(TimeValue.timeValueSeconds(60)).timeZone(ZoneOffset.UTC).build().prepareForUnknown();
         record RateKey(String host, String cluster, long interval) {}

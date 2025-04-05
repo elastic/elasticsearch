@@ -1,4 +1,4 @@
-## Multiply `*` [esql-mul]
+### Multiply `*` [esql-mul]
 
 :::{image} ../../../images/operators/mul.svg
 :alt: Embedded

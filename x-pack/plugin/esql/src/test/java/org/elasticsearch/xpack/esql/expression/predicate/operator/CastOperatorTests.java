@@ -34,7 +34,7 @@ public class CastOperatorTests extends ESTestCase {
             "cast",
             "::",
             TestCastOperator.class,
-            DocsV3Support.OperatorCategory.UNARY,
+            DocsV3Support.OperatorCategory.CAST,
             false
         );
         var docs = new DocsV3Support.OperatorsDocsSupport("cast", CastOperatorTests.class, op, CastOperatorTests::signatures);
@@ -55,7 +55,7 @@ public class CastOperatorTests extends ESTestCase {
             operator = "::",
             returnType = {},
             description = "The `::` operator provides a convenient alternative syntax to the TO_<type> "
-                + "[conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions).",
+                + "[conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md).",
             examples = { @Example(file = "convert", tag = "docsCastOperator") }
         )
         public TestCastOperator(

@@ -1,4 +1,4 @@
-## Greater than `>` [esql-greater_than]
+### Greater than `>` [esql-greater_than]
 
 :::{image} ../../../images/operators/greater_than.svg
 :alt: Embedded

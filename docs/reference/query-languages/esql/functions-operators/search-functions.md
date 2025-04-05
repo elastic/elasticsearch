@@ -1,4 +1,10 @@
-## {{esql}} Full-text search functions [esql-search-functions]
+---
+navigation_title: "Full-text search functions"
+mapped_pages:
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/search-functions.md
+---
+
+# {{esql}} Full-text search functions [esql-search-functions]
 
 
 Full text functions are used to search for text in fields. [Text analysis](docs-content://manage-data/data-store/text-analysis.md) is used to analyze the query before it is searched.
@@ -11,21 +17,21 @@ See [full text search limitations](/reference/query-languages/esql/limitations.m
 
 {{esql}} supports these full-text search functions:
 
-:::{include} lists/search-functions.md
+:::{include} ../_snippets/lists/search-functions.md
 :::
 
 
-:::{include} functions/layout/kql.md
+:::{include} ../_snippets/functions/layout/kql.md
 :::
 
-:::{include} functions/layout/match.md
+:::{include} ../_snippets/functions/layout/match.md
 :::
 
-:::{include} functions/layout/qstr.md
+:::{include} ../_snippets/functions/layout/qstr.md
 :::
 
 % TERM is currently a hidden feature
 % To make it visible again, uncomment this and the line in lists/search-functions.md
-% :::{include} functions/layout/term.md
+% :::{include} ../_snippets/functions/layout/term.md
 % :::
 

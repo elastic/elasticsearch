@@ -2,11 +2,11 @@
 
 **Description**
 
-Converts a multivalue expression into a single valued column containing the last value. This is most useful when reading from a function that emits multivalued columns in a known order like [`SPLIT`](/reference/query-languages/esql/esql-functions-operators.md#esql-split).
+Converts a multivalue expression into a single valued column containing the last value. This is most useful when reading from a function that emits multivalued columns in a known order like [`SPLIT`](/reference/query-languages/esql/functions-operators/string-functions.md#esql-split).
 
 The order that [multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md) are read from
 underlying storage is not guaranteed. It is **frequently** ascending, but don’t
-rely on that. If you need the maximum value use [`MV_MAX`](/reference/query-languages/esql/esql-functions-operators.md#esql-mv_max) instead of
+rely on that. If you need the maximum value use [`MV_MAX`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_max) instead of
 `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn’t a
 performance benefit to `MV_LAST`.
 

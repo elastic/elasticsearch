@@ -5,7 +5,9 @@
       <verify-signatures>false</verify-signatures>
       <trusted-artifacts>
          <trust group="beats" name="filebeat"/>
+         <trust group="beats" name="filebeat-fips"/>
          <trust group="beats" name="metricbeat"/>
+         <trust group="beats" name="metricbeat-fips"/>
          <trust group="elasticsearch-distribution" name="elasticsearch"/>
          <trust group="org.elasticsearch"/>
          <trust group="org.elasticsearch.distribution.zip" name="elasticsearch"/>

@@ -205,8 +205,8 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = StdDevFloatAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = StdDevFloatAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

@@ -423,6 +423,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {rerank.Reranker using another sort order SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/126363
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker add the _score column when missing SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126367
 
 # Examples:
 #

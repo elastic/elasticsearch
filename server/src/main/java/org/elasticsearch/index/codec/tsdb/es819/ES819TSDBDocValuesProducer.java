@@ -1046,7 +1046,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             // Special case for maxOrd 1, no need to read blocks and use ordinal 0 as only value
             if (entry.docsWithFieldOffset == -1) {
                 // Special case when all docs have a value
-                return new BaseNumericDocValues(entry) {
+                return new NumericDocValues() {
 
                     private final int maxDoc = ES819TSDBDocValuesProducer.this.maxDoc;
                     private int doc = -1;
@@ -1095,7 +1095,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     entry.denseRankPower,
                     entry.numValues
                 );
-                return new BaseNumericDocValues(entry) {
+                return new NumericDocValues() {
 
                     @Override
                     public int advance(int target) throws IOException {
@@ -1140,7 +1140,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         if (entry.docsWithFieldOffset == -1) {
             // dense
-            return new BaseNumericDocValues(entry) {
+            return new NumericDocValues() {
 
                 private final int maxDoc = ES819TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
@@ -1207,7 +1207,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numValues
             );
-            return new BaseNumericDocValues(entry) {
+            return new NumericDocValues() {
 
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
@@ -1262,15 +1262,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class BaseNumericDocValues extends NumericDocValues {
-
-        final NumericEntry entry;
-
-        BaseNumericDocValues(NumericEntry entry) {
-            this.entry = entry;
-        }
-    }
-
     private NumericValues getValues(NumericEntry entry, final long maxOrd) throws IOException {
         assert entry.numValues > 0;
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
@@ -1307,49 +1298,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
     private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd) throws IOException {
         if (entry.numValues == entry.numDocsWithField) {
-            var numeric = getNumeric(entry, maxOrd);
-            if (merging) {
-                return new BaseSortedNumericDocValues(entry) {
-
-                    @Override
-                    public long nextValue() throws IOException {
-                        return numeric.longValue();
-                    }
-
-                    @Override
-                    public int docValueCount() {
-                        return 1;
-                    }
-
-                    @Override
-                    public boolean advanceExact(int target) throws IOException {
-                        return numeric.advanceExact(target);
-                    }
-
-                    @Override
-                    public int docID() {
-                        return numeric.docID();
-                    }
-
-                    @Override
-                    public int nextDoc() throws IOException {
-                        return numeric.nextDoc();
-                    }
-
-                    @Override
-                    public int advance(int target) throws IOException {
-                        return numeric.advance(target);
-                    }
-
-                    @Override
-                    public long cost() {
-                        return numeric.cost();
-                    }
-                };
-            } else {
-                // Required otherwise search / compute engine can't otherwise optimize for when each document has exactly one value:
-                return DocValues.singleton(getNumeric(entry, maxOrd));
-            }
+            return DocValues.singleton(getNumeric(entry, maxOrd));
         }
 
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
@@ -1359,7 +1308,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         if (entry.docsWithFieldOffset == -1) {
             // dense
-            return new BaseSortedNumericDocValues(entry) {
+            return new SortedNumericDocValues() {
 
                 int doc = -1;
                 long start, end;
@@ -1420,7 +1369,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numDocsWithField
             );
-            return new BaseSortedNumericDocValues(entry) {
+            return new SortedNumericDocValues() {
 
                 boolean set;
                 long start, end;
@@ -1476,15 +1425,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
                 }
             };
-        }
-    }
-
-    abstract static class BaseSortedNumericDocValues extends SortedNumericDocValues {
-
-        final SortedNumericEntry entry;
-
-        BaseSortedNumericDocValues(SortedNumericEntry entry) {
-            this.entry = entry;
         }
     }
 

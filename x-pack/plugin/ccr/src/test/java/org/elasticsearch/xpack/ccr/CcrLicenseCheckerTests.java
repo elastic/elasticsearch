@@ -44,10 +44,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -107,8 +105,7 @@ public class CcrLicenseCheckerTests extends ESTestCase {
             .numberOfReplicas(1)
             .state(IndexMetadata.State.CLOSE)
             .build();
-        IndexMetadata firstBackingIndex = DataStreamTestHelper.createFirstBackingIndex(dataStreamName)
-            .build();
+        IndexMetadata firstBackingIndex = DataStreamTestHelper.createFirstBackingIndex(dataStreamName).build();
         IndexMetadata firstFailureStore = DataStreamTestHelper.createFirstFailureStore(dataStreamName).build();
         DataStream dataStream = DataStreamTestHelper.newInstance(
             dataStreamName,
@@ -116,15 +113,17 @@ public class CcrLicenseCheckerTests extends ESTestCase {
             List.of(firstFailureStore.getIndex())
         );
         ClusterState remoteClusterState = ClusterState.builder(new ClusterName(randomIdentifier()))
-            .metadata(Metadata.builder()
-                .put(indexMetadata, false)
-                .put(closedIndexMetadata, false)
-                .put(firstBackingIndex, false)
-                .put(firstFailureStore, false)
-                .dataStreams(
-                    Map.of(dataStreamName, dataStream),
-                    Map.of(dsAliasName, new DataStreamAlias(dsAliasName, List.of(dataStreamName), dataStreamName, Map.of()))
-                ))
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, false)
+                    .put(closedIndexMetadata, false)
+                    .put(firstBackingIndex, false)
+                    .put(firstFailureStore, false)
+                    .dataStreams(
+                        Map.of(dataStreamName, dataStream),
+                        Map.of(dsAliasName, new DataStreamAlias(dsAliasName, List.of(dataStreamName), dataStreamName, Map.of()))
+                    )
+            )
             .build();
 
         final boolean isCcrAllowed = randomBoolean();
@@ -149,7 +148,12 @@ public class CcrLicenseCheckerTests extends ESTestCase {
             }
 
             @Override
-            public void hasPrivilegesToFollowIndices(ThreadContext threadContext, RemoteClusterClient remoteClient, String[] indices, Consumer<Exception> handler) {
+            public void hasPrivilegesToFollowIndices(
+                ThreadContext threadContext,
+                RemoteClusterClient remoteClient,
+                String[] indices,
+                Consumer<Exception> handler
+            ) {
                 fail("Test case should fail before this code is called");
             }
         };
@@ -176,21 +180,21 @@ public class CcrLicenseCheckerTests extends ESTestCase {
         {
             Exception exception = executeExpectingException(checker, mockClient, clusterAlias, aliasName);
             assertThat(exception, instanceOf(IllegalArgumentException.class));
-            assertThat(exception.getMessage(), equalTo("cannot follow ["+aliasName+"], because it is a ALIAS"));
+            assertThat(exception.getMessage(), equalTo("cannot follow [" + aliasName + "], because it is a ALIAS"));
         }
 
         // When following a data stream, throw IllegalArgumentException
         {
             Exception exception = executeExpectingException(checker, mockClient, clusterAlias, dataStreamName);
             assertThat(exception, instanceOf(IllegalArgumentException.class));
-            assertThat(exception.getMessage(), equalTo("cannot follow ["+dataStreamName+"], because it is a DATA_STREAM"));
+            assertThat(exception.getMessage(), equalTo("cannot follow [" + dataStreamName + "], because it is a DATA_STREAM"));
         }
 
         // When following a data stream alias, throw IllegalArgumentException
         {
             Exception exception = executeExpectingException(checker, mockClient, clusterAlias, dsAliasName);
             assertThat(exception, instanceOf(IllegalArgumentException.class));
-            assertThat(exception.getMessage(), equalTo("cannot follow ["+dsAliasName+"], because it is a ALIAS"));
+            assertThat(exception.getMessage(), equalTo("cannot follow [" + dsAliasName + "], because it is a ALIAS"));
         }
 
         // When following a closed index, throw IndexClosedException

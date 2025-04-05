@@ -63,6 +63,13 @@ Also fix https://github.com/elastic/elasticsearch/issues/121185
 
 {es-pull}121193[#121193]
 
+[discrete]
+[[release_semantic_text_as_ga_feature]]
+=== Release semantic_text as a GA feature
+semantic_text is now an official GA (generally available) feature! This field type allows you to easily set up and perform semantic search with minimal ramp up time.
+
+{es-pull}124670[#124670]
+
 // end::notable-highlights[]
 
 

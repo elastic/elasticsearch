@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -129,7 +127,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     public static class MockedRollupPlugin extends Plugin implements ActionPlugin {
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        public List<ActionHandler> getActions() {
             return Collections.singletonList(new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class));
         }
 

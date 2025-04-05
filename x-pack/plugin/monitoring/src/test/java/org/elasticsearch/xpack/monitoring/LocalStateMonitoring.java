@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -110,7 +108,7 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         var actions = super.getActions();
         // ccr StatsCollector
         actions.add(new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsStubAction.class));

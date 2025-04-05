@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -220,7 +218,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler<>(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
             new ActionHandler<>(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),

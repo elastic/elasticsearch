@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -206,7 +204,7 @@ public class InferencePlugin extends Plugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler<>(InferenceAction.INSTANCE, TransportInferenceAction.class),
             new ActionHandler<>(InferenceActionProxy.INSTANCE, TransportInferenceActionProxy.class),

@@ -340,7 +340,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         private static final ActionType<YieldsContinuationsPlugin.Response> TYPE = new ActionType<>("test:yields_continuations");
 
         @Override
-        public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        public Collection<ActionHandler> getActions() {
             return List.of(new ActionHandler<>(TYPE, TransportYieldsContinuationsAction.class));
         }
 
@@ -521,7 +521,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         private static final ActionType<Response> TYPE = new ActionType<>("test:infinite_continuations");
 
         @Override
-        public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        public Collection<ActionHandler> getActions() {
             return List.of(new ActionHandler<>(TYPE, TransportInfiniteContinuationsAction.class));
         }
 

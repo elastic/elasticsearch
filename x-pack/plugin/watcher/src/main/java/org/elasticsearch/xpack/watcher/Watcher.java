@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -681,7 +679,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.WATCHER, WatcherUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.WATCHER, WatcherInfoTransportAction.class);
         if (false == enabled) {

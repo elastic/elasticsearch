@@ -73,7 +73,7 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
         }
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        public List<ActionHandler> getActions() {
             return List.of(new ActionHandler<>(TYPE, TestAction.class));
         }
 

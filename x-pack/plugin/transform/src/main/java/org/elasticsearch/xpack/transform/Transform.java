@@ -13,8 +13,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -257,7 +255,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
 
         return Arrays.asList(
             new ActionHandler<>(PutTransformAction.INSTANCE, TransportPutTransformAction.class),

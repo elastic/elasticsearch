@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -211,7 +209,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.ENRICH, EnrichUsageTransportAction.class),

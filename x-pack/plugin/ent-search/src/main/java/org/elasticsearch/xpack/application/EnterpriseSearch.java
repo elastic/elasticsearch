@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.application;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -261,14 +259,14 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     public static final TimeValue HARD_CODED_ENTERPRISE_SEARCH_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.ENTERPRISE_SEARCH, EnterpriseSearchUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.ENTERPRISE_SEARCH, EnterpriseSearchInfoTransportAction.class);
         if (enabled == false) {
             return List.of(usageAction, infoAction);
         }
 
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = new ArrayList<>(
+        List<ActionHandler> actionHandlers = new ArrayList<>(
             List.of(
                 // Behavioral Analytics
                 new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),

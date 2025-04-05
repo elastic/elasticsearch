@@ -20,7 +20,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -1582,7 +1581,7 @@ public class Security extends Plugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.SECURITY, SecurityUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.SECURITY, SecurityInfoTransportAction.class);
         if (enabled == false) {

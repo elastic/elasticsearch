@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.ccr;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -211,7 +209,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Collections.singletonList(new ShardFollowTasksExecutor(client, threadPool, clusterService, settingsModule));
     }
 
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.CCR, CCRUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.CCR, CCRInfoTransportAction.class);
         if (enabled == false) {

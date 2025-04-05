@@ -10,8 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -353,8 +351,8 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, getInfoAction()));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
         actions.add(new ActionHandler<>(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class));

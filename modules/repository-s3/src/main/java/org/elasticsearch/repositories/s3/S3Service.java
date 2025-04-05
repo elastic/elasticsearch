@@ -234,7 +234,6 @@ class S3Service extends AbstractLifecycleComponent {
     }
 
     protected S3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings, SdkHttpClient httpClient) {
-        // TODO NOMERGE ensure this has all the same config features as the v1 SDK
         var s3clientBuilder = S3Client.builder();
         s3clientBuilder.httpClient(httpClient);
         s3clientBuilder.overrideConfiguration(buildConfiguration(clientSettings, isStateless));
@@ -297,6 +296,7 @@ class S3Service extends AbstractLifecycleComponent {
     static SdkHttpClient buildHttpClient(S3ClientSettings clientSettings, @Nullable /* to use default resolver */ DnsResolver dnsResolver) {
         ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
 
+        // TODO NOMERGE: an IT test for maxConnections?
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
         httpClientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
 
@@ -313,7 +313,7 @@ class S3Service extends AbstractLifecycleComponent {
     }
 
     // TODO NOMERGE naming
-    static boolean RETRYABLE_403_RETRY_PREDICATE(Throwable e) {
+    static boolean RETRYABLE_403_PREDICATE(Throwable e) {
         if (e instanceof AwsServiceException ase) {
             return ase.statusCode() == RestStatus.FORBIDDEN.getStatus() && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
         }
@@ -330,7 +330,7 @@ class S3Service extends AbstractLifecycleComponent {
             // Create a 403 error retryable policy. In serverless we sometimes get 403s during because of delays in propagating updated
             // credentials because IAM is not strongly consistent.
             // TODO NOMERGE this should be covered by some end-to-end test, and documented more accurately
-            retryStrategyBuilder.retryOnException(S3Service::RETRYABLE_403_RETRY_PREDICATE);
+            retryStrategyBuilder.retryOnException(S3Service::RETRYABLE_403_PREDICATE);
         }
         clientOverrideConfiguration.retryStrategy(retryStrategyBuilder.build());
         return clientOverrideConfiguration.build();
@@ -480,8 +480,6 @@ class S3Service extends AbstractLifecycleComponent {
      */
     static class CustomWebIdentityTokenCredentialsProvider implements AwsCredentialsProvider {
 
-        private static final String STS_HOSTNAME = "https://sts.amazonaws.com";
-
         static final String WEB_IDENTITY_TOKEN_FILE_LOCATION = "repository-s3/aws-web-identity-token-file";
 
         private StsWebIdentityTokenFileCredentialsProvider credentialsProvider;
@@ -537,6 +535,8 @@ class S3Service extends AbstractLifecycleComponent {
             );
 
             {
+                // TODO NOMERGE: is there any testing we need to add for this? We used to have a unit test that verified the regional stuff,
+                // but we're using this endpoint override instead of region now.
                 final var securityTokenServiceClientBuilder = StsClient.builder();
                 final var endpointOverride = jvmEnvironment.getProperty("org.elasticsearch.repositories.s3.stsEndpointOverride", null);
                 if (endpointOverride != null) {
@@ -694,17 +694,9 @@ class S3Service extends AbstractLifecycleComponent {
             return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(consumer).handle(this::resultHandler));
         }
 
-        // TODO NOMERGE: I changed this so I could test successfully that a log message occurs.
-        // resultHandler doesn't appear to be invoked. I'm not sure how the original code works (haven't looked yet).
         @Override
         public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
-            try {
-                return SocketAccess.doPrivileged(() -> delegate.resolveIdentity());
-            } catch (Exception e) {
-                logger.error(() -> "Unable to resolve identity from " + delegate, e);
-                throw e;
-            }
-            // return SocketAccess.doPrivileged(() -> delegate.resolveIdentity().handle(this::resultHandler));
+            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity().handle(this::resultHandler));
         }
 
         @Override

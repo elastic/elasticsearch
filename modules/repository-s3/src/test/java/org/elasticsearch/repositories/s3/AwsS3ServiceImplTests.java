@@ -17,16 +17,21 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
+import software.amazon.awssdk.regions.Region;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -36,6 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 public class AwsS3ServiceImplTests extends ESTestCase {
 
@@ -173,7 +179,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testAWSConfigurationWithAwsSettings() {
+    public void testAwsConfigurationWithAwsSettings() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.default.proxy.username", "aws_proxy_username");
         secureSettings.setString("s3.client.default.proxy.password", "aws_proxy_password");
@@ -193,7 +199,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSConfigurationTest(settings, null, -1, null, null, null, 5, 50000);
     }
 
-    // TODO NOMERGE unused params
     private void launchAWSConfigurationTest(
         Settings settings,
         String expectedProxyHost,
@@ -218,9 +223,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
         final ClientOverrideConfiguration configuration = S3Service.buildConfiguration(clientSettings, false);
         assertThat(configuration.retryStrategy().get().maxAttempts(), is(expectedMaxRetries + 1));
-
-        // TODO NOMERGE: consider whether this needs to be tested elsewhere.
-        // assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout)); // set on the httpClient
     }
 
     public void testEndpointSetting() {
@@ -232,6 +234,28 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         final String configName = S3Repository.CLIENT_NAME.get(repositorySettings);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
         assertThat(clientSettings.endpoint, is(expectedEndpoint));
+    }
+
+    public void testEndPointAndRegionOverrides() throws IOException {
+        try (
+            S3Service s3Service = new S3Service(
+                mock(Environment.class),
+                Settings.EMPTY,
+                mock(ResourceWatcherService.class),
+                () -> Region.of("es-test-region")
+            )
+        ) {
+            s3Service.start();
+            final String endpointOverride = "http://first";
+            final Settings settings = Settings.builder().put("endpoint", endpointOverride).build();
+            final AmazonS3Reference reference = s3Service.client(new RepositoryMetadata("first", "s3", settings));
+
+            assertEquals(endpointOverride, reference.client().serviceClientConfiguration().endpointOverride().get().toString());
+            assertEquals("es-test-region", reference.client().serviceClientConfiguration().region().toString());
+
+            reference.close();
+            s3Service.doClose();
+        }
     }
 
     public void testLoggingCredentialsProviderCatchesErrorsOnResolveCredentials() {
@@ -253,17 +277,20 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testLoggingCredentialsProviderCatchesErrorsOnResolveIdentity() {
-        // Set up #resolveIdentity() to throw a fake exception.
+        // Set up #resolveIdentity() to return a future with an exception.
         var mockCredentialsProvider = Mockito.mock(AwsCredentialsProvider.class);
         String mockProviderErrorMessage = "mockProvider failed to generate credentials";
-        Mockito.when(mockCredentialsProvider.resolveIdentity()).thenThrow(new IllegalStateException(mockProviderErrorMessage));
-
+        Answer<CompletableFuture<? extends AwsCredentialsIdentity>> answer = invocation -> {
+            CompletableFuture<AwsCredentialsIdentity> future = new CompletableFuture<>();
+            future.completeExceptionally(new IllegalStateException(mockProviderErrorMessage));
+            return future;
+        };
+        Mockito.when(mockCredentialsProvider.resolveIdentity()).thenAnswer(answer);
         var mockLogger = Mockito.mock(Logger.class);
         var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockCredentialsProvider, mockLogger);
 
         // The S3Service.ErrorLoggingCredentialsProvider should log the error.
-        var exception = expectThrows(IllegalStateException.class, credentialsProvider::resolveIdentity);
-        assertEquals(mockProviderErrorMessage, exception.getMessage());
+        credentialsProvider.resolveIdentity();
 
         var messageSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
         var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);

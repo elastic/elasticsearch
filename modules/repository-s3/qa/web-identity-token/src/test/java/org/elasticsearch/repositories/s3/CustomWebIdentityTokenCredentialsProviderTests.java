@@ -227,4 +227,41 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             httpServer.stop(0);
         }
     }
+
+    public void testSupportRegionalizedEndpoints() throws Exception {
+        Map<String, String> environmentVariables = Map.of(
+            "AWS_WEB_IDENTITY_TOKEN_FILE",
+            "/var/run/secrets/eks.amazonaws.com/serviceaccount/token",
+            "AWS_ROLE_ARN",
+            ROLE_ARN,
+            "AWS_STS_REGIONAL_ENDPOINTS",
+            "regional",
+            "AWS_REGION",
+            "us-west-2"
+        );
+        Map<String, String> systemProperties = Map.of();
+
+        var webIdentityTokenCredentialsProvider = new S3Service.CustomWebIdentityTokenCredentialsProvider(
+            getEnvironment(),
+            environmentVariables::get,
+            systemProperties::getOrDefault,
+            Clock.systemUTC(),
+            resourceWatcherService
+        );
+        // We can't verify that webIdentityTokenCredentialsProvider's STS client uses the "https://sts.us-west-2.amazonaws.com"
+        // endpoint in a unit test. The client depends on hardcoded RegionalEndpointsOptionResolver that in turn depends
+        // on the system environment that we can't change in the test. So we just verify we that we called `withRegion`
+        // on stsClientBuilder which should internally correctly configure the endpoint when the STS client is built.
+        // TODO NOMERGE: can't access region anymore, need to rethink this.
+        // assertEquals("us-west-2", webIdentityTokenCredentialsProvider.getStsRegion());
+
+        // TODO NOMERGE do we need this any more?
+        // See https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html which suggests that the SDKv2 always
+        // uses regional endpoints. But is AWS_REGION always configured in all the relevant environments or do we need to find a way to be
+        // more backwards-compatible? And if s3.client.CLIENT_NAME.region is configured do we use that instead of AWS_REGION?
+        // See also https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html
+        // See also https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
+
+        webIdentityTokenCredentialsProvider.close();
+    }
 }

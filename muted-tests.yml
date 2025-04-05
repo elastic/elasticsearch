@@ -420,6 +420,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {rerank.Reranker using another sort order ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/126362
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker using another sort order SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126363
 
 # Examples:
 #

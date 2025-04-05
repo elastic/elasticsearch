@@ -655,7 +655,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         return (allocatedProcessors + 1) / 2;
     }
 
-    static int halfAllocatedProcessorsMaxFive(final int allocatedProcessors) {
+    public static int halfAllocatedProcessorsMaxFive(final int allocatedProcessors) {
         return boundedBy(halfAllocatedProcessors(allocatedProcessors), 1, 5);
     }
 
@@ -663,7 +663,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         return boundedBy(halfAllocatedProcessors(allocatedProcessors), 1, 10);
     }
 
-    static int twiceAllocatedProcessors(final int allocatedProcessors) {
+    public static int twiceAllocatedProcessors(final int allocatedProcessors) {
         return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
     }
 

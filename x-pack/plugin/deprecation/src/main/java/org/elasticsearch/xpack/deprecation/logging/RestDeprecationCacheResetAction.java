@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.deprecation.logging;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.EmptyResponseListener;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.action.EmptyResponseListener.PLAIN_TEXT_EMPTY_RESPONSE_CAPABILITY_NAME;
 
 public class RestDeprecationCacheResetAction extends BaseRestHandler {
 
@@ -30,8 +32,17 @@ public class RestDeprecationCacheResetAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public Set<String> supportedCapabilities() {
+        return Set.of(PLAIN_TEXT_EMPTY_RESPONSE_CAPABILITY_NAME);
+    }
+
+    @Override
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         DeprecationCacheResetAction.Request resetRequest = new DeprecationCacheResetAction.Request();
-        return channel -> client.execute(DeprecationCacheResetAction.INSTANCE, resetRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            DeprecationCacheResetAction.INSTANCE,
+            resetRequest,
+            new EmptyResponseListener(channel).map(ignored -> ActionResponse.Empty.INSTANCE)
+        );
     }
 }

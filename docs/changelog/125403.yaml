@@ -1,0 +1,5 @@
+pr: 125403
+summary: First step optimizing tsdb doc values codec merging
+area: Codec
+type: enhancement
+issues: []

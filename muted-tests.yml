@@ -411,6 +411,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
   method: testSearchableSnapshotTotalShardsPerNode
   issue: https://github.com/elastic/elasticsearch/issues/126354
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker add the _score column when missing ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126360
 
 # Examples:
 #

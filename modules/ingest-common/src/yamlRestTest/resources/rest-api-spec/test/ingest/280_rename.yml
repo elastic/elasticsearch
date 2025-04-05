@@ -108,3 +108,30 @@ teardown:
         index: test
         id: "1"
   - match: { _source.event.original: "overridden original message" }
+
+---
+"Test Rename dotted field access":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:
+          processors:
+            - rename:
+                field: "attributes['foo.bar']"
+                target_field: "attributes['bar.foo']"
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body:
+          attributes:
+            "foo.bar": "test"
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.attributes.bar\.foo: "test" }

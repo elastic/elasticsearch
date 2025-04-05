@@ -32,7 +32,9 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.Elasticsearch816Codec;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
@@ -48,9 +50,23 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
         Codec oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
+        Codec newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        testMixedIndex(oldCodec, newCodec);
+    }
+
+    public void testMixedIndex816To900Lucene101() throws Exception {
+        Codec oldCodec = new Elasticsearch816Codec() {
+
+            final DocValuesFormat docValuesFormat = new TestES87TSDBDocValuesFormat();
+
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return docValuesFormat;
+            }
+        };
         Codec newCodec = new Elasticsearch900Lucene101Codec() {
 
-            final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
+            final DocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
 
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -111,55 +127,53 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 }
             }
             // Check documents before force merge:
-            try (var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(hostnameField, timestampField, newCodec))) {
-                try (var reader = DirectoryReader.open(iw)) {
-                    assertOldDocValuesFormatVersion(reader);
+            try (var reader = DirectoryReader.open(dir)) {
+                assertOldDocValuesFormatVersion(reader);
 
-                    var hostNameDV = MultiDocValues.getSortedValues(reader, hostnameField);
-                    assertNotNull(hostNameDV);
-                    var timestampDV = MultiDocValues.getSortedNumericValues(reader, timestampField);
-                    assertNotNull(timestampDV);
-                    var counterOneDV = MultiDocValues.getNumericValues(reader, "counter_1");
-                    if (counterOneDV == null) {
-                        counterOneDV = DocValues.emptyNumeric();
-                    }
-                    var gaugeOneDV = MultiDocValues.getSortedNumericValues(reader, "gauge_1");
-                    if (gaugeOneDV == null) {
-                        gaugeOneDV = DocValues.emptySortedNumeric();
-                    }
-                    var tagsDV = MultiDocValues.getSortedSetValues(reader, "tags");
-                    if (tagsDV == null) {
-                        tagsDV = DocValues.emptySortedSet();
-                    }
-                    for (int i = 0; i < numDocs; i++) {
-                        assertEquals(i, hostNameDV.nextDoc());
-                        String actualHostName = hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString();
-                        assertTrue("unexpected host name:" + actualHostName, actualHostName.startsWith("host-"));
+                var hostNameDV = MultiDocValues.getSortedValues(reader, hostnameField);
+                assertNotNull(hostNameDV);
+                var timestampDV = MultiDocValues.getSortedNumericValues(reader, timestampField);
+                assertNotNull(timestampDV);
+                var counterOneDV = MultiDocValues.getNumericValues(reader, "counter_1");
+                if (counterOneDV == null) {
+                    counterOneDV = DocValues.emptyNumeric();
+                }
+                var gaugeOneDV = MultiDocValues.getSortedNumericValues(reader, "gauge_1");
+                if (gaugeOneDV == null) {
+                    gaugeOneDV = DocValues.emptySortedNumeric();
+                }
+                var tagsDV = MultiDocValues.getSortedSetValues(reader, "tags");
+                if (tagsDV == null) {
+                    tagsDV = DocValues.emptySortedSet();
+                }
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals(i, hostNameDV.nextDoc());
+                    String actualHostName = hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString();
+                    assertTrue("unexpected host name:" + actualHostName, actualHostName.startsWith("host-"));
 
-                        assertEquals(i, timestampDV.nextDoc());
-                        long timestamp = timestampDV.nextValue();
-                        long lowerBound = baseTimestamp;
-                        long upperBound = baseTimestamp + numDocs;
-                        assertTrue(
-                            "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
-                            timestamp >= lowerBound && timestamp < upperBound
-                        );
-                        if (counterOneDV.advanceExact(i)) {
-                            long counterOneValue = counterOneDV.longValue();
-                            assertTrue("unexpected counter [" + counterOneValue + "]", counterOneValue >= 0 && counterOneValue < counter1);
+                    assertEquals(i, timestampDV.nextDoc());
+                    long timestamp = timestampDV.nextValue();
+                    long lowerBound = baseTimestamp;
+                    long upperBound = baseTimestamp + numDocs;
+                    assertTrue(
+                        "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
+                        timestamp >= lowerBound && timestamp < upperBound
+                    );
+                    if (counterOneDV.advanceExact(i)) {
+                        long counterOneValue = counterOneDV.longValue();
+                        assertTrue("unexpected counter [" + counterOneValue + "]", counterOneValue >= 0 && counterOneValue < counter1);
+                    }
+                    if (gaugeOneDV.advanceExact(i)) {
+                        for (int j = 0; j < gaugeOneDV.docValueCount(); j++) {
+                            long value = gaugeOneDV.nextValue();
+                            assertTrue("unexpected gauge [" + value + "]", Arrays.binarySearch(gauge1Values, value) >= 0);
                         }
-                        if (gaugeOneDV.advanceExact(i)) {
-                            for (int j = 0; j < gaugeOneDV.docValueCount(); j++) {
-                                long value = gaugeOneDV.nextValue();
-                                assertTrue("unexpected gauge [" + value + "]", Arrays.binarySearch(gauge1Values, value) >= 0);
-                            }
-                        }
-                        if (tagsDV.advanceExact(i)) {
-                            for (int j = 0; j < tagsDV.docValueCount(); j++) {
-                                long ordinal = tagsDV.nextOrd();
-                                String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
-                                assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
-                            }
+                    }
+                    if (tagsDV.advanceExact(i)) {
+                        for (int j = 0; j < tagsDV.docValueCount(); j++) {
+                            long ordinal = tagsDV.nextOrd();
+                            String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
+                            assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
                         }
                     }
                 }
@@ -259,6 +273,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
             var dvReader = leaf.getDocValuesReader();
             var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
             Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
+            assertThat(formats, Matchers.aMapWithSize(1));
             var tsdbDvReader = (DocValuesProducer) formats.get("ES87TSDB_0");
             tsdbDvReader.checkIntegrity();
             assertThat(tsdbDvReader, Matchers.instanceOf(ES87TSDBDocValuesProducer.class));
@@ -267,25 +282,39 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     private void assertNewDocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException,
         ClassNotFoundException {
-        if (System.getSecurityManager() != null) {
-            // With jvm version 24 entitlements are used and security manager is nog longer used.
-            // Making this assertion work with security manager requires granting the entire test codebase privileges to use
-            // suppressAccessChecks and suppressAccessChecks. This is undesired from a security manager perspective.
-            logger.info("not asserting doc values format version, because security manager is used");
-            return;
-        }
 
         for (var leafReaderContext : reader.leaves()) {
             var leaf = (SegmentReader) leafReaderContext.reader();
             var dvReader = leaf.getDocValuesReader();
-            var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
-            Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
-            var tsdbDvReader = (DocValuesProducer) formats.get("ES819TSDB_0");
-            tsdbDvReader.checkIntegrity();
-            assertThat(
-                tsdbDvReader,
-                Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
-            );
+            dvReader.checkIntegrity();
+
+            if (dvReader instanceof XPerFieldDocValuesFormat.FieldsReader perFieldDvReader) {
+                var formats = perFieldDvReader.getFormats();
+                assertThat(formats, Matchers.aMapWithSize(1));
+                var tsdbDvReader = formats.get("ES819TSDB_0");
+                tsdbDvReader.checkIntegrity();
+                assertThat(
+                    tsdbDvReader,
+                    Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
+                );
+            } else {
+                if (System.getSecurityManager() != null) {
+                    // With jvm version 24 entitlements are used and security manager is nog longer used.
+                    // Making this assertion work with security manager requires granting the entire test codebase privileges to use
+                    // suppressAccessChecks and suppressAccessChecks. This is undesired from a security manager perspective.
+                    logger.info("not asserting doc values format version, because security manager is used");
+                    continue;
+                }
+                var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
+                Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
+                assertThat(formats, Matchers.aMapWithSize(1));
+                var tsdbDvReader = (DocValuesProducer) formats.get("ES819TSDB_0");
+                tsdbDvReader.checkIntegrity();
+                assertThat(
+                    tsdbDvReader,
+                    Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
+                );
+            }
         }
     }
 

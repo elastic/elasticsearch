@@ -288,9 +288,13 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
             }
         }
 
-        // FORK note: the reason why PerFieldDocValuesFormat is forked:.
+        // FORK note: the reason why PerFieldDocValuesFormat is forked:
         public DocValuesProducer getDocValuesProducer(FieldInfo field) {
             return fields.get(field.number);
+        }
+
+        public Map<String, DocValuesProducer> getFormats() {
+            return formats;
         }
 
         @Override

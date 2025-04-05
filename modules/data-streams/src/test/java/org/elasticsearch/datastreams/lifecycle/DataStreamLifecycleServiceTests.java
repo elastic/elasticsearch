@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
@@ -200,13 +201,15 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStreamLifecycle zeroRetentionLifecycle = DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build();
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             numBackingIndices,
             2,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build(),
+            zeroRetentionLifecycle,
+            zeroRetentionLifecycle,
             now
         );
         builder.put(dataStream);
@@ -270,6 +273,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numFailureIndices,
             settings(IndexVersion.current()),
             DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(700)).build(),
+            null,
             now
         );
         builder.put(dataStream);
@@ -1483,6 +1487,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numFailureIndices,
             settings(IndexVersion.current()),
             new DataStreamLifecycle(),
+            null,
             now
         ).copy().setDataStreamOptions(dataStreamOptions).build(); // failure store is managed even when disabled
         builder.put(dataStream);
@@ -1512,25 +1517,29 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             2,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build(),
+            null,
+            null,
             now
-        ).copy().setDataStreamOptions(DataStreamOptions.FAILURE_STORE_DISABLED).build(); // failure store is managed even when disabled
+        ).copy()
+            .setDataStreamOptions(
+                new DataStreamOptions(
+                    new DataStreamFailureStore(false, DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build())
+                )
+            )
+            .build(); // failure store is managed even when disabled
         builder.put(dataStream);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
         dataStreamLifecycleService.run(state);
-        assertThat(clientSeenRequests.size(), is(3));
+        assertThat(clientSeenRequests.size(), is(2));
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
-        RolloverRequest rolloverBackingIndexRequest = (RolloverRequest) clientSeenRequests.get(0);
-        assertThat(rolloverBackingIndexRequest.getRolloverTarget(), is(dataStreamName));
-        assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
-        RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(1);
+        RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(0);
         assertThat(
             rolloverFailureIndexRequest.getRolloverTarget(),
             is(IndexNameExpressionResolver.combineSelector(dataStreamName, IndexComponentSelector.FAILURES))
         );
-        assertThat(((DeleteIndexRequest) clientSeenRequests.get(2)).indices()[0], is(dataStream.getFailureIndices().get(0).getName()));
+        assertThat(((DeleteIndexRequest) clientSeenRequests.get(1)).indices()[0], is(dataStream.getFailureIndices().get(0).getName()));
     }
 
     public void testMaybeExecuteRetentionSuccessfulDownsampledIndex() {

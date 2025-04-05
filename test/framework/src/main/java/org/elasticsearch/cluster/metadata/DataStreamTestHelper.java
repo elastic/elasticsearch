@@ -215,10 +215,6 @@ public final class DataStreamTestHelper {
             .numberOfReplicas(NUMBER_OF_REPLICAS);
     }
 
-    public static IndexMetadata.Builder createFirstFailureStore(String dataStreamName) {
-        return createFailureStore(dataStreamName, 1, System.currentTimeMillis());
-    }
-
     public static IndexMetadata.Builder createFirstFailureStore(String dataStreamName, long epochMillis) {
         return createFailureStore(dataStreamName, 1, epochMillis);
     }
@@ -827,12 +823,10 @@ public final class DataStreamTestHelper {
         return indicesService;
     }
 
-    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStore) {
-        if (failureStore == null) {
+    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStoreEnabled) {
+        if (failureStoreEnabled == null) {
             return DataStreamOptions.Template.EMPTY;
         }
-        return new DataStreamOptions.Template(
-            ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(failureStore)))
-        );
+        return new DataStreamOptions.Template(new DataStreamFailureStore.Template(failureStoreEnabled, null));
     }
 }

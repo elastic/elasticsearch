@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -37,9 +38,13 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalPartitionedClusterFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.PartitionedClusterFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.TieredPartitionedClusterFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -144,13 +149,21 @@ public class ClusterModule extends AbstractModule {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
+        final BalancerSettings balancerSettings = new BalancerSettings(clusterService.getClusterSettings());
+        // I'm aware that the following is an anti-pattern and will implement as an SPI provider or plugin
+        // if we decide to go ahead with this.
+        final PartitionedClusterFactory partitionedClusterFactory = DiscoveryNode.isStateless(settings)
+            ? new TieredPartitionedClusterFactory(balancerSettings, clusterService.getClusterSettings())
+            : new GlobalPartitionedClusterFactory(balancerSettings);
         var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
             writeLoadForecaster,
-            clusterService.getClusterSettings()
+            partitionedClusterFactory
         );
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
+            balancerSettings,
+            partitionedClusterFactory,
             threadPool,
             clusterPlugins,
             clusterService,
@@ -438,6 +451,8 @@ public class ClusterModule extends AbstractModule {
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,
+        BalancerSettings balancerSettings,
+        PartitionedClusterFactory partitionedClusterFactory,
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
@@ -447,12 +462,15 @@ public class ClusterModule extends AbstractModule {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(clusterSettings, writeLoadForecaster));
+        allocators.put(
+            BALANCED_ALLOCATOR,
+            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, partitionedClusterFactory)
+        );
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
                 clusterSettings,
-                new BalancedShardsAllocator(clusterSettings, writeLoadForecaster),
+                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, partitionedClusterFactory),
                 threadPool,
                 clusterService,
                 reconciler,

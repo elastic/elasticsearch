@@ -558,14 +558,21 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var badValue = (float) randomDoubleBetween(0.0, Math.nextDown(1.0f), true);
         expectThrows(
             IllegalArgumentException.class,
-            () -> new BalancedShardsAllocator(Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), badValue).build())
+            () -> new BalancerSettings(
+                ClusterSettings.createBuiltInClusterSettings(
+                    Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), badValue).build()
+                )
+            )
         );
 
         final var goodValue = (float) randomDoubleBetween(1.0, 10.0, true);
         assertEquals(
             goodValue,
-            new BalancedShardsAllocator(Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), goodValue).build())
-                .getThreshold(),
+            new BalancerSettings(
+                ClusterSettings.createBuiltInClusterSettings(
+                    Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), goodValue).build()
+                )
+            ).getThreshold(),
             0.0f
         );
     }

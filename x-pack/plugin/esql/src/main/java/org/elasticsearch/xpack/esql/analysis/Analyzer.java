@@ -11,6 +11,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -47,11 +48,13 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -59,6 +62,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Great
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -85,6 +90,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
@@ -140,9 +146,13 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
@@ -154,7 +164,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
     // ie from test | stats c = count(*)
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", NULL, Nullability.TRUE, null, true)
     );
 
     private static final List<Batch<LogicalPlan>> RULES = List.of(
@@ -644,7 +654,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                              */
                             boolean dataTypesOk = joinedAttribute.dataType().equals(attr.dataType());
                             if (false == dataTypesOk) {
-                                dataTypesOk = joinedAttribute.dataType() == DataType.NULL || attr.dataType() == DataType.NULL;
+                                dataTypesOk = joinedAttribute.dataType() == NULL || attr.dataType() == NULL;
                             }
                             if (false == dataTypesOk) {
                                 dataTypesOk = joinedAttribute.dataType().equals(KEYWORD) && attr.dataType().equals(TEXT);
@@ -1090,7 +1100,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final DataType dataType = resolved.dataType();
                     String matchType = enrich.policy().getType();
                     DataType[] allowed = allowedEnrichTypes(matchType);
-                    if (Arrays.asList(allowed).contains(dataType) == false) {
+                    // leave multi-typed fields to ImplicitCasting to cast to a common type
+                    if (Arrays.asList(allowed).contains(dataType) == false && multiTypedField(resolved) == null) {
                         String suffix = "only ["
                             + Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", "))
                             + "] allowed for type ["
@@ -1260,7 +1271,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <li>date_trunc("1 minute", dateField)</li>
      * </ul>
      * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
-     * applicable. For example, implicit casting converts:
+     * applicable, the same applies to Case, Greatest, Least. For example, implicit casting converts:
      * <ul>
      * <li>Coalesce(Long, Int) to Coalesce(Long, Long)</li>
      * <li>Coalesce(null, Long, Int) to Coalesce(null, Long, Long)</li>
@@ -1272,13 +1283,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformExpressionsUp(
+            // Do implicit casting for union typed fields in the following commands
+            LogicalPlan newPlan = plan.transformUp(p -> {
+                if (p instanceof OrderBy
+                    || p instanceof EsqlProject
+                    || p instanceof Aggregate
+                    || p instanceof MvExpand
+                    || p instanceof Eval
+                    || p instanceof LookupJoin
+                    || p instanceof Enrich) {
+                    return castInvalidMappedFieldInLogicalPlan(p, false);
+                }
+                return p;
+            });
+
+            // Add an implicit EsqlProject on top of the whole query if there isn't one yet,
+            // without explicit or implicit casting, a union typed field is returned as a null.
+            newPlan = addImplicitProjectForInvalidMappedFields(newPlan);
+
+            // do implicit casting for function arguments
+            return newPlan.transformExpressionsUp(
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
                 e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry())
             );
         }
 
         private static Expression cast(org.elasticsearch.xpack.esql.core.expression.function.Function f, EsqlFunctionRegistry registry) {
+            // Add cast functions to InvalidMappedField if there isn't one yet
+            f = castInvalidMappedFieldInFunction(f);
+
             if (f instanceof In in) {
                 return processIn(in);
             }
@@ -1289,6 +1322,232 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return processBinaryOperator((BinaryOperator) f);
             }
             return f;
+        }
+
+        /**
+         * Both the logical plan's children and the logical plan itself can be changed, so we cannot just to a replaceChild here.
+         */
+        private static LogicalPlan castInvalidMappedFieldInLogicalPlan(LogicalPlan plan, boolean addProject) {
+            List<? extends Expression> originalExpressions;
+            if (addProject) {
+                originalExpressions = plan.output();
+            } else {
+                originalExpressions = switch (plan) {
+                    case EsqlProject project -> project.projections();
+                    case OrderBy ob -> ob.order();
+                    case Aggregate agg -> agg.groupings();
+                    case MvExpand me -> List.of(me.target());
+                    case Eval eval -> eval.fields();
+                    case LookupJoin lj -> lj.config().leftFields();
+                    case Enrich enrich -> List.of(enrich.matchField());
+                    // The other types of plans are unexpected
+                    default -> throw new EsqlIllegalArgumentException("unexpected logical plan: " + plan);
+                };
+            }
+            Tuple<List<Alias>, List<Expression>> newChildren = castInvalidMappedFields(originalExpressions, true);
+            List<Alias> aliases = newChildren.v1();
+            List<Expression> newProjections = newChildren.v2();
+            if (aliases.isEmpty() == false) {
+                if (addProject) {
+                    return esqlProjectForInvalidMappedField(plan.source(), plan, aliases, newProjections);
+                }
+                switch (plan) {
+                    case EsqlProject p -> {
+                        return esqlProjectForInvalidMappedField(p.source(), p.child(), aliases, newProjections);
+                    }
+                    case OrderBy o -> {
+                        return new OrderBy(
+                            o.source(),
+                            o.child(),
+                            newProjections.stream().filter(e -> e instanceof Order).map(e -> (Order) e).collect(Collectors.toList())
+                        );
+                    }
+                    case Aggregate agg -> {
+                        // Both groupings and aggregates need to be updated, create new aggregates according to new groupings
+                        List<? extends NamedExpression> origAggs = agg.aggregates();
+                        List<NamedExpression> newAggs = new ArrayList<>(origAggs.size());
+                        for (int i = 0; i < origAggs.size() - newProjections.size(); i++) { // Add aggregate functions
+                            newAggs.add(origAggs.get(i));
+                        }
+                        for (Expression e : newProjections) { // Add groupings
+                            newAggs.add(Expressions.attribute(e));
+                        }
+                        return agg.with(evalForInvalidMappedField(agg.source(), agg.child(), aliases), newProjections, newAggs);
+                    }
+                    case MvExpand mve -> {
+                        NamedExpression newTarget = Expressions.attribute(newProjections.get(0));
+                        return new MvExpand(
+                            mve.source(),
+                            evalForInvalidMappedField(mve.source(), mve.child(), aliases),
+                            newTarget,
+                            newTarget.toAttribute()
+                        );
+                    }
+                    case Eval ev -> {
+                        return evalForInvalidMappedField(ev.source(), ev.child(), aliases);
+                    }
+                    case LookupJoin lj -> {
+                        JoinConfig oldJoinConfig = lj.config();
+                        List<Attribute> leftKeys = newProjections.stream()
+                            .filter(e -> e instanceof Attribute)
+                            .map(e -> (Attribute) e)
+                            .collect(Collectors.toList());
+                        JoinConfig newJoinConfig = new JoinConfig(oldJoinConfig.type(), leftKeys, leftKeys, oldJoinConfig.rightFields());
+                        return new LookupJoin(
+                            lj.source(),
+                            evalForInvalidMappedField(lj.source(), lj.left(), aliases),
+                            lj.right(),
+                            newJoinConfig
+                        );
+                    }
+                    case Enrich enrich -> {
+                        NamedExpression newMatchField = Expressions.attribute(newProjections.get(0));
+                        return new Enrich(
+                            enrich.source(),
+                            evalForInvalidMappedField(enrich.source(), enrich.child(), aliases),
+                            enrich.mode(),
+                            enrich.policyName(),
+                            // Let resolveEnrich check whether the data type is supported, e.g. Enrich does not support data_nanos
+                            new UnresolvedAttribute(newMatchField.source(), newMatchField.name()),
+                            enrich.policy(),
+                            enrich.concreteIndices(),
+                            enrich.enrichFields()
+                        );
+                    }
+                    // The other types of plans are unexpected
+                    default -> throw new EsqlIllegalArgumentException("unexpected logical plan: " + plan);
+                }
+            } else {
+                // Double check Aggs, when Bucket is used together with Aggs, the Aggs may need two rounds of resolutions
+                if (plan instanceof Aggregate agg) {
+                    // If there is unresolved reference in the aggregates try to get it resolved again by removing the custom message
+                    List<? extends NamedExpression> origAggs = agg.aggregates();
+                    List<Expression> groupings = agg.groupings();
+                    int aggsCount = origAggs.size() - groupings.size();
+                    List<NamedExpression> newAggs = new ArrayList<>(origAggs.size());
+                    for (int i = 0; i < origAggs.size(); i++) {
+                        var e = origAggs.get(i);
+                        if (i < aggsCount) { // Add aggregate functions
+                            newAggs.add(e);
+                        } else { // Add groupings
+                            if (e instanceof UnresolvedAttribute ua && ua.customMessage()) {
+                                // Try to make ResolveRefs resolve the aggregates again by removing the custom message
+                                newAggs.add(Expressions.attribute(groupings.get(i - aggsCount)));
+                            } else {
+                                newAggs.add(e);
+                            }
+                        }
+                    }
+                    return agg.with(groupings, newAggs);
+                }
+                return plan;
+            }
+        }
+
+        private static LogicalPlan addImplicitProjectForInvalidMappedFields(LogicalPlan logicalPlan) {
+            if (logicalPlan.resolved() == false) {
+                return logicalPlan;
+            }
+            List<LogicalPlan> projections = logicalPlan.collectFirstChildren(EsqlProject.class::isInstance);
+            return projections.isEmpty() ? castInvalidMappedFieldInLogicalPlan(logicalPlan, true) : logicalPlan;
+        }
+
+        private static org.elasticsearch.xpack.esql.core.expression.function.Function castInvalidMappedFieldInFunction(
+            org.elasticsearch.xpack.esql.core.expression.function.Function f
+        ) {
+            // No need to add implicit casting for union typed fields that already have explicit casting on them.
+            // Full text functions are pushdown only functions, implicit or explicit casting may fail the query.
+            if (f instanceof AbstractConvertFunction || f instanceof FullTextFunction) {
+                return f;
+            }
+            Tuple<List<Alias>, List<Expression>> newChildren = castInvalidMappedFields(f.arguments(), false);
+            return newChildren.v1().isEmpty()
+                ? f
+                : (org.elasticsearch.xpack.esql.core.expression.function.Function) f.replaceChildren(newChildren.v2());
+        }
+
+        private static Tuple<List<Alias>, List<Expression>> castInvalidMappedFields(
+            List<? extends Expression> originalExpressions,
+            boolean createNewChildPlan
+        ) {
+            List<Alias> newAliases = new ArrayList<>(originalExpressions.size());
+            List<Expression> newExpressions = new ArrayList<>(originalExpressions.size());
+            expressionLoop: for (Expression exp : originalExpressions) {
+                Expression e = Alias.unwrap(exp);
+                e = e instanceof Order o ? o.child() : e;
+                String alias = exp instanceof Alias a ? a.name() : null;
+                InvalidMappedField multiTypedField = multiTypedField(e);
+                if (multiTypedField != null) {
+                    // This is an invalid mapped field, find a common data type and cast to it.
+                    DataType targetType = null;
+                    for (DataType type : multiTypedField.types()) {
+                        if (targetType == null) { // Initialize the target type to the first type.
+                            targetType = type;
+                        } else {
+                            targetType = EsqlDataTypeConverter.commonType(targetType, type);
+                            if (targetType == null) { // If there is no common type, continue to the next expression.
+                                newExpressions.add(exp);
+                                continue expressionLoop;
+                            }
+                        }
+                    }
+                    if (targetType != null && isRepresentable(targetType) && (isMillisOrNanos(targetType) || targetType.isNumeric())) {
+                        alias = alias != null ? alias : multiTypedField.getName();
+                        Source source = e.source();
+                        Expression newChild = castInvalidMappedField(targetType, e);
+                        Alias newAlias = new Alias(source, alias, newChild);
+                        newAliases.add(newAlias);
+                        if (createNewChildPlan) {
+                            // Cast union typed fields in a logical plan, a new child plan(Eval) is needed for the implicit casting and new
+                            // aliases. The newExpressions with all the fields and references are need to create a new plan.
+                            switch (exp) {
+                                case Alias a -> newExpressions.add(a.replaceChild(newAlias.toAttribute()));
+                                case Order o -> newExpressions.add(new Order(o.source(), newChild, o.direction(), o.nullsPosition()));
+                                default -> newExpressions.add(newAlias.toAttribute());
+                            }
+                        } else { // Cast union typed fields in a function, there is no need to create a new child plan
+                            newExpressions.add(newChild);
+                        }
+                    }
+                } else {
+                    newExpressions.add(exp);
+                }
+            }
+            return Tuple.tuple(newAliases, newExpressions);
+        }
+
+        private static EsqlProject esqlProjectForInvalidMappedField(
+            Source source,
+            LogicalPlan childPlan,
+            List<Alias> aliases,
+            List<Expression> newProjections
+        ) {
+            Eval eval = evalForInvalidMappedField(source, childPlan, aliases);
+            return new EsqlProject(
+                source,
+                eval,
+                newProjections.stream().filter(e -> e instanceof NamedExpression).map(e -> (NamedExpression) e).collect(Collectors.toList())
+            );
+        }
+
+        private static Eval evalForInvalidMappedField(Source source, LogicalPlan childPlan, List<Alias> aliases) {
+            return new Eval(source, childPlan, aliases);
+        }
+
+        /**
+         * Do implicit casting for data, date_nanos and numeric types only
+         */
+        private static Expression castInvalidMappedField(DataType targetType, Expression fa) {
+            Source source = fa.source();
+            return switch (targetType) {
+                case INTEGER -> new ToInteger(source, fa);
+                case LONG -> new ToLong(source, fa);
+                case DOUBLE -> new ToDouble(source, fa);
+                case UNSIGNED_LONG -> new ToUnsignedLong(source, fa);
+                case DATETIME -> new ToDatetime(source, fa);
+                case DATE_NANOS -> new ToDateNanos(source, fa);
+                default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetType);
+            };
         }
 
         private static Expression processScalarOrGroupingFunction(
@@ -1302,7 +1561,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(args.size());
             boolean childrenChanged = false;
-            DataType targetDataType = DataType.NULL;
+            DataType targetDataType = NULL;
             Expression arg;
             DataType targetNumericType = null;
             boolean castNumericArgs = true;
@@ -1315,7 +1574,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             if (i < targetDataTypes.size()) {
                                 targetDataType = targetDataTypes.get(i);
                             }
-                            if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
+                            if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
                                 Expression e = castStringLiteral(arg, targetDataType);
                                 if (e != arg) {
                                     childrenChanged = true;
@@ -1348,7 +1607,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(2);
             boolean childrenChanged = false;
-            DataType targetDataType = DataType.NULL;
+            DataType targetDataType = NULL;
             Expression from = Literal.NULL;
 
             if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
@@ -1691,5 +1950,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
         }
+    }
+
+    private static InvalidMappedField multiTypedField(Expression e) {
+        Expression exp = Alias.unwrap(e);
+        if (exp.resolved()
+            && exp.dataType() == UNSUPPORTED
+            && exp instanceof FieldAttribute fa
+            && fa.field() instanceof InvalidMappedField imf) {
+            return imf;
+        }
+        return null;
     }
 }

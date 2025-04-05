@@ -947,7 +947,12 @@ public class EsqlCapabilities {
         /**
          * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
          */
-        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT;
+        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT,
+
+        /**
+         * Support implicit casting for union typed numeric and date/date_nanos fields
+         */
+        IMPLICIT_CASTING_UNION_TYPED_NUMERIC_AND_DATE;
 
         private final boolean enabled;
 

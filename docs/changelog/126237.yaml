@@ -1,0 +1,5 @@
+pr: 126237
+summary: Use `FallbackSyntheticSourceBlockLoader` for text fields
+area: Mapping
+type: enhancement
+issues: []

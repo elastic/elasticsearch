@@ -432,6 +432,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {rerank.Reranker using a single field ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/126369
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker using a single field SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126370
 
 # Examples:
 #

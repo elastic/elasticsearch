@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -72,6 +73,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
 
         final ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        MetadataDataStreamsService metadataDataStreamsService = mock(MetadataDataStreamsService.class);
         this.action = new TransportUpdateSettingsAction(
             transportService,
             mock(ClusterService.class),
@@ -80,7 +82,8 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
             mock(ActionFilters.class),
             projectResolver,
             indexNameExpressionResolver,
-            SYSTEM_INDICES
+            SYSTEM_INDICES,
+            metadataDataStreamsService
         );
     }
 

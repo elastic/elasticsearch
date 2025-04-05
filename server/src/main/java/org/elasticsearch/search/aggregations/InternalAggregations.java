@@ -199,7 +199,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
 
             for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
                 SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
-                InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs), context);
+                InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs));
                 reducedInternalAggs.add(newAgg);
             }
             return from(reducedInternalAggs);

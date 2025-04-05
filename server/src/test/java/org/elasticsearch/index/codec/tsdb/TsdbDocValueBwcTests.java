@@ -49,13 +49,13 @@ import java.util.Map;
 public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
-        Codec oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
-        Codec newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
         testMixedIndex(oldCodec, newCodec);
     }
 
     public void testMixedIndex816To900Lucene101() throws Exception {
-        Codec oldCodec = new Elasticsearch816Codec() {
+        var oldCodec = new Elasticsearch816Codec() {
 
             final DocValuesFormat docValuesFormat = new TestES87TSDBDocValuesFormat();
 
@@ -64,7 +64,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 return docValuesFormat;
             }
         };
-        Codec newCodec = new Elasticsearch900Lucene101Codec() {
+        var newCodec = new Elasticsearch900Lucene101Codec() {
 
             final DocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
 
@@ -129,6 +129,16 @@ public class TsdbDocValueBwcTests extends ESTestCase {
             // Check documents before force merge:
             try (var reader = DirectoryReader.open(dir)) {
                 assertOldDocValuesFormatVersion(reader);
+                // Assert per field format field info attributes:
+                // (XPerFieldDocValuesFormat must produce the same attributes as PerFieldDocValuesFormat for BWC.
+                // Otherwise, doc values fields may disappear)
+                for (var leaf : reader.leaves()) {
+                    for (var fieldInfo : leaf.reader().getFieldInfos()) {
+                        assertThat(fieldInfo.attributes(), Matchers.aMapWithSize(2));
+                        assertThat(fieldInfo.attributes(), Matchers.hasEntry("PerFieldDocValuesFormat.suffix", "0"));
+                        assertThat(fieldInfo.attributes(), Matchers.hasEntry("PerFieldDocValuesFormat.format", "ES87TSDB"));
+                    }
+                }
 
                 var hostNameDV = MultiDocValues.getSortedValues(reader, hostnameField);
                 assertNotNull(hostNameDV);
@@ -189,6 +199,15 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                     assertEquals(numDocs, reader.maxDoc());
                     assertNewDocValuesFormatVersion(reader);
                     var leaf = reader.leaves().get(0).reader();
+                    // Assert per field format field info attributes:
+                    // (XPerFieldDocValuesFormat must produce the same attributes as PerFieldDocValuesFormat for BWC.
+                    // Otherwise, doc values fields may disappear)
+                    for (var fieldInfo : leaf.getFieldInfos()) {
+                        assertThat(fieldInfo.attributes(), Matchers.aMapWithSize(2));
+                        assertThat(fieldInfo.attributes(), Matchers.hasEntry("PerFieldDocValuesFormat.suffix", "0"));
+                        assertThat(fieldInfo.attributes(), Matchers.hasEntry("PerFieldDocValuesFormat.format", "ES819TSDB"));
+                    }
+
                     var hostNameDV = leaf.getSortedDocValues(hostnameField);
                     assertNotNull(hostNameDV);
                     var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));

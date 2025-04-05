@@ -217,7 +217,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         for (int i = 0; i < config.leftFields().size(); i++) {
             Attribute leftField = config.leftFields().get(i);
             Attribute rightField = config.rightFields().get(i);
-            if (leftField.dataType().noText() != rightField.dataType().noText()) {
+            if (comparableTypes(leftField, rightField) == false) {
                 failures.add(
                     fail(
                         leftField,
@@ -235,5 +235,11 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
                 );
             }
         }
+    }
+
+    private static boolean comparableTypes(Attribute left, Attribute right) {
+        // TODO: Consider allowing more valid types
+        // return left.dataType().noText() == right.dataType().noText() || left.dataType().isNumeric() == right.dataType().isNumeric();
+        return left.dataType().noText() == right.dataType().noText();
     }
 }

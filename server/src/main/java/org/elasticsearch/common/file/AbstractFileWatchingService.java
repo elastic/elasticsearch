@@ -116,15 +116,13 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     private FileUpdateState readFileUpdateState(Path path) throws IOException {
-        BasicFileAttributes attr;
         try {
-            attr = filesReadAttributes(path, BasicFileAttributes.class);
+            BasicFileAttributes attr = filesReadAttributes(path, BasicFileAttributes.class);
+            return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
         } catch (NoSuchFileException e) {
             // file doesn't exist anymore
             return null;
         }
-
-        return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
     }
 
     // platform independent way to tell if a file changed

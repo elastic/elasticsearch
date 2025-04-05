@@ -23,7 +23,3 @@ GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRe
 tasks.named("test").configure {
   enabled = false
 }
-
-tasks.named('javaRestTest').configure {
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
-}

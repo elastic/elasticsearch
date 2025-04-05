@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.ml.job.retention;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -101,6 +104,21 @@ public class UnusedStatsRemover implements MlDataRemover {
         return modelIds;
     }
 
+    private static boolean hasNonReadOnlyBulkFailures(BulkByScrollResponse response) {
+        for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
+            if (failure.getMessage().contains(IndexMetadata.INDEX_WRITE_BLOCK.description())) {
+                LOGGER.debug(
+                    "Ignoring failure to delete orphan stats docs from read-only index [{}]: {}",
+                    failure.getIndex(),
+                    failure.getMessage()
+                );
+            } else {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void executeDeleteUnusedStatsDocs(QueryBuilder dbq, float requestsPerSec, ActionListener<Boolean> listener) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(MlStatsIndex.indexPattern()).setIndicesOptions(
             IndicesOptions.lenientExpandOpen()
@@ -108,7 +126,7 @@ public class UnusedStatsRemover implements MlDataRemover {
         deleteByQueryRequest.setParentTask(parentTaskId);
 
         client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
-            if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
+            if (hasNonReadOnlyBulkFailures(response) || response.getSearchFailures().isEmpty() == false) {
                 LOGGER.error(
                     "Some unused stats documents could not be deleted due to failures: {}",
                     Strings.collectionToCommaDelimitedString(response.getBulkFailures())

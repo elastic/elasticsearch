@@ -7,32 +7,38 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToIP}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ParseIp}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
-public final class ToIPFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final EvalOperator.ExpressionEvaluator asString;
+public final class ParseIpLeadingZerosAreOctalEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private final EvalOperator.ExpressionEvaluator string;
 
-  public ToIPFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator asString,
+  private final BreakingBytesRefBuilder scratch;
+
+  public ParseIpLeadingZerosAreOctalEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator string, BreakingBytesRefBuilder scratch,
       DriverContext driverContext) {
     super(driverContext, source);
-    this.asString = asString;
+    this.string = string;
+    this.scratch = scratch;
   }
 
   @Override
   public EvalOperator.ExpressionEvaluator next() {
-    return asString;
+    return string;
   }
 
   @Override
@@ -63,7 +69,7 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
 
   private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToIP.fromKeyword(value);
+    return ParseIp.leadingZerosAreOctal(value, this.scratch);
   }
 
   @Override
@@ -103,37 +109,41 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
 
   private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToIP.fromKeyword(value);
+    return ParseIp.leadingZerosAreOctal(value, this.scratch);
   }
 
   @Override
   public String toString() {
-    return "ToIPFromStringEvaluator[" + "asString=" + asString + "]";
+    return "ParseIpLeadingZerosAreOctalEvaluator[" + "string=" + string + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(asString);
+    Releasables.closeExpectNoException(string, scratch);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory asString;
+    private final EvalOperator.ExpressionEvaluator.Factory string;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory asString) {
+    private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory string,
+        Function<DriverContext, BreakingBytesRefBuilder> scratch) {
       this.source = source;
-      this.asString = asString;
+      this.string = string;
+      this.scratch = scratch;
     }
 
     @Override
-    public ToIPFromStringEvaluator get(DriverContext context) {
-      return new ToIPFromStringEvaluator(source, asString.get(context), context);
+    public ParseIpLeadingZerosAreOctalEvaluator get(DriverContext context) {
+      return new ParseIpLeadingZerosAreOctalEvaluator(source, string.get(context), scratch.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToIPFromStringEvaluator[" + "asString=" + asString + "]";
+      return "ParseIpLeadingZerosAreOctalEvaluator[" + "string=" + string + "]";
     }
   }
 }

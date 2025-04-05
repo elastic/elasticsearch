@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,15 +24,15 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIp.FROM_KEYWORD_LEADING_ZEROS_REJECTED;
 
 public class ToIP extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToIP", ToIP::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(IP, (source, field) -> field),
-        Map.entry(KEYWORD, ToIPFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new)
+        Map.entry(KEYWORD, FROM_KEYWORD_LEADING_ZEROS_REJECTED),
+        Map.entry(TEXT, FROM_KEYWORD_LEADING_ZEROS_REJECTED)
     );
 
     @FunctionInfo(
@@ -89,10 +87,5 @@ public class ToIP extends AbstractConvertFunction {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, ToIP::new, field());
-    }
-
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromKeyword(BytesRef asString) {
-        return stringToIP(asString);
     }
 }

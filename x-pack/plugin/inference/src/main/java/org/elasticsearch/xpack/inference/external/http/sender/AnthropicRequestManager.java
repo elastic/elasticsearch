@@ -16,7 +16,14 @@ import java.util.Objects;
 abstract class AnthropicRequestManager extends BaseRequestManager {
 
     protected AnthropicRequestManager(ThreadPool threadPool, AnthropicModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            AnthropicRequestManager.RateLimitGrouping.of(model),
+            model.rateLimitServiceSettings().rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
     }
 
     record RateLimitGrouping(int accountHash, int modelIdHash) {

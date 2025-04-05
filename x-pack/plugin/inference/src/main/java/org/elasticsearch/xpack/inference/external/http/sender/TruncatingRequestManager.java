@@ -39,7 +39,12 @@ public class TruncatingRequestManager extends BaseRequestManager {
         Function<Truncator.TruncationResult, Request> requestCreator,
         @Nullable Integer maxInputTokens
     ) {
-        super(threadPool, rateLimitGroupingModel);
+        super(
+            threadPool,
+            rateLimitGroupingModel,
+            rateLimitGroupingModel.getConfigurations().getService(),
+            rateLimitGroupingModel.getConfigurations().getTaskType()
+        );
         this.responseHandler = Objects.requireNonNull(responseHandler);
         this.requestCreator = Objects.requireNonNull(requestCreator);
         this.maxInputTokens = maxInputTokens;

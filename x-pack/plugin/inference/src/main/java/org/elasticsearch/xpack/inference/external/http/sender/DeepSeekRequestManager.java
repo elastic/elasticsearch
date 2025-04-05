@@ -35,8 +35,23 @@ public class DeepSeekRequestManager extends BaseRequestManager {
     private final DeepSeekChatCompletionModel model;
 
     public DeepSeekRequestManager(DeepSeekChatCompletionModel model, ThreadPool threadPool) {
-        super(threadPool, model.getInferenceEntityId(), model.rateLimitGroup(), model.rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            DeepSeekRequestManager.RateLimitGrouping.of(model),
+            model.rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
         this.model = Objects.requireNonNull(model);
+    }
+
+    record RateLimitGrouping(int apiKeyHash) {
+        public static DeepSeekRequestManager.RateLimitGrouping of(DeepSeekChatCompletionModel model) {
+            Objects.requireNonNull(model);
+
+            return new DeepSeekRequestManager.RateLimitGrouping(model.apiKey().hashCode());
+        }
     }
 
     @Override

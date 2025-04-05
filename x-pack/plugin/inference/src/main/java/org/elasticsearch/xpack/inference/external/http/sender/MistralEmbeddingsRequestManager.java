@@ -44,7 +44,14 @@ public class MistralEmbeddingsRequestManager extends BaseRequestManager {
     }
 
     public MistralEmbeddingsRequestManager(MistralEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitSettings());
+        super(
+            threadPool,
+            model.getInferenceEntityId(),
+            RateLimitGrouping.of(model),
+            model.rateLimitSettings(),
+            model.getConfigurations().getService(),
+            model.getConfigurations().getTaskType()
+        );
         this.model = Objects.requireNonNull(model);
         this.truncator = Objects.requireNonNull(truncator);
 

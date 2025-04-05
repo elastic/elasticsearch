@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 
@@ -22,7 +23,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator.DEFAULT_MAX_NODES_PER_GROUPING;
-import static org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator.SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -85,17 +85,16 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var calculator = getCalculatorInstance(internalCluster(), nodeLeftInCluster);
         waitForRateLimitingAssignments(calculator);
 
-        Set<String> supportedServices = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet();
+        Set<String> supportedServices = calculator.serviceNodeLocalRateLimitConfigs().keySet();
 
         // Check assignments for each supported service
         for (var service : supportedServices) {
-            var assignment = calculator.getRateLimitAssignment(service, TaskType.SPARSE_EMBEDDING);
-
-            assertNotNull(assignment);
-            // Should have exactly one responsible node
-            assertEquals(1, assignment.responsibleNodes().size());
-            // That node should be our remaining node
-            assertEquals(nodeLeftInCluster, assignment.responsibleNodes().get(0).getName());
+            for (var taskType : calculator.serviceNodeLocalRateLimitConfigs().get(service).keySet()) {
+                var assignment = calculator.getRateLimitAssignment(service, taskType);
+                assertNotNull(assignment);
+                assertThat(1, equalTo(assignment.responsibleNodes().size()));
+                assertEquals(nodeLeftInCluster, assignment.responsibleNodes().get(0).getName());
+            }
         }
     }
 
@@ -108,13 +107,15 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var calculator = getCalculatorInstance(internalCluster(), nodeNames.getFirst());
         waitForRateLimitingAssignments(calculator);
 
-        Set<String> supportedServices = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet();
+        Set<String> supportedServices = calculator.serviceNodeLocalRateLimitConfigs().keySet();
 
         for (var service : supportedServices) {
-            var assignment = calculator.getRateLimitAssignment(service, TaskType.SPARSE_EMBEDDING);
+            for (var taskType : calculator.serviceNodeLocalRateLimitConfigs().get(service).keySet()) {
+                var assignment = calculator.getRateLimitAssignment(service, taskType);
 
-            assertNotNull(assignment);
-            assertThat(DEFAULT_MAX_NODES_PER_GROUPING, equalTo(assignment.responsibleNodes().size()));
+                assertNotNull(assignment);
+                assertThat(DEFAULT_MAX_NODES_PER_GROUPING, equalTo(assignment.responsibleNodes().size()));
+            }
         }
     }
 
@@ -127,21 +128,21 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var calculator = getCalculatorInstance(internalCluster(), nodeNames.getFirst());
         waitForRateLimitingAssignments(calculator);
 
-        Set<String> supportedServices = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet();
+        Set<String> supportedServices = calculator.serviceNodeLocalRateLimitConfigs().keySet();
 
         for (var serviceName : supportedServices) {
             try (var serviceRegistry = calculator.serviceRegistry()) {
                 var serviceOptional = serviceRegistry.getService(serviceName);
                 assertTrue(serviceOptional.isPresent());
                 var service = serviceOptional.get();
-
                 if ((service instanceof SenderService senderService)) {
                     var sender = senderService.getSender();
-                    if (sender instanceof HttpRequestSender) {
-                        var assignment = calculator.getRateLimitAssignment(service.name(), TaskType.SPARSE_EMBEDDING);
-
-                        assertNotNull(assignment);
-                        assertThat(DEFAULT_MAX_NODES_PER_GROUPING, equalTo(assignment.responsibleNodes().size()));
+                    for (var taskType : calculator.serviceNodeLocalRateLimitConfigs().get(serviceName).keySet()) {
+                        if (sender instanceof HttpRequestSender) {
+                            var assignment = calculator.getRateLimitAssignment(service.name(), taskType);
+                            assertNotNull(assignment);
+                            assertThat(DEFAULT_MAX_NODES_PER_GROUPING, equalTo(assignment.responsibleNodes().size()));
+                        }
                     }
                 }
             }
@@ -158,25 +159,32 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var calculator = getCalculatorInstance(internalCluster(), nodeNames.getFirst());
         waitForRateLimitingAssignments(calculator);
 
-        for (var serviceName : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet()) {
-            var configs = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName);
-            for (var config : configs) {
+        var serviceNodeLocalRateLimitConfigs = calculator.serviceNodeLocalRateLimitConfigs();
+
+        // check initial node assignments
+        for (var serviceName : serviceNodeLocalRateLimitConfigs.keySet()) {
+            var configs = serviceNodeLocalRateLimitConfigs.get(serviceName);
+            for (var taskType : configs.keySet()) {
                 // Get initial assignments and rate limits
-                var initialAssignment = calculator.getRateLimitAssignment(serviceName, config.taskType());
+                var initialAssignment = calculator.getRateLimitAssignment(serviceName, taskType);
                 assertEquals(2, initialAssignment.responsibleNodes().size());
+            }
+        }
 
-                // Add a new node
-                internalCluster().startNode();
-                ensureStableCluster(initialNodes + 1);
-                waitForRateLimitingAssignments(calculator);
+        // Add a node to update node assignments
+        internalCluster().startNode();
+        ensureStableCluster(initialNodes + 1);
+        waitForRateLimitingAssignments(calculator);
 
-                // Get updated assignments
-                var updatedAssignment = calculator.getRateLimitAssignment(serviceName, config.taskType());
-
-                // Verify number of responsible nodes increased
+        // check updated node assignments
+        for (var serviceName : serviceNodeLocalRateLimitConfigs.keySet()) {
+            var configs = serviceNodeLocalRateLimitConfigs.get(serviceName);
+            for (var taskType : configs.keySet()) {
+                var updatedAssignment = calculator.getRateLimitAssignment(serviceName, taskType);
                 assertEquals(3, updatedAssignment.responsibleNodes().size());
             }
         }
+
     }
 
     public void testRateLimits_Increase_OnNodeLeave() throws Exception {
@@ -188,23 +196,28 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var calculator = getCalculatorInstance(internalCluster(), nodeNames.getFirst());
         waitForRateLimitingAssignments(calculator);
 
-        for (var serviceName : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet()) {
-            var configs = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName);
-            for (var config : configs) {
-                // Get initial assignments and rate limits
-                var initialAssignment = calculator.getRateLimitAssignment(serviceName, config.taskType());
+        var serviceNodeLocalRateLimitConfigs = calculator.serviceNodeLocalRateLimitConfigs();
+
+        // check initial node assignments
+        for (var serviceName : serviceNodeLocalRateLimitConfigs.keySet()) {
+            var configs = serviceNodeLocalRateLimitConfigs.get(serviceName);
+            for (var taskType : configs.keySet()) {
+                var initialAssignment = calculator.getRateLimitAssignment(serviceName, taskType);
                 assertThat(DEFAULT_MAX_NODES_PER_GROUPING, equalTo(initialAssignment.responsibleNodes().size()));
+            }
+        }
 
-                // Remove a node
-                var nodeToRemove = nodeNames.get(numNodes - 1);
-                internalCluster().stopNode(nodeToRemove);
-                ensureStableCluster(numNodes - 1);
-                waitForRateLimitingAssignments(calculator);
+        // remove a node to update node assignments
+        var nodeToRemove = nodeNames.get(numNodes - 1);
+        internalCluster().stopNode(nodeToRemove);
+        ensureStableCluster(numNodes - 1);
+        waitForRateLimitingAssignments(calculator);
 
-                // Get updated assignments
-                var updatedAssignment = calculator.getRateLimitAssignment(serviceName, config.taskType());
-
-                // Verify number of responsible nodes decreased
+        // check updated node assignments
+        for (var serviceName : serviceNodeLocalRateLimitConfigs.keySet()) {
+            var configs = serviceNodeLocalRateLimitConfigs.get(serviceName);
+            for (var taskType : configs.keySet()) {
+                var updatedAssignment = calculator.getRateLimitAssignment(serviceName, taskType);
                 assertThat(2, equalTo(updatedAssignment.responsibleNodes().size()));
             }
         }
@@ -238,7 +251,10 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
 
     private void waitForRateLimitingAssignments(InferenceServiceNodeLocalRateLimitCalculator calculator) throws Exception {
         assertBusy(() -> {
-            var assignment = calculator.getRateLimitAssignment(ElasticInferenceService.NAME, TaskType.SPARSE_EMBEDDING);
+            var assignment = calculator.getRateLimitAssignment(
+                TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+                TaskType.SPARSE_EMBEDDING
+            );
             assertNotNull(assignment);
             assertFalse(assignment.responsibleNodes().isEmpty());
         }, RATE_LIMIT_ASSIGNMENT_MAX_WAIT_TIME_IN_SECONDS, TimeUnit.SECONDS);

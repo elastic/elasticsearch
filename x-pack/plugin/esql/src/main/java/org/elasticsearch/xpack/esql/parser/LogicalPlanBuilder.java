@@ -362,7 +362,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
-        if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG.isEnabled()) {
+        if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG) {
             throw new ParsingException(source(ctx), "INLINESTATS command currently requires a snapshot build");
         }
         List<Alias> aggFields = visitAggFields(ctx.stats);

@@ -173,6 +173,12 @@ final class S3ClientSettings {
         key -> Setting.simpleString(key, Property.NodeScope)
     );
 
+    static final Setting.AffixSetting<TimeValue> CONNECTION_MAX_IDLE_TIME_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "connection_max_idle_time",
+        key -> Setting.timeSetting(key, Defaults.CONNECTION_MAX_IDLE_TIME, Property.NodeScope)
+    );
+
     /** Credentials to authenticate with s3. */
     final S3BasicCredentials credentials;
 
@@ -223,6 +229,11 @@ final class S3ClientSettings {
     /** Signer override to use or empty string to use default. */
     final String signerOverride;
 
+    /**
+     * The maximum idle time (in millis) of a connection before it is discarded from the connection pool.
+     */
+    final long connectionMaxIdleTimeMillis;
+
     private S3ClientSettings(
         S3BasicCredentials credentials,
         String endpoint,
@@ -239,7 +250,8 @@ final class S3ClientSettings {
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
         String region,
-        String signerOverride
+        String signerOverride,
+        long connectionMaxIdleTimeMillis
     ) {
         this.credentials = credentials;
         this.endpoint = endpoint;
@@ -257,6 +269,7 @@ final class S3ClientSettings {
         this.disableChunkedEncoding = disableChunkedEncoding;
         this.region = region;
         this.signerOverride = signerOverride;
+        this.connectionMaxIdleTimeMillis = connectionMaxIdleTimeMillis;
     }
 
     /**
@@ -297,6 +310,11 @@ final class S3ClientSettings {
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
         final String newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
+        final long newConnectionMaxIdleTimeMillis = getRepoSettingOrDefault(
+            CONNECTION_MAX_IDLE_TIME_SETTING,
+            normalizedSettings,
+            TimeValue.timeValueMillis(connectionMaxIdleTimeMillis)
+        ).millis();
         if (Objects.equals(endpoint, newEndpoint)
             && protocol == newProtocol
             && Objects.equals(proxyHost, newProxyHost)
@@ -310,7 +328,8 @@ final class S3ClientSettings {
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
             && Objects.equals(region, newRegion)
-            && Objects.equals(signerOverride, newSignerOverride)) {
+            && Objects.equals(signerOverride, newSignerOverride)
+            && Objects.equals(connectionMaxIdleTimeMillis, newConnectionMaxIdleTimeMillis)) {
             return this;
         }
         return new S3ClientSettings(
@@ -329,7 +348,8 @@ final class S3ClientSettings {
             newPathStyleAccess,
             newDisableChunkedEncoding,
             newRegion,
-            newSignerOverride
+            newSignerOverride,
+            newConnectionMaxIdleTimeMillis
         );
     }
 
@@ -438,7 +458,8 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
                 getConfigValue(settings, clientName, REGION),
-                getConfigValue(settings, clientName, SIGNER_OVERRIDE)
+                getConfigValue(settings, clientName, SIGNER_OVERRIDE),
+                getConfigValue(settings, clientName, CONNECTION_MAX_IDLE_TIME_SETTING).millis()
             );
         }
     }
@@ -466,7 +487,8 @@ final class S3ClientSettings {
             && Objects.equals(proxyPassword, that.proxyPassword)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
             && Objects.equals(region, that.region)
-            && Objects.equals(signerOverride, that.signerOverride);
+            && Objects.equals(signerOverride, that.signerOverride)
+            && Objects.equals(connectionMaxIdleTimeMillis, that.connectionMaxIdleTimeMillis);
     }
 
     @Override
@@ -486,7 +508,8 @@ final class S3ClientSettings {
             throttleRetries,
             disableChunkedEncoding,
             region,
-            signerOverride
+            signerOverride,
+            connectionMaxIdleTimeMillis
         );
     }
 
@@ -507,5 +530,6 @@ final class S3ClientSettings {
         static final int MAX_CONNECTIONS = ClientConfiguration.DEFAULT_MAX_CONNECTIONS;
         static final int RETRY_COUNT = ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry();
         static final boolean THROTTLE_RETRIES = ClientConfiguration.DEFAULT_THROTTLE_RETRIES;
+        static final TimeValue CONNECTION_MAX_IDLE_TIME = TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_CONNECTION_MAX_IDLE_MILLIS);
     }
 }

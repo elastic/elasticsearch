@@ -1,0 +1,5 @@
+pr: 125552
+summary: Expose S3 connection max idle time as a setting
+area: Snapshot/Restore
+type: enhancement
+issues: []

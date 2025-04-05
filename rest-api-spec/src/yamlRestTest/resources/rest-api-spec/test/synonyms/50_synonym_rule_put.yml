@@ -14,12 +14,6 @@ setup:
             - synonyms: "test => check"
               id: "test-id-3"
 
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
 ---
 "Update a synonyms rule":
   - do:
@@ -85,3 +79,78 @@ setup:
         rule_id: "test-id-0"
         body:
           synonyms: "i-phone, iphone"
+
+---
+"Timeout can be specified":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{set_id}/{rule_id}
+          capabilities: [ put_synonyms_timeout ]
+      reason: "synonyms timeout capability needed"
+
+  - do:
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        timeout: 10s
+        body:
+          synonyms: "i-phone, iphone"
+
+  - match: { result: "created" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
+
+  # Validates timeout values
+  - do:
+      catch: /as a time value:\ negative durations are not supported/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        timeout: -100s
+        body:
+          synonyms_set:
+            - synonyms: "bye, goodbye"
+
+---
+"Validation failure tests":
+  - do:
+      catch: /\[synonyms\] field can't be empty/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        body:
+          synonyms: ""
+
+  - do:
+      catch: /More than one explicit mapping specified in the same synonyms rule/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        body:
+          synonyms: "bye => => goodbye"
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        body:
+          synonyms: " => goodbye"
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        body:
+          synonyms: "bye => "
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
+        body:
+          synonyms: "bye, goodbye,  "

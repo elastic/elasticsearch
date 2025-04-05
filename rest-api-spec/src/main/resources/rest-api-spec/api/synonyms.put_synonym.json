@@ -30,6 +30,12 @@
         }
       ]
     },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Explicit timeout for the operation to complete"
+      }
+    },
     "body": {
       "description": "Synonyms set rules",
       "required": true

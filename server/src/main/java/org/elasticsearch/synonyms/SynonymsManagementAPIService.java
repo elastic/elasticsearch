@@ -19,6 +19,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
@@ -36,12 +39,14 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -72,7 +77,7 @@ public class SynonymsManagementAPIService {
 
     private static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
     private static final int SYNONYMS_INDEX_FORMAT = 2;
-    private static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
+    static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
     private static final String SYNONYMS_ALIAS_NAME = ".synonyms";
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
     // Stores the synonym set the rule belongs to
@@ -301,7 +306,12 @@ public class SynonymsManagementAPIService {
         });
     }
 
-    public void putSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, ActionListener<SynonymsReloadResult> listener) {
+    public void putSynonymsSet(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        TimeValue timeout,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
         if (synonymsSet.length > maxSynonymsSets) {
             listener.onFailure(
                 new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + maxSynonymsSets)
@@ -343,7 +353,13 @@ public class SynonymsManagementAPIService {
                         ? UpdateSynonymsResultStatus.CREATED
                         : UpdateSynonymsResultStatus.UPDATED;
 
-                    reloadAnalyzers(synonymSetId, false, bulkInsertResponseListener, updateSynonymsResultStatus);
+                    ensureSynonymsSearchableAndReloadAnalyzers(
+                        synonymSetId,
+                        false,
+                        bulkInsertResponseListener,
+                        updateSynonymsResultStatus,
+                        timeout
+                    );
                 })
             );
         }));
@@ -366,7 +382,12 @@ public class SynonymsManagementAPIService {
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(listener);
     }
 
-    public void putSynonymRule(String synonymsSetId, SynonymRule synonymRule, ActionListener<SynonymsReloadResult> listener) {
+    public void putSynonymRule(
+        String synonymsSetId,
+        SynonymRule synonymRule,
+        TimeValue timeout,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
         checkSynonymSetExists(synonymsSetId, listener.delegateFailureAndWrap((l1, obj) -> {
             // Count synonym rules to check if we're at maximum
             BoolQueryBuilder queryFilter = QueryBuilders.boolQuery()
@@ -388,14 +409,18 @@ public class SynonymsManagementAPIService {
                             new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + maxSynonymsSets)
                         );
                     } else {
-                        indexSynonymRule(synonymsSetId, synonymRule, searchListener);
+                        indexSynonymRule(synonymsSetId, synonymRule, timeout, searchListener);
                     }
                 }));
         }));
     }
 
-    private void indexSynonymRule(String synonymsSetId, SynonymRule synonymRule, ActionListener<SynonymsReloadResult> listener)
-        throws IOException {
+    private void indexSynonymRule(
+        String synonymsSetId,
+        SynonymRule synonymRule,
+        TimeValue timeout,
+        ActionListener<SynonymsReloadResult> listener
+    ) throws IOException {
         IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymsSetId, synonymRule).setRefreshPolicy(
             WriteRequest.RefreshPolicy.IMMEDIATE
         );
@@ -404,7 +429,7 @@ public class SynonymsManagementAPIService {
                 ? UpdateSynonymsResultStatus.CREATED
                 : UpdateSynonymsResultStatus.UPDATED;
 
-            reloadAnalyzers(synonymsSetId, false, l2, updateStatus);
+            ensureSynonymsSearchableAndReloadAnalyzers(synonymsSetId, false, l2, updateStatus, timeout);
         }));
     }
 
@@ -541,12 +566,51 @@ public class SynonymsManagementAPIService {
         }), null);
     }
 
+    private <T> void ensureSynonymsSearchableAndReloadAnalyzers(
+        String synonymSetId,
+        boolean preview,
+        ActionListener<SynonymsReloadResult> listener,
+        UpdateSynonymsResultStatus synonymsOperationResult,
+        TimeValue timeout
+    ) {
+        // Ensure synonyms index is searchable if timeout is present
+        if (TimeValue.MINUS_ONE.equals(timeout) == false) {
+            checkSynonymsIndexHealth(timeout, listener.delegateFailure((l, response) -> {
+                if (response.isTimedOut()) {
+                    l.onFailure(
+                        new IndexCreationException(
+                            "synonyms index ["
+                                + SYNONYMS_ALIAS_NAME
+                                + "] is not searchable. "
+                                + response.getActiveShardsPercent()
+                                + "% shards are active",
+                            null
+                        )
+                    );
+                    return;
+                }
+
+                reloadAnalyzers(synonymSetId, preview, l, synonymsOperationResult);
+            }));
+        } else {
+            reloadAnalyzers(synonymSetId, preview, listener, synonymsOperationResult);
+        }
+    }
+
+    // Allows checking failures in tests
+    void checkSynonymsIndexHealth(TimeValue timeout, ActionListener<ClusterHealthResponse> listener) {
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(timeout, SYNONYMS_ALIAS_NAME).waitForGreenStatus();
+
+        client.execute(TransportClusterHealthAction.TYPE, healthRequest, listener);
+    }
+
     private <T> void reloadAnalyzers(
         String synonymSetId,
         boolean preview,
         ActionListener<SynonymsReloadResult> listener,
         UpdateSynonymsResultStatus synonymsOperationResult
     ) {
+
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
         ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
         client.execute(
@@ -562,7 +626,7 @@ public class SynonymsManagementAPIService {
         return synonymsSetId + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
     }
 
-    static Settings settings() {
+    private static Settings settings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")

@@ -16,11 +16,6 @@ setup:
   - match: { result: "created" }
 
   - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
-  - do:
       synonyms.get_synonym:
         id: test-update-synonyms
 
@@ -64,16 +59,46 @@ setup:
   - match: { result: "created" }
 
   - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
-  - do:
       synonyms.get_synonym:
         id: test-empty-synonyms
 
   - match: { count: 0 }
   - match: { synonyms_set: [] }
+
+---
+"Timeout can be specified":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{rule_id}
+          capabilities: [ put_synonyms_timeout ]
+      reason: "synonyms timeout capability needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-update-synonyms
+        timeout: 10s
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+            - synonyms: "bye => goodbye"
+              id: "test-id"
+
+  - match: { result: "created" }
+  - match: { reload_analyzers_details._shards.total: 0 }
+  - length: { reload_analyzers_details.reload_details: 0 }
+
+  # Validate timeout values
+  - do:
+      catch: /as a time value:\ negative durations are not supported/
+      synonyms.put_synonym:
+        id: test-update-synonyms
+        timeout: -100s
+        body:
+          synonyms_set:
+            - synonyms: "bye, goodbye"
 
 ---
 "Validation fails tests":
@@ -116,3 +141,4 @@ setup:
         body:
           synonyms_set:
             - synonyms: "bye, goodbye,  "
+

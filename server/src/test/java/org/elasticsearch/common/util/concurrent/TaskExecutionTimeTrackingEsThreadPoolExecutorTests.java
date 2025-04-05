@@ -9,11 +9,19 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -21,6 +29,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests for the automatic queue resizing of the {@code QueueResizingEsThreadPoolExecutorTests}
@@ -145,6 +154,69 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L));
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
+    }
+
+    public void testQueueLatencyMetrics() {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final var threadPoolName = randomIdentifier();
+        var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            threadPoolName,
+            1,
+            1,
+            1000,
+            TimeUnit.MILLISECONDS,
+            ConcurrentCollections.newBlockingQueue(),
+            TimedRunnable::new,
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            new ThreadContext(Settings.EMPTY),
+            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA)
+        );
+        executor.setupMetrics(meterRegistry, threadPoolName);
+
+        try {
+            final var barrier = new CyclicBarrier(2);
+            final ExponentialBucketHistogram expectedHistogram = new ExponentialBucketHistogram();
+            Future<?> runningTask = executor.submit(() -> {
+                safeAwait(barrier);
+                safeAwait(barrier);
+            });
+            safeAwait(barrier); // wait till first task starts
+            expectedHistogram.addObservation(0L); // first task should not be delayed
+            for (int i = 0; i < 10; i++) {
+                Future<?> waitingTask = executor.submit(() -> {
+                    safeAwait(barrier);
+                    safeAwait(barrier);
+                });
+                final long delayTimeMs = randomLongBetween(1, 50);
+                safeSleep(delayTimeMs);
+                safeAwait(barrier); // let running task complete
+                safeAwait(barrier); // wait for next task to start
+                safeGet(runningTask); // ensure previous task is complete
+                expectedHistogram.addObservation(delayTimeMs);
+                runningTask = waitingTask;
+            }
+            safeAwait(barrier); // let last task finish
+            safeGet(runningTask);
+            meterRegistry.getRecorder().collect();
+
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.LONG_GAUGE,
+                    ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName
+                        + TaskExecutionTimeTrackingEsThreadPoolExecutor.THREAD_POOL_METRIC_NAME_QUEUE_TIME
+                );
+            assertThat(measurements, hasSize(2));
+            // we have to use greater than or equal to because the actual delay might be higher than what we imposed
+            assertThat(getPercentile(measurements, "90"), greaterThanOrEqualTo(expectedHistogram.getPercentile(0.9f)));
+            assertThat(getPercentile(measurements, "50"), greaterThanOrEqualTo(expectedHistogram.getPercentile(0.5f)));
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    private long getPercentile(List<Measurement> measurements, String percentile) {
+        return measurements.stream().filter(m -> m.attributes().get("percentile").equals(percentile)).findFirst().orElseThrow().getLong();
     }
 
     /**

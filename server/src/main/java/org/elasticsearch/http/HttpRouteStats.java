@@ -12,7 +12,7 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -36,7 +36,7 @@ import java.util.stream.IntStream;
  * @param totalResponseSize     the total body size (bytes) of responses produced by the HTTP route
  * @param responseSizeHistogram similar to {@code requestSizeHistogram} but for response size
  * @param responseTimeHistogram an array of frequencies of response time (millis) in buckets with upper bounds
- *                              as returned by {@link HandlingTimeTracker#getBucketUpperBounds()}, plus
+ *                              as returned by {@link ExponentialBucketHistogram#getBucketUpperBounds()}, plus
  *                              an extra bucket for handling response time larger than the longest upper bound (currently 65536ms).
  */
 public record HttpRouteStats(
@@ -89,7 +89,7 @@ public record HttpRouteStats(
             "millis",
             TimeValue::timeValueMillis,
             responseTimeHistogram,
-            HandlingTimeTracker.getBucketUpperBounds()
+            ExponentialBucketHistogram.getBucketUpperBounds()
         );
         builder.endObject();
 

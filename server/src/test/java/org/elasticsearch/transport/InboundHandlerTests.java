@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -80,7 +80,7 @@ public class InboundHandlerTests extends ESTestCase {
             new StatsTracker(),
             threadPool,
             new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE),
-            new HandlingTimeTracker(),
+            new ExponentialBucketHistogram(),
             false
         );
         requestHandlers = new Transport.RequestHandlers();
@@ -93,7 +93,7 @@ public class InboundHandlerTests extends ESTestCase {
             keepAlive,
             requestHandlers,
             responseHandlers,
-            new HandlingTimeTracker(),
+            new ExponentialBucketHistogram(),
             ignoreDeserializationErrors
         );
     }

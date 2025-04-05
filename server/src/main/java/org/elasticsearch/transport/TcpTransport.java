@@ -27,8 +27,8 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -128,7 +128,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
-    private final HandlingTimeTracker outboundHandlingTimeTracker = new HandlingTimeTracker();
+    private final ExponentialBucketHistogram outboundHandlingTimeTracker = new ExponentialBucketHistogram();
     private final OutboundHandler outboundHandler;
     private final InboundHandler inboundHandler;
     private final ResponseHandlers responseHandlers = new ResponseHandlers();

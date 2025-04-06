@@ -47,10 +47,12 @@ Late-interaction models are powerful rerankers. While their size and overall cos
 === LOOKUP JOIN is now available in technical preview
 
 <<esql-lookup-join,LOOKUP JOIN>> is now available in technical preview.
+LOOKUP JOIN combines data from your {esql} queries with matching records from a lookup index, enabling you to:
 
-- Enable the lexing/grammar for LOOKUP JOIN in non-snapshot builds.
-- Remove the grammar for the unsupported `| JOIN ...` command (without `LOOKUP` as first keyword). The way the lexer modes work, otherwise we'd also have to enable `| JOIN ...` syntax on non-snapshot builds and would have to add additional validation to provide appropriate error messages.
-- Remove grammar for `LOOKUP JOIN index AS ...` because qualifiers are not yet supported. Otherwise we'd have to put in additional validation as well to prevent such queries.
+* Enrich your search results with reference data
+* Speed up root-cause analysis and security investigations 
+* Join data across indices without complex queries
+* Reduce operational overhead when correlating events
 
 [discrete]
 [[release_semantic_text_as_ga_feature]]

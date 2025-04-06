@@ -411,6 +411,39 @@ tests:
 - class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
   method: testSearchableSnapshotTotalShardsPerNode
   issue: https://github.com/elastic/elasticsearch/issues/126354
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker add the _score column when missing ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126360
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker before a limit ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126361
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker using another sort order ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126362
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker using another sort order SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126363
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker add the _score column when missing SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126367
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/42_knn_search_bbq_flat/Vector rescoring has same scoring as exact search for kNN section}
+  issue: https://github.com/elastic/elasticsearch/issues/126368
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker using a single field ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126369
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker using a single field SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126370
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker using multiple fields ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/126371
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable cardinality is too low}
+  issue: https://github.com/elastic/elasticsearch/issues/123200
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test022InstallPluginsFromLocalArchive
+  issue: https://github.com/elastic/elasticsearch/issues/116866
 
 # Examples:
 #

@@ -31,12 +31,6 @@ public class PatternedTextValueProcessor {
         "^(\\d{4})[-/](\\d{2})[-/](\\d{2})[T ](\\d{2}):(\\d{2}):(\\d{2})(\\.(\\d{3})Z?)?[ ]?([\\+\\-]\\d{2}([:]?\\d{2})?)?$"
     );
 
-    public static final Pattern IPv4_PATTERN = Pattern.compile(
-        "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-    );
-
-    private static final Pattern UUID_PATTERN = Pattern.compile("^[0-9A-Fa-f]{8}-(?:[0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}$");
-
     record Parts(String template, Long timestamp, List<String> args, String indexed) {
         String templateStripped() {
             List<String> stripped = new ArrayList<>();
@@ -140,68 +134,43 @@ public class PatternedTextValueProcessor {
         return timestampPattern.matcher(text).matches();
     }
 
-    private static boolean isIpv4(String text, byte[] bytes) {
-        boolean isIPv4 = isIpv4_manual(text);
-        if (isIPv4 == false) {
-            return false;
-        }
-        // redundant duplicated split, only done to be able to measure isIpv4_manual() performance in isolation
-        String[] tokens = text.split("\\.");
-        for (int i = 0; i < 4; i++) {
-            bytes[i] = (byte) Integer.parseInt(tokens[i]);
-        }
-        return true;
-    }
-
-    public static boolean isIpv4_manual(String text) {
-        String[] tokens = text.split("\\.");
-        if (tokens.length != 4) {
-            return false;
-        }
-        for (String token : tokens) {
-            if (token.isEmpty() || token.length() > 3) {
-                return false;
-            }
-            for (char c : token.toCharArray()) {
-                if (Character.isDigit(c) == false) {
-                    return false;
-                }
-            }
-        }
-        // todo: this still doesn't check that each octet is between 0 and 255
-        // validation may be more important for IPs, as we can potentially assign it to an IP field type
-        return true;
-    }
-
-    public static boolean isIpv4_manual_iterative(String text) {
+    /**
+     * Checks if the given text is a valid IPv4 address and fills the provided byte array with the corresponding bytes.
+     * If the text is not a valid IPv4 address, it returns false and the byte array's content is not undefined and should not be used.
+     * @param text the text to check
+     * @param bytes the byte array to fill with the parsed UUID bytes
+     * @return true if the text is a valid IPv4 address, false otherwise
+     */
+    public static boolean isIpv4(String text, byte[] bytes) {
         if (text.length() < 7 || text.length() > 15) {
             return false;
         }
-        int numOctets = 1;
-        int octet = 0;
+        int octetIndex = 0;
+        int octetValue = 0;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             if (c == '.') {
-                numOctets++;
-                if (numOctets > 4) {
+                if (octetIndex == 3) {
                     return false;
                 }
-                octet = 0;
+                bytes[octetIndex] = (byte) octetValue;
+                octetValue = 0;
+                octetIndex++;
             } else if ('0' <= c && c <= '9') {
                 // Character.isDigit(c) is invalid for IPs and inconsistent with the calculation of the numeric value of the character
-                octet = octet * 10 + c - '0';
-                if (octet > 255) {
+                octetValue = octetValue * 10 + c - '0';
+                if (octetValue > 255) {
                     return false;
                 }
             } else {
                 return false;
             }
         }
-        return numOctets == 4;
-    }
-
-    public static boolean isIpv4_regex(String text) {
-        return IPv4_PATTERN.matcher(text).matches();
+        if (octetIndex != 3) {
+            return false;
+        }
+        bytes[octetIndex] = (byte) octetValue;
+        return true;
     }
 
     private static String toIPv4(byte[] bytes) {
@@ -215,42 +184,21 @@ public class PatternedTextValueProcessor {
             + Byte.toUnsignedInt(bytes[3]);
     }
 
-    private static boolean isUUID(String text, byte[] bytes) {
+    static boolean isUUID(String text, byte[] bytes) {
         assert bytes.length == 16 : bytes.length;
-        if (isUUID_manual(text)) {
-            UUID uuid = UUID.fromString(text);
+        if (text.length() == 36 && text.charAt(8) == '-' && text.charAt(13) == '-' && text.charAt(18) == '-' && text.charAt(23) == '-') {
+            UUID uuid;
+            try {
+                uuid = UUID.fromString(text);
+            } catch (IllegalArgumentException e) {
+                // false positive in the enclosing if statement - should be very rare. Just ignore it.
+                return false;
+            }
             ByteUtils.writeLongLE(uuid.getMostSignificantBits(), bytes, 0);
             ByteUtils.writeLongLE(uuid.getLeastSignificantBits(), bytes, 8);
             return true;
         }
         return false;
-    }
-
-    public static boolean isUUID_manual(String text) {
-        // this does not verify that the input contains only hexadecimal characters, but it is extremely cheap and the effect of
-        // false positives is negligible, so it should be good enough
-        return text.length() == 36 && text.charAt(8) == '-' && text.charAt(13) == '-' && text.charAt(18) == '-' && text.charAt(23) == '-';
-    }
-
-    public static boolean isUUID_manual_withValidation(String text) {
-        if (text.length() != 36) {
-            return false;
-        }
-        for (int i = 0; i < 36; i++) {
-            char c = text.charAt(i);
-            if (i == 8 || i == 13 || i == 18 || i == 23) {
-                if (c != '-') {
-                    return false;
-                }
-            } else if (Character.digit(c, 16) == -1) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public static boolean isUUID_regex(String text) {
-        return UUID_PATTERN.matcher(text).matches();
     }
 
     private static String toUUID(byte[] bytes) {

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.index.mapper;
 
-import org.elasticsearch.xpack.patternedtext.PatternedTextValueProcessor;
+//import org.elasticsearch.xpack.patternedtext.PatternedTextValueProcessor;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -31,45 +31,10 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 3)
 @State(Scope.Benchmark)
 public class PatternedTextMapperOperationsBenchmark {
-    @Param(
-        {
-            "550e8400-e29b-41d4-a716-446655440000", // valid UUID
-            "not-a-uuid", // early identifiable invalid UUID
-            "123e4567-e89b-12d3-a456-4266141740000" // late identifiable invalid UUID
-        }
-    )
-    public String uuid;
-
-    @Benchmark
-    public void testUuidMatchManual(Blackhole blackhole) {
-        blackhole.consume(PatternedTextValueProcessor.isUUID_manual(uuid));
-    }
-
-    @Benchmark
-    public void testUuidMatchManualWithValidation(Blackhole blackhole) {
-        blackhole.consume(PatternedTextValueProcessor.isUUID_manual_withValidation(uuid));
-    }
-
-    @Benchmark
-    public void testUuidMatchRegex(Blackhole blackhole) {
-        blackhole.consume(PatternedTextValueProcessor.isUUID_regex(uuid));
-    }
-
-    @Param({ "172.16.0", "255.255.255.255" })
-    public String ip;
+    @Param({})
+    public String input;
 
     @Benchmark
     public void testIpv4MatchManual(Blackhole blackhole) {
-        blackhole.consume(PatternedTextValueProcessor.isIpv4_manual(ip));
-    }
-
-    @Benchmark
-    public void testIpv4MatchManual_Iterative(Blackhole blackhole) {
-        blackhole.consume(PatternedTextValueProcessor.isIpv4_manual_iterative(ip));
-    }
-
-    @Benchmark
-    public void testIpv4MatchRegex(Blackhole blackhole) {
-        blackhole.consume(PatternedTextValueProcessor.isIpv4_regex(ip));
     }
 }

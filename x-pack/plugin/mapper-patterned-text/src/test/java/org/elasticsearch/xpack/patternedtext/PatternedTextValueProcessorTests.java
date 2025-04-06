@@ -103,17 +103,16 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
 
         String[] invalidUUIDs = {
             "not-a-uuid",  // very invalid
-            "550e8400-e29b-41d4-a716-4466554400000"  // Invalid last extra character
+            "550e8400-e29b-41d4-a716-4466554400000",  // Invalid last extra character
+            "550e8400-e29b-41d4-a716-44665544000g"  // Invalid character
         };
 
+        byte[] bytes = new byte[16];
         for (String uuid : validUUIDs) {
-            assertTrue("Expected valid UUID: " + uuid, PatternedTextValueProcessor.isUUID_manual(uuid));
-            assertTrue("Expected valid UUID: " + uuid, PatternedTextValueProcessor.isUUID_regex(uuid));
+            assertTrue("Expected valid UUID: " + uuid, PatternedTextValueProcessor.isUUID(uuid, bytes));
         }
-
         for (String uuid : invalidUUIDs) {
-            assertFalse("Expected invalid UUID: " + uuid, PatternedTextValueProcessor.isUUID_manual(uuid));
-            assertFalse("Expected invalid UUID: " + uuid, PatternedTextValueProcessor.isUUID_regex(uuid));
+            assertFalse("Expected invalid UUID: " + uuid, PatternedTextValueProcessor.isUUID(uuid, bytes));
         }
     }
 
@@ -127,14 +126,16 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
             "192.168.1.a"       // Invalid character
         };
 
+        byte[] bytes = new byte[4];
         for (String ip : validIPv4s) {
-            assertTrue("Expected valid IPv4: " + ip, PatternedTextValueProcessor.isIpv4_manual_iterative(ip));
-            assertTrue("Expected valid IPv4: " + ip, PatternedTextValueProcessor.isIpv4_regex(ip));
+            assertTrue("Expected valid IPv4: " + ip, PatternedTextValueProcessor.isIpv4(ip, bytes));
+            String[] octets = ip.split("\\.");
+            for (int i = 0; i < 4; i++) {
+                assertEquals("Expected valid IPv4 octet: " + octets[i], Integer.parseInt(octets[i]), bytes[i] & 0xFF);
+            }
         }
-
         for (String ip : invalidIPv4s) {
-            assertFalse("Expected invalid IPv4: " + ip, PatternedTextValueProcessor.isIpv4_regex(ip));
-            assertFalse("Expected invalid IPv4: " + ip, PatternedTextValueProcessor.isIpv4_manual_iterative(ip));
+            assertFalse("Expected invalid IPv4: " + ip, PatternedTextValueProcessor.isIpv4(ip, bytes));
         }
     }
 }

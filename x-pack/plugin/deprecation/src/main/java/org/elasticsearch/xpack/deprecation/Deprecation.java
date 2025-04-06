@@ -56,9 +56,9 @@ public class Deprecation extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(DeprecationInfoAction.INSTANCE, TransportDeprecationInfoAction.class),
-            new ActionHandler<>(NodesDeprecationCheckAction.INSTANCE, TransportNodeDeprecationCheckAction.class),
-            new ActionHandler<>(DeprecationCacheResetAction.INSTANCE, TransportDeprecationCacheResetAction.class)
+            new ActionHandler(DeprecationInfoAction.INSTANCE, TransportDeprecationInfoAction.class),
+            new ActionHandler(NodesDeprecationCheckAction.INSTANCE, TransportNodeDeprecationCheckAction.class),
+            new ActionHandler(DeprecationCacheResetAction.INSTANCE, TransportDeprecationCacheResetAction.class)
         );
     }
 

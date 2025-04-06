@@ -41,8 +41,8 @@ public class NoopPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(NOOP_BULK_ACTION, TransportNoopBulkAction.class),
-            new ActionHandler<>(NOOP_SEARCH_ACTION, TransportNoopSearchAction.class)
+            new ActionHandler(NOOP_BULK_ACTION, TransportNoopBulkAction.class),
+            new ActionHandler(NOOP_SEARCH_ACTION, TransportNoopSearchAction.class)
         );
     }
 

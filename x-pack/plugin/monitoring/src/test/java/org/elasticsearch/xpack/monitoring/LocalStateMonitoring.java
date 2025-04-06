@@ -111,9 +111,9 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
     public List<ActionHandler> getActions() {
         var actions = super.getActions();
         // ccr StatsCollector
-        actions.add(new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsStubAction.class));
+        actions.add(new ActionHandler(CcrStatsAction.INSTANCE, TransportCcrStatsStubAction.class));
         // For EnrichStatsCollector:
-        actions.add(new ActionHandler<>(EnrichStatsAction.INSTANCE, TransportEnrichStatsStubAction.class));
+        actions.add(new ActionHandler(EnrichStatsAction.INSTANCE, TransportEnrichStatsStubAction.class));
         return actions;
     }
 

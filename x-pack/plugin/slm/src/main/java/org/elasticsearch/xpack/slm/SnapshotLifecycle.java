@@ -209,24 +209,24 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
 
     @Override
     public List<ActionHandler> getActions() {
-        var slmUsageAction = new ActionHandler<>(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE, SLMUsageTransportAction.class);
-        var slmInfoAction = new ActionHandler<>(XPackInfoFeatureAction.SNAPSHOT_LIFECYCLE, SLMInfoTransportAction.class);
+        var slmUsageAction = new ActionHandler(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE, SLMUsageTransportAction.class);
+        var slmInfoAction = new ActionHandler(XPackInfoFeatureAction.SNAPSHOT_LIFECYCLE, SLMInfoTransportAction.class);
         List<ActionHandler> actions = new ArrayList<>();
         actions.add(slmUsageAction);
         actions.add(slmInfoAction);
         actions.addAll(
             Arrays.asList(
                 // add SLM actions
-                new ActionHandler<>(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
-                new ActionHandler<>(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
-                new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
-                new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
-                new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
-                new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
-                new ActionHandler<>(TransportSLMGetExpiredSnapshotsAction.INSTANCE, TransportSLMGetExpiredSnapshotsAction.class),
-                new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
-                new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
-                new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)
+                new ActionHandler(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
+                new ActionHandler(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
+                new ActionHandler(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
+                new ActionHandler(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
+                new ActionHandler(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
+                new ActionHandler(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
+                new ActionHandler(TransportSLMGetExpiredSnapshotsAction.INSTANCE, TransportSLMGetExpiredSnapshotsAction.class),
+                new ActionHandler(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
+                new ActionHandler(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
+                new ActionHandler(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)
             )
         );
         return actions;

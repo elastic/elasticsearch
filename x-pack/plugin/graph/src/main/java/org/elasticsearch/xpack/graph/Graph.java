@@ -47,12 +47,12 @@ public class Graph extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.GRAPH, GraphUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.GRAPH, GraphInfoTransportAction.class);
+        var usageAction = new ActionHandler(XPackUsageFeatureAction.GRAPH, GraphUsageTransportAction.class);
+        var infoAction = new ActionHandler(XPackInfoFeatureAction.GRAPH, GraphInfoTransportAction.class);
         if (false == enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
-        return Arrays.asList(new ActionHandler<>(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class), usageAction, infoAction);
+        return Arrays.asList(new ActionHandler(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class), usageAction, infoAction);
     }
 
     @Override

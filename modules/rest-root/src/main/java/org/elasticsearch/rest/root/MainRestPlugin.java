@@ -48,6 +48,6 @@ public class MainRestPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of(new ActionHandler<>(MAIN_ACTION, TransportMainAction.class));
+        return List.of(new ActionHandler(MAIN_ACTION, TransportMainAction.class));
     }
 }

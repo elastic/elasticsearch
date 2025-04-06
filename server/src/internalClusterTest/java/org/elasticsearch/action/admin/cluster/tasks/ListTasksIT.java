@@ -138,7 +138,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
 
         @Override
         public List<ActionHandler> getActions() {
-            return List.of(new ActionHandler<>(TEST_ACTION, TestTransportAction.class));
+            return List.of(new ActionHandler(TEST_ACTION, TestTransportAction.class));
         }
     }
 

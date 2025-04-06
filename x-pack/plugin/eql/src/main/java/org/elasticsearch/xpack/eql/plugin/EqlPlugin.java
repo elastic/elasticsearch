@@ -104,12 +104,12 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
     @Override
     public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
-            new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
-            new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultsAction.class),
-            new ActionHandler<>(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
+            new ActionHandler(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
+            new ActionHandler(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+            new ActionHandler(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultsAction.class),
+            new ActionHandler(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
+            new ActionHandler(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
         );
     }
 

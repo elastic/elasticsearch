@@ -47,10 +47,10 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
-            new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
-            new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
-            new ActionHandler<>(RETHROTTLE_ACTION, TransportRethrottleAction.class)
+            new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
+            new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+            new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+            new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class)
         );
     }
 

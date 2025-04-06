@@ -18,7 +18,7 @@ public class FrozenIndices extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler> getActions() {
         List<ActionHandler> actions = new ArrayList<>();
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.FROZEN_INDICES, FrozenIndicesUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.FROZEN_INDICES, FrozenIndicesUsageTransportAction.class));
         return actions;
     }
 }

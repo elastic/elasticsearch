@@ -112,8 +112,8 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         @Override
         public List<ActionHandler> getActions() {
             final ArrayList<ActionHandler> actions = new ArrayList<>(super.getActions());
-            actions.add(new ActionHandler<>(BLOCKING_XPACK_USAGE, BlockingXPackUsageAction.class));
-            actions.add(new ActionHandler<>(NON_BLOCKING_XPACK_USAGE, NonBlockingXPackUsageAction.class));
+            actions.add(new ActionHandler(BLOCKING_XPACK_USAGE, BlockingXPackUsageAction.class));
+            actions.add(new ActionHandler(NON_BLOCKING_XPACK_USAGE, NonBlockingXPackUsageAction.class));
             return actions;
         }
     }

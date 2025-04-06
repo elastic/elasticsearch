@@ -181,7 +181,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
     @Override
     public List<ActionHandler> getActions() {
         return Collections.singletonList(
-            new ActionHandler<>(UpdateInternalOrPrivateAction.INSTANCE, TransportUpdateInternalOrPrivateAction.class)
+            new ActionHandler(UpdateInternalOrPrivateAction.INSTANCE, TransportUpdateInternalOrPrivateAction.class)
         );
     }
 

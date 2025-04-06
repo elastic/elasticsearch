@@ -35,8 +35,8 @@ public final class RepositoriesMeteringPlugin extends Plugin implements ActionPl
     @Override
     public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(RepositoriesMeteringAction.INSTANCE, TransportRepositoriesStatsAction.class),
-            new ActionHandler<>(ClearRepositoriesMeteringArchiveAction.INSTANCE, TransportClearRepositoriesStatsArchiveAction.class)
+            new ActionHandler(RepositoriesMeteringAction.INSTANCE, TransportRepositoriesStatsAction.class),
+            new ActionHandler(ClearRepositoriesMeteringArchiveAction.INSTANCE, TransportClearRepositoriesStatsArchiveAction.class)
         );
     }
 

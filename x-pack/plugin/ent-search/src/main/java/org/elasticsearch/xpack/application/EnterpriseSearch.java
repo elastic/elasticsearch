@@ -260,8 +260,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     @Override
     public List<ActionHandler> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.ENTERPRISE_SEARCH, EnterpriseSearchUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.ENTERPRISE_SEARCH, EnterpriseSearchInfoTransportAction.class);
+        var usageAction = new ActionHandler(XPackUsageFeatureAction.ENTERPRISE_SEARCH, EnterpriseSearchUsageTransportAction.class);
+        var infoAction = new ActionHandler(XPackInfoFeatureAction.ENTERPRISE_SEARCH, EnterpriseSearchInfoTransportAction.class);
         if (enabled == false) {
             return List.of(usageAction, infoAction);
         }
@@ -269,28 +269,28 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         List<ActionHandler> actionHandlers = new ArrayList<>(
             List.of(
                 // Behavioral Analytics
-                new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
-                new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
-                new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
-                new ActionHandler<>(PostAnalyticsEventAction.INSTANCE, TransportPostAnalyticsEventAction.class),
+                new ActionHandler(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
+                new ActionHandler(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
+                new ActionHandler(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
+                new ActionHandler(PostAnalyticsEventAction.INSTANCE, TransportPostAnalyticsEventAction.class),
 
                 // Search Applications
-                new ActionHandler<>(DeleteSearchApplicationAction.INSTANCE, TransportDeleteSearchApplicationAction.class),
-                new ActionHandler<>(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
-                new ActionHandler<>(ListSearchApplicationAction.INSTANCE, TransportListSearchApplicationAction.class),
-                new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
-                new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
-                new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
+                new ActionHandler(DeleteSearchApplicationAction.INSTANCE, TransportDeleteSearchApplicationAction.class),
+                new ActionHandler(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
+                new ActionHandler(ListSearchApplicationAction.INSTANCE, TransportListSearchApplicationAction.class),
+                new ActionHandler(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
+                new ActionHandler(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
+                new ActionHandler(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
 
                 // Query rules
-                new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class),
-                new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
-                new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class),
-                new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
-                new ActionHandler<>(DeleteQueryRuleAction.INSTANCE, TransportDeleteQueryRuleAction.class),
-                new ActionHandler<>(GetQueryRuleAction.INSTANCE, TransportGetQueryRuleAction.class),
-                new ActionHandler<>(PutQueryRuleAction.INSTANCE, TransportPutQueryRuleAction.class),
-                new ActionHandler<>(TestQueryRulesetAction.INSTANCE, TransportTestQueryRulesetAction.class),
+                new ActionHandler(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class),
+                new ActionHandler(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
+                new ActionHandler(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class),
+                new ActionHandler(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
+                new ActionHandler(DeleteQueryRuleAction.INSTANCE, TransportDeleteQueryRuleAction.class),
+                new ActionHandler(GetQueryRuleAction.INSTANCE, TransportGetQueryRuleAction.class),
+                new ActionHandler(PutQueryRuleAction.INSTANCE, TransportPutQueryRuleAction.class),
+                new ActionHandler(TestQueryRulesetAction.INSTANCE, TransportTestQueryRulesetAction.class),
 
                 usageAction,
                 infoAction
@@ -302,44 +302,44 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             actionHandlers.addAll(
                 List.of(
                     // Connectors API
-                    new ActionHandler<>(DeleteConnectorAction.INSTANCE, TransportDeleteConnectorAction.class),
-                    new ActionHandler<>(GetConnectorAction.INSTANCE, TransportGetConnectorAction.class),
-                    new ActionHandler<>(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
-                    new ActionHandler<>(PostConnectorAction.INSTANCE, TransportPostConnectorAction.class),
-                    new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
-                    new ActionHandler<>(UpdateConnectorApiKeyIdAction.INSTANCE, TransportUpdateConnectorApiKeyIdAction.class),
-                    new ActionHandler<>(UpdateConnectorConfigurationAction.INSTANCE, TransportUpdateConnectorConfigurationAction.class),
-                    new ActionHandler<>(UpdateConnectorErrorAction.INSTANCE, TransportUpdateConnectorErrorAction.class),
-                    new ActionHandler<>(UpdateConnectorFeaturesAction.INSTANCE, TransportUpdateConnectorFeaturesAction.class),
-                    new ActionHandler<>(UpdateConnectorFilteringAction.INSTANCE, TransportUpdateConnectorFilteringAction.class),
-                    new ActionHandler<>(UpdateConnectorActiveFilteringAction.INSTANCE, TransportUpdateConnectorActiveFilteringAction.class),
-                    new ActionHandler<>(
+                    new ActionHandler(DeleteConnectorAction.INSTANCE, TransportDeleteConnectorAction.class),
+                    new ActionHandler(GetConnectorAction.INSTANCE, TransportGetConnectorAction.class),
+                    new ActionHandler(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
+                    new ActionHandler(PostConnectorAction.INSTANCE, TransportPostConnectorAction.class),
+                    new ActionHandler(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
+                    new ActionHandler(UpdateConnectorApiKeyIdAction.INSTANCE, TransportUpdateConnectorApiKeyIdAction.class),
+                    new ActionHandler(UpdateConnectorConfigurationAction.INSTANCE, TransportUpdateConnectorConfigurationAction.class),
+                    new ActionHandler(UpdateConnectorErrorAction.INSTANCE, TransportUpdateConnectorErrorAction.class),
+                    new ActionHandler(UpdateConnectorFeaturesAction.INSTANCE, TransportUpdateConnectorFeaturesAction.class),
+                    new ActionHandler(UpdateConnectorFilteringAction.INSTANCE, TransportUpdateConnectorFilteringAction.class),
+                    new ActionHandler(UpdateConnectorActiveFilteringAction.INSTANCE, TransportUpdateConnectorActiveFilteringAction.class),
+                    new ActionHandler(
                         UpdateConnectorFilteringValidationAction.INSTANCE,
                         TransportUpdateConnectorFilteringValidationAction.class
                     ),
-                    new ActionHandler<>(UpdateConnectorIndexNameAction.INSTANCE, TransportUpdateConnectorIndexNameAction.class),
-                    new ActionHandler<>(UpdateConnectorLastSeenAction.INSTANCE, TransportUpdateConnectorLastSeenAction.class),
-                    new ActionHandler<>(UpdateConnectorLastSyncStatsAction.INSTANCE, TransportUpdateConnectorLastSyncStatsAction.class),
-                    new ActionHandler<>(UpdateConnectorNameAction.INSTANCE, TransportUpdateConnectorNameAction.class),
-                    new ActionHandler<>(UpdateConnectorNativeAction.INSTANCE, TransportUpdateConnectorNativeAction.class),
-                    new ActionHandler<>(UpdateConnectorPipelineAction.INSTANCE, TransportUpdateConnectorPipelineAction.class),
-                    new ActionHandler<>(UpdateConnectorSchedulingAction.INSTANCE, TransportUpdateConnectorSchedulingAction.class),
-                    new ActionHandler<>(UpdateConnectorServiceTypeAction.INSTANCE, TransportUpdateConnectorServiceTypeAction.class),
-                    new ActionHandler<>(UpdateConnectorStatusAction.INSTANCE, TransportUpdateConnectorStatusAction.class),
+                    new ActionHandler(UpdateConnectorIndexNameAction.INSTANCE, TransportUpdateConnectorIndexNameAction.class),
+                    new ActionHandler(UpdateConnectorLastSeenAction.INSTANCE, TransportUpdateConnectorLastSeenAction.class),
+                    new ActionHandler(UpdateConnectorLastSyncStatsAction.INSTANCE, TransportUpdateConnectorLastSyncStatsAction.class),
+                    new ActionHandler(UpdateConnectorNameAction.INSTANCE, TransportUpdateConnectorNameAction.class),
+                    new ActionHandler(UpdateConnectorNativeAction.INSTANCE, TransportUpdateConnectorNativeAction.class),
+                    new ActionHandler(UpdateConnectorPipelineAction.INSTANCE, TransportUpdateConnectorPipelineAction.class),
+                    new ActionHandler(UpdateConnectorSchedulingAction.INSTANCE, TransportUpdateConnectorSchedulingAction.class),
+                    new ActionHandler(UpdateConnectorServiceTypeAction.INSTANCE, TransportUpdateConnectorServiceTypeAction.class),
+                    new ActionHandler(UpdateConnectorStatusAction.INSTANCE, TransportUpdateConnectorStatusAction.class),
 
                     // SyncJob API
-                    new ActionHandler<>(GetConnectorSyncJobAction.INSTANCE, TransportGetConnectorSyncJobAction.class),
-                    new ActionHandler<>(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class),
-                    new ActionHandler<>(DeleteConnectorSyncJobAction.INSTANCE, TransportDeleteConnectorSyncJobAction.class),
-                    new ActionHandler<>(CheckInConnectorSyncJobAction.INSTANCE, TransportCheckInConnectorSyncJobAction.class),
-                    new ActionHandler<>(CancelConnectorSyncJobAction.INSTANCE, TransportCancelConnectorSyncJobAction.class),
-                    new ActionHandler<>(ListConnectorSyncJobsAction.INSTANCE, TransportListConnectorSyncJobsAction.class),
-                    new ActionHandler<>(UpdateConnectorSyncJobErrorAction.INSTANCE, TransportUpdateConnectorSyncJobErrorAction.class),
-                    new ActionHandler<>(
+                    new ActionHandler(GetConnectorSyncJobAction.INSTANCE, TransportGetConnectorSyncJobAction.class),
+                    new ActionHandler(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class),
+                    new ActionHandler(DeleteConnectorSyncJobAction.INSTANCE, TransportDeleteConnectorSyncJobAction.class),
+                    new ActionHandler(CheckInConnectorSyncJobAction.INSTANCE, TransportCheckInConnectorSyncJobAction.class),
+                    new ActionHandler(CancelConnectorSyncJobAction.INSTANCE, TransportCancelConnectorSyncJobAction.class),
+                    new ActionHandler(ListConnectorSyncJobsAction.INSTANCE, TransportListConnectorSyncJobsAction.class),
+                    new ActionHandler(UpdateConnectorSyncJobErrorAction.INSTANCE, TransportUpdateConnectorSyncJobErrorAction.class),
+                    new ActionHandler(
                         UpdateConnectorSyncJobIngestionStatsAction.INSTANCE,
                         TransportUpdateConnectorSyncJobIngestionStatsAction.class
                     ),
-                    new ActionHandler<>(ClaimConnectorSyncJobAction.INSTANCE, TransportClaimConnectorSyncJobAction.class)
+                    new ActionHandler(ClaimConnectorSyncJobAction.INSTANCE, TransportClaimConnectorSyncJobAction.class)
                 )
             );
         }
@@ -347,10 +347,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (ConnectorSecretsFeature.isEnabled()) {
             actionHandlers.addAll(
                 List.of(
-                    new ActionHandler<>(DeleteConnectorSecretAction.INSTANCE, TransportDeleteConnectorSecretAction.class),
-                    new ActionHandler<>(GetConnectorSecretAction.INSTANCE, TransportGetConnectorSecretAction.class),
-                    new ActionHandler<>(PostConnectorSecretAction.INSTANCE, TransportPostConnectorSecretAction.class),
-                    new ActionHandler<>(PutConnectorSecretAction.INSTANCE, TransportPutConnectorSecretAction.class)
+                    new ActionHandler(DeleteConnectorSecretAction.INSTANCE, TransportDeleteConnectorSecretAction.class),
+                    new ActionHandler(GetConnectorSecretAction.INSTANCE, TransportGetConnectorSecretAction.class),
+                    new ActionHandler(PostConnectorSecretAction.INSTANCE, TransportPostConnectorSecretAction.class),
+                    new ActionHandler(PutConnectorSecretAction.INSTANCE, TransportPutConnectorSecretAction.class)
                 )
             );
         }

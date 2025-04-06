@@ -49,8 +49,8 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
     @Override
     public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(SEARCH_TEMPLATE_ACTION, TransportSearchTemplateAction.class),
-            new ActionHandler<>(MULTI_SEARCH_TEMPLATE_ACTION, TransportMultiSearchTemplateAction.class)
+            new ActionHandler(SEARCH_TEMPLATE_ACTION, TransportSearchTemplateAction.class),
+            new ActionHandler(MULTI_SEARCH_TEMPLATE_ACTION, TransportMultiSearchTemplateAction.class)
         );
     }
 

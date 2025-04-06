@@ -127,9 +127,9 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     @Override
     public List<ActionPlugin.ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
-            new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
+            new ActionHandler(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
+            new ActionHandler(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
         );
     }
 

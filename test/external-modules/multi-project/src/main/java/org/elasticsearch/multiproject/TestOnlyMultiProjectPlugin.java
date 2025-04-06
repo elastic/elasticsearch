@@ -81,8 +81,8 @@ public class TestOnlyMultiProjectPlugin extends Plugin implements ActionPlugin {
     public Collection<ActionHandler> getActions() {
         if (multiProjectEnabled) {
             return List.of(
-                new ActionHandler<>(PutProjectAction.INSTANCE, PutProjectAction.TransportPutProjectAction.class),
-                new ActionHandler<>(DeleteProjectAction.INSTANCE, DeleteProjectAction.TransportDeleteProjectAction.class)
+                new ActionHandler(PutProjectAction.INSTANCE, PutProjectAction.TransportPutProjectAction.class),
+                new ActionHandler(DeleteProjectAction.INSTANCE, DeleteProjectAction.TransportDeleteProjectAction.class)
             );
         } else {
             return List.of();

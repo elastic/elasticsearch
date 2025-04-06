@@ -127,7 +127,7 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
 
         @Override
         public List<ActionHandler> getActions() {
-            return List.of(new ActionHandler<>(TestAction.TYPE, TestAction.class));
+            return List.of(new ActionHandler(TestAction.TYPE, TestAction.class));
         }
     }
 

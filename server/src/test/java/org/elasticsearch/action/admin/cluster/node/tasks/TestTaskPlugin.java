@@ -77,8 +77,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
     @Override
     public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(TEST_TASK_ACTION, TransportTestTaskAction.class),
-            new ActionHandler<>(UNBLOCK_TASK_ACTION, TransportUnblockTestTasksAction.class)
+            new ActionHandler(TEST_TASK_ACTION, TransportTestTaskAction.class),
+            new ActionHandler(UNBLOCK_TASK_ACTION, TransportUnblockTestTasksAction.class)
         );
     }
 

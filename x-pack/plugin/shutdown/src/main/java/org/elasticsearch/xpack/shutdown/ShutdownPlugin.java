@@ -37,9 +37,9 @@ public class ShutdownPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler> getActions() {
-        ActionHandler putShutdown = new ActionHandler<>(PutShutdownNodeAction.INSTANCE, TransportPutShutdownNodeAction.class);
-        ActionHandler deleteShutdown = new ActionHandler<>(DeleteShutdownNodeAction.INSTANCE, TransportDeleteShutdownNodeAction.class);
-        ActionHandler getStatus = new ActionHandler<>(GetShutdownStatusAction.INSTANCE, TransportGetShutdownStatusAction.class);
+        ActionHandler putShutdown = new ActionHandler(PutShutdownNodeAction.INSTANCE, TransportPutShutdownNodeAction.class);
+        ActionHandler deleteShutdown = new ActionHandler(DeleteShutdownNodeAction.INSTANCE, TransportDeleteShutdownNodeAction.class);
+        ActionHandler getStatus = new ActionHandler(GetShutdownStatusAction.INSTANCE, TransportGetShutdownStatusAction.class);
         return Arrays.asList(putShutdown, deleteShutdown, getStatus);
     }
 

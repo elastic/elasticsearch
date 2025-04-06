@@ -258,29 +258,29 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public List<ActionHandler> getActions() {
 
         return Arrays.asList(
-            new ActionHandler<>(PutTransformAction.INSTANCE, TransportPutTransformAction.class),
-            new ActionHandler<>(StartTransformAction.INSTANCE, TransportStartTransformAction.class),
-            new ActionHandler<>(StopTransformAction.INSTANCE, TransportStopTransformAction.class),
-            new ActionHandler<>(DeleteTransformAction.INSTANCE, TransportDeleteTransformAction.class),
-            new ActionHandler<>(GetTransformAction.INSTANCE, TransportGetTransformAction.class),
-            new ActionHandler<>(GetTransformStatsAction.INSTANCE, TransportGetTransformStatsAction.class),
-            new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
-            new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
-            new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
-            new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
-            new ActionHandler<>(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
-            new ActionHandler<>(ScheduleNowTransformAction.INSTANCE, TransportScheduleNowTransformAction.class),
-            new ActionHandler<>(GetTransformNodeStatsAction.INSTANCE, TransportGetTransformNodeStatsAction.class),
-            new ActionHandler<>(SetTransformUpgradeModeAction.INSTANCE, TransportSetTransformUpgradeModeAction.class),
+            new ActionHandler(PutTransformAction.INSTANCE, TransportPutTransformAction.class),
+            new ActionHandler(StartTransformAction.INSTANCE, TransportStartTransformAction.class),
+            new ActionHandler(StopTransformAction.INSTANCE, TransportStopTransformAction.class),
+            new ActionHandler(DeleteTransformAction.INSTANCE, TransportDeleteTransformAction.class),
+            new ActionHandler(GetTransformAction.INSTANCE, TransportGetTransformAction.class),
+            new ActionHandler(GetTransformStatsAction.INSTANCE, TransportGetTransformStatsAction.class),
+            new ActionHandler(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
+            new ActionHandler(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
+            new ActionHandler(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
+            new ActionHandler(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
+            new ActionHandler(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
+            new ActionHandler(ScheduleNowTransformAction.INSTANCE, TransportScheduleNowTransformAction.class),
+            new ActionHandler(GetTransformNodeStatsAction.INSTANCE, TransportGetTransformNodeStatsAction.class),
+            new ActionHandler(SetTransformUpgradeModeAction.INSTANCE, TransportSetTransformUpgradeModeAction.class),
 
             // internal, no rest endpoint
-            new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
-            new ActionHandler<>(GetCheckpointAction.INSTANCE, TransportGetCheckpointAction.class),
-            new ActionHandler<>(GetCheckpointNodeAction.INSTANCE, TransportGetCheckpointNodeAction.class),
+            new ActionHandler(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
+            new ActionHandler(GetCheckpointAction.INSTANCE, TransportGetCheckpointAction.class),
+            new ActionHandler(GetCheckpointNodeAction.INSTANCE, TransportGetCheckpointNodeAction.class),
 
             // usage and info
-            new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class)
+            new ActionHandler(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class)
         );
     }
 

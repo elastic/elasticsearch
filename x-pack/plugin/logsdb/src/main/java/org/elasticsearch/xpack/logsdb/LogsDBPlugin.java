@@ -93,8 +93,8 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionPlugin.ActionHandler> getActions() {
         List<ActionPlugin.ActionHandler> actions = new ArrayList<>();
-        actions.add(new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.LOGSDB, LogsDBUsageTransportAction.class));
-        actions.add(new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler(XPackUsageFeatureAction.LOGSDB, LogsDBUsageTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
         return actions;
     }
 

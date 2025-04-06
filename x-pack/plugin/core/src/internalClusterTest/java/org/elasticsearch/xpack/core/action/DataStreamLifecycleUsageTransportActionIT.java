@@ -289,7 +289,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         @Override
         public List<ActionHandler> getActions() {
             List<ActionHandler> actions = new ArrayList<>();
-            actions.add(new ActionPlugin.ActionHandler<>(DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
+            actions.add(new ActionPlugin.ActionHandler(DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
             return actions;
         }
     }

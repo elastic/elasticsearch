@@ -65,10 +65,7 @@ public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
             ActionModule.setupActions(emptyList()),
-            hasEntry(
-                TransportNodesInfoAction.TYPE.name(),
-                new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class)
-            )
+            hasEntry(TransportNodesInfoAction.TYPE.name(), new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class))
         );
     }
 
@@ -76,7 +73,7 @@ public class ActionModuleTests extends ESTestCase {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
             public List<ActionHandler> getActions() {
-                return singletonList(new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
+                return singletonList(new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
             }
         };
         Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
@@ -102,12 +99,12 @@ public class ActionModuleTests extends ESTestCase {
         ActionPlugin registersFakeAction = new ActionPlugin() {
             @Override
             public List<ActionHandler> getActions() {
-                return singletonList(new ActionHandler<>(action, FakeTransportAction.class));
+                return singletonList(new ActionHandler(action, FakeTransportAction.class));
             }
         };
         assertThat(
             ActionModule.setupActions(singletonList(registersFakeAction)),
-            hasEntry("fake", new ActionHandler<>(action, FakeTransportAction.class))
+            hasEntry("fake", new ActionHandler(action, FakeTransportAction.class))
         );
     }
 

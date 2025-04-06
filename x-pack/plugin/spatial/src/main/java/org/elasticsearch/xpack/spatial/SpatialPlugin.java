@@ -126,9 +126,9 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     @Override
     public List<ActionPlugin.ActionHandler> getActions() {
         return List.of(
-            new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.SPATIAL, SpatialUsageTransportAction.class),
-            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.SPATIAL, SpatialInfoTransportAction.class),
-            new ActionPlugin.ActionHandler<>(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class)
+            new ActionPlugin.ActionHandler(XPackUsageFeatureAction.SPATIAL, SpatialUsageTransportAction.class),
+            new ActionPlugin.ActionHandler(XPackInfoFeatureAction.SPATIAL, SpatialInfoTransportAction.class),
+            new ActionPlugin.ActionHandler(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class)
         );
     }
 

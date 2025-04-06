@@ -39,10 +39,10 @@ import java.util.function.Supplier;
  * <pre>{@code
  *   {@literal @}Override
  *   public List<ActionHandler<?, ?>> getActions() {
- *       return List.of(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
- *               new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
- *               new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
- *               new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
+ *       return List.of(new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
+ *               new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+ *               new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+ *               new ActionHandler(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
  *   }
  * }</pre>
  */

@@ -171,11 +171,11 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
     @Override
     public List<ActionHandler> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.MONITORING, MonitoringUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
+        var usageAction = new ActionHandler(XPackUsageFeatureAction.MONITORING, MonitoringUsageTransportAction.class);
+        var infoAction = new ActionHandler(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
         return Arrays.asList(
-            new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
-            new ActionHandler<>(MonitoringMigrateAlertsAction.INSTANCE, TransportMonitoringMigrateAlertsAction.class),
+            new ActionHandler(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
+            new ActionHandler(MonitoringMigrateAlertsAction.INSTANCE, TransportMonitoringMigrateAlertsAction.class),
             usageAction,
             infoAction
         );

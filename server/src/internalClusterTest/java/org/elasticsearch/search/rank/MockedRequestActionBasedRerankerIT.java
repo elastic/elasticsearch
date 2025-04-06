@@ -94,7 +94,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
 
         @Override
         public Collection<ActionHandler> getActions() {
-            return List.of(new ActionHandler<>(TEST_RERANKING_ACTION_TYPE, TestRerankingTransportAction.class));
+            return List.of(new ActionHandler(TEST_RERANKING_ACTION_TYPE, TestRerankingTransportAction.class));
         }
     }
 

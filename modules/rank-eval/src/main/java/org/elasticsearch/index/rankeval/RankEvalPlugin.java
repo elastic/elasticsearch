@@ -37,7 +37,7 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler> getActions() {
-        return Arrays.asList(new ActionHandler<>(ACTION, TransportRankEvalAction.class));
+        return Arrays.asList(new ActionHandler(ACTION, TransportRankEvalAction.class));
     }
 
     @Override

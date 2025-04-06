@@ -624,7 +624,7 @@ public class ActionModule extends AbstractModule {
                 ActionType<Response> action,
                 Class<? extends TransportAction<Request, Response>> transportAction
             ) {
-                register(new ActionHandler<>(action, transportAction));
+                register(new ActionHandler(action, transportAction));
             }
         }
         ActionRegistry actions = new ActionRegistry();

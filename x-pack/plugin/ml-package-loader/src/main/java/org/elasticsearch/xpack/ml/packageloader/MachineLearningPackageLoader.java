@@ -67,8 +67,8 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
     public List<ActionHandler> getActions() {
         // all internal, no rest endpoint
         return Arrays.asList(
-            new ActionHandler<>(GetTrainedModelPackageConfigAction.INSTANCE, TransportGetTrainedModelPackageConfigAction.class),
-            new ActionHandler<>(LoadTrainedModelPackageAction.INSTANCE, TransportLoadTrainedModelPackage.class)
+            new ActionHandler(GetTrainedModelPackageConfigAction.INSTANCE, TransportGetTrainedModelPackageConfigAction.class),
+            new ActionHandler(LoadTrainedModelPackageAction.INSTANCE, TransportLoadTrainedModelPackage.class)
         );
     }
 

@@ -164,8 +164,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     @Override
     public List<ActionHandler> getActions() {
         List<ActionHandler> actions = new ArrayList<>();
-        actions.add(new ActionHandler<>(PainlessExecuteAction.INSTANCE, PainlessExecuteAction.TransportAction.class));
-        actions.add(new ActionHandler<>(PainlessContextAction.INSTANCE, PainlessContextAction.TransportAction.class));
+        actions.add(new ActionHandler(PainlessExecuteAction.INSTANCE, PainlessExecuteAction.TransportAction.class));
+        actions.add(new ActionHandler(PainlessContextAction.INSTANCE, PainlessContextAction.TransportAction.class));
         return actions;
     }
 

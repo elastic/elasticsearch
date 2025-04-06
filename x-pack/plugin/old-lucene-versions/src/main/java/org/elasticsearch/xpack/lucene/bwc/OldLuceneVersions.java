@@ -93,8 +93,8 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
     @Override
     public List<ActionPlugin.ActionHandler> getActions() {
         return List.of(
-            new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.ARCHIVE, ArchiveUsageTransportAction.class),
-            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.ARCHIVE, ArchiveInfoTransportAction.class)
+            new ActionPlugin.ActionHandler(XPackUsageFeatureAction.ARCHIVE, ArchiveUsageTransportAction.class),
+            new ActionPlugin.ActionHandler(XPackInfoFeatureAction.ARCHIVE, ArchiveInfoTransportAction.class)
         );
     }
 

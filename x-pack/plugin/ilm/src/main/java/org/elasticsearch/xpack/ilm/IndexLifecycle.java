@@ -275,19 +275,19 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     @Override
     public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.INDEX_LIFECYCLE, IndexLifecycleInfoTransportAction.class),
-            new ActionHandler<>(MigrateToDataTiersAction.INSTANCE, TransportMigrateToDataTiersAction.class),
-            new ActionHandler<>(ILMActions.PUT, TransportPutLifecycleAction.class),
-            new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
-            new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
-            new ActionHandler<>(ExplainLifecycleAction.INSTANCE, TransportExplainLifecycleAction.class),
-            new ActionHandler<>(RemoveIndexLifecyclePolicyAction.INSTANCE, TransportRemoveIndexLifecyclePolicyAction.class),
-            new ActionHandler<>(ILMActions.MOVE_TO_STEP, TransportMoveToStepAction.class),
-            new ActionHandler<>(ILMActions.RETRY, TransportRetryAction.class),
-            new ActionHandler<>(ILMActions.START, TransportStartILMAction.class),
-            new ActionHandler<>(ILMActions.STOP, TransportStopILMAction.class),
-            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
+            new ActionHandler(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.INDEX_LIFECYCLE, IndexLifecycleInfoTransportAction.class),
+            new ActionHandler(MigrateToDataTiersAction.INSTANCE, TransportMigrateToDataTiersAction.class),
+            new ActionHandler(ILMActions.PUT, TransportPutLifecycleAction.class),
+            new ActionHandler(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
+            new ActionHandler(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
+            new ActionHandler(ExplainLifecycleAction.INSTANCE, TransportExplainLifecycleAction.class),
+            new ActionHandler(RemoveIndexLifecyclePolicyAction.INSTANCE, TransportRemoveIndexLifecyclePolicyAction.class),
+            new ActionHandler(ILMActions.MOVE_TO_STEP, TransportMoveToStepAction.class),
+            new ActionHandler(ILMActions.RETRY, TransportRetryAction.class),
+            new ActionHandler(ILMActions.START, TransportStartILMAction.class),
+            new ActionHandler(ILMActions.STOP, TransportStopILMAction.class),
+            new ActionHandler(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
         );
     }
 

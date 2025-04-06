@@ -128,7 +128,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
         @Override
         public List<ActionHandler> getActions() {
-            return Collections.singletonList(new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class));
+            return Collections.singletonList(new ActionHandler(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class));
         }
 
         public static class MockedRollupIndexCapsTransport extends TransportAction<

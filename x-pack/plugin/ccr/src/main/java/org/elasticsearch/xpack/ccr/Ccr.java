@@ -210,46 +210,46 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     public List<ActionHandler> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.CCR, CCRUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.CCR, CCRInfoTransportAction.class);
+        var usageAction = new ActionHandler(XPackUsageFeatureAction.CCR, CCRUsageTransportAction.class);
+        var infoAction = new ActionHandler(XPackInfoFeatureAction.CCR, CCRInfoTransportAction.class);
         if (enabled == false) {
             return Arrays.asList(usageAction, infoAction);
         }
 
         return Arrays.asList(
             // internal actions
-            new ActionHandler<>(BulkShardOperationsAction.INSTANCE, TransportBulkShardOperationsAction.class),
-            new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
-            new ActionHandler<>(
+            new ActionHandler(BulkShardOperationsAction.INSTANCE, TransportBulkShardOperationsAction.class),
+            new ActionHandler(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
+            new ActionHandler(
                 PutInternalCcrRepositoryAction.INSTANCE,
                 PutInternalCcrRepositoryAction.TransportPutInternalRepositoryAction.class
             ),
-            new ActionHandler<>(
+            new ActionHandler(
                 DeleteInternalCcrRepositoryAction.INSTANCE,
                 DeleteInternalCcrRepositoryAction.TransportDeleteInternalRepositoryAction.class
             ),
-            new ActionHandler<>(PutCcrRestoreSessionAction.INTERNAL_INSTANCE, PutCcrRestoreSessionAction.InternalTransportAction.class),
-            new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE, PutCcrRestoreSessionAction.TransportAction.class),
-            new ActionHandler<>(ClearCcrRestoreSessionAction.INTERNAL_INSTANCE, ClearCcrRestoreSessionAction.InternalTransportAction.class),
-            new ActionHandler<>(ClearCcrRestoreSessionAction.INSTANCE, ClearCcrRestoreSessionAction.TransportAction.class),
-            new ActionHandler<>(GetCcrRestoreFileChunkAction.INTERNAL_INSTANCE, GetCcrRestoreFileChunkAction.InternalTransportAction.class),
-            new ActionHandler<>(GetCcrRestoreFileChunkAction.INSTANCE, GetCcrRestoreFileChunkAction.TransportAction.class),
+            new ActionHandler(PutCcrRestoreSessionAction.INTERNAL_INSTANCE, PutCcrRestoreSessionAction.InternalTransportAction.class),
+            new ActionHandler(PutCcrRestoreSessionAction.INSTANCE, PutCcrRestoreSessionAction.TransportAction.class),
+            new ActionHandler(ClearCcrRestoreSessionAction.INTERNAL_INSTANCE, ClearCcrRestoreSessionAction.InternalTransportAction.class),
+            new ActionHandler(ClearCcrRestoreSessionAction.INSTANCE, ClearCcrRestoreSessionAction.TransportAction.class),
+            new ActionHandler(GetCcrRestoreFileChunkAction.INTERNAL_INSTANCE, GetCcrRestoreFileChunkAction.InternalTransportAction.class),
+            new ActionHandler(GetCcrRestoreFileChunkAction.INSTANCE, GetCcrRestoreFileChunkAction.TransportAction.class),
             // stats action
-            new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
-            new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
-            new ActionHandler<>(FollowInfoAction.INSTANCE, TransportFollowInfoAction.class),
+            new ActionHandler(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
+            new ActionHandler(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
+            new ActionHandler(FollowInfoAction.INSTANCE, TransportFollowInfoAction.class),
             // follow actions
-            new ActionHandler<>(PutFollowAction.INSTANCE, TransportPutFollowAction.class),
-            new ActionHandler<>(ResumeFollowAction.INSTANCE, TransportResumeFollowAction.class),
-            new ActionHandler<>(PauseFollowAction.INSTANCE, TransportPauseFollowAction.class),
-            new ActionHandler<>(UnfollowAction.INSTANCE, TransportUnfollowAction.class),
+            new ActionHandler(PutFollowAction.INSTANCE, TransportPutFollowAction.class),
+            new ActionHandler(ResumeFollowAction.INSTANCE, TransportResumeFollowAction.class),
+            new ActionHandler(PauseFollowAction.INSTANCE, TransportPauseFollowAction.class),
+            new ActionHandler(UnfollowAction.INSTANCE, TransportUnfollowAction.class),
             // auto-follow actions
-            new ActionHandler<>(DeleteAutoFollowPatternAction.INSTANCE, TransportDeleteAutoFollowPatternAction.class),
-            new ActionHandler<>(PutAutoFollowPatternAction.INSTANCE, TransportPutAutoFollowPatternAction.class),
-            new ActionHandler<>(GetAutoFollowPatternAction.INSTANCE, TransportGetAutoFollowPatternAction.class),
-            new ActionHandler<>(ActivateAutoFollowPatternAction.INSTANCE, TransportActivateAutoFollowPatternAction.class),
+            new ActionHandler(DeleteAutoFollowPatternAction.INSTANCE, TransportDeleteAutoFollowPatternAction.class),
+            new ActionHandler(PutAutoFollowPatternAction.INSTANCE, TransportPutAutoFollowPatternAction.class),
+            new ActionHandler(GetAutoFollowPatternAction.INSTANCE, TransportGetAutoFollowPatternAction.class),
+            new ActionHandler(ActivateAutoFollowPatternAction.INSTANCE, TransportActivateAutoFollowPatternAction.class),
             // forget follower action
-            new ActionHandler<>(ForgetFollowerAction.INSTANCE, TransportForgetFollowerAction.class),
+            new ActionHandler(ForgetFollowerAction.INSTANCE, TransportForgetFollowerAction.class),
             usageAction,
             infoAction
         );

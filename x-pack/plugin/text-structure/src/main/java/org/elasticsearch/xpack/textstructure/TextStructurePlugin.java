@@ -68,10 +68,10 @@ public class TextStructurePlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(FindFieldStructureAction.INSTANCE, TransportFindFieldStructureAction.class),
-            new ActionHandler<>(FindMessageStructureAction.INSTANCE, TransportFindMessageStructureAction.class),
-            new ActionHandler<>(FindStructureAction.INSTANCE, TransportFindStructureAction.class),
-            new ActionHandler<>(TestGrokPatternAction.INSTANCE, TransportTestGrokPatternAction.class)
+            new ActionHandler(FindFieldStructureAction.INSTANCE, TransportFindFieldStructureAction.class),
+            new ActionHandler(FindMessageStructureAction.INSTANCE, TransportFindMessageStructureAction.class),
+            new ActionHandler(FindStructureAction.INSTANCE, TransportFindStructureAction.class),
+            new ActionHandler(TestGrokPatternAction.INSTANCE, TransportTestGrokPatternAction.class)
         );
     }
 }

@@ -121,10 +121,10 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(GetAutoscalingCapacityAction.INSTANCE, TransportGetAutoscalingCapacityAction.class),
-            new ActionHandler<>(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
-            new ActionHandler<>(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
-            new ActionHandler<>(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
+            new ActionHandler(GetAutoscalingCapacityAction.INSTANCE, TransportGetAutoscalingCapacityAction.class),
+            new ActionHandler(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
+            new ActionHandler(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
+            new ActionHandler(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
         );
     }
 

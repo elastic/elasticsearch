@@ -604,7 +604,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
     public static class TaskPlugin extends Plugin implements ActionPlugin {
         @Override
         public List<ActionHandler> getActions() {
-            return Collections.singletonList(new ActionHandler<>(TransportTestAction.ACTION, TransportTestAction.class));
+            return Collections.singletonList(new ActionHandler(TransportTestAction.ACTION, TransportTestAction.class));
         }
     }
 

@@ -141,7 +141,7 @@ public class PatternedTextValueProcessor {
      * @param bytes the byte array to fill with the parsed UUID bytes
      * @return true if the text is a valid IPv4 address, false otherwise
      */
-    public static boolean isIpv4(String text, byte[] bytes) {
+    static boolean isIpv4(String text, byte[] bytes) {
         if (text.length() < 7 || text.length() > 15) {
             return false;
         }

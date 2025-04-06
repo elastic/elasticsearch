@@ -44,7 +44,7 @@ Late-interaction models are powerful rerankers. While their size and overall cos
 
 [discrete]
 [[enable_lookup_join_in_non_snapshot_builds]]
-=== LOOKUP JOIN is now available in technical preview
+=== {esql} LOOKUP JOIN is now available in technical preview
 
 <<esql-lookup-join,LOOKUP JOIN>> is now available in technical preview.
 LOOKUP JOIN combines data from your {esql} queries with matching records from a lookup index, enabling you to:

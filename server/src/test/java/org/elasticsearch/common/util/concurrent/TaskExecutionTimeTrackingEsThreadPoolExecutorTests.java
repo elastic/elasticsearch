@@ -206,8 +206,9 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
                     ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName
                         + TaskExecutionTimeTrackingEsThreadPoolExecutor.THREAD_POOL_METRIC_NAME_QUEUE_TIME
                 );
-            assertThat(measurements, hasSize(2));
+            assertThat(measurements, hasSize(3));
             // we have to use greater than or equal to because the actual delay might be higher than what we imposed
+            assertThat(getPercentile(measurements, "99"), greaterThanOrEqualTo(expectedHistogram.getPercentile(0.99f)));
             assertThat(getPercentile(measurements, "90"), greaterThanOrEqualTo(expectedHistogram.getPercentile(0.9f)));
             assertThat(getPercentile(measurements, "50"), greaterThanOrEqualTo(expectedHistogram.getPercentile(0.5f)));
         } finally {

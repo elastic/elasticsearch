@@ -82,6 +82,8 @@ final class CefParser {
         "([0-9A-Fa-f]{2}[:|-]){7}[0-9A-Fa-f]{2}|" +
         // Dot-separated EUI-64
         "([0-9A-Fa-f]{4}\\.){3}[0-9A-Fa-f]{4}" + ")$";
+
+    private static final Pattern MAC_ADDRESS_PATTERN = Pattern.compile(MAC_ADDRESS_REGEX);
     private static final int EUI48_HEX_LENGTH = 48 / 4;
     private static final int EUI64_HEX_LENGTH = 64 / 4;
     private static final int EUI64_HEX_WITH_SEPARATOR_MAX_LENGTH = EUI64_HEX_LENGTH + EUI64_HEX_LENGTH / 2 - 1;
@@ -468,8 +470,7 @@ final class CefParser {
         // Insert separators if necessary
         String macWithSeparators = insertMACSeparators(v);
         // Validate MAC address format
-        Pattern macAddressPattern = Pattern.compile(MAC_ADDRESS_REGEX);
-        Matcher matcher = macAddressPattern.matcher(macWithSeparators);
+        Matcher matcher = MAC_ADDRESS_PATTERN.matcher(macWithSeparators);
         if (matcher.matches() == false) {
             throw new IllegalArgumentException("Invalid MAC address format");
         }

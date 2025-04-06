@@ -15,6 +15,7 @@ import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
@@ -411,7 +412,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     null,
                     true,
                     TRANSPORT_CA_CERTIFICATE_DAYS,
-                    SIGNATURE_ALGORITHM
+                    SIGNATURE_ALGORITHM,
+                    null,
+                    Set.of()
                 );
                 // transport key/certificate
                 final KeyPair transportKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_KEY_SIZE);
@@ -424,7 +427,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     transportCaKey,
                     false,
                     TRANSPORT_CERTIFICATE_DAYS,
-                    SIGNATURE_ALGORITHM
+                    SIGNATURE_ALGORITHM,
+                    null,
+                    Set.of()
                 );
 
                 final KeyPair httpCaKeyPair = CertGenUtils.generateKeyPair(HTTP_CA_KEY_SIZE);
@@ -438,7 +443,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     null,
                     true,
                     HTTP_CA_CERTIFICATE_DAYS,
-                    SIGNATURE_ALGORITHM
+                    SIGNATURE_ALGORITHM,
+                    new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign),
+                    Set.of()
                 );
             } catch (Throwable t) {
                 try {
@@ -464,6 +471,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 false,
                 HTTP_CERTIFICATE_DAYS,
                 SIGNATURE_ALGORITHM,
+                new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment),
                 Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
             );
 

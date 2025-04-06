@@ -933,9 +933,7 @@ class CertificateTool extends MultiCommand {
                     keyPair,
                     null,
                     null,
-                    false,
-                    days,
-                    null
+                    days
                 );
             }
             return new CertificateAndKey((X509Certificate) certificate, keyPair.getPrivate());

@@ -14,6 +14,7 @@ import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.openssl.jcajce.JcaMiscPEMGenerator;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
@@ -339,6 +340,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     keyPair,
                     cert.subject,
                     sanList,
+                    new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment),
                     Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
                 );
                 final String csrFile = "http-" + cert.name + ".csr";
@@ -372,6 +374,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     notBefore,
                     notAfter,
                     null,
+                    new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment),
                     Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
                 );
 

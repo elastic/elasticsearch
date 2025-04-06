@@ -23,6 +23,7 @@ import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
@@ -93,6 +94,7 @@ import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.guessF
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
@@ -692,7 +694,10 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // We register 1 extension with the subject alternative names and extended key usage
         final Extensions extensions = Extensions.getInstance(extensionAttributes[0].getAttributeValues()[0]);
         assertThat(extensions, notNullValue());
-        assertThat(extensions.getExtensionOIDs(), arrayWithSize(2));
+        assertThat(
+            extensions.getExtensionOIDs(),
+            arrayContainingInAnyOrder(Extension.subjectAlternativeName, Extension.keyUsage, Extension.extendedKeyUsage)
+        );
 
         final GeneralNames names = GeneralNames.fromExtensions(extensions, Extension.subjectAlternativeName);
         assertThat(names.getNames(), arrayWithSize(hostNames.size() + ipAddresses.size()));
@@ -709,6 +714,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         ExtendedKeyUsage extendedKeyUsage = ExtendedKeyUsage.fromExtensions(extensions);
         assertThat(extendedKeyUsage.getUsages(), arrayContainingInAnyOrder(KeyPurposeId.id_kp_serverAuth));
+
+        KeyUsage keyUsage = KeyUsage.fromExtensions(extensions);
+        assertThat(keyUsage, is(equalTo(new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment))));
     }
 
     private void verifyCertificate(

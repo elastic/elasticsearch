@@ -143,6 +143,7 @@ public class CertGenUtilsTests extends ESTestCase {
             notBefore,
             notAfter,
             null,
+            null,
             Set.of(new ExtendedKeyUsage(KeyPurposeId.anyExtendedKeyUsage))
         );
 

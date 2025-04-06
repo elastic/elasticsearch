@@ -20,6 +20,7 @@ import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.ExtensionsGenerator;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.Time;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CertificateHolder;
@@ -80,7 +81,7 @@ public class CertGenUtils {
      */
     public static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair, int days)
         throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
-        return generateSignedCertificate(x500Principal, null, keyPair, null, null, true, days, null);
+        return generateSignedCertificate(x500Principal, null, keyPair, null, null, true, days, null, null, Set.of());
     }
 
     /**
@@ -107,7 +108,7 @@ public class CertGenUtils {
         PrivateKey caPrivKey,
         int days
     ) throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
-        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days, null);
+        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days, null, null, Set.of());
     }
 
     /**
@@ -123,54 +124,14 @@ public class CertGenUtils {
      *                           certificate
      * @param caPrivKey          the CA private key. If {@code null}, this results in a self signed
      *                           certificate
-     * @param days               no of days certificate will be valid from now
-     * @param signatureAlgorithm algorithm used for signing certificate. If {@code null} or
-     *                           empty, then use default algorithm {@link CertGenUtils#getDefaultSignatureAlgorithm(PrivateKey)}
-     * @return a signed {@link X509Certificate}
-     */
-    public static X509Certificate generateSignedCertificate(
-        X500Principal principal,
-        GeneralNames subjectAltNames,
-        KeyPair keyPair,
-        X509Certificate caCert,
-        PrivateKey caPrivKey,
-        int days,
-        String signatureAlgorithm
-    ) throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
-        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days, signatureAlgorithm);
-    }
-
-    /**
-     * Generates a signed certificate
-     *
-     * @param principal          the principal of the certificate; commonly referred to as the
-     *                           distinguished name (DN)
-     * @param subjectAltNames    the subject alternative names that should be added to the
-     *                           certificate as an X509v3 extension. May be {@code null}
-     * @param keyPair            the key pair that will be associated with the certificate
-     * @param caCert             the CA certificate. If {@code null}, this results in a self signed
-     *                           certificate
-     * @param caPrivKey          the CA private key. If {@code null}, this results in a self signed
-     *                           certificate
      * @param isCa               whether or not the generated certificate is a CA
      * @param days               no of days certificate will be valid from now
      * @param signatureAlgorithm algorithm used for signing certificate. If {@code null} or
      *                           empty, then use default algorithm {@link CertGenUtils#getDefaultSignatureAlgorithm(PrivateKey)}
+     * @param keyUsage          the key usage that should be added to the certificate as a X509v3 extension (can be {@code null})
+     * @param extendedKeyUsages the extended key usages that should be added to the certificate as a X509v3 extension (can be empty)
      * @return a signed {@link X509Certificate}
      */
-    public static X509Certificate generateSignedCertificate(
-        X500Principal principal,
-        GeneralNames subjectAltNames,
-        KeyPair keyPair,
-        X509Certificate caCert,
-        PrivateKey caPrivKey,
-        boolean isCa,
-        int days,
-        String signatureAlgorithm
-    ) throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
-        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, isCa, days, signatureAlgorithm, Set.of());
-    }
-
     public static X509Certificate generateSignedCertificate(
         X500Principal principal,
         GeneralNames subjectAltNames,
@@ -180,6 +141,7 @@ public class CertGenUtils {
         boolean isCa,
         int days,
         String signatureAlgorithm,
+        KeyUsage keyUsage,
         Set<ExtendedKeyUsage> extendedKeyUsages
     ) throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
         Objects.requireNonNull(keyPair, "Key-Pair must not be null");
@@ -198,6 +160,7 @@ public class CertGenUtils {
             notBefore,
             notAfter,
             signatureAlgorithm,
+            keyUsage,
             extendedKeyUsages
         );
     }
@@ -223,6 +186,7 @@ public class CertGenUtils {
             notBefore,
             notAfter,
             signatureAlgorithm,
+            null,
             Set.of()
         );
     }
@@ -237,6 +201,7 @@ public class CertGenUtils {
         ZonedDateTime notBefore,
         ZonedDateTime notAfter,
         String signatureAlgorithm,
+        KeyUsage keyUsage,
         Set<ExtendedKeyUsage> extendedKeyUsages
     ) throws NoSuchAlgorithmException, CertIOException, OperatorCreationException, CertificateException {
         final BigInteger serial = CertGenUtils.getSerial();
@@ -272,6 +237,11 @@ public class CertGenUtils {
         }
         builder.addExtension(Extension.basicConstraints, isCa, new BasicConstraints(isCa));
 
+        if (keyUsage != null) {
+            // as per RFC 5280 (section 4.2.1.3), if the key usage is present, then it SHOULD be marked as critical.
+            final boolean isCritical = true;
+            builder.addExtension(Extension.keyUsage, isCritical, keyUsage);
+        }
         if (extendedKeyUsages != null) {
             for (ExtendedKeyUsage extendedKeyUsage : extendedKeyUsages) {
                 builder.addExtension(Extension.extendedKeyUsage, false, extendedKeyUsage);
@@ -318,7 +288,7 @@ public class CertGenUtils {
      */
     static PKCS10CertificationRequest generateCSR(KeyPair keyPair, X500Principal principal, GeneralNames sanList) throws IOException,
         OperatorCreationException {
-        return generateCSR(keyPair, principal, sanList, Set.of());
+        return generateCSR(keyPair, principal, sanList, null, Set.of());
     }
 
     /**
@@ -335,6 +305,7 @@ public class CertGenUtils {
         KeyPair keyPair,
         X500Principal principal,
         GeneralNames sanList,
+        KeyUsage keyUsage,
         Set<ExtendedKeyUsage> extendedKeyUsages
     ) throws IOException, OperatorCreationException {
         Objects.requireNonNull(keyPair, "Key-Pair must not be null");
@@ -347,7 +318,9 @@ public class CertGenUtils {
         if (sanList != null) {
             extGen.addExtension(Extension.subjectAlternativeName, false, sanList);
         }
-
+        if (keyUsage != null) {
+            extGen.addExtension(Extension.keyUsage, true, keyUsage);
+        }
         for (ExtendedKeyUsage extendedKeyUsage : extendedKeyUsages) {
             extGen.addExtension(Extension.extendedKeyUsage, false, extendedKeyUsage);
         }

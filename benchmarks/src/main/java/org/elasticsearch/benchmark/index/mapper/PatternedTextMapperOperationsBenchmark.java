@@ -35,6 +35,5 @@ public class PatternedTextMapperOperationsBenchmark {
     public String input;
 
     @Benchmark
-    public void testIpv4MatchManual(Blackhole blackhole) {
-    }
+    public void testIpv4MatchManual(Blackhole blackhole) {}
 }

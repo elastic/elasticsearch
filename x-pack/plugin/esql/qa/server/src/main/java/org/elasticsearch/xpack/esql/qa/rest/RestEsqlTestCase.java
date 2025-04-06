@@ -132,7 +132,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
-        private Boolean allowPartialResults = null;
+        private Boolean allPartialResults = null;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -210,13 +210,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
-        public RequestObjectBuilder allowPartialResults(boolean allowPartialResults) {
-            this.allowPartialResults = allowPartialResults;
+        public RequestObjectBuilder allPartialResults(boolean allPartialResults) {
+            this.allPartialResults = allPartialResults;
             return this;
-        }
-
-        public Boolean allowPartialResults() {
-            return allowPartialResults;
         }
 
         public RequestObjectBuilder build() throws IOException {
@@ -1373,8 +1369,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         requestObject.build();
         Request request = prepareRequest(mode);
         String mediaType = attachBody(requestObject, request);
-        if (requestObject.allowPartialResults != null) {
-            request.addParameter("allow_partial_results", String.valueOf(requestObject.allowPartialResults));
+        if (requestObject.allPartialResults != null) {
+            request.addParameter("allow_partial_results", String.valueOf(requestObject.allPartialResults));
         }
 
         RequestOptions.Builder options = request.getOptions().toBuilder();

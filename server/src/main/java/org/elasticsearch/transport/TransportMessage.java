@@ -12,20 +12,15 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.RefCounted;
 
-public abstract class TransportMessage implements Writeable, RefCounted {
-
-    /**
-     * Constructs a new empty transport message
-     */
-    public TransportMessage() {}
+public interface TransportMessage extends Writeable, RefCounted {
 
     @Override
-    public void incRef() {
+    default void incRef() {
         // noop, override to manage the life-cycle of resources held by a transport message
     }
 
     @Override
-    public boolean tryIncRef() {
+    default boolean tryIncRef() {
         // noop, override to manage the life-cycle of resources held by a transport message
         return true;
     }
@@ -38,13 +33,13 @@ public abstract class TransportMessage implements Writeable, RefCounted {
      * layer in a manner that might end up nesting too deeply. When in doubt, dispatch any further work onto a separate thread.
      */
     @Override
-    public boolean decRef() {
+    default boolean decRef() {
         // noop, override to manage the life-cycle of resources held by a transport message
         return false;
     }
 
     @Override
-    public boolean hasReferences() {
+    default boolean hasReferences() {
         // noop, override to manage the life-cycle of resources held by a transport message
         return true;
     }

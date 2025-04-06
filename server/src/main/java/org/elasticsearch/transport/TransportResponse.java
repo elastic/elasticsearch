@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public abstract class TransportResponse extends TransportMessage {
+public abstract class TransportResponse implements TransportMessage {
 
     /**
      * Constructs a new empty transport response

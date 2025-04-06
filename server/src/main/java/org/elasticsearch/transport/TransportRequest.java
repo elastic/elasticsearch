@@ -18,7 +18,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
-public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
+public abstract class TransportRequest implements TransportMessage, TaskAwareRequest {
 
     @Nullable // set by the transport service on inbound messages; unset on outbound messages
     private InetSocketAddress remoteAddress;

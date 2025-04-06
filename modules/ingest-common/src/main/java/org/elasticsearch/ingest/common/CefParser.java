@@ -73,7 +73,7 @@ final class CefParser {
     );
 
     // Comprehensive regex pattern to match various MAC address formats
-    public static final String MAC_ADDRESS_REGEX = "^(" +
+    private static final String MAC_ADDRESS_REGEX = "^(" +
     // Combined colon and hyphen separated 6-group patterns
         "(([0-9A-Fa-f]{2}[:|-]){5}[0-9A-Fa-f]{2})|" +
         // Dot-separated 6-group pattern

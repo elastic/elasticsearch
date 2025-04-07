@@ -188,8 +188,8 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = ValuesBooleanAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = ValuesBooleanAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

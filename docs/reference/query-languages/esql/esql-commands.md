@@ -31,7 +31,7 @@ An {{esql}} source command produces a table, typically with data from {{es}}. An
 
 {{esql}} supports these processing commands:
 
-* [`CHANGE_POINT`](#esql-change-point)
+* [preview] [`CHANGE_POINT`](#esql-change-point)
 * [`DISSECT`](#esql-dissect)
 * [`DROP`](#esql-drop)
 * [`ENRICH`](#esql-enrich)

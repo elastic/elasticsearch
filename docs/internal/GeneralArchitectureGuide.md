@@ -24,7 +24,7 @@ By default, all nodes will act as coordinating nodes, but by specifying `node.ro
 [getRestHandlers]:https://github.com/elastic/elasticsearch/blob/0b09506b543231862570c7c1ee623c1af139bd5a/server/src/main/java/org/elasticsearch/plugins/ActionPlugin.java#L76
 [RestBulkAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/action/document/RestBulkAction.java
 
-Each REST endpoint is defined by a [RestHandler] instance. The [RestHandler] interface defines the list of [Route]s which are handled by the handler, the request handling logic, and some other runtime characteristics such as a name for the handler, which path/query parameters are supported and the content type(s) it accepts. REST endpoints can be contributed by [ActionPlugin]s via the [getRestHandlers] method.
+Each REST endpoint is defined by a [RestHandler] instance. [RestHandler] implementations define the list of [Route]s that they handle, the request handling logic, and some other runtime characteristics such as a name for the handler, which path/query parameters are supported and the content type(s) it accepts. REST endpoints can be contributed by [ActionPlugin]s via the [getRestHandlers] method.
 
 [BaseRestHandler] is the base class for almost all REST endpoints in Elasticsearch. It validates the request parameters against those which are supported, delegates to its sub-classes to set up the execution of the requested action, then delivers the request content to the action either as a single parsed payload or a stream of binary chunks. Actions such as the [RestBulkAction] use the streaming capability to process large payloads incrementally and apply back-pressure when overloaded.
 

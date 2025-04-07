@@ -130,8 +130,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -377,46 +375,46 @@ public class Stateless extends Plugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackInfoFeatureAction.INDEX_LIFECYCLE, DummyILMInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, DummyILMUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.MONITORING, DummyMonitoringInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.MONITORING, DummyMonitoringUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, DummyRollupInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, DummyRollupUsageTransportAction.class),
-            new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, DummyTransportGetRollupIndexCapsAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.WATCHER, DummyWatcherInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.WATCHER, DummyWatcherUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, DummyVotingOnlyInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.INDEX_LIFECYCLE, DummyILMInfoTransportAction.class),
+            new ActionHandler(XPackUsageFeatureAction.INDEX_LIFECYCLE, DummyILMUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.MONITORING, DummyMonitoringInfoTransportAction.class),
+            new ActionHandler(XPackUsageFeatureAction.MONITORING, DummyMonitoringUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.ROLLUP, DummyRollupInfoTransportAction.class),
+            new ActionHandler(XPackUsageFeatureAction.ROLLUP, DummyRollupUsageTransportAction.class),
+            new ActionHandler(GetRollupIndexCapsAction.INSTANCE, DummyTransportGetRollupIndexCapsAction.class),
+            new ActionHandler(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsInfoTransportAction.class),
+            new ActionHandler(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.WATCHER, DummyWatcherInfoTransportAction.class),
+            new ActionHandler(XPackUsageFeatureAction.WATCHER, DummyWatcherUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.VOTING_ONLY, DummyVotingOnlyInfoTransportAction.class),
+            new ActionHandler(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class),
 
             // autoscaling
-            new ActionHandler<>(TransportPublishNodeIngestLoadMetric.INSTANCE, TransportPublishNodeIngestLoadMetric.class),
-            new ActionHandler<>(TransportPublishShardSizes.INSTANCE, TransportPublishShardSizes.class),
-            new ActionHandler<>(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
-            new ActionHandler<>(GetAllShardSizesAction.INSTANCE, GetAllShardSizesAction.TransportGetAllShardSizes.class),
-            new ActionHandler<>(GetShardSizeAction.INSTANCE, GetShardSizeAction.TransportGetShardSize.class),
-            new ActionHandler<>(TransportPublishSearchLoads.INSTANCE, TransportPublishSearchLoads.class),
+            new ActionHandler(TransportPublishNodeIngestLoadMetric.INSTANCE, TransportPublishNodeIngestLoadMetric.class),
+            new ActionHandler(TransportPublishShardSizes.INSTANCE, TransportPublishShardSizes.class),
+            new ActionHandler(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
+            new ActionHandler(GetAllShardSizesAction.INSTANCE, GetAllShardSizesAction.TransportGetAllShardSizes.class),
+            new ActionHandler(GetShardSizeAction.INSTANCE, GetShardSizeAction.TransportGetShardSize.class),
+            new ActionHandler(TransportPublishSearchLoads.INSTANCE, TransportPublishSearchLoads.class),
 
-            new ActionHandler<>(CLEAR_BLOB_CACHE_ACTION, TransportClearBlobCacheAction.class),
-            new ActionHandler<>(GET_BLOB_STORE_STATS_ACTION, TransportGetBlobStoreStatsAction.class),
-            new ActionHandler<>(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
-            new ActionHandler<>(TransportFetchShardCommitsInUseAction.TYPE, TransportFetchShardCommitsInUseAction.class),
-            new ActionHandler<>(
+            new ActionHandler(CLEAR_BLOB_CACHE_ACTION, TransportClearBlobCacheAction.class),
+            new ActionHandler(GET_BLOB_STORE_STATS_ACTION, TransportGetBlobStoreStatsAction.class),
+            new ActionHandler(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
+            new ActionHandler(TransportFetchShardCommitsInUseAction.TYPE, TransportFetchShardCommitsInUseAction.class),
+            new ActionHandler(
                 TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE,
                 TransportGetVirtualBatchedCompoundCommitChunkAction.class
             ),
-            new ActionHandler<>(StatelessPrimaryRelocationAction.TYPE, TransportStatelessPrimaryRelocationAction.class),
-            new ActionHandler<>(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
-            new ActionHandler<>(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
-            new ActionHandler<>(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
-            new ActionHandler<>(TransportUpdateReplicasAction.TYPE, TransportUpdateReplicasAction.class),
-            new ActionHandler<>(TransportUpdateSplitStateAction.TYPE, TransportUpdateSplitStateAction.class),
-            new ActionHandler<>(TransportReshardSplitAction.TYPE, TransportReshardSplitAction.class),
-            new ActionHandler<>(TransportReshardAction.TYPE, TransportReshardAction.class)
+            new ActionHandler(StatelessPrimaryRelocationAction.TYPE, TransportStatelessPrimaryRelocationAction.class),
+            new ActionHandler(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
+            new ActionHandler(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
+            new ActionHandler(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
+            new ActionHandler(TransportUpdateReplicasAction.TYPE, TransportUpdateReplicasAction.class),
+            new ActionHandler(TransportUpdateSplitStateAction.TYPE, TransportUpdateSplitStateAction.class),
+            new ActionHandler(TransportReshardSplitAction.TYPE, TransportReshardSplitAction.class),
+            new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class)
         );
     }
 

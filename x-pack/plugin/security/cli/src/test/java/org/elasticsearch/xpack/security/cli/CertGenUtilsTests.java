@@ -19,11 +19,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.x500.X500Principal;
-
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyPair;
@@ -36,6 +31,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
+import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.xpack.security.cli.CertGenUtils.KEY_USAGE_BITS;
 import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;

@@ -912,7 +912,12 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
-        METRICS_COMMAND(Build.current().isSnapshot());
+        METRICS_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Dense vector field type support
+         */
+        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG);
 
         private final boolean enabled;
 

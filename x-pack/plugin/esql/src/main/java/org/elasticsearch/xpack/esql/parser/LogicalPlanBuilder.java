@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -706,5 +707,57 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             return new OrderBy(source, dedup, order);
         };
+    }
+
+    @Override
+    public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
+        var source = source(ctx);
+
+        if (false == EsqlCapabilities.Cap.RERANK.isEnabled()) {
+            throw new ParsingException(source, "RERANK is in preview and only available in SNAPSHOT build");
+        }
+
+        Expression queryText = expression(ctx.queryText);
+        if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
+            if (queryTextLiteral.value() == null) {
+                throw new ParsingException(
+                    source(ctx.queryText),
+                    "Query text cannot be null or undefined in RERANK",
+                    ctx.queryText.getText()
+                );
+            }
+        } else {
+            throw new ParsingException(
+                source(ctx.queryText),
+                "RERANK only support string as query text but [{}] cannot be used as string",
+                ctx.queryText.getText()
+            );
+        }
+
+        return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitFields(ctx.fields()));
+    }
+
+    public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
+        if (ctx.identifier() != null) {
+            return new Literal(source(ctx), visitIdentifier(ctx.identifier()), KEYWORD);
+        }
+
+        if (expression(ctx.parameter()) instanceof Literal literalParam) {
+            if (literalParam.value() != null) {
+                return literalParam;
+            }
+
+            throw new ParsingException(
+                source(ctx.parameter()),
+                "Query parameter [{}] is null or undefined and cannot be used as inference id",
+                ctx.parameter().getText()
+            );
+        }
+
+        throw new ParsingException(
+            source(ctx.parameter()),
+            "Query parameter [{}] is not a string and cannot be used as inference id",
+            ctx.parameter().getText()
+        );
     }
 }

@@ -16,6 +16,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.DO_SAMPLE_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_NEW_TOKENS_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TEMPERATURE_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_P_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRequestFields.INPUT_DATA_OBJECT;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRequestFields.INPUT_STRING_ARRAY;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRequestFields.MESSAGES_ARRAY;
@@ -24,10 +28,6 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.request.A
 import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRequestFields.ROLE;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRequestFields.STREAM;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRequestFields.USER_ROLE;
-import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.DO_SAMPLE_FIELD;
-import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_NEW_TOKENS_FIELD;
-import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TEMPERATURE_FIELD;
-import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_P_FIELD;
 
 public record AzureAiStudioChatCompletionRequestEntity(
     List<String> messages,

@@ -13,10 +13,10 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereRequest;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereRequest;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 
 import java.net.URI;
 import java.net.URISyntaxException;

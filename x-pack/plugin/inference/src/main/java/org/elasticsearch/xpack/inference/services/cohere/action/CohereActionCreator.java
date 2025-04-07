@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.inference.services.cohere.action;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereCompletionRequestManager;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereEmbeddingsRequestManager;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereRerankRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereRerankRequestManager;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
 import java.util.Map;

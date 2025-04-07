@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiEmbeddingsRequestManager;
-import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.mistral.MistralEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.azureopenai.response.AzureMistralOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.mistral.response.MistralEmbeddingsResponseEntity;
 
 import java.util.List;
 import java.util.Objects;

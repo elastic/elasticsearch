@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.inference.services.mistral.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.services.mistral.request.MistralEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.mistral.request.MistralEmbeddingsRequestManager;
 
 import java.util.Map;
 import java.util.Objects;

@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.inference.services.jinaai.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequestManager;
-import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIRerankRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIRerankRequestManager;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
 
 import java.util.Map;

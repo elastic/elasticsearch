@@ -5,13 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.results;
+package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
 import java.io.IOException;

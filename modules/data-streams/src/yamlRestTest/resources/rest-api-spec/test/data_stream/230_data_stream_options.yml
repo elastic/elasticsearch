@@ -45,6 +45,14 @@ teardown:
 
 ---
 "Edit data stream options":
+  - requires:
+      reason: "Data stream failures lifecycle was added in 8.19+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_data_stream/{target}/_options
+          capabilities: [ 'failures_lifecycle' ]
+
   - do:
       indices.get_data_stream_options:
         name: "failure-data-stream"
@@ -57,7 +65,8 @@ teardown:
         name: "failure-data-stream"
         body:
           failure_store:
-            enabled: false
+            lifecycle:
+              data_retention: 30d
   - is_true: acknowledged
 
   - do:
@@ -65,7 +74,9 @@ teardown:
         name: "failure-data-stream"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: failure-data-stream }
-  - match: { data_streams.0.options.failure_store.enabled: false }
+  - is_false: data_streams.0.options.failure_store.enabled
+  - match: { data_streams.0.options.failure_store.lifecycle.enabled: true }
+  - match: { data_streams.0.options.failure_store.lifecycle.data_retention: 30d }
 
   - do:
       indices.delete_data_stream_options:

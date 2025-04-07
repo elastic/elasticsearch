@@ -1993,9 +1993,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          * @param shardCount   updated shardCount
          */
         public Builder reshardAddShards(int shardCount, IndexMetadata sourceMetadata) {
-            // Assert routingNumShards is null ?
-            // Assert numberOfShards > 0
-            System.out.println("routingNumShards: " + routingNumShards);
             if (shardCount % numberOfShards() != 0) {
                 throw new IllegalArgumentException(
                     "New shard count ["
@@ -2008,16 +2005,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         + "]"
                 );
             }
-            //IndexVersion indexVersionCreated = indexCreatedVersion(settings);
             settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, shardCount).build();
             var newPrimaryTerms = new long[shardCount];
             Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
             primaryTerms = newPrimaryTerms;
-            // This will change the routingNumShards to 1024 (for 2 shard index)
-            // routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexVersionCreated);
             routingNumShards = MetadataCreateIndexService.getIndexNumberOfRoutingShards(settings, sourceMetadata);
-            System.out.println("New routingNumShards: " + routingNumShards);
             return this;
         }
 

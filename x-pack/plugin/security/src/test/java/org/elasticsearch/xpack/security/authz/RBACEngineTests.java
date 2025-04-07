@@ -1416,6 +1416,7 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testBuildUserPrivilegeResponseCombinesIndexPrivileges() {
+        assumeTrue("failure store feature must be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
         final BytesArray query = new BytesArray("""
             {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES, "test", "role")
@@ -1699,10 +1700,10 @@ public class RBACEngineTests extends ESTestCase {
             Set<IndexPrivilege> splitBySelector = IndexPrivilege.resolveBySelectorAccess(
                 Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
             );
-            // If we end up with failure and data access, we will split and end up with extra groups. Need to account for this for the
-            // final assertion
-            if (splitBySelector.size() == 2) {
-                extraGroups++;
+            // If we end up with failure and data access (or failure, data and failure and data access),
+            // we will split and end up with extra groups. Need to account for this for the final assertion
+            if (splitBySelector.size() >= 2) {
+                extraGroups += splitBySelector.size() - 1;
             }
             for (var privilege : splitBySelector) {
                 remoteIndicesBuilder.addGroup(

@@ -53,6 +53,8 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
     mkdir data && \\
 # Reset permissions on all directories
     find . -type d -exec chmod 0555 {} + && \\
+# keep default elasticsearch log4j config
+    mv config/log4j2.properties config/log4j2.file.properties \\
 # Reset permissions on all files
     find . -type f -exec chmod 0444 {} + && \\
 # Make CLI tools executable

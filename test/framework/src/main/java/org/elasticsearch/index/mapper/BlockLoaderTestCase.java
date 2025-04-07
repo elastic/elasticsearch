@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.Mapping;
 import org.elasticsearch.logsdb.datageneration.MappingGenerator;
 import org.elasticsearch.logsdb.datageneration.Template;
@@ -35,6 +34,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +44,7 @@ import java.util.stream.Stream;
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     private static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
         MappedFieldType.FieldExtractPreference.NONE,
+        MappedFieldType.FieldExtractPreference.DOC_VALUES,
         MappedFieldType.FieldExtractPreference.STORED };
 
     @ParametersFactory(argumentFormatting = "preference=%s")
@@ -59,16 +60,23 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {}
 
-    private final FieldType fieldType;
+    public record TestContext(boolean forceFallbackSyntheticSource) {}
+
+    private final String fieldType;
     protected final Params params;
 
     private final String fieldName;
     private final MappingGenerator mappingGenerator;
     private final DocumentGenerator documentGenerator;
 
-    protected BlockLoaderTestCase(FieldType fieldType, Params params) {
+    protected BlockLoaderTestCase(String fieldType, Params params) {
+        this(fieldType, List.of(), params);
+    }
+
+    protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customHandlers, Params params) {
         this.fieldType = fieldType;
         this.params = params;
+
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
 
         var specification = DataGeneratorSpecification.builder()
@@ -87,6 +95,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                     return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
                 }
             }))
+            .withDataSourceHandlers(customHandlers)
             .build();
 
         this.mappingGenerator = new MappingGenerator(specification);
@@ -107,7 +116,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
         var mapping = mappingGenerator.generate(template);
 
-        runTest(template, mapping, fieldName);
+        runTest(template, mapping, fieldName, new TestContext(false));
     }
 
     @SuppressWarnings("unchecked")
@@ -133,17 +142,21 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         var mapping = mappingGenerator.generate(template);
 
+        TestContext testContext = new TestContext(false);
+
         if (params.syntheticSource && randomBoolean()) {
             // force fallback synthetic source in the hierarchy
             var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
             var topLevelMapping = (Map<String, Object>) ((Map<String, Object>) docMapping.get("properties")).get("top");
             topLevelMapping.put("synthetic_source_keep", "all");
+
+            testContext = new TestContext(true);
         }
 
-        runTest(template, mapping, fullFieldName.toString());
+        runTest(template, mapping, fullFieldName.toString(), testContext);
     }
 
-    private void runTest(Template template, Mapping mapping, String fieldName) throws IOException {
+    private void runTest(Template template, Mapping mapping, String fieldName, TestContext testContext) throws IOException {
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
 
         var mapperService = params.syntheticSource
@@ -154,13 +167,13 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
 
         Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, fieldName);
-        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName));
+        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), testContext);
         assertEquals(expected, blockLoaderResult);
     }
 
-    protected abstract Object expected(Map<String, Object> fieldMapping, Object value);
+    protected abstract Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext);
 
-    private Object getFieldValue(Map<String, Object> document, String fieldName) {
+    protected Object getFieldValue(Map<String, Object> document, String fieldName) {
         var rawValues = new ArrayList<>();
         processLevel(document, fieldName, rawValues);
 

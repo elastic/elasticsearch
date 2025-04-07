@@ -115,7 +115,6 @@ public class GetQueryRulesetAction {
         private final QueryRuleset queryRuleset;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.queryRuleset = new QueryRuleset(in);
         }
 

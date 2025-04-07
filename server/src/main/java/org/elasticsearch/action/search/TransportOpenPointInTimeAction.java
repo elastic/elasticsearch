@@ -325,7 +325,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         }
 
         ShardOpenReaderResponse(StreamInput in) throws IOException {
-            super(in);
             contextId = new ShardSearchContextId(in);
         }
 

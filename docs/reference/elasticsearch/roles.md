@@ -5,6 +5,12 @@ mapped_pages:
 
 # Roles [built-in-roles]
 
+:::{note}
+This section provides detailed **reference information** for Elasticsearch privileges.
+
+Refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) in the **Deploy and manage** section for overview, getting started and conceptual information.
+:::
+
 The {{stack-security-features}} apply a default role to all users, including [anonymous users](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/anonymous-access.md). The default role enables users to access the authenticate endpoint, change their own passwords, and get information about themselves.
 
 There is also a set of built-in roles you can explicitly assign to users. These roles have a fixed set of privileges and cannot be updated.
@@ -99,7 +105,7 @@ $$$built-in-roles-remote-monitoring-collector$$$ `remote_monitoring_collector`
 :   Grants the minimum privileges required to collect monitoring data for the {{stack}}.
 
 $$$built-in-roles-reporting-user$$$ `reporting_user`
-:   Grants the necessary privileges required to use {{reporting}} features in {{kib}}, including generating and downloading reports. This role implicitly grants access to all Kibana reporting features, with each user having access only to their own reports. Note that reporting users should also be assigned additional roles that grant read access to the [indices](https://www.elastic.co/guide/en/elasticsearch/reference/current/defining-roles.html#roles-indices-priv) that will be used to generate reports.
+:   Grants the necessary privileges required to use {{report-features}} in {{kib}}, including generating and downloading reports. This role implicitly grants access to all Kibana reporting features, with each user having access only to their own reports. Note that reporting users should also be assigned additional roles that grant read access to the [indices](https://www.elastic.co/guide/en/elasticsearch/reference/current/defining-roles.html#roles-indices-priv) that will be used to generate reports.
 
 $$$built-in-roles-rollup-admin$$$ `rollup_admin`
 :   Grants `manage_rollup` cluster privileges, which enable you to manage and execute all rollup actions.

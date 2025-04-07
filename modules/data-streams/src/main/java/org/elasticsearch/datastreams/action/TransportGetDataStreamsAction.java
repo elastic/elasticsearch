@@ -17,7 +17,8 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.IndexProperties;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ProjectState;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -63,7 +66,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
-public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjectAction<
+public class TransportGetDataStreamsAction extends TransportLocalProjectMetadataAction<
     GetDataStreamAction.Request,
     GetDataStreamAction.Response> {
 
@@ -76,6 +79,12 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
     private final IndexSettingProviders indexSettingProviders;
     private final Client client;
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportGetDataStreamsAction(
         TransportService transportService,
@@ -92,14 +101,11 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
     ) {
         super(
             GetDataStreamAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            GetDataStreamAction.Request::new,
-            projectResolver,
-            GetDataStreamAction.Response::new,
-            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
+            transportService.getTaskManager(),
+            clusterService,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            projectResolver
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
@@ -108,21 +114,32 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.indexSettingProviders = indexSettingProviders;
         this.client = new OriginSettingClient(client, "stack");
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            GetDataStreamAction.Request::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         GetDataStreamAction.Request request,
         ProjectState state,
         ActionListener<GetDataStreamAction.Response> listener
     ) throws Exception {
+        ((CancellableTask) task).ensureNotCancelled();
         if (request.verbose()) {
             DataStreamsStatsAction.Request req = new DataStreamsStatsAction.Request();
             req.indices(request.indices());
             client.execute(DataStreamsStatsAction.INSTANCE, req, new ActionListener<>() {
                 @Override
                 public void onResponse(DataStreamsStatsAction.Response response) {
+                    ((CancellableTask) task).ensureNotCancelled();
                     final Map<String, Long> maxTimestamps = Arrays.stream(response.getDataStreams())
                         .collect(
                             Collectors.toMap(

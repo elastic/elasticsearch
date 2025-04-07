@@ -749,5 +749,41 @@ public final class ServiceUtils {
         );
     }
 
+    public static final EnumSet<InputType> VALID_INTERNAL_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
+    );
+
+    public static void validateInputTypeIsUnspecifiedOrInternal(InputType inputType, ValidationException validationException) {
+        if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
+            validationException.addValidationError(
+                Strings.format("Invalid input_type [%s]. The input_type option is not supported by this service", inputType)
+            );
+        }
+    }
+
+    public static void validateInputTypeIsUnspecifiedOrInternal(
+        InputType inputType,
+        ValidationException validationException,
+        String customErrorMessage
+    ) {
+        if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
+            validationException.addValidationError(customErrorMessage);
+        }
+    }
+
+    public static void validateInputTypeAgainstAllowlist(
+        InputType inputType,
+        EnumSet<InputType> allowedInputTypes,
+        String name,
+        ValidationException validationException
+    ) {
+        if (inputType != null && inputType != InputType.UNSPECIFIED && allowedInputTypes.contains(inputType) == false) {
+            validationException.addValidationError(
+                org.elasticsearch.common.Strings.format("Input type [%s] is not supported for [%s]", inputType, name)
+            );
+        }
+    }
+
     private ServiceUtils() {}
 }

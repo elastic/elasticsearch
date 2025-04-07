@@ -23,6 +23,7 @@ import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
@@ -67,6 +68,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
@@ -101,6 +103,11 @@ public class EntitlementInitialization {
         manager = initChecker();
 
         var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
+        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
+
+        if (verifyBytecode) {
+            ensureClassesSensitiveToVerificationAreInitialized();
+        }
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
         Stream.of(
@@ -123,8 +130,23 @@ public class EntitlementInitialization {
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
         Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
-        inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
-        inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
+        var transformer = new Transformer(instrumenter, classesToTransform, verifyBytecode);
+        inst.addTransformer(transformer, true);
+
+        var classesToRetransform = findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform);
+        try {
+            inst.retransformClasses(classesToRetransform);
+        } catch (VerifyError e) {
+            // Turn on verification and try to retransform one class at the time to get detailed diagnostic
+            transformer.enableClassVerification();
+
+            for (var classToRetransform : classesToRetransform) {
+                inst.retransformClasses(classToRetransform);
+            }
+
+            // We should have failed already in the loop above, but just in case we did not, rethrow.
+            throw e;
+        }
     }
 
     private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {
@@ -161,7 +183,8 @@ public class EntitlementInitialization {
             FileData.ofPath(bootstrapArgs.libDir(), READ),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
-
+            // exclusive settings file
+            FileData.ofRelativePath(Path.of("operator/settings.json"), CONFIG, READ_WRITE).withExclusive(true),
             // OS release on Linux
             FileData.ofPath(Path.of("/etc/os-release"), READ).withPlatform(LINUX),
             FileData.ofPath(Path.of("/etc/system-release"), READ).withPlatform(LINUX),
@@ -213,6 +236,7 @@ public class EntitlementInitialization {
                     new FilesEntitlement(serverModuleFileDatas)
                 )
             ),
+            new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
             new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
             new Scope(
@@ -268,8 +292,13 @@ public class EntitlementInitialization {
             );
         }
 
-        // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
-        var serverPolicy = new Policy("server", serverScopes);
+        var serverPolicy = new Policy(
+            "server",
+            bootstrapArgs.serverPolicyPatch() == null
+                ? serverScopes
+                : PolicyUtils.mergeScopes(serverScopes, bootstrapArgs.serverPolicyPatch().scopes())
+        );
+
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
         // See also modules/apm/src/main/plugin-metadata/entitlement-policy.yaml
@@ -422,6 +451,24 @@ public class EntitlementInitialization {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    /**
+     * If bytecode verification is enabled, ensure these classes get loaded before transforming/retransforming them.
+     * For these classes, the order in which we transform and verify them matters. Verification during class transformation is at least an
+     * unforeseen (if not unsupported) scenario: we are loading a class, and while we are still loading it (during transformation) we try
+     * to verify it. This in turn leads to more classes loading (for verification purposes), which could turn into those classes to be
+     * transformed and undergo verification. In order to avoid circularity errors as much as possible, we force a partial order.
+     */
+    private static void ensureClassesSensitiveToVerificationAreInitialized() {
+        var classesToInitialize = Set.of("sun.net.www.protocol.http.HttpURLConnection");
+        for (String className : classesToInitialize) {
+            try {
+                Class.forName(className);
+            } catch (ClassNotFoundException unexpected) {
+                throw new AssertionError(unexpected);
+            }
+        }
     }
 
     /**

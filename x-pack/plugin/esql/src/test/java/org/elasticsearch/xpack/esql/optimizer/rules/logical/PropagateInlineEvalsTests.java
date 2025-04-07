@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -39,6 +40,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -62,7 +64,8 @@ public class PropagateInlineEvalsTests extends ESTestCase {
                 new EsqlFunctionRegistry(),
                 getIndexResult,
                 defaultLookupResolution(),
-                new EnrichResolution()
+                new EnrichResolution(),
+                defaultInferenceResolution()
             ),
             TEST_VERIFIER
         );
@@ -80,6 +83,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
      *     \_StubRelation[[emp_no{f}#11, languages{f}#14, gender{f}#13, y{r}#10]]
      */
     public void testGroupingAliasingMoved_To_LeftSideOfJoin() {
+        assumeTrue("Requires INLINESTATS", EsqlCapabilities.Cap.INLINESTATS_V5.isEnabled());
         var plan = plan("""
             from test
             | keep emp_no, languages, gender
@@ -122,6 +126,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
      * {r}#21]]
      */
     public void testGroupingAliasingMoved_To_LeftSideOfJoin_WithExpression() {
+        assumeTrue("Requires INLINESTATS", EsqlCapabilities.Cap.INLINESTATS_V5.isEnabled());
         var plan = plan("""
             from test
             | keep emp_no, languages, gender, last_name, first_name

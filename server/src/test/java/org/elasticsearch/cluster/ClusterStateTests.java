@@ -1069,7 +1069,9 @@ public class ClusterStateTests extends ESTestCase {
                                 "stats": {
                                     "write_load": {
                                       "loads": [-1.0],
-                                      "uptimes": [-1]
+                                      "uptimes": [-1],
+                                      "recent_loads": [-1.0],
+                                      "peak_loads": [-1.0]
                                     },
                                     "avg_size": {
                                         "total_size_in_bytes": 120,
@@ -1343,6 +1345,12 @@ public class ClusterStateTests extends ESTestCase {
                                 ],
                                 "uptimes" : [
                                   -1
+                                ],
+                                "recent_loads" : [
+                                  -1.0
+                                ],
+                                "peak_loads" : [
+                                  -1.0
                                 ]
                               },
                               "avg_size" : {
@@ -1623,6 +1631,12 @@ public class ClusterStateTests extends ESTestCase {
                                 ],
                                 "uptimes" : [
                                   -1
+                                ],
+                                "recent_loads" : [
+                                  -1.0
+                                ],
+                                "peak_loads" : [
+                                  -1.0
                                 ]
                               },
                               "avg_size" : {

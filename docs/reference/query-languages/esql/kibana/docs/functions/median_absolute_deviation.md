@@ -7,8 +7,8 @@ Returns the median absolute deviation, a measure of variability. It is a robust 
 
 It is calculated as the median of each data point’s deviation from the median of the entire sample. That is, for a random variable `X`, the median absolute deviation is `median(|median(X) - X|)`.
 
-```
+```esql
 FROM employees
 | STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)
 ```
-Note: Like <<esql-percentile>>, `MEDIAN_ABSOLUTE_DEVIATION` is <<esql-percentile-approximate,usually approximate>>.
+Note: Like [`PERCENTILE`](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/esql-functions-operators#esql-percentile), `MEDIAN_ABSOLUTE_DEVIATION` is [usually approximate](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/esql-functions-operators#esql-percentile-approximate).

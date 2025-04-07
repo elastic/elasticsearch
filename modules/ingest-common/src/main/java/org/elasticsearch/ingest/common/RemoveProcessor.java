@@ -59,15 +59,9 @@ public final class RemoveProcessor extends AbstractProcessor {
     }
 
     private void fieldsToRemoveProcessor(IngestDocument document) {
-        // micro-optimization note: actual for-each loops here rather than a .forEach because it happens to be ~5% faster in benchmarks
-        if (ignoreMissing) {
-            for (TemplateScript.Factory field : fieldsToRemove) {
-                removeWhenPresent(document, document.renderTemplate(field));
-            }
-        } else {
-            for (TemplateScript.Factory field : fieldsToRemove) {
-                document.removeField(document.renderTemplate(field));
-            }
+        // micro-optimization note: actual for-each loop here rather than a .forEach because it happens to be ~5% faster in benchmarks
+        for (TemplateScript.Factory field : fieldsToRemove) {
+            document.removeField(document.renderTemplate(field), ignoreMissing);
         }
     }
 
@@ -76,13 +70,7 @@ public final class RemoveProcessor extends AbstractProcessor {
             .stream()
             .filter(documentField -> IngestDocument.Metadata.isMetadata(documentField) == false)
             .filter(documentField -> shouldKeep(documentField, fieldsToKeep, document) == false)
-            .forEach(documentField -> removeWhenPresent(document, documentField));
-    }
-
-    private static void removeWhenPresent(IngestDocument document, String documentField) {
-        if (document.hasField(documentField)) {
-            document.removeField(documentField);
-        }
+            .forEach(documentField -> document.removeField(documentField, true));
     }
 
     static boolean shouldKeep(String documentField, List<TemplateScript.Factory> fieldsToKeep, IngestDocument document) {

@@ -11,6 +11,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -20,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -66,6 +69,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -147,6 +152,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
@@ -374,8 +381,20 @@ public final class EsqlTestUtils {
         null,
         mock(ClusterService.class),
         mock(IndexNameExpressionResolver.class),
-        null
+        null,
+        mockInferenceRunner()
     );
+
+    @SuppressWarnings("unchecked")
+    private static InferenceRunner mockInferenceRunner() {
+        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
+        doAnswer(i -> {
+            i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
+            return null;
+        }).when(inferenceRunner).resolveInferenceIds(any(), any());
+
+        return inferenceRunner;
+    }
 
     private EsqlTestUtils() {}
 
@@ -450,6 +469,10 @@ public final class EsqlTestUtils {
 
     public static EnrichResolution emptyPolicyResolution() {
         return new EnrichResolution();
+    }
+
+    public static InferenceResolution emptyInferenceResolution() {
+        return InferenceResolution.EMPTY;
     }
 
     public static SearchStats statsForExistingField(String... names) {
@@ -782,12 +805,18 @@ public final class EsqlTestUtils {
             case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
-            case TEXT, SEMANTIC_TEXT -> new BytesRef(randomAlphaOfLength(50));
+            case TEXT -> new BytesRef(randomAlphaOfLength(50));
             case VERSION -> randomVersion().toBytesRef();
             case GEO_POINT -> GEO.asWkb(GeometryTestUtils.randomPoint());
             case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
             case GEO_SHAPE -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
             case CARTESIAN_SHAPE -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
+            case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDouble(),
+                randomDouble(),
+                randomDouble(),
+                randomInt()
+            );
             case NULL -> null;
             case SOURCE -> {
                 try {
@@ -798,8 +827,9 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
-            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE ->
-                throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+                "can't make random values for [" + type.typeName() + "]"
+            );
         }, type);
     }
 
@@ -849,5 +879,19 @@ public final class EsqlTestUtils {
     public static <T> T singleValue(Collection<T> collection) {
         assertThat(collection, hasSize(1));
         return collection.iterator().next();
+    }
+
+    /**
+     * Errors from remotes are wrapped in RemoteException while the ones from the local cluster
+     * aren't. This utility method is useful for unwrapping in such cases.
+     * @param e Exception to unwrap.
+     * @return Cause of RemoteException, else the error itself.
+     */
+    public static Exception unwrapIfWrappedInRemoteException(Exception e) {
+        if (e instanceof RemoteException rce) {
+            return (Exception) rce.getCause();
+        } else {
+            return e;
+        }
     }
 }

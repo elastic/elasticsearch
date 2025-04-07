@@ -814,7 +814,6 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             nodeId = in.readString();
             nodeName = in.readString();
             blobName = in.readString();

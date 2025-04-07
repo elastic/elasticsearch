@@ -31,7 +31,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeDoubleToLong;
@@ -42,17 +41,16 @@ public class ToLong extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToLong", ToLong::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(LONG, (fieldEval, source) -> fieldEval),
-        Map.entry(DATETIME, (fieldEval, source) -> fieldEval),
-        Map.entry(DATE_NANOS, (fieldEval, source) -> fieldEval),
+        Map.entry(LONG, (source, fieldEval) -> fieldEval),
+        Map.entry(DATETIME, (source, fieldEval) -> fieldEval),
+        Map.entry(DATE_NANOS, (source, fieldEval) -> fieldEval),
         Map.entry(BOOLEAN, ToLongFromBooleanEvaluator.Factory::new),
         Map.entry(KEYWORD, ToLongFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToLongFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToLongFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new), // CastIntToLongEvaluator would be a candidate, but not MV'd
-        Map.entry(DataType.COUNTER_LONG, (field, source) -> field),
+        Map.entry(DataType.COUNTER_LONG, (source, field) -> field),
         Map.entry(DataType.COUNTER_INTEGER, ToLongFromIntEvaluator.Factory::new)
     );
 

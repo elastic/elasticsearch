@@ -16,6 +16,7 @@ import org.elasticsearch.logsdb.datageneration.fields.leaf.CountedKeywordFieldDa
 import org.elasticsearch.logsdb.datageneration.fields.leaf.DateFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.DoubleFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.FloatFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.GeoPointFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.IntegerFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.KeywordFieldDataGenerator;
@@ -25,7 +26,7 @@ import org.elasticsearch.logsdb.datageneration.fields.leaf.ShortFieldDataGenerat
 import org.elasticsearch.logsdb.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
 
 /**
- * Lists all leaf field types that are supported for data generation.
+ * Lists all leaf field types that are supported for data generation by default.
  */
 public enum FieldType {
     KEYWORD("keyword"),
@@ -40,7 +41,8 @@ public enum FieldType {
     SCALED_FLOAT("scaled_float"),
     COUNTED_KEYWORD("counted_keyword"),
     BOOLEAN("boolean"),
-    DATE("date");
+    DATE("date"),
+    GEO_POINT("geo_point");
 
     private final String name;
 
@@ -63,6 +65,27 @@ public enum FieldType {
             case COUNTED_KEYWORD -> new CountedKeywordFieldDataGenerator(fieldName, dataSource);
             case BOOLEAN -> new BooleanFieldDataGenerator(dataSource);
             case DATE -> new DateFieldDataGenerator(dataSource);
+            case GEO_POINT -> new GeoPointFieldDataGenerator(dataSource);
+        };
+    }
+
+    public static FieldType tryParse(String name) {
+        return switch (name) {
+            case "keyword" -> FieldType.KEYWORD;
+            case "long" -> FieldType.LONG;
+            case "unsigned_long" -> FieldType.UNSIGNED_LONG;
+            case "integer" -> FieldType.INTEGER;
+            case "short" -> FieldType.SHORT;
+            case "byte" -> FieldType.BYTE;
+            case "double" -> FieldType.DOUBLE;
+            case "float" -> FieldType.FLOAT;
+            case "half_float" -> FieldType.HALF_FLOAT;
+            case "scaled_float" -> FieldType.SCALED_FLOAT;
+            case "counted_keyword" -> FieldType.COUNTED_KEYWORD;
+            case "boolean" -> FieldType.BOOLEAN;
+            case "date" -> FieldType.DATE;
+            case "geo_point" -> FieldType.GEO_POINT;
+            default -> null;
         };
     }
 

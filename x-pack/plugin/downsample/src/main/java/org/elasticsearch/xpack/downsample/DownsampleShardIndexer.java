@@ -457,24 +457,7 @@ class DownsampleShardIndexer {
                     );
                 }
 
-                /*
-                 * Sanity checks to ensure that we receive documents in the correct order
-                 * - _tsid must be sorted in ascending order
-                 * - @timestamp must be sorted in descending order within the same _tsid
-                 */
-                BytesRef lastTsid = downsampleBucketBuilder.tsid();
-                assert lastTsid == null || lastTsid.compareTo(tsidHash) <= 0
-                    : "_tsid is not sorted in ascending order: ["
-                        + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
-                        + "] -> ["
-                        + DocValueFormat.TIME_SERIES_ID.format(tsidHash)
-                        + "]";
-                assert tsidHash.equals(lastTsid) == false || lastTimestamp >= timestamp
-                    : "@timestamp is not sorted in descending order: ["
-                        + timestampFormat.format(lastTimestamp)
-                        + "] -> ["
-                        + timestampFormat.format(timestamp)
-                        + "]";
+                assert assertTsidAndTimestamp(tsidHash, timestamp);
                 lastTimestamp = timestamp;
 
                 if (tsidChanged || downsampleBucketBuilder.timestamp() != lastHistoTimestamp) {
@@ -531,6 +514,28 @@ class DownsampleShardIndexer {
 
                 // buffer.clean() also overwrites all slots with zeros
                 docIdBuffer.elementsCount = 0;
+            }
+
+            /**
+             * Sanity checks to ensure that we receive documents in the correct order
+             * - _tsid must be sorted in ascending order
+             * - @timestamp must be sorted in descending order within the same _tsid
+             */
+            boolean assertTsidAndTimestamp(BytesRef tsidHash, long timestamp) {
+                BytesRef lastTsid = downsampleBucketBuilder.tsid();
+                assert lastTsid == null || lastTsid.compareTo(tsidHash) <= 0
+                    : "_tsid is not sorted in ascending order: ["
+                        + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
+                        + "] -> ["
+                        + DocValueFormat.TIME_SERIES_ID.format(tsidHash)
+                        + "]";
+                assert tsidHash.equals(lastTsid) == false || lastTimestamp >= timestamp
+                    : "@timestamp is not sorted in descending order: ["
+                        + timestampFormat.format(lastTimestamp)
+                        + "] -> ["
+                        + timestampFormat.format(timestamp)
+                        + "]";
+                return true;
             }
         }
 

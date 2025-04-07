@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -30,6 +31,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
@@ -63,6 +65,7 @@ public class DeepSeekChatCompletionModel extends Model {
 
     private static final URI DEFAULT_URI = URI.create("https://api.deepseek.com/chat/completions");
     private final DeepSeekServiceSettings serviceSettings;
+    @Nullable
     private final DefaultSecretSettings secretSettings;
 
     public static List<NamedWriteableRegistry.Entry> namedWriteables() {
@@ -126,7 +129,7 @@ public class DeepSeekChatCompletionModel extends Model {
 
     private DeepSeekChatCompletionModel(
         DeepSeekServiceSettings serviceSettings,
-        DefaultSecretSettings secretSettings,
+        @Nullable DefaultSecretSettings secretSettings,
         ModelConfigurations configurations,
         ModelSecrets secrets
     ) {
@@ -135,8 +138,8 @@ public class DeepSeekChatCompletionModel extends Model {
         this.secretSettings = secretSettings;
     }
 
-    public SecureString apiKey() {
-        return secretSettings.apiKey();
+    public Optional<SecureString> apiKey() {
+        return Optional.ofNullable(secretSettings).map(DefaultSecretSettings::apiKey);
     }
 
     public String model() {

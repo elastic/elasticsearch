@@ -5,7 +5,7 @@ mapped_pages:
 
 # ICU folding token filter [analysis-icu-folding]
 
-Case folding of Unicode characters based on `UTR#30`, like the [ASCII-folding token filter](/reference/data-analysis/text-analysis/analysis-asciifolding-tokenfilter.md) on steroids. It registers itself as the `icu_folding` token filter and is available to all indices:
+Case folding of Unicode characters based on `UTR#30`, like the [ASCII-folding token filter](/reference/text-analysis/analysis-asciifolding-tokenfilter.md) on steroids. It registers itself as the `icu_folding` token filter and is available to all indices:
 
 ```console
 PUT icu_sample

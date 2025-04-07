@@ -1,8 +1,7 @@
 ---
+navigation_title: "Known issues"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-known-issues.html
-
-navigation_title: "Elasticsearch"
 ---
 
 # Elasticsearch known issues

@@ -69,10 +69,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
             dataStreamName
         );
         final int backingIndexCount = createDataStream(dataStreamName);
-        AcknowledgedResponse response = client().execute(
-            new ActionType<AcknowledgedResponse>(ReindexDataStreamAction.NAME),
-            reindexDataStreamRequest
-        ).actionGet();
+        client().execute(new ActionType<AcknowledgedResponse>(ReindexDataStreamAction.NAME), reindexDataStreamRequest).actionGet();
         String persistentTaskId = "reindex-data-stream-" + dataStreamName;
         AtomicReference<ReindexDataStreamTask> runningTask = new AtomicReference<>();
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
@@ -91,12 +88,14 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
             );
         }
         ReindexDataStreamTask task = runningTask.get();
-        assertNotNull(task);
-        assertThat(task.getStatus().complete(), equalTo(true));
-        assertNull(task.getStatus().exception());
-        assertThat(task.getStatus().pending(), equalTo(0));
-        assertThat(task.getStatus().inProgress(), equalTo(Set.of()));
-        assertThat(task.getStatus().errors().size(), equalTo(0));
+        assertBusy(() -> {
+            assertNotNull(task);
+            assertThat(task.getStatus().complete(), equalTo(true));
+            assertNull(task.getStatus().exception());
+            assertThat(task.getStatus().pending(), equalTo(0));
+            assertThat(task.getStatus().inProgress(), equalTo(Set.of()));
+            assertThat(task.getStatus().errors().size(), equalTo(0));
+        });
 
         assertBusy(() -> {
             GetMigrationReindexStatusAction.Response statusResponse = client().execute(

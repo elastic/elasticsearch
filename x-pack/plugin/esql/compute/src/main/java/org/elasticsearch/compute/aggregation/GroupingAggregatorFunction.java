@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -114,7 +113,7 @@ public interface GroupingAggregatorFunction extends Releasable {
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      */
-    void evaluateFinal(Block[] blocks, int offset, IntVector selected, DriverContext driverContext);
+    void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext);
 
     /** The number of blocks used by intermediate state. */
     int intermediateBlockCount();

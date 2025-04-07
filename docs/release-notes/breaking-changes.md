@@ -1,19 +1,20 @@
 ---
-navigation_title: "Elasticsearch"
+navigation_title: "Breaking changes"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes.html
 ---
 
 # Elasticsearch breaking changes [elasticsearch-breaking-changes]
-Before you upgrade, carefully review the Elasticsearch breaking changes and take the necessary steps to mitigate any issues. 
+
+Breaking changes can impact your Elastic applications, potentially disrupting normal operations. Before you upgrade, carefully review the Elasticsearch breaking changes and take the necessary steps to mitigate any issues.
+
+If you are migrating from a version prior to version 9.0, you must first upgrade to the last 8.x version available. To learn how to upgrade, check out [Upgrade](docs-content://deploy-manage/upgrade.md).
 
 To learn how to upgrade, check out <uprade docs>.
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
-% **Release date:** Month day, year
 
 ## 9.0.0 [elasticsearch-900-breaking-changes]
-**Release date:** March 25, 2025
 
 Allocation
 :   * Increase minimum threshold in shard balancer [#115831](https://github.com/elastic/elasticsearch/pull/115831)

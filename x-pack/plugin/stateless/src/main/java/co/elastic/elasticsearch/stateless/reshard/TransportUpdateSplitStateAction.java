@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -33,14 +34,14 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportSplitHandoffStateAction extends TransportMasterNodeAction<SplitStateRequest, ActionResponse> {
+public class TransportUpdateSplitStateAction extends TransportMasterNodeAction<SplitStateRequest, ActionResponse> {
 
-    public static final ActionType<ActionResponse> TYPE = new ActionType<>("indices:admin/reshard/handoff");
+    public static final ActionType<ActionResponse> TYPE = new ActionType<>("indices:admin/reshard/split_state");
 
     private final MetadataReshardIndexService reshardIndexService;
 
     @Inject
-    public TransportSplitHandoffStateAction(
+    public TransportUpdateSplitStateAction(
         TransportService transportService,
         ClusterService clusterService,
         MetadataReshardIndexService reshardIndexService,
@@ -62,7 +63,12 @@ public class TransportSplitHandoffStateAction extends TransportMasterNodeAction<
     @Override
     protected void masterOperation(Task task, SplitStateRequest request, ClusterState state, ActionListener<ActionResponse> listener)
         throws Exception {
-        reshardIndexService.transitionToHandoff(request, listener);
+        if (request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.HANDOFF) {
+            reshardIndexService.transitionToHandoff(request, listener);
+        } else {
+            assert request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT;
+            reshardIndexService.transitionToSplit(request, listener);
+        }
     }
 
     @Override

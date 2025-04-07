@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.reshard;
 
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.index.Index;
 
@@ -31,12 +30,9 @@ public class ReshardIndexClusterStateUpdateRequest {
     private final Index index;
     private final ProjectId projectId;
 
-    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
-
-    public ReshardIndexClusterStateUpdateRequest(ProjectId projectId, Index index, ActiveShardCount waitForActiveShards) {
+    public ReshardIndexClusterStateUpdateRequest(ProjectId projectId, Index index) {
         this.projectId = projectId;
         this.index = index;
-        this.waitForActiveShards = waitForActiveShards;
     }
 
     public ProjectId projectId() {
@@ -47,21 +43,8 @@ public class ReshardIndexClusterStateUpdateRequest {
         return index;
     }
 
-    public ActiveShardCount waitForActiveShards() {
-        return waitForActiveShards;
-    }
-
     @Override
     public String toString() {
-        return "ReshardIndexClusterStateUpdateRequest{"
-            + "projectId='"
-            + projectId
-            + '\''
-            + ", index='"
-            + index
-            + '\''
-            + ", waitForActiveShards="
-            + waitForActiveShards
-            + '}';
+        return "ReshardIndexClusterStateUpdateRequest{" + "index=" + index + ", projectId=" + projectId + '}';
     }
 }

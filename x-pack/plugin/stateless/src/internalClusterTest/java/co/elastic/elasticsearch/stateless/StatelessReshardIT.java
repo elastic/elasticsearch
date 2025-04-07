@@ -20,8 +20,10 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexResponse;
+import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
-import co.elastic.elasticsearch.stateless.reshard.TransportSplitHandoffStateAction;
+import co.elastic.elasticsearch.stateless.reshard.TransportReshardSplitAction;
+import co.elastic.elasticsearch.stateless.reshard.TransportUpdateSplitStateAction;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
@@ -36,7 +38,12 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -140,7 +147,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         );
     }
 
-    public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() {
+    public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() throws Exception {
         String indexNode = startMasterAndIndexNode();
         startSearchNode();
         startSearchNode();
@@ -160,17 +167,18 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
         ReshardIndexRequest request = new ReshardIndexRequest(indexName, ActiveShardCount.NONE);
-        client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet();
+        ActionFuture<ReshardIndexResponse> executed = client(indexNode).execute(TransportReshardAction.TYPE, request);
 
-        GetSettingsResponse postReshardSettingsResponse = client().admin()
-            .indices()
-            .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-            .get();
-
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
-            equalTo(2)
-        );
+        assertBusy(() -> {
+            GetSettingsResponse postReshardSettingsResponse = client().admin()
+                .indices()
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                .get();
+            assertThat(
+                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+                equalTo(2)
+            );
+        });
 
         // Briefly pause to give time for allocation to have theoretically occurred
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
@@ -205,6 +213,8 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             .prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
             .get();
+
+        executed.actionGet();
     }
 
     public void testReshardFailsWithNullIndex() {
@@ -300,67 +310,23 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertThat(indexCount, equalTo(100L));
 
         Index index = resolveIndex(indexName);
-        long currentPrimaryTerm = client().admin()
-            .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .setMetadata(true)
-            .get()
-            .getState()
-            .getMetadata()
-            .findIndex(index)
-            .get()
-            .primaryTerm(0);
+        long currentPrimaryTerm = getCurrentPrimaryTerm(index, 0);
 
         int primaryTermIncrements = randomIntBetween(2, 4);
         for (int i = 0; i < primaryTermIncrements; i++) {
             IndexShard indexShard = findIndexShard(index, 0);
             indexShard.failShard("broken", new Exception("boom local"));
             long finalCurrentPrimaryTerm = currentPrimaryTerm;
-            assertBusy(
-                () -> assertThat(
-                    client().admin()
-                        .cluster()
-                        .prepareState(TEST_REQUEST_TIMEOUT)
-                        .setMetadata(true)
-                        .get()
-                        .getState()
-                        .getMetadata()
-                        .findIndex(index)
-                        .get()
-                        .primaryTerm(0),
-                    greaterThan(finalCurrentPrimaryTerm)
-                )
-            );
+            assertBusy(() -> assertThat(getCurrentPrimaryTerm(index, 0), greaterThan(finalCurrentPrimaryTerm)));
             ensureGreen(indexName);
-            currentPrimaryTerm = client().admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setMetadata(true)
-                .get()
-                .getState()
-                .getMetadata()
-                .findIndex(index)
-                .get()
-                .primaryTerm(0);
+            currentPrimaryTerm = getCurrentPrimaryTerm(index, 0);
         }
 
         ReshardIndexRequest request = new ReshardIndexRequest(indexName);
         client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet();
         ensureGreen(indexName);
 
-        assertThat(
-            client().admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setMetadata(true)
-                .get()
-                .getState()
-                .getMetadata()
-                .findIndex(index)
-                .get()
-                .primaryTerm(1),
-            equalTo(currentPrimaryTerm)
-        );
+        assertThat(getCurrentPrimaryTerm(index, 1), equalTo(currentPrimaryTerm));
     }
 
     @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService:DEBUG", reason = "logging assertions")
@@ -393,22 +359,13 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertThat(indexCount, equalTo(100L));
 
         Index index = resolveIndex(indexName);
-        long currentPrimaryTerm = client().admin()
-            .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .setMetadata(true)
-            .get()
-            .getState()
-            .getMetadata()
-            .findIndex(index)
-            .get()
-            .primaryTerm(0);
+        long currentPrimaryTerm = getCurrentPrimaryTerm(index, 0);
 
         MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
         CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
         CountDownLatch handoffLatch = new CountDownLatch(1);
         mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
-            if (TransportSplitHandoffStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
+            if (TransportUpdateSplitStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
                 try {
                     handoffAttemptedLatch.countDown();
                     handoffLatch.await();
@@ -428,19 +385,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         indexShard.failShard("broken", new Exception("boom local"));
         final long finalPrimaryTerm = currentPrimaryTerm;
         assertBusy(() -> {
-            assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState(TEST_REQUEST_TIMEOUT)
-                    .setMetadata(true)
-                    .get()
-                    .getState()
-                    .getMetadata()
-                    .findIndex(index)
-                    .get()
-                    .primaryTerm(0),
-                greaterThan(finalPrimaryTerm)
-            );
+            assertThat(getCurrentPrimaryTerm(index, 0), greaterThan(finalPrimaryTerm));
             assertThat(
                 client().admin()
                     .cluster()
@@ -452,16 +397,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             );
         });
 
-        currentPrimaryTerm = client().admin()
-            .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .setMetadata(true)
-            .get()
-            .getState()
-            .getMetadata()
-            .findIndex(index)
-            .get()
-            .primaryTerm(0);
+        currentPrimaryTerm = getCurrentPrimaryTerm(index, 0);
 
         MockLog.assertThatLogger(() -> {
             // When we release the handoff block the recovery will progress. However, it will fail because the source shard primary term
@@ -483,22 +419,292 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         // The primary term has synchronized with the source
+        assertThat(getCurrentPrimaryTerm(index, 1), equalTo(currentPrimaryTerm));
+    }
+
+    @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService:DEBUG", reason = "logging assertions")
+    public void testReshardTargetWillNotTransitionToHandoffIfTargetPrimaryTermChanged() throws Exception {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setMetadata(true)
-                .get()
-                .getState()
-                .getMetadata()
-                .findIndex(index)
-                .get()
-                .primaryTerm(1),
-            equalTo(currentPrimaryTerm)
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
+                client(indexNode).admin()
+                    .indices()
+                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                    .execute()
+                    .actionGet()
+                    .getIndexToSettings()
+                    .get(indexName)
+            ),
+            equalTo(1)
         );
+
+        indexDocs(indexName, 100);
+
+        IndicesStatsResponse statsResponse = client(indexNode).admin().indices().prepareStats(indexName).execute().actionGet();
+        long indexCount = statsResponse.getAt(0).getStats().indexing.getTotal().getIndexCount();
+        assertThat(indexCount, equalTo(100L));
+
+        Index index = resolveIndex(indexName);
+
+        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
+        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
+        CountDownLatch handoffLatch = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
+            if (TransportUpdateSplitStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
+                try {
+                    handoffAttemptedLatch.countDown();
+                    handoffLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request1, options);
+        });
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName);
+        ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
+
+        handoffAttemptedLatch.await();
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            final ProjectState projectState = state.projectState(state.metadata().projectFor(index).id());
+            assertThat(projectState.routingTable().index(index).shard(1).primaryShard().allocationId(), notNullValue());
+        });
+
+        ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final ProjectState projectState = state.projectState(state.metadata().projectFor(index).id());
+        final ShardRouting shardRouting = projectState.routingTable().index(index).shard(1).primaryShard();
+        final long currentPrimaryTerm = getCurrentPrimaryTerm(index, 1);
+
+        ShardStateAction shardStateAction = internalCluster().getInstance(ShardStateAction.class, internalCluster().getRandomNodeName());
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        shardStateAction.localShardFailed(shardRouting, "broken", new Exception("boom remote"), listener);
+        listener.actionGet();
+
+        assertBusy(() -> assertThat(getCurrentPrimaryTerm(index, 1), greaterThan(currentPrimaryTerm)));
+
+        MockLog.assertThatLogger(() -> {
+            // When we release the handoff block the recovery will progress. However, it will fail because the source shard primary term
+            // has
+            // advanced
+            handoffLatch.countDown();
+            reshard.actionGet();
+        },
+            MetadataReshardIndexService.class,
+            new MockLog.PatternSeenEventExpectation(
+                "split handoff failed",
+                MetadataReshardIndexService.class.getCanonicalName(),
+                Level.DEBUG,
+                ".*\\[" + indexName + "\\]\\[1\\] cannot complete split handoff because target primary term advanced \\[.*"
+            )
+        );
+
+        // After the target shard recovery tries again it will synchronize its primary term with the source and come online.
+        ensureGreen(indexName);
+    }
+
+    public void testSplitTargetWillNotStartUntilHandoff() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
+                client(indexNode).admin()
+                    .indices()
+                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                    .execute()
+                    .actionGet()
+                    .getIndexToSettings()
+                    .get(indexName)
+            ),
+            equalTo(1)
+        );
+
+        startIndexNode();
+
+        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
+        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
+        CountDownLatch handoffLatch = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
+            if (TransportReshardSplitAction.SPLIT_HANDOFF_ACTION_NAME.equals(action) && handoffAttemptedLatch.getCount() != 0) {
+                try {
+                    handoffAttemptedLatch.countDown();
+                    handoffLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request1, options);
+        });
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName);
+        ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
+
+        handoffAttemptedLatch.await();
+
+        ensureRed(indexName);
+
+        // Allow handoff to proceed
+        handoffLatch.countDown();
+        reshard.actionGet();
+
+        ensureGreen(indexName);
+
+    }
+
+    public void testSplitDoesNotTransitionToSplitUntilSearchShardsActive() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        startIndexNode();
+        startSearchNode();
+
+        ensureStableCluster(3);
+
+        /* This allocation rule is used to prevent the new reshard index shard from getting allocated.
+         * This will also prevent the search shard from getting allocated, hence we have two search nodes above.
+         */
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName, ActiveShardCount.NONE);
+        ActionFuture<ReshardIndexResponse> executed = client(indexNode).execute(TransportReshardAction.TYPE, request);
+
+        assertBusy(() -> {
+            GetSettingsResponse postReshardSettingsResponse = client().admin()
+                .indices()
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                .get();
+            assertThat(
+                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+                equalTo(2)
+            );
+        });
+
+        Index index = resolveIndex(indexName);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setMetadata(true).get().getState();
+            final ProjectState projectState = state.projectState(state.metadata().projectFor(index).id());
+            final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
+            final IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+            assertNotNull(reshardingMetadata);
+            assertThat(reshardingMetadata.getSplit().getTargetShardState(1), equalTo(IndexReshardingState.Split.TargetShardState.HANDOFF));
+        });
+
+        final var searchShardExplain = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName)
+            .setShard(1)
+            .setPrimary(false);
+        assertThat(
+            client().execute(TransportClusterAllocationExplainAction.TYPE, searchShardExplain)
+                .actionGet()
+                .getExplanation()
+                .getUnassignedInfo()
+                .reason(),
+            equalTo(UnassignedInfo.Reason.RESHARD_ADDED)
+        );
+
+        // Pause briefly to give chance for a buggy state transition to proceed
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+
+        // Assert still handoff and has not transitioned to SPLIT
+        ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setMetadata(true).get().getState();
+        final ProjectState projectState = state.projectState(state.metadata().projectFor(index).id());
+        final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
+        final IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+        assertNotNull(reshardingMetadata);
+        assertThat(reshardingMetadata.getSplit().getTargetShardState(1), equalTo(IndexReshardingState.Split.TargetShardState.HANDOFF));
+
+        // We have to clear the setting to prevent teardown issues with the cluster being red
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
+            .get();
+
+        executed.actionGet();
+    }
+
+    public void testSplitWillTransitionToSplitIfSearchShardsActiveTimesOut() throws Exception {
+        Settings settings = Settings.builder().put(SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.getKey(), "200ms").build();
+        String indexNode = startMasterAndIndexNode(settings);
+        startIndexNode(settings);
+        startSearchNode(settings);
+
+        ensureStableCluster(3);
+
+        /* This allocation rule is used to prevent the new reshard index shard from getting allocated.
+         * This will also prevent the search shard from getting allocated, hence we have two search nodes above.
+         */
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName, ActiveShardCount.NONE);
+        ActionFuture<ReshardIndexResponse> executed = client(indexNode).execute(TransportReshardAction.TYPE, request);
+
+        assertBusy(() -> {
+            GetSettingsResponse postReshardSettingsResponse = client().admin()
+                .indices()
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                .get();
+            assertThat(
+                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+                equalTo(2)
+            );
+        });
+
+        // TODO: At this point we finish the reshard once all the target states are SPLIT. In the future we maybe need to switch this
+        // assertion to reflect the usage of additional states
+        executed.actionGet();
+
+        final var searchShardExplain = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName)
+            .setShard(1)
+            .setPrimary(false);
+
+        assertThat(
+            client().execute(TransportClusterAllocationExplainAction.TYPE, searchShardExplain)
+                .actionGet()
+                .getExplanation()
+                .getUnassignedInfo()
+                .reason(),
+            equalTo(UnassignedInfo.Reason.RESHARD_ADDED)
+        );
+
+        // We have to clear the setting to prevent teardown issues with the cluster being red
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
+            .get();
     }
 
     // only one resharding operation on a given index should be allowed to be in flight at a time
+
     public void testConcurrentReshardFails() throws Exception {
         String indexNode = startMasterAndIndexNode();
         ensureStableCluster(1);
@@ -535,6 +741,19 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // now we should be able to resplit
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
         checkNumberOfShardsSetting(indexNode, indexName, 4);
+    }
+
+    private static long getCurrentPrimaryTerm(Index index, int shardId) {
+        return client().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .setMetadata(true)
+            .get()
+            .getState()
+            .getMetadata()
+            .findIndex(index)
+            .get()
+            .primaryTerm(shardId);
     }
 
     private static long getIndexCount(IndicesStatsResponse statsResponse, int shardId) {

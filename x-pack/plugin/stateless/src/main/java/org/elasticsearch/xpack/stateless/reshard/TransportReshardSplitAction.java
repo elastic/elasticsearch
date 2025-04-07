@@ -36,7 +36,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -70,7 +69,7 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
             (request, channel, task) -> handleStartSplitOnSource(
                 task,
                 request,
-                new ChannelActionListener<>(channel).map(ignored -> TransportResponse.Empty.INSTANCE)
+                new ChannelActionListener<>(channel).map(ignored -> ActionResponse.Empty.INSTANCE)
             )
         );
 
@@ -82,7 +81,7 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
             Request::new,
             (request, channel, task) -> handleSplitHandoffOnTarget(
                 request,
-                new ChannelActionListener<>(channel).map(ignored -> TransportResponse.Empty.INSTANCE)
+                new ChannelActionListener<>(channel).map(ignored -> ActionResponse.Empty.INSTANCE)
             )
         );
     }
@@ -105,20 +104,20 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(
                 listener.map(ignored -> ActionResponse.Empty.INSTANCE),
-                in -> TransportResponse.Empty.INSTANCE,
+                in -> ActionResponse.Empty.INSTANCE,
                 recoveryExecutor
             )
         );
     }
 
-    private void handleStartSplitOnSource(Task task, Request request, ActionListener<TransportResponse.Empty> listener) {
+    private void handleStartSplitOnSource(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
         transportService.sendChildRequest(
             request.targetNode,
             SPLIT_HANDOFF_ACTION_NAME,
             request,
             task,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, recoveryExecutor)
+            new ActionListenerResponseHandler<>(listener, in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
         );
 
     }

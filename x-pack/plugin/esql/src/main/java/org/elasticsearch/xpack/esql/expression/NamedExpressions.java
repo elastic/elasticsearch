@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 
@@ -49,7 +50,7 @@ public class NamedExpressions {
         }
         List<NamedExpression> output = new ArrayList<>(childOutput.size() + fields.size());
         for (NamedExpression childAttr : childOutput) {
-            if (lastPositions.containsKey(childAttr.name()) == false) {
+            if ((childAttr instanceof EmptyAttribute) == false && lastPositions.containsKey(childAttr.name()) == false) {
                 output.add(childAttr);
             }
         }

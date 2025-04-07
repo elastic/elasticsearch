@@ -1054,6 +1054,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     for (String keyUsageName : CertGenUtils.KEY_USAGE_MAPPINGS.keySet()) {
                         terminal.println(" - " + keyUsageName);
                     }
+                    terminal.println("");
                     return null;
                 }
                 resolvedKeyUsages.add(keyUsage);

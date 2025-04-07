@@ -345,7 +345,7 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        if (context == null) {
+        if (context == null && ignoreMissing == false) {
             throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, null));
         } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
             if (map.containsKey(leafKey)) {

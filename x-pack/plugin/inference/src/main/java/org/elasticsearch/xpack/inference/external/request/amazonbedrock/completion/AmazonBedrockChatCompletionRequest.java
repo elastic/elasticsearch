@@ -15,9 +15,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
-import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.completion.AmazonBedrockChatCompletionResponseListener;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 
 import java.io.IOException;

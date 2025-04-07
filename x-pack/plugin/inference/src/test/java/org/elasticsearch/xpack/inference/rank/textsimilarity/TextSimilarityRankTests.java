@@ -89,6 +89,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                         TaskType.RERANK,
                         this.inferenceId,
                         inferenceText,
+                        null,
+                        null,
                         docFeatures,
                         Map.of("inferenceResultCount", inferenceResultCount),
                         InputType.INTERNAL_SEARCH,

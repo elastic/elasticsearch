@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
@@ -414,6 +415,15 @@ public class EsqlCapabilities {
          */
         DATE_NANOS_DATE_DIFF(),
         /**
+         * Indicates that https://github.com/elastic/elasticsearch/issues/125439 (incorrect lucene push down for date nanos) is fixed
+         */
+        FIX_DATE_NANOS_LUCENE_PUSHDOWN_BUG(),
+        /**
+         * Fixes a bug where dates are incorrectly formatted if a where clause compares nanoseconds to both milliseconds and nanoseconds,
+         * e.g. {@code WHERE millis > to_datenanos("2023-10-23T12:15:03.360103847") AND millis < to_datetime("2023-10-23T13:53:55.832")}
+         */
+        FIX_DATE_NANOS_MIXED_RANGE_PUSHDOWN_BUG(),
+        /**
          * DATE_PARSE supports reading timezones
          */
         DATE_PARSE_TZ(),
@@ -742,12 +752,27 @@ public class EsqlCapabilities {
         /**
          * Use double parameter markers to represent field or function names.
          */
-        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot()),
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS,
 
         /**
          * Non full text functions do not contribute to score
          */
-        NON_FULL_TEXT_FUNCTIONS_SCORING;
+        NON_FULL_TEXT_FUNCTIONS_SCORING,
+
+        /**
+         * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
+         */
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT,
+
+        /**
+         * Index component selector syntax (my-data-stream-name::failures)
+         */
+        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+
+        /**
+         * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
+         */
+        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT;
 
         private final boolean enabled;
 

@@ -9,6 +9,4 @@ Return the substring that extracts 'length' chars from 'str' starting from the r
 FROM employees
 | KEEP last_name
 | EVAL right = RIGHT(last_name, 3)
-| SORT last_name ASC
-| LIMIT 5
 ```

@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -71,7 +72,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportMessage;
 import org.junit.After;
 import org.junit.Before;
 
@@ -178,7 +178,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, topDocsList, from, size, reducedCompletionSuggestions).scoreDocs();
             assertThat(sortedDocs.length, equalTo(accumulatedLength));
         } finally {
-            results.asList().forEach(TransportMessage::decRef);
+            results.asList().forEach(RefCounted::decRef);
         }
     }
 
@@ -212,7 +212,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             }
             sortedDocs = SearchPhaseController.sortDocs(ignoreFrom, topDocsList, from, size, Collections.emptyList()).scoreDocs();
         } finally {
-            results.asList().forEach(TransportMessage::decRef);
+            results.asList().forEach(RefCounted::decRef);
         }
         results = generateSeededQueryResults(randomSeed, nShards, Collections.emptyList(), queryResultSize, useConstantScore);
         try {
@@ -232,7 +232,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 assertEquals(sortedDocs[i].score, sortedDocs2[i].score, 0.0f);
             }
         } finally {
-            results.asList().forEach(TransportMessage::decRef);
+            results.asList().forEach(RefCounted::decRef);
         }
     }
 
@@ -345,10 +345,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         assertThat(mergedResponse.profile(), is(anEmptyMap()));
                     }
                 } finally {
-                    fetchResults.asList().forEach(TransportMessage::decRef);
+                    fetchResults.asList().forEach(RefCounted::decRef);
                 }
             } finally {
-                queryResults.asList().forEach(TransportMessage::decRef);
+                queryResults.asList().forEach(RefCounted::decRef);
             }
         }
     }
@@ -424,11 +424,11 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs().scoreDocs().length));
                     assertThat(mergedResponse.profile(), is(anEmptyMap()));
                 } finally {
-                    fetchResults.asList().forEach(TransportMessage::decRef);
+                    fetchResults.asList().forEach(RefCounted::decRef);
                 }
             } finally {
 
-                queryResults.asList().forEach(TransportMessage::decRef);
+                queryResults.asList().forEach(RefCounted::decRef);
             }
         }
     }

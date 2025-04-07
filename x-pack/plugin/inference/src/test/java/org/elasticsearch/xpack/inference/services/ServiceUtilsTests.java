@@ -20,10 +20,10 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -910,11 +910,11 @@ public class ServiceUtilsTests extends ESTestCase {
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
             listener.onResponse(new TextEmbeddingFloatResults(List.of()));
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -932,11 +932,11 @@ public class ServiceUtilsTests extends ESTestCase {
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
             listener.onResponse(new TextEmbeddingByteResults(List.of()));
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -953,14 +953,14 @@ public class ServiceUtilsTests extends ESTestCase {
         var model = mock(Model.class);
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
-        var textEmbedding = TextEmbeddingResultsTests.createRandomResults();
+        var textEmbedding = TextEmbeddingFloatResultsTests.createRandomResults();
 
         doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
             listener.onResponse(textEmbedding);
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -979,11 +979,11 @@ public class ServiceUtilsTests extends ESTestCase {
         var textEmbedding = TextEmbeddingByteResultsTests.createRandomResults();
 
         doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
             listener.onResponse(textEmbedding);
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);

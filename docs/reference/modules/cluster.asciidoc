@@ -21,6 +21,8 @@ There are a number of settings available to control the shard allocation process
 *   <<cluster-shard-allocation-filtering>> allows certain nodes or groups of
     nodes excluded from allocation so that they can be decommissioned.
 
+*   <<node-allocation-stats-cache>> control the node allocation statistics cache on the master node.
+
 Besides these, there are a few other <<misc-cluster-settings,miscellaneous cluster-level settings>>.
 
 include::cluster/shards_allocation.asciidoc[]
@@ -46,5 +48,12 @@ minimize the risk of losing all shard copies in the event of a failure. <<shard-
       
 
 include::cluster/allocation_filtering.asciidoc[]
+
+[[node-allocation-stats-cache]]
+==== Cluster-level node allocation stats cache settings
+
+`cluster.routing.allocation.stats.cache.ttl`::
+      (<<dynamic-cluster-setting,Dynamic>>)
+      Calculating the node allocation stats for a <<cluster-nodes-stats,Get node statistics API call>> can become expensive on the master for clusters with a high number of nodes. To prevent overloading the master the node allocation stats are cached on the master for 1 minute `1m` by default.  This setting can be used to adjust the cache time to live value, if necessary, keeping in mind the tradeoff between the freshness of the statistics and the processing costs on the master.  The cache can be disabled (not recommended) by setting the value to `0s` (the minimum value). The maximum value is 10 minutes `10m`.
 
 include::cluster/misc.asciidoc[]

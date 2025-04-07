@@ -478,7 +478,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             ClusterState after = service.updateDataLifecycle(before, List.of(dataStream), null);
             DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
-            assertThat(updatedDataStream.getLifecycle(), nullValue());
+            assertThat(updatedDataStream.getDataLifecycle(), nullValue());
             before = after;
         }
 
@@ -487,7 +487,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             ClusterState after = service.updateDataLifecycle(before, List.of(dataStream), lifecycle);
             DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
-            assertThat(updatedDataStream.getLifecycle(), equalTo(lifecycle));
+            assertThat(updatedDataStream.getDataLifecycle(), equalTo(lifecycle));
         }
     }
 

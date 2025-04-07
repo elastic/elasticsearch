@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -22,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -48,7 +50,19 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     private static final int NUM_DOCS = 10;
 
-    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
+    static class TestES87TSDBDocValuesFormat extends ES87TSDBDocValuesFormat {
+
+        TestES87TSDBDocValuesFormat() {
+            super();
+        }
+
+        @Override
+        public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+            return new ES87TSDBDocValuesConsumer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        }
+    }
+
+    private final Codec codec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
 
     @Override
     protected Codec getCodec() {

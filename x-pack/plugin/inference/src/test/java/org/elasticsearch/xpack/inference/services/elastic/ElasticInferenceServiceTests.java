@@ -37,7 +37,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -49,7 +51,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
@@ -366,6 +367,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -401,6 +404,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -440,6 +445,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -491,6 +498,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("input text"),
                 false,
@@ -548,6 +557,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             try {
                 service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of("input text"),
                     false,
@@ -637,8 +648,11 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                     sparseResult.chunks(),
                     is(
                         List.of(
-                            new SparseEmbeddingResults.Chunk(
-                                List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                            new EmbeddingResults.Chunk(
+                                new SparseEmbeddingResults.Embedding(
+                                    List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                                    false
+                                ),
                                 new ChunkedInference.TextOffset(0, "input text".length())
                             )
                         )
@@ -758,8 +772,11 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 sparseResult.chunks(),
                 is(
                     List.of(
-                        new SparseEmbeddingResults.Chunk(
-                            List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                        new EmbeddingResults.Chunk(
+                            new SparseEmbeddingResults.Embedding(
+                                List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                                false
+                            ),
                             new ChunkedInference.TextOffset(0, "input text".length())
                         )
                     )

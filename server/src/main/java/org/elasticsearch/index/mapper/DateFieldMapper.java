@@ -34,6 +34,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -76,6 +77,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.time.DateUtils.toLong;
+import static org.elasticsearch.common.time.DateUtils.toLongMillis;
 
 /** A {@link FieldMapper} for dates. */
 public final class DateFieldMapper extends FieldMapper {
@@ -95,12 +97,13 @@ public final class DateFieldMapper extends FieldMapper {
     private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis")
         .withLocale(DEFAULT_LOCALE)
         .toDateMathParser();
+    public static final NodeFeature INVALID_DATE_FIX = new NodeFeature("mapper.range.invalid_date_fix");
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisDocValuesField::new) {
             @Override
             public long convert(Instant instant) {
-                return instant.toEpochMilli();
+                return toLongMillis(instant);
             }
 
             @Override

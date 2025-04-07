@@ -735,13 +735,15 @@ public final class ServiceUtils {
         service.infer(
             model,
             null,
+            null,
+            null,
             List.of(TEST_EMBEDDING_INPUT),
             false,
             Map.of(),
             InputType.INTERNAL_INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener.delegateFailureAndWrap((delegate, r) -> {
-                if (r instanceof TextEmbeddingResults<?, ?> embeddingResults) {
+                if (r instanceof TextEmbeddingResults<?> embeddingResults) {
                     try {
                         delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
                     } catch (Exception e) {

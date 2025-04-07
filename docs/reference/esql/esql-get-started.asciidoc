@@ -4,7 +4,7 @@
 <titleabbrev>Getting started</titleabbrev>
 ++++
 
-This guide shows how you can use {esql} to query and aggregate your data.
+This guide shows how you can use {esql} to query and aggregate your data. Refer to <<esql-for-search>> if you'd like to learn more about using {esql} for search use cases.
 
 [TIP]
 ====

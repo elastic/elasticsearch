@@ -254,7 +254,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
 
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), Map.of());
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -298,7 +298,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
             Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of();
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -340,7 +340,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(REMOTE1_ALIAS, failure);
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -383,7 +383,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(REMOTE1_ALIAS, failure);
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution)
@@ -417,7 +417,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(REMOTE1_ALIAS, failure);
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -712,22 +712,22 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             List<TableInfo> indices = new ArrayList<>();
             indices.add(new TableInfo(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*"))));
 
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, enterpriseLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, platinumLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, goldLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, trialLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, basicLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, standardLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, missingLicense);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, nullLicense);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), enterpriseLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), platinumLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), goldLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), trialLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), basicLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), standardLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), missingLicense);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), nullLicense);
 
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, enterpriseLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, platinumLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, goldLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, trialLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, basicLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, standardLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, missingLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), enterpriseLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), platinumLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), goldLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), trialLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), basicLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), standardLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), missingLicenseInactive);
         }
 
         // cross-cluster search requires a valid (active, non-expired) enterprise license OR a valid trial license
@@ -742,8 +742,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             }
 
             // licenses that work
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, enterpriseLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, trialLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), enterpriseLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), trialLicenseValid);
 
             // all others fail ---
 
@@ -812,7 +812,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> checkForCcsLicense(executionInfo, indices, indicesGrouper, licenseState)
+            () -> checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), licenseState)
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
@@ -825,7 +825,11 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
     static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {
         @Override
-        public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions) {
+        public Map<String, OriginalIndices> groupIndices(
+            Set<String> remoteClusterNames,
+            IndicesOptions indicesOptions,
+            String[] indexExpressions
+        ) {
             final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
             final String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 

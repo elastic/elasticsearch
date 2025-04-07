@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -514,7 +515,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     private void testChunkedInfer(TaskType taskType, ChunkingSettings chunkingSettings) throws IOException {
-        var input = List.of("foo", "bar");
+        var input = List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar"));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 

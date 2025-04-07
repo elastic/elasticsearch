@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.engine;
+package org.elasticsearch.index.shard;
 
 import org.elasticsearch.core.Assertions;
 
@@ -84,7 +84,8 @@ public final class EngineResetLock implements ReadWriteLock {
     /**
      * See {@link ReentrantReadWriteLock#getQueuedWriterThreads()}
      */
-    public Collection<Thread> getQueuedWriterThreads() {
+    // package-private for tests
+    Collection<Thread> getQueuedWriterThreads() {
         if (lock instanceof QueuedWriterThreadsReentrantReadWriteLock queuedLock) {
             return queuedLock.queuedWriterThreads();
         } else {

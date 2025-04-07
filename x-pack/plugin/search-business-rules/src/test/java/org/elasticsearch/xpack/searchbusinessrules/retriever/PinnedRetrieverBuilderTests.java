@@ -47,14 +47,6 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
             : new ArrayList<>();
 
         return new PinnedRetrieverBuilder(ids, docs, TestRetrieverBuilder.createRandomTestRetrieverBuilder(), randomIntBetween(1, 100));
-        List<SpecifiedDocument> docs = useDocs
-            ? List.of(
-                new SpecifiedDocument(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)),
-                new SpecifiedDocument(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10))
-            )
-            : new ArrayList<>();
-
-        return new PinnedRetrieverBuilder(ids, docs, TestRetrieverBuilder.createRandomTestRetrieverBuilder(), randomIntBetween(1, 100));
     }
 
     @Override
@@ -67,7 +59,6 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         return (PinnedRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
             new RetrieverParserContext(new SearchUsage(), nf -> true)
-            new RetrieverParserContext(new SearchUsage(), nf -> true)
         );
     }
 
@@ -78,7 +69,6 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
 
     @Override
     protected String[] getShuffleFieldsExceptions() {
-        return new String[] { PinnedRetrieverBuilder.IDS_FIELD.getPreferredName(), PinnedRetrieverBuilder.DOCS_FIELD.getPreferredName() };
         return new String[] { PinnedRetrieverBuilder.IDS_FIELD.getPreferredName(), PinnedRetrieverBuilder.DOCS_FIELD.getPreferredName() };
     }
 
@@ -168,6 +158,4 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
             }
         }
     }
-}
-
 }

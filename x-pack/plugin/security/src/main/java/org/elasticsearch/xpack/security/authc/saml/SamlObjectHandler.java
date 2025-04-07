@@ -267,8 +267,16 @@ public class SamlObjectHandler {
         return samlSignatureException(issuer, credentials, signature, null);
     }
 
-    private String describeIssuer(@Nullable Issuer issuer) {
-        return issuer != null ? Strings.format(" The issuer included in the SAML message was [%s]", issuer.getValue()) : "";
+    // package private for testing
+    String describeIssuer(@Nullable Issuer issuer) {
+        if (issuer == null) {
+            return "";
+        }
+        final String msg = " The issuer included in the SAML message was [%s]";
+        if (issuer.getValue().length() > 64) {
+            return Strings.format(msg + "...", Strings.cleanTruncate(issuer.getValue(), 64));
+        }
+        return Strings.format(msg, issuer.getValue());
     }
 
     private static String describeCredentials(List<Credential> credentials) {

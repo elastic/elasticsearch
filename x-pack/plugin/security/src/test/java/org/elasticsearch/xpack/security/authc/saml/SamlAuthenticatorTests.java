@@ -39,6 +39,8 @@ import org.opensaml.saml.saml2.core.Subject;
 import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 import org.opensaml.saml.saml2.core.impl.AuthnStatementBuilder;
+import org.opensaml.saml.saml2.core.impl.IssuerBuilder;
+import org.opensaml.saml.saml2.core.impl.IssuerImpl;
 import org.opensaml.saml.saml2.encryption.Encrypter;
 import org.opensaml.security.credential.BasicCredential;
 import org.opensaml.security.credential.Credential;
@@ -83,7 +85,9 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -1368,6 +1372,28 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
             mockLog.awaitAllExpectationsMatched();
         }
+    }
+
+    public void testDescribeNullIssuer() {
+        assertThat(authenticator.describeIssuer(null), equalTo(""));
+    }
+
+    public void testDescribeIssuer() {
+        final Issuer issuer = new IssuerBuilder().buildObject();
+        issuer.setValue("https://idp.saml.elastic.test/");
+        assertThat(
+            authenticator.describeIssuer(issuer),
+            equalTo(" The issuer included in the SAML message was [https://idp.saml.elastic.test/]")
+        );
+    }
+
+    public void testDescribeVeryLongIssuer() {
+        final Issuer issuer = new IssuerBuilder().buildObject();
+        issuer.setValue("https://idp.saml.elastic.test/" + "a".repeat(128));
+
+        final String description = authenticator.describeIssuer(issuer);
+        assertThat(description, hasLength(114));
+        assertThat(description, endsWith("..."));
     }
 
     private interface CryptoTransform {

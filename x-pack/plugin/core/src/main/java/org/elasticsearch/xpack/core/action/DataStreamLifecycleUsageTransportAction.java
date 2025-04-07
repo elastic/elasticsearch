@@ -26,7 +26,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsage;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LongSummaryStatistics;
 import java.util.Map;
 
@@ -102,11 +101,12 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
                 }
             }
         }
-        Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats = getGlobalRetentionStats(
-            globalRetention,
-            dataStreamsWithDefaultRetention,
-            dataStreamsWithMaxRetention
-        );
+        Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats =
+            DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.getGlobalRetentionStats(
+                globalRetention,
+                dataStreamsWithDefaultRetention,
+                dataStreamsWithMaxRetention
+            );
         return new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
             dataStreamsWithLifecycles,
             DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(null).equals(rolloverConfiguration),
@@ -114,32 +114,5 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
             DataStreamLifecycleFeatureSetUsage.RetentionStats.create(effectiveRetentionStats),
             globalRetentionStats
         );
-    }
-
-    private static Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> getGlobalRetentionStats(
-        DataStreamGlobalRetention globalRetention,
-        long dataStreamsWithDefaultRetention,
-        long dataStreamsWithMaxRetention
-    ) {
-        if (globalRetention == null) {
-            return Map.of();
-        }
-        Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats = new HashMap<>();
-        if (globalRetention.defaultRetention() != null) {
-            globalRetentionStats.put(
-                DataStreamLifecycleFeatureSetUsage.LifecycleStats.DEFAULT_RETENTION_FIELD_NAME,
-                new DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats(
-                    dataStreamsWithDefaultRetention,
-                    globalRetention.defaultRetention()
-                )
-            );
-        }
-        if (globalRetention.maxRetention() != null) {
-            globalRetentionStats.put(
-                DataStreamLifecycleFeatureSetUsage.LifecycleStats.MAX_RETENTION_FIELD_NAME,
-                new DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats(dataStreamsWithMaxRetention, globalRetention.maxRetention())
-            );
-        }
-        return globalRetentionStats;
     }
 }

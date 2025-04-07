@@ -56,7 +56,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
      */
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDateLifecycleUsagePlugin.class);
+        return List.of(TestDataLifecycleUsagePlugin.class);
     }
 
     @After
@@ -287,7 +287,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
     /*
      * This plugin exposes the DataLifecycleUsageTransportAction.
      */
-    public static final class TestDateLifecycleUsagePlugin extends XPackClientPlugin {
+    public static final class TestDataLifecycleUsagePlugin extends XPackClientPlugin {
         @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();

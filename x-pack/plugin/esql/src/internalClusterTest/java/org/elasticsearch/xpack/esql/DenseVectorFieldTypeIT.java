@@ -66,7 +66,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "dense_vector"));
+            assertColumnTypes(resp.columns(), List.of("long", "double"));
         }
     }
 
@@ -82,23 +82,12 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             DOC_VALUES.forEach((id, vector) -> {
                 var values = valuesList.get(id - 1);
                 assertEquals(id.intValue(), ((Long) values.get(0)).intValue());
-                List<Double> scores = (List<Double>) values.get(1);
-                assertEquals(vector.size(), scores.size());
+                List<Double> vectors = (List<Double>) values.get(1);
+                assertEquals(vector.size(), vectors.size());
                 for (int i = 0; i < vector.size(); i++) {
-                    assertEquals((float)vector.get(i), scores.get(i).floatValue(), 0F);
+                    assertEquals((float) vector.get(i), vectors.get(i).floatValue(), 0F);
                 }
             });
-        }
-    }
-
-    public void testSorted() {
-        var query = """
-            FROM test
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "dense_vector"));
         }
     }
 

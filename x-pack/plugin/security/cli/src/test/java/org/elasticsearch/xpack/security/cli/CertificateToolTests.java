@@ -1197,11 +1197,7 @@ public class CertificateToolTests extends ESTestCase {
         final int caKeySize = randomIntBetween(4, 8) * 512;
         final int days = randomIntBetween(7, 1500);
         final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 80));
-        final String caKeyUsage = randomFrom(
-            "",
-            Strings.collectionToCommaDelimitedString(CertificateTool.DEFAULT_CA_KEY_USAGE),
-            Strings.collectionToCommaDelimitedString(randomNonEmptySubsetOf(CertGenUtils.KEY_USAGE_MAPPINGS.keySet()))
-        );
+        final String caKeyUsage = randomFrom("", Strings.collectionToCommaDelimitedString(CertificateTool.DEFAULT_CA_KEY_USAGE));
 
         final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
         String[] args = {

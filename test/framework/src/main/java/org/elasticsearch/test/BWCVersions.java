@@ -12,17 +12,14 @@ package org.elasticsearch.test;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.NavigableSet;
 
 public final class BWCVersions {
     private BWCVersions() {}
 
-    public static List<TransportVersion> getAllBWCVersions() {
-        List<TransportVersion> allVersions = TransportVersion.getAllVersions();
-        int minCompatVersion = Collections.binarySearch(allVersions, TransportVersions.MINIMUM_COMPATIBLE);
-        return allVersions.subList(minCompatVersion, allVersions.size());
+    public static NavigableSet<TransportVersion> getAllBWCVersions() {
+        return TransportVersionUtils.allReleasedVersions().tailSet(TransportVersions.MINIMUM_COMPATIBLE, true);
     }
 
-    public static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();
+    public static final NavigableSet<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();
 }

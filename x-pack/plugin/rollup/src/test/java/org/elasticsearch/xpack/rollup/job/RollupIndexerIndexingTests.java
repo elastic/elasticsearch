@@ -27,7 +27,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
@@ -44,6 +43,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -720,6 +720,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     false,
                     false,
                     IndexVersion.current(),
+                    null,
                     null
                 ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
@@ -744,6 +745,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     false,
                     false,
                     IndexVersion.current(),
+                    null,
                     null
                 ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
@@ -868,22 +870,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
-                    SearchHits.EMPTY_WITH_TOTAL_HITS,
-                    InternalAggregations.from(Collections.singletonList(result)),
-                    null,
-                    false,
-                    null,
-                    null,
-                    1,
-                    null,
-                    1,
-                    1,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    null
-                )
+                SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(InternalAggregations.from(result)).build()
             );
         }
 

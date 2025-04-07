@@ -78,6 +78,17 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     }
 
     /**
+     * Get a list of all errors from the response. If there are no errors, an empty list is returned.
+     */
+    public List<ElasticsearchException> getErrors() {
+        if (errors == false) {
+            return List.of();
+        } else {
+            return actionResults.stream().filter(a -> a.getError() != null).map(AliasActionResult::getError).toList();
+        }
+    }
+
+    /**
      *  Build a response from a list of action results. Sets the errors boolean based
      *  on whether an of the individual results contain an error.
      * @param actionResults an action result for each of the requested alias actions
@@ -163,6 +174,13 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
          */
         public static AliasActionResult buildSuccess(List<String> indices, AliasActions action) {
             return new AliasActionResult(indices, action, null);
+        }
+
+        /**
+         * The error result if the action failed, null if the action succeeded.
+         */
+        public ElasticsearchException getError() {
+            return error;
         }
 
         private int getStatus() {

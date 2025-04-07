@@ -12,7 +12,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 
 import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 
@@ -26,7 +26,7 @@ public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> 
     /**
      * The bwc versions to test serialization against
      */
-    protected List<TransportVersion> bwcVersions() {
+    protected Collection<TransportVersion> bwcVersions() {
         return DEFAULT_BWC_VERSIONS;
     }
 

@@ -12,10 +12,13 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getAllModels;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModels;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEISAuthServerTest {
 
@@ -23,12 +26,20 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
         var allModels = getAllModels();
         var chatCompletionModels = getModels("_all", TaskType.CHAT_COMPLETION);
 
-        assertThat(allModels, hasSize(4));
+        assertThat(allModels, hasSize(5));
         assertThat(chatCompletionModels, hasSize(1));
 
         for (var model : chatCompletionModels) {
             assertEquals("chat_completion", model.get("task_type"));
         }
 
+        assertInferenceIdTaskType(allModels, ".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION);
+        assertInferenceIdTaskType(allModels, ".elser-v2-elastic", TaskType.SPARSE_EMBEDDING);
+    }
+
+    private static void assertInferenceIdTaskType(List<Map<String, Object>> models, String inferenceId, TaskType taskType) {
+        var model = models.stream().filter(m -> m.get("inference_id").equals(inferenceId)).findFirst();
+        assertTrue("could not find inference id: " + inferenceId, model.isPresent());
+        assertThat(model.get().get("task_type"), is(taskType.toString()));
     }
 }

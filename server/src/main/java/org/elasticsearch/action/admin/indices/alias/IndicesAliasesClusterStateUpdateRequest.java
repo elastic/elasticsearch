@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse.AliasActionResult;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
@@ -21,12 +22,14 @@ import java.util.Objects;
 public record IndicesAliasesClusterStateUpdateRequest(
     TimeValue masterNodeTimeout,
     TimeValue ackTimeout,
+    ProjectId projectId,
     List<AliasAction> actions,
     List<AliasActionResult> actionResults
 ) {
     public IndicesAliasesClusterStateUpdateRequest {
         Objects.requireNonNull(masterNodeTimeout);
         Objects.requireNonNull(ackTimeout);
+        Objects.requireNonNull(projectId);
         Objects.requireNonNull(actions);
         Objects.requireNonNull(actionResults);
     }

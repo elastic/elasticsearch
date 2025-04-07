@@ -12,6 +12,7 @@ apply plugin: 'elasticsearch.publish'
 dependencies {
   api 'net.sf.jopt-simple:jopt-simple:5.0.2'
   api project(':libs:core')
+  api project(':libs:logging')
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'cli'

@@ -226,7 +226,10 @@ public final class TransformIndex {
             return;
         }
 
-        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        IndicesAliasesRequest request = new IndicesAliasesRequest(
+            Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT,
+            Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT
+        );
         for (DestAlias destAlias : config.getDestination().getAliases()) {
             if (destAlias.isMoveOnCreation()) {
                 request.addAliasAction(IndicesAliasesRequest.AliasActions.remove().alias(destAlias.getAlias()).index("*"));

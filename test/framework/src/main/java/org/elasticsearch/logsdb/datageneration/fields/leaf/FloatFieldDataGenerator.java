@@ -13,21 +13,28 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 
+import java.util.Map;
 import java.util.function.Supplier;
 
 public class FloatFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
+    private final Supplier<Object> valueGeneratorWithMalformed;
 
     public FloatFieldDataGenerator(String fieldName, DataSource dataSource) {
-        var floats = dataSource.get(new DataSourceRequest.FloatGenerator());
-        var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
-        var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
+        var floats = dataSource.get(new DataSourceRequest.FloatGenerator()).generator();
 
-        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> floats.generator().get());
+        this.valueGenerator = Wrappers.defaults(floats::get, dataSource);
+
+        var strings = dataSource.get(new DataSourceRequest.StringGenerator()).generator();
+        this.valueGeneratorWithMalformed = Wrappers.defaultsWithMalformed(floats::get, strings::get, dataSource);
     }
 
     @Override
-    public Object generateValue() {
+    public Object generateValue(Map<String, Object> fieldMapping) {
+        if (fieldMapping != null && (Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {
+            return valueGeneratorWithMalformed.get();
+        }
+
         return valueGenerator.get();
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -18,7 +17,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -86,11 +84,6 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         pages.addAll(instance.pages());
         pages.add(randomPage(TestBlockFactory.getNonBreakingInstance()));
         return new LookupFromIndexService.LookupResponse(pages, instance.blockFactory);
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(BlockWritables.getNamedWriteables());
     }
 
     public void testWithBreaker() throws IOException {

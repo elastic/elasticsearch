@@ -32,6 +32,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
 
@@ -60,7 +62,8 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         );
 
         // assert both static and dynamic settings set on dest index
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+            .actionGet();
         var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
         var sourceSettings = settingsResponse.getIndexToSettings().get(sourceIndex);
 
@@ -109,7 +112,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         );
 
         // assert both static and dynamic settings set on dest index
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         assertEquals(numReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
         assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
     }
@@ -174,7 +177,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         // assert settings overridden
         int expectedShards = overrideNumShards ? numShardsSource + 1 : numShardsSource;
         int expectedReplicas = overrideNumShards ? numReplicasSource : numReplicasSource + 1;
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         assertEquals(expectedShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
         assertEquals(expectedReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
     }
@@ -199,14 +202,14 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         );
 
         // assert settings overridden
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
 
         // sanity check
         assertTrue(destSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false));
 
         // override null removed
-        assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_BLOCKS_WRITE)));
     }
 
     public void testRemoveIndexBlocksByDefault() throws Exception {
@@ -232,13 +235,13 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertAcked(client().execute(CreateIndexFromSourceAction.INSTANCE, request));
 
         // assert settings overridden
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
 
         // remove block settings override both source settings and override settings
-        assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
-        assertNull(destSettings.get(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
-        assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_READ));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_BLOCKS_WRITE)));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_BLOCKS_READ)));
     }
 
     public void testMappingsOverridden() {

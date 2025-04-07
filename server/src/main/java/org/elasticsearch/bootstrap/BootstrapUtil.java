@@ -24,7 +24,7 @@ public class BootstrapUtil {
 
     public static SecureSettings loadSecureSettings(Environment initialEnv, SecureString keystorePassword) throws BootstrapException {
         try {
-            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> keystorePassword);
+            return KeyStoreWrapper.bootstrap(initialEnv.configDir(), () -> keystorePassword);
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

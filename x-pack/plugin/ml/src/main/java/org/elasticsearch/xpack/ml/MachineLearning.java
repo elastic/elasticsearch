@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -421,7 +422,6 @@ import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasActi
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelAction;
-import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelDefinitionPartAction;
@@ -1502,7 +1502,6 @@ public class MachineLearning extends Plugin
             if (machineLearningExtension.get().isNlpEnabled()) {
                 restHandlers.add(new RestStartTrainedModelDeploymentAction(machineLearningExtension.get().disableInferenceProcessCache()));
                 restHandlers.add(new RestStopTrainedModelDeploymentAction());
-                restHandlers.add(new RestInferTrainedModelDeploymentAction());
                 restHandlers.add(new RestUpdateTrainedModelDeploymentAction());
                 restHandlers.add(new RestPutTrainedModelVocabularyAction());
                 restHandlers.add(new RestClearDeploymentCacheAction());
@@ -1842,21 +1841,21 @@ public class MachineLearning extends Plugin
         namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField((TrainedModelCacheMetadata.NAME)),
                 TrainedModelCacheMetadata::fromXContent
             )
         );
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(ModelAliasMetadata.NAME),
                 ModelAliasMetadata::fromXContent
             )
         );
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(TrainedModelAssignmentMetadata.NAME),
                 TrainedModelAssignmentMetadata::fromXContent
             )
@@ -1865,7 +1864,7 @@ public class MachineLearning extends Plugin
         // has no control over this. So, simply read it without logging a deprecation warning
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(TrainedModelAssignmentMetadata.DEPRECATED_NAME),
                 TrainedModelAssignmentMetadata::fromXContent
             )
@@ -1881,19 +1880,21 @@ public class MachineLearning extends Plugin
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 
         // Custom metadata
-        namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, "ml", MlMetadata::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new));
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::new)
+            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::new)
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::readDiffFrom)
         );
-        namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new)
+        );
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 TrainedModelAssignmentMetadata.NAME,
                 TrainedModelAssignmentMetadata::fromStream
             )
@@ -1907,7 +1908,7 @@ public class MachineLearning extends Plugin
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 TrainedModelAssignmentMetadata.DEPRECATED_NAME,
                 TrainedModelAssignmentMetadata::fromStreamOld
             )
@@ -2098,13 +2099,14 @@ public class MachineLearning extends Plugin
     @Override
     public void cleanUpFeature(
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         Client unwrappedClient,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
         if (this.enabled == false) {
             // if ML is disabled, the custom cleanup can fail, but we can still clean up indices
             // by calling the superclass cleanup method
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, unwrappedClient, finalListener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, unwrappedClient, finalListener);
             return;
         }
         logger.info("Starting machine learning feature reset");
@@ -2149,20 +2151,25 @@ public class MachineLearning extends Plugin
                         memoryTracker.get()
                             .awaitAndClear(
                                 ActionListener.wrap(
-                                    cacheCleared -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, delegate),
+                                    cacheCleared -> SystemIndexPlugin.super.cleanUpFeature(
+                                        clusterService,
+                                        projectResolver,
+                                        client,
+                                        delegate
+                                    ),
                                     clearFailed -> {
                                         logger.error(
                                             "failed to clear memory tracker cache via machine learning reset feature API",
                                             clearFailed
                                         );
-                                        SystemIndexPlugin.super.cleanUpFeature(clusterService, client, delegate);
+                                        SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, delegate);
                                     }
                                 )
                             );
                         return;
                     }
                     // Call into the original listener to clean up the indices and then clear ml memory cache
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, delegate);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, delegate);
                 } else {
                     final List<String> failedComponents = results.entrySet()
                         .stream()

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -79,6 +80,12 @@ public class IndexingPressure {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> MAX_OPERATION_SIZE = Setting.memorySizeSetting(
+        "indexing_pressure.memory.max_operation_size",
+        "10%",
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
     private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
@@ -108,6 +115,9 @@ public class IndexingPressure {
     private final AtomicLong lowWaterMarkSplits = new AtomicLong(0);
     private final AtomicLong highWaterMarkSplits = new AtomicLong(0);
 
+    private final AtomicLong largeOpsRejections = new AtomicLong(0);
+    private final AtomicLong totalRejectedLargeOpsBytes = new AtomicLong(0);
+
     private final long lowWatermark;
     private final long lowWatermarkSize;
     private final long highWatermark;
@@ -115,6 +125,7 @@ public class IndexingPressure {
     private final long coordinatingLimit;
     private final long primaryLimit;
     private final long replicaLimit;
+    private final long operationLimit;
 
     public IndexingPressure(Settings settings) {
         this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
@@ -124,6 +135,7 @@ public class IndexingPressure {
         this.coordinatingLimit = MAX_COORDINATING_BYTES.get(settings).getBytes();
         this.primaryLimit = MAX_PRIMARY_BYTES.get(settings).getBytes();
         this.replicaLimit = MAX_REPLICA_BYTES.get(settings).getBytes();
+        this.operationLimit = MAX_OPERATION_SIZE.get(settings).getBytes();
     }
 
     private static Releasable wrapReleasable(Releasable releasable) {
@@ -138,51 +150,176 @@ public class IndexingPressure {
         };
     }
 
-    public Releasable markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
-        long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
-        long replicaWriteBytes = this.currentReplicaBytes.get();
-        long totalBytes = combinedBytes + replicaWriteBytes;
-        if (forceExecution == false && totalBytes > coordinatingLimit) {
-            long bytesWithoutOperation = combinedBytes - bytes;
-            long totalBytesWithoutOperation = totalBytes - bytes;
-            this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
-            this.coordinatingRejections.getAndIncrement();
-            throw new EsRejectedExecutionException(
-                "rejected execution of coordinating operation ["
-                    + "coordinating_and_primary_bytes="
-                    + bytesWithoutOperation
-                    + ", "
-                    + "replica_bytes="
-                    + replicaWriteBytes
-                    + ", "
-                    + "all_bytes="
-                    + totalBytesWithoutOperation
-                    + ", "
-                    + "coordinating_operation_bytes="
-                    + bytes
-                    + ", "
-                    + "max_coordinating_bytes="
-                    + coordinatingLimit
-                    + "]",
-                false
-            );
-        }
-        logger.trace(() -> Strings.format("adding [%d] coordinating operations and [%d] bytes", operations, bytes));
-        currentCoordinatingBytes.getAndAdd(bytes);
-        currentCoordinatingOps.getAndAdd(operations);
-        totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
-        totalCoordinatingBytes.getAndAdd(bytes);
-        totalCoordinatingOps.getAndAdd(operations);
-        totalCoordinatingRequests.getAndIncrement();
-        return wrapReleasable(() -> {
-            logger.trace(() -> Strings.format("removing [%d] coordinating operations and [%d] bytes", operations, bytes));
-            this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
-            this.currentCoordinatingBytes.getAndAdd(-bytes);
-            this.currentCoordinatingOps.getAndAdd(-operations);
-        });
+    public Incremental startIncrementalCoordinating(int operations, long bytes, boolean forceExecution) {
+        Incremental coordinating = new Incremental(forceExecution);
+        coordinating.coordinating.increment(operations, bytes);
+        return coordinating;
     }
 
-    public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(int operations, long bytes) {
+    public Coordinating markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
+        Coordinating coordinating = new Coordinating(forceExecution);
+        coordinating.increment(operations, bytes);
+        return coordinating;
+    }
+
+    public class Incremental implements Releasable {
+
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private final boolean forceExecution;
+        private long currentUnparsedSize = 0;
+        private long totalParsedBytes = 0;
+        private Coordinating coordinating;
+
+        public Incremental(boolean forceExecution) {
+            this.forceExecution = forceExecution;
+            this.coordinating = new Coordinating(forceExecution);
+        }
+
+        public long totalParsedBytes() {
+            return totalParsedBytes;
+        }
+
+        public void incrementUnparsedBytes(long bytes) {
+            assert closed.get() == false;
+            // TODO: Implement integration with IndexingPressure for unparsed bytes
+            currentUnparsedSize += bytes;
+        }
+
+        public void transferUnparsedBytesToParsed(long bytes) {
+            assert closed.get() == false;
+            assert currentUnparsedSize >= bytes;
+            currentUnparsedSize -= bytes;
+            totalParsedBytes += bytes;
+        }
+
+        public void increment(int operations, long bytes) {
+            // TODO: Eventually most of the memory will already be accounted for in unparsed.
+            coordinating.increment(operations, bytes);
+        }
+
+        public long currentOperationsSize() {
+            return coordinating.currentOperationsSize;
+        }
+
+        public Optional<Releasable> maybeSplit() {
+            long currentUsage = (currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get());
+            long currentOperationsSize = coordinating.currentOperationsSize;
+            if (currentUsage >= highWatermark && currentOperationsSize >= highWatermarkSize) {
+                highWaterMarkSplits.getAndIncrement();
+                logger.trace(
+                    () -> Strings.format(
+                        "Split bulk due to high watermark: current bytes [%d] and size [%d]",
+                        currentUsage,
+                        currentOperationsSize
+                    )
+                );
+                return Optional.of(split());
+            }
+            if (currentUsage >= lowWatermark && currentOperationsSize >= lowWatermarkSize) {
+                lowWaterMarkSplits.getAndIncrement();
+                logger.trace(
+                    () -> Strings.format(
+                        "Split bulk due to low watermark: current bytes [%d] and size [%d]",
+                        currentUsage,
+                        currentOperationsSize
+                    )
+                );
+                return Optional.of(split());
+            }
+            return Optional.empty();
+        }
+
+        public Releasable split() {
+            Coordinating toReturn = coordinating;
+            coordinating = new Coordinating(forceExecution);
+            return toReturn;
+        }
+
+        @Override
+        public void close() {
+            coordinating.close();
+        }
+    }
+
+    // TODO: Maybe this should be re-named and used for primary operations too. Eventually we will need to account for: ingest pipeline
+    // expansions, reading updates, etc. This could just be a generic OP that could be expanded as appropriate
+    public class Coordinating implements Releasable {
+
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private final boolean forceExecution;
+        private int currentOperations = 0;
+        private long currentOperationsSize = 0;
+
+        public Coordinating(boolean forceExecution) {
+            this.forceExecution = forceExecution;
+        }
+
+        private void increment(int operations, long bytes) {
+            assert closed.get() == false;
+            long combinedBytes = currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
+            long replicaWriteBytes = currentReplicaBytes.get();
+            long totalBytes = combinedBytes + replicaWriteBytes;
+            if (forceExecution == false && totalBytes > coordinatingLimit) {
+                long bytesWithoutOperation = combinedBytes - bytes;
+                long totalBytesWithoutOperation = totalBytes - bytes;
+                currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+                coordinatingRejections.getAndIncrement();
+                throw new EsRejectedExecutionException(
+                    "rejected execution of coordinating operation ["
+                        + "coordinating_and_primary_bytes="
+                        + bytesWithoutOperation
+                        + ", "
+                        + "replica_bytes="
+                        + replicaWriteBytes
+                        + ", "
+                        + "all_bytes="
+                        + totalBytesWithoutOperation
+                        + ", "
+                        + "coordinating_operation_bytes="
+                        + bytes
+                        + ", "
+                        + "max_coordinating_bytes="
+                        + coordinatingLimit
+                        + "]",
+                    false
+                );
+            }
+            currentOperations += operations;
+            currentOperationsSize += bytes;
+            logger.trace(() -> Strings.format("adding [%d] coordinating operations and [%d] bytes", operations, bytes));
+            currentCoordinatingBytes.getAndAdd(bytes);
+            currentCoordinatingOps.getAndAdd(operations);
+            totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
+            totalCoordinatingBytes.getAndAdd(bytes);
+            totalCoordinatingOps.getAndAdd(operations);
+            totalCoordinatingRequests.getAndIncrement();
+        }
+
+        @Override
+        public void close() {
+            if (closed.compareAndSet(false, true)) {
+                logger.trace(
+                    () -> Strings.format("removing [%d] coordinating operations and [%d] bytes", currentOperations, currentOperationsSize)
+                );
+                currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-currentOperationsSize);
+                currentCoordinatingBytes.getAndAdd(-currentOperationsSize);
+                currentCoordinatingOps.getAndAdd(-currentOperations);
+                currentOperationsSize = 0;
+                currentOperations = 0;
+            } else {
+                logger.error("IndexingPressure memory is adjusted twice", new IllegalStateException("Releasable is called twice"));
+                assert false : "IndexingPressure is adjusted twice";
+            }
+        }
+    }
+
+    public Releasable validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(
+        int operations,
+        long bytes,
+        long largestOperationSizeInBytes,
+        boolean allowsOperationsBeyondSizeLimit
+    ) {
+        checkLargestPrimaryOperationIsWithinLimits(operations, largestOperationSizeInBytes, allowsOperationsBeyondSizeLimit);
         currentPrimaryBytes.getAndAdd(bytes);
         currentPrimaryOps.getAndAdd(operations);
         totalPrimaryBytes.getAndAdd(bytes);
@@ -193,7 +330,49 @@ public class IndexingPressure {
         });
     }
 
-    public Releasable markPrimaryOperationStarted(int operations, long bytes, boolean forceExecution) {
+    void checkLargestPrimaryOperationIsWithinLimits(
+        int operations,
+        long largestOperationSizeInBytes,
+        boolean allowsOperationsBeyondSizeLimit
+    ) {
+        if (largestOperationSizeInBytes > operationLimit) {
+            this.largeOpsRejections.getAndIncrement();
+            this.totalRejectedLargeOpsBytes.addAndGet(largestOperationSizeInBytes);
+            if (allowsOperationsBeyondSizeLimit == false) {
+                this.primaryRejections.getAndIncrement();
+                this.primaryDocumentRejections.addAndGet(operations);
+                throw new EsRejectedExecutionException(
+                    "Request contains an operation of size ["
+                        + largestOperationSizeInBytes
+                        + "] bytes, which exceeds the maximum allowed limit of ["
+                        + operationLimit
+                        + "] bytes"
+                );
+            }
+        }
+    }
+
+    public Releasable validateAndMarkPrimaryOperationStarted(
+        int operations,
+        long bytes,
+        long largestOperationSizeInBytes,
+        boolean forceExecution,
+        boolean allowsOperationsBeyondSizeLimit
+    ) {
+        checkLargestPrimaryOperationIsWithinLimits(operations, largestOperationSizeInBytes, allowsOperationsBeyondSizeLimit);
+        return markPrimaryOperationStarted(operations, bytes, forceExecution, false);
+    }
+
+    public Releasable trackPrimaryOperationExpansion(int operations, long expandedBytes, boolean forceExecution) {
+        return markPrimaryOperationStarted(operations, expandedBytes, forceExecution, true);
+    }
+
+    // visible for testing
+    Releasable markPrimaryOperationStarted(int operations, long bytes, boolean forceExecution) {
+        return markPrimaryOperationStarted(operations, bytes, forceExecution, false);
+    }
+
+    private Releasable markPrimaryOperationStarted(int operations, long bytes, boolean forceExecution, boolean operationExpansionTracking) {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
@@ -225,16 +404,28 @@ public class IndexingPressure {
         }
         logger.trace(() -> Strings.format("adding [%d] primary operations and [%d] bytes", operations, bytes));
         currentPrimaryBytes.getAndAdd(bytes);
-        currentPrimaryOps.getAndAdd(operations);
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
         totalPrimaryBytes.getAndAdd(bytes);
-        totalPrimaryOps.getAndAdd(operations);
+        // If operation expansion is being tracked, we don't re-count the operations,
+        // as they were already included in the request when it was initially received
+        if (operationExpansionTracking == false) {
+            currentPrimaryOps.getAndAdd(operations);
+            totalPrimaryOps.getAndAdd(operations);
+        }
         return wrapReleasable(() -> {
             logger.trace(() -> Strings.format("removing [%d] primary operations and [%d] bytes", operations, bytes));
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.currentPrimaryBytes.getAndAdd(-bytes);
-            this.currentPrimaryOps.getAndAdd(-operations);
+            if (operationExpansionTracking == false) {
+                this.currentPrimaryOps.getAndAdd(-operations);
+            }
         });
+    }
+
+    public Releasable trackReplicaOperationExpansion(long expandedBytes, boolean forceExecution) {
+        // Operations are already tracked by the initial call to #markReplicaStarted.
+        // This method only increments the in-flight bytes to account for operation expansion during indexing.
+        return markReplicaOperationStarted(0, expandedBytes, forceExecution);
     }
 
     public Releasable markReplicaOperationStarted(int operations, long bytes, boolean forceExecution) {
@@ -266,21 +457,6 @@ public class IndexingPressure {
         });
     }
 
-    public boolean shouldSplitBulk(long size) {
-        long currentUsage = (currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get());
-        if (currentUsage >= highWatermark && size >= highWatermarkSize) {
-            highWaterMarkSplits.getAndIncrement();
-            logger.trace(() -> Strings.format("Split bulk due to high watermark: current bytes [%d] and size [%d]", currentUsage, size));
-            return (true);
-        }
-        if (currentUsage >= lowWatermark && size >= lowWatermarkSize) {
-            lowWaterMarkSplits.getAndIncrement();
-            logger.trace(() -> Strings.format("Split bulk due to low watermark: current bytes [%d] and size [%d]", currentUsage, size));
-            return (true);
-        }
-        return (false);
-    }
-
     public IndexingPressureStats stats() {
         return new IndexingPressureStats(
             totalCombinedCoordinatingAndPrimaryBytes.get(),
@@ -304,7 +480,9 @@ public class IndexingPressure {
             primaryDocumentRejections.get(),
             totalCoordinatingRequests.get(),
             lowWaterMarkSplits.get(),
-            highWaterMarkSplits.get()
+            highWaterMarkSplits.get(),
+            largeOpsRejections.get(),
+            totalRejectedLargeOpsBytes.get()
         );
     }
 }

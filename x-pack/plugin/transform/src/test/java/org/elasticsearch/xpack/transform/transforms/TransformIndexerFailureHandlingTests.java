@@ -35,8 +35,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
@@ -236,26 +235,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         @Override
         void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
-            ActionListener.respondAndRelease(
-                responseListener,
-                new SearchResponse(
-                    SearchHits.EMPTY_WITH_TOTAL_HITS,
-                    // Simulate completely null aggs
-                    null,
-                    new Suggest(Collections.emptyList()),
-                    false,
-                    false,
-                    new SearchProfileResults(Collections.emptyMap()),
-                    1,
-                    "",
-                    1,
-                    1,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
-                )
-            );
+            ActionListener.respondAndRelease(responseListener, SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS));
         }
 
         @Override
@@ -387,23 +367,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null,
             null
         );
-        SearchResponse searchResponse = new SearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            // Simulate completely null aggs
-            null,
-            new Suggest(Collections.emptyList()),
-            false,
-            false,
-            new SearchProfileResults(Collections.emptyMap()),
-            1,
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
@@ -516,22 +480,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = new SearchResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-            // Simulate completely null aggs
-            null,
-            new Suggest(Collections.emptyList()),
-            false,
-            false,
-            new SearchProfileResults(Collections.emptyMap()),
-            1,
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
+            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
         );
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -611,22 +561,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = new SearchResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-            // Simulate completely null aggs
-            null,
-            new Suggest(Collections.emptyList()),
-            false,
-            false,
-            new SearchProfileResults(Collections.emptyMap()),
-            1,
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
+            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
         );
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -709,22 +645,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = new SearchResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-            // Simulate completely null aggs
-            null,
-            new Suggest(Collections.emptyList()),
-            false,
-            false,
-            new SearchProfileResults(Collections.emptyMap()),
-            1,
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
+            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
         );
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -954,22 +876,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
     }
 
     private static Function<SearchRequest, SearchResponse> returnHit() {
-        return request -> new SearchResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-            // Simulate completely null aggs
-            null,
-            new Suggest(Collections.emptyList()),
-            false,
-            false,
-            new SearchProfileResults(Collections.emptyMap()),
-            1,
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+        return request -> SearchResponseUtils.successfulResponse(
+            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
         );
     }
 

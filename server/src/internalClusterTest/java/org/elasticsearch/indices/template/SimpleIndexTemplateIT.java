@@ -180,7 +180,14 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     public void testDeleteIndexTemplate() throws Exception {
-        final int existingTemplates = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().templates().size();
+        final int existingTemplates = admin().cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .templates()
+            .size();
         logger.info("--> put template_1 and template_2");
         indicesAdmin().preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
@@ -227,9 +234,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         ClusterState state = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
-        assertThat(state.metadata().templates().size(), equalTo(1 + existingTemplates));
-        assertThat(state.metadata().templates().containsKey("template_2"), equalTo(true));
-        assertThat(state.metadata().templates().containsKey("template_1"), equalTo(false));
+        assertThat(state.metadata().getProject().templates().size(), equalTo(1 + existingTemplates));
+        assertThat(state.metadata().getProject().templates().containsKey("template_2"), equalTo(true));
+        assertThat(state.metadata().getProject().templates().containsKey("template_1"), equalTo(false));
 
         logger.info("--> put template_1 back");
         indicesAdmin().preparePutTemplate("template_1")
@@ -257,13 +264,16 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         logger.info("--> delete template*");
         indicesAdmin().prepareDeleteTemplate("template*").get();
         assertThat(
-            admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().templates().size(),
+            admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().templates().size(),
             equalTo(existingTemplates)
         );
 
         logger.info("--> delete * with no templates, make sure we don't get a failure");
         indicesAdmin().prepareDeleteTemplate("*").get();
-        assertThat(admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().templates().size(), equalTo(0));
+        assertThat(
+            admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().templates().size(),
+            equalTo(0)
+        );
     }
 
     public void testThatGetIndexTemplatesWorks() throws Exception {
@@ -471,7 +481,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         createIndex("test");
 
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("test").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get();
         assertNull(getSettingsResponse.getIndexToSettings().get("test").get("index.does_not_exist"));
     }
 
@@ -907,7 +917,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // finally, create a valid index
         prepareCreate("test_good", Settings.builder().put("index.number_of_shards", 7).put("index.number_of_routing_shards", 7)).get();
 
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("test_good").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test_good").get();
         assertEquals("6", getSettingsResponse.getIndexToSettings().get("test_good").get("index.routing_partition_size"));
     }
 

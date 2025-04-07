@@ -76,6 +76,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Long relativeStartNanos;  // start time for an ESQL query for calculating took times
     private transient TimeValue planningTookTime;  // time elapsed since start of query to calling ComputeService.execute
     private volatile boolean isPartial; // Does this request have partial results?
+    private transient volatile boolean isStopped; // Have we received stop command?
 
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
         this(Predicates.always(), includeCCSMetadata);  // default all clusters to skip_unavailable=true
@@ -217,6 +218,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             || clusterInfo.size() == 1 && clusterInfo.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false;
     }
 
+    /**
+     * Is there any metadata to report in the response?
+     * This is true on cross-cluster search with includeCCSMetadata=true or when there are partial failures.
+     */
+    public boolean hasMetadataToReport() {
+        return isCrossClusterSearch() && includeCCSMetadata
+            || (isPartial && clusterInfo.values().stream().anyMatch(c -> c.getFailures().isEmpty() == false));
+    }
+
     public Cluster getCluster(String clusterAlias) {
         return clusterInfo.get(clusterAlias);
     }
@@ -245,13 +255,23 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * @return the new Cluster object
      */
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
-        return clusterInfo.compute(clusterAlias, remappingFunction);
+        return clusterInfo.compute(clusterAlias, (unused, oldCluster) -> {
+            final Cluster newCluster = remappingFunction.apply(clusterAlias, oldCluster);
+            if (newCluster != null && isPartial == false) {
+                isPartial = newCluster.isPartial();
+            }
+            return newCluster;
+        });
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        if (isCrossClusterSearch() == false || clusterInfo.isEmpty()) {
+        if (clusterInfo.isEmpty()) {
             return Collections.emptyIterator();
+        }
+        if (includeCCSMetadata == false) {
+            // If includeCCSMetadata is false, the only reason we're here is partial failures, so just report them.
+            return onlyFailuresToXContent();
         }
         Map<Cluster.Status, Integer> clusterStatuses = new EnumMap<>(Cluster.Status.class);
         for (Cluster info : clusterInfo.values()) {
@@ -273,6 +293,19 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         );
     }
 
+    private Iterator<? extends ToXContent> onlyFailuresToXContent() {
+        Iterator<Cluster> failuresIterator = clusterInfo.values().stream().filter(c -> (c.getFailures().isEmpty() == false)).iterator();
+        if (failuresIterator.hasNext()) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.object("details", failuresIterator),
+                ChunkedToXContentHelper.endObject()
+            );
+        } else {
+            return Collections.emptyIterator();
+        }
+    }
+
     /**
      * @param status the status you want to access
      * @return a stream of clusters with that status
@@ -284,7 +317,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "EsqlExecutionInfo{" + "overallTook=" + overallTook + ", clusterInfo=" + clusterInfo + '}';
+        return "EsqlExecutionInfo{"
+            + "overallTook="
+            + overallTook
+            + ", isPartial="
+            + isPartial
+            + ", isStopped="
+            + isStopped
+            + ", clusterInfo="
+            + clusterInfo
+            + '}';
     }
 
     @Override
@@ -304,18 +346,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return isPartial;
     }
 
-    /**
-     * Mark the query as having partial results.
-     */
-    public void markAsPartial() {
-        isPartial = true;
+    public void markAsStopped() {
+        isStopped = true;
     }
 
-    /**
-     * Mark this cluster as having partial results.
-     */
-    public void markClusterAsPartial(String clusterAlias) {
-        swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(Cluster.Status.PARTIAL).build());
+    public boolean isStopped() {
+        return isStopped;
     }
 
     /**
@@ -423,7 +459,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.failedShards = in.readOptionalInt();
             this.took = in.readOptionalTimeValue();
             this.skipUnavailable = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXEC_INFO_WITH_FAILURES)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
             } else {
                 this.failures = Collections.emptyList();
@@ -441,7 +477,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             out.writeOptionalInt(failedShards);
             out.writeOptionalTimeValue(took);
             out.writeBoolean(skipUnavailable);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXEC_INFO_WITH_FAILURES)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 out.writeCollection(failures);
             }
         }
@@ -607,6 +643,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         public List<ShardSearchFailure> getFailures() {
             return failures;
+        }
+
+        boolean isPartial() {
+            return status == Status.PARTIAL || status == Status.SKIPPED || (failedShards != null && failedShards > 0);
         }
 
         @Override

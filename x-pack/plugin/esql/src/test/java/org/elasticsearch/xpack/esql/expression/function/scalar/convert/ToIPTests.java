@@ -34,7 +34,7 @@ public class ToIPTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         String read = "Attribute[channel=0]";
-        String stringEvaluator = "ToIPFromStringEvaluator[field=" + read + "]";
+        String stringEvaluator = "ToIPFromStringEvaluator[asString=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         // convert from IP to IP
@@ -47,8 +47,8 @@ public class ToIPTests extends AbstractScalarFunctionTestCase {
             DataType.IP,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.IllegalArgumentException: '" + bytesRef.utf8ToString() + "' is not an IP string literal."
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: '" + bytesRef.utf8ToString() + "' is not an IP string literal."
             )
         );
 

@@ -13,11 +13,10 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -148,7 +147,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
     /**
      * An optional reindexing script to use when migrating an index created
-     * before {@link TransportGetFeatureUpgradeStatusAction#NO_UPGRADE_REQUIRED_INDEX_VERSION}.
+     * before {@link SystemIndices#NO_UPGRADE_REQUIRED_INDEX_VERSION}.
      * This script can be used to modify documents before they are added to the new index.
      * For example, it can be used to remove deprecated fields from the index.
      * <br>
@@ -435,12 +434,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * This cannot be done via {@link org.elasticsearch.cluster.metadata.IndexNameExpressionResolver} because that class can only handle
      * simple wildcard expressions, but system index name patterns may use full Lucene regular expression syntax,
      *
-     * @param metadata The current metadata to get the list of matching indices from
+     * @param project The current project metadata to get the list of matching indices from
      * @return A list of index names that match this descriptor
      */
     @Override
-    public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
+    public List<String> getMatchingIndices(ProjectMetadata project) {
+        return project.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
     }
 
     /**

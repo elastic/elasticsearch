@@ -36,9 +36,4 @@ public class RateSerializationTests extends AbstractExpressionSerializationTests
         }
         return new Rate(source, field, timestamp, unit);
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

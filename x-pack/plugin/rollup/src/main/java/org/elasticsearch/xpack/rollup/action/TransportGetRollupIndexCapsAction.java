@@ -83,7 +83,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request);
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(
             Arrays.asList(indices),
-            clusterService.state().getMetadata().indices()
+            clusterService.state().getMetadata().getProject().indices()
         );
         listener.onResponse(new GetRollupIndexCapsAction.Response(allCaps));
     }

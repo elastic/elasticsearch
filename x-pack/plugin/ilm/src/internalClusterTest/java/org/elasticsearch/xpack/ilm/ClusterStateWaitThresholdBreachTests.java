@@ -128,7 +128,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // now to the tricky bit
         // we'll use the cluster service to issue a move-to-step task in order to manipulate the ILM execution state `step_time` value to
         // a very low value (in order to trip the LIFECYCLE_STEP_WAIT_TIME_THRESHOLD threshold and retry the shrink cycle)
-        IndexMetadata managedIndexMetadata = clusterService().state().metadata().index(managedIndex);
+        IndexMetadata managedIndexMetadata = clusterService().state().metadata().getProject().index(managedIndex);
         Step.StepKey currentStepKey = new Step.StepKey("warm", ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
 
         String masterNode = masterOnlyNodes.get(0);

@@ -155,7 +155,6 @@ public class RestBulkAction extends BaseRestHandler {
 
         private volatile RestChannel restChannel;
         private boolean shortCircuited;
-        private int bytesParsed = 0;
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
@@ -202,6 +201,7 @@ public class RestBulkAction extends BaseRestHandler {
                 bytesConsumed = 0;
             } else {
                 try {
+                    handler.getIncrementalOperation().incrementUnparsedBytes(chunk.length());
                     unParsedChunks.add(chunk);
 
                     if (unParsedChunks.size() > 1) {
@@ -210,10 +210,8 @@ public class RestBulkAction extends BaseRestHandler {
                         data = chunk;
                     }
 
-                    // TODO: Check that the behavior here vs. globalRouting, globalPipeline, globalRequireAlias, globalRequireDatsStream in
-                    // BulkRequest#add is fine
                     bytesConsumed = parser.parse(data, isLast);
-                    bytesParsed += bytesConsumed;
+                    handler.getIncrementalOperation().transferUnparsedBytesToParsed(bytesConsumed);
 
                 } catch (Exception e) {
                     shortCircuit();
@@ -225,7 +223,7 @@ public class RestBulkAction extends BaseRestHandler {
             final ArrayList<Releasable> releasables = accountParsing(bytesConsumed);
             if (isLast) {
                 assert unParsedChunks.isEmpty();
-                if (bytesParsed == 0) {
+                if (handler.getIncrementalOperation().totalParsedBytes() == 0) {
                     shortCircuit();
                     new RestToXContentListener<>(channel).onFailure(new ElasticsearchParseException("request body is required"));
                 } else {
@@ -247,7 +245,9 @@ public class RestBulkAction extends BaseRestHandler {
         @Override
         public void streamClose() {
             assert Transports.assertTransportThread();
-            shortCircuit();
+            if (shortCircuited == false) {
+                shortCircuit();
+            }
         }
 
         private void shortCircuit() {

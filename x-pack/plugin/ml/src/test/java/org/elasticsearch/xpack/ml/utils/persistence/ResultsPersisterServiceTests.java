@@ -18,7 +18,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -79,31 +78,10 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     // Constants for searchWithRetry tests
     private static final SearchRequest SEARCH_REQUEST = new SearchRequest("my-index");
-    public static final SearchResponse SEARCH_RESPONSE_SUCCESS = SearchResponseUtils.emptyWithTotalHits(
-        null,
-        1,
-        1,
-        0,
-        1L,
-        ShardSearchFailure.EMPTY_ARRAY,
-        null
-    );
-    public static final SearchResponse SEARCH_RESPONSE_FAILURE = new SearchResponse(
-        SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
-        null,
-        null,
-        false,
-        null,
-        null,
-        1,
-        null,
-        1,
-        0,
-        0,
-        1L,
-        ShardSearchFailure.EMPTY_ARRAY,
-        null
-    );
+    public static final SearchResponse SEARCH_RESPONSE_SUCCESS = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+    public static final SearchResponse SEARCH_RESPONSE_FAILURE = SearchResponseUtils.response(SearchHits.EMPTY_WITHOUT_TOTAL_HITS)
+        .shards(1, 0, 0)
+        .build();
 
     // Constants for bulkIndexWithRetry tests
     private static final IndexRequest INDEX_REQUEST_SUCCESS = new IndexRequest("my-index").id("success")

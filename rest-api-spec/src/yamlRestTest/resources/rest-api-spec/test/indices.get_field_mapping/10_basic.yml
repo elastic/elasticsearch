@@ -50,17 +50,3 @@ setup:
 
   - match: {test_index.mappings.text.mapping.text.type:     text}
   - match: {test_index.mappings.text.mapping.text.analyzer: default}
-
----
-"Get field mapping with local parameter should fail":
-
-  - requires:
-      test_runner_features: ["warnings"]
-      cluster_features: ["gte_v8.0.0"]
-      reason: "local parameter for get field mapping API was allowed before v8"
-
-  - do:
-      catch: bad_request
-      indices.get_field_mapping:
-        fields: text
-        local: true

@@ -40,7 +40,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
         .module("x-pack-aggregate-metric")
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.license.self_generated.type", initTestSeed().nextBoolean() ? "trial" : "basic")
         // We upgrade from standard to logsdb, so we need to start with logsdb disabled,
         // then later cluster.logsdb.enabled gets set to true and next rollover data stream is in logsdb mode.
         .setting("cluster.logsdb.enabled", "false")

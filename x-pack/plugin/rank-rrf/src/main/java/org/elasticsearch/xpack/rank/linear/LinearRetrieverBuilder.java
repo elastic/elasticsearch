@@ -79,7 +79,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     static {
         PARSER.declareObjectArray(constructorArg(), LinearRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     private static float[] getDefaultWeight(int size) {

@@ -195,7 +195,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     throw LicenseUtils.newComplianceException("searchable-snapshots");
                 }
 
-                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);
@@ -279,7 +279,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             keyForSnapshotGeneration,
             waitForDataTierKey,
             (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
                 SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);
@@ -380,7 +380,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             swapAliasesKey,
             replaceDataStreamIndexKey,
             (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+                IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }

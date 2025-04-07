@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -19,6 +20,7 @@ import java.util.Objects;
  * Cluster state update request that allows to update settings for some indices
  */
 public record UpdateSettingsClusterStateUpdateRequest(
+    ProjectId projectId,
     TimeValue masterNodeTimeout,
     TimeValue ackTimeout,
     Settings settings,
@@ -60,6 +62,7 @@ public record UpdateSettingsClusterStateUpdateRequest(
     }
 
     public UpdateSettingsClusterStateUpdateRequest {
+        Objects.requireNonNull(projectId);
         Objects.requireNonNull(masterNodeTimeout);
         Objects.requireNonNull(ackTimeout);
         Objects.requireNonNull(settings);

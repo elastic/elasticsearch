@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -122,18 +123,10 @@ public class EnrichCacheTests extends ESTestCase {
                 searchResponseActionListener.onResponse(searchResponse);
                 searchResponse.decRef();
                 queriedDatabaseLatch.countDown();
-            }, new ActionListener<>() {
-                @Override
-                public void onResponse(List<Map<?, ?>> response) {
-                    assertThat(response, equalTo(searchResponseMap));
-                    notifiedOfResultLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e);
-                }
-            });
+            }, assertNoFailureListener(response -> {
+                assertThat(response, equalTo(searchResponseMap));
+                notifiedOfResultLatch.countDown();
+            }));
             assertThat(queriedDatabaseLatch.await(5, TimeUnit.SECONDS), equalTo(true));
             assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
             EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
@@ -149,17 +142,7 @@ public class EnrichCacheTests extends ESTestCase {
             CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
             enrichCache.computeIfAbsent("policy1-1", "1", 1, (searchResponseActionListener) -> {
                 fail("Expected no call to the database because item should have been in the cache");
-            }, new ActionListener<>() {
-                @Override
-                public void onResponse(List<Map<?, ?>> maps) {
-                    notifiedOfResultLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e);
-                }
-            });
+            }, assertNoFailureListener(r -> notifiedOfResultLatch.countDown()));
             assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
             EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
             assertThat(cacheStats.count(), equalTo(1L));
@@ -180,22 +163,7 @@ public class EnrichCacheTests extends ESTestCase {
             }
         }).toArray(SearchHit[]::new);
         SearchHits hits = SearchHits.unpooled(hitArray, null, 0);
-        return new SearchResponse(
-            hits,
-            null,
-            null,
-            false,
-            false,
-            null,
-            1,
-            null,
-            5,
-            4,
-            0,
-            randomLong(),
-            null,
-            SearchResponse.Clusters.EMPTY
-        );
+        return SearchResponseUtils.response(hits).shards(5, 4, 0).build();
     }
 
     private BytesReference convertMapToJson(Map<String, ?> simpleMap) throws IOException {

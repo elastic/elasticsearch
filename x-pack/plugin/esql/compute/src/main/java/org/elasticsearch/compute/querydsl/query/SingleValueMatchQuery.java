@@ -37,7 +37,17 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Finds all fields with a single-value. If a field has a multi-value, it emits a {@link Warnings}.
+ * Finds all fields with a single-value. If a field has a multi-value, it emits
+ * a {@link Warnings warning}.
+ * <p>
+ *     Warnings are only emitted if the {@link TwoPhaseIterator#matches}. Meaning that,
+ *     if the other query skips the doc either because the index doesn't match or because it's
+ *     {@link TwoPhaseIterator#matches} doesn't match, then we won't log warnings. So it's
+ *     most safe to say that this will emit a warning if the document would have
+ *     matched but for having a multivalued field. If the document doesn't match but
+ *     "almost" matches in some fairly lucene-specific ways then it *might* emit
+ *     a warning.
+ * </p>
  */
 public final class SingleValueMatchQuery extends Query {
 
@@ -46,15 +56,14 @@ public final class SingleValueMatchQuery extends Query {
      * This avoids reporting warnings when queries are not matching multi-values
      */
     private static final int MULTI_VALUE_MATCH_COST = 1000;
-    private static final IllegalArgumentException MULTI_VALUE_EXCEPTION = new IllegalArgumentException(
-        "single-value function encountered multi-value"
-    );
     private final IndexFieldData<?> fieldData;
     private final Warnings warnings;
+    private final String multiValueExceptionMessage;
 
-    public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings) {
+    public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings, String multiValueExceptionMessage) {
         this.fieldData = fieldData;
         this.warnings = warnings;
+        this.multiValueExceptionMessage = multiValueExceptionMessage;
     }
 
     @Override
@@ -123,7 +132,7 @@ public final class SingleValueMatchQuery extends Query {
                         return false;
                     }
                     if (sortedNumerics.docValueCount() != 1) {
-                        warnings.registerException(MULTI_VALUE_EXCEPTION);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
@@ -158,7 +167,7 @@ public final class SingleValueMatchQuery extends Query {
                         return false;
                     }
                     if (sortedSetDocValues.docValueCount() != 1) {
-                        warnings.registerException(MULTI_VALUE_EXCEPTION);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
@@ -187,7 +196,7 @@ public final class SingleValueMatchQuery extends Query {
                         return false;
                     }
                     if (sortedBinaryDocValues.docValueCount() != 1) {
-                        warnings.registerException(MULTI_VALUE_EXCEPTION);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
@@ -265,6 +274,10 @@ public final class SingleValueMatchQuery extends Query {
         public long cost() {
             return docIdSetIterator.cost();
         }
+    }
+
+    private void registerMultiValueException() {
+        warnings.registerException(IllegalArgumentException.class, multiValueExceptionMessage);
     }
 
     private static class PredicateScorerSupplier extends ScorerSupplier {

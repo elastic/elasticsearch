@@ -27,8 +27,8 @@ public class TopFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new TopFloatAggregatorFunctionSupplier(inputChannels, LIMIT, true);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new TopFloatAggregatorFunctionSupplier(LIMIT, true);
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 
@@ -31,22 +32,23 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
     CustomElandInternalTextEmbeddingServiceSettings> {
 
     public static CustomElandInternalTextEmbeddingServiceSettings createRandom() {
-        var numAllocations = randomIntBetween(1, 10);
+        var withAdaptiveAllocations = randomBoolean();
+        var numAllocations = withAdaptiveAllocations ? null : randomIntBetween(1, 10);
+        var adaptiveAllocationsSettings = withAdaptiveAllocations
+            ? new AdaptiveAllocationsSettings(true, randomIntBetween(0, 2), randomIntBetween(2, 5))
+            : null;
         var numThreads = randomIntBetween(1, 10);
         var modelId = randomAlphaOfLength(8);
-        SimilarityMeasure similarityMeasure = SimilarityMeasure.COSINE;
-        Integer dims = null;
+        var similarityMeasure = SimilarityMeasure.COSINE;
         var setDimensions = randomBoolean();
-        if (setDimensions) {
-            dims = 123;
-        }
-
+        var dims = setDimensions ? 123 : null;
         var elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
 
         return new CustomElandInternalTextEmbeddingServiceSettings(
             numAllocations,
             numThreads,
             modelId,
+            adaptiveAllocationsSettings,
             null,
             dims,
             similarityMeasure,
@@ -86,6 +88,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     modelId,
                     null,
                     null,
+                    null,
                     SimilarityMeasure.DOT_PRODUCT,
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
@@ -109,6 +112,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     numAllocations,
                     numThreads,
                     modelId,
+                    null,
                     null,
                     null,
                     SimilarityMeasure.COSINE,
@@ -152,6 +156,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     modelId,
                     null,
                     null,
+                    null,
                     SimilarityMeasure.DOT_PRODUCT,
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
@@ -192,6 +197,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     numThreads,
                     modelId,
                     null,
+                    null,
                     1,
                     SimilarityMeasure.DOT_PRODUCT,
                     DenseVectorFieldMapper.ElementType.FLOAT
@@ -205,6 +211,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
             1,
             1,
             "model_id",
+            null,
             null,
             100,
             SimilarityMeasure.COSINE,

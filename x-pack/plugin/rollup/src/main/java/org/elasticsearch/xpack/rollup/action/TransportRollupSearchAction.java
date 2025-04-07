@@ -123,7 +123,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request);
-        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetadata().indices());
+        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetadata().getProject().indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 

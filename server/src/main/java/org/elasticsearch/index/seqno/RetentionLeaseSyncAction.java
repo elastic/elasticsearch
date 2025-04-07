@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -77,7 +78,8 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         final ShardStateAction shardStateAction,
         final ActionFilters actionFilters,
         final IndexingPressure indexingPressure,
-        final SystemIndices systemIndices
+        final SystemIndices systemIndices,
+        final ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -94,6 +96,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             PrimaryActionExecution.Force,
             indexingPressure,
             systemIndices,
+            projectResolver,
             ReplicaActionExecution.BypassCircuitBreaker
         );
     }

@@ -100,7 +100,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         );
         ensureGreen("test");
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        Index index = state.metadata().index("test").getIndex();
+        Index index = state.metadata().getProject().index("test").getIndex();
 
         logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
         assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
@@ -202,7 +202,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         );
         ensureGreen("test");
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        Index index = state.metadata().index("test").getIndex();
+        Index index = state.metadata().getProject().index("test").getIndex();
         assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
 
@@ -263,7 +263,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         ensureGreen("test");
 
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        Index index = state.metadata().index("test").getIndex();
+        Index index = state.metadata().getProject().index("test").getIndex();
         logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
         assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
         assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
@@ -403,7 +403,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         waitNoPendingTasksOnAll();
         ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-        final Index index = stateResponse.getState().metadata().index("test").getIndex();
+        final Index index = stateResponse.getState().metadata().getProject().index("test").getIndex();
         RoutingNode routingNode = stateResponse.getState().getRoutingNodes().node(nonMasterId);
         final int[] node2Shards = new int[routingNode.numberOfOwningShards()];
         int i = 0;

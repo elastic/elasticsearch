@@ -1,0 +1,5 @@
+pr: 121260
+summary: Introduce a pre-mapping logical plan processing step
+area: ES|QL
+type: enhancement
+issues: []

@@ -157,7 +157,10 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                             }
                             atLeastOne = true;
                         }
-                        lifecycle = DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).enabled(isEnabled).build();
+                        lifecycle = DataStreamLifecycle.builder()
+                            .dataRetention(TimeValue.timeValueMillis(retentionMillis))
+                            .enabled(isEnabled)
+                            .build();
                     }
                 } else {
                     lifecycle = null;

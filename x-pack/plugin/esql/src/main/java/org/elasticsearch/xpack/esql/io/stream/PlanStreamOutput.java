@@ -148,7 +148,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
         writeByte(NEW_BLOCK_KEY);
         writeVInt(nextCachedBlock);
         cachedBlocks.put(block, fromPreviousKey(nextCachedBlock));
-        writeNamedWriteable(block);
+        Block.writeTypedBlock(block, this);
         nextCachedBlock++;
     }
 

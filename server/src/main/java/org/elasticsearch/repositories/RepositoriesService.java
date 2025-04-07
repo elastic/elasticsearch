@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -342,7 +343,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
             }
             repositories = new RepositoriesMetadata(repositoriesMetadata);
-            mdBuilder.putCustom(RepositoriesMetadata.TYPE, repositories);
+            mdBuilder.putDefaultProjectCustom(RepositoriesMetadata.TYPE, repositories);
             changed = true;
             return ClusterState.builder(currentState).metadata(mdBuilder).build();
         }
@@ -447,7 +448,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     } else {
                         final RepositoriesMetadata newReposMetadata = currentReposMetadata.withUuid(repositoryName, repositoryUuid);
                         final Metadata.Builder metadata = Metadata.builder(currentState.metadata())
-                            .putCustom(RepositoriesMetadata.TYPE, newReposMetadata);
+                            .putDefaultProjectCustom(RepositoriesMetadata.TYPE, newReposMetadata);
                         return ClusterState.builder(currentState).metadata(metadata).build();
                     }
                 }
@@ -530,7 +531,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
                 if (changed) {
                     repositories = new RepositoriesMetadata(repositoriesMetadata);
-                    mdBuilder.putCustom(RepositoriesMetadata.TYPE, repositories);
+                    mdBuilder.putDefaultProjectCustom(RepositoriesMetadata.TYPE, repositories);
                     return ClusterState.builder(currentState).metadata(mdBuilder).build();
                 }
             }
@@ -908,15 +909,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private static void ensureNoSearchableSnapshotsIndicesInUse(ClusterState clusterState, RepositoryMetadata repositoryMetadata) {
         long count = 0L;
         List<Index> indices = null;
-        for (IndexMetadata indexMetadata : clusterState.metadata()) {
-            if (indexSettingsMatchRepositoryMetadata(indexMetadata, repositoryMetadata)) {
-                if (indices == null) {
-                    indices = new ArrayList<>();
+        for (ProjectMetadata project : clusterState.metadata().projects().values()) {
+            for (IndexMetadata indexMetadata : project) {
+                if (indexSettingsMatchRepositoryMetadata(indexMetadata, repositoryMetadata)) {
+                    if (indices == null) {
+                        indices = new ArrayList<>();
+                    }
+                    if (indices.size() < 5) {
+                        indices.add(indexMetadata.getIndex());
+                    }
+                    count += 1L;
                 }
-                if (indices.size() < 5) {
-                    indices.add(indexMetadata.getIndex());
-                }
-                count += 1L;
             }
         }
         if (indices != null && indices.isEmpty() == false) {

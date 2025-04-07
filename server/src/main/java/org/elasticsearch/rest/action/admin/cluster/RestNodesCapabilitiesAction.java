@@ -66,8 +66,10 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
         NodesCapabilitiesRequest r = requestNodes.method(RestRequest.Method.valueOf(request.param("method", "GET")))
             .path(path)
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))
-            .capabilities(request.paramAsStringArray("capabilities", Strings.EMPTY_ARRAY))
-            .restApiVersion(request.getRestApiVersion());
+            .capabilities(request.paramAsStringArray("capabilities", Strings.EMPTY_ARRAY));
+        if (request.hasExplicitRestApiVersion()) {
+            r.restApiVersion(request.getRestApiVersion());
+        }
 
         return channel -> client.admin().cluster().nodesCapabilities(r, new NodesResponseRestListener<>(channel));
     }

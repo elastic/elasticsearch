@@ -9,6 +9,7 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import fixture.aws.DynamicRegionSupplier;
 import fixture.aws.ec2.AwsEc2HttpFixture;
 
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -19,17 +20,18 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
 public class DiscoveryEc2KeystoreCredentialsIT extends DiscoveryEc2ClusterFormationTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("DiscoveryEc2KeystoreCredentialsIT");
-    private static final String REGION = PREFIX + "-region";
     private static final String ACCESS_KEY = PREFIX + "-access-key";
 
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final AwsEc2HttpFixture ec2ApiFixture = new AwsEc2HttpFixture(
-        fixedAccessKey(ACCESS_KEY),
+        fixedAccessKey(ACCESS_KEY, regionSupplier, "ec2"),
         DiscoveryEc2KeystoreCredentialsIT::getAvailableTransportEndpoints
     );
 
@@ -39,7 +41,7 @@ public class DiscoveryEc2KeystoreCredentialsIT extends DiscoveryEc2ClusterFormat
         .setting(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), Ec2DiscoveryPlugin.EC2_SEED_HOSTS_PROVIDER_NAME)
         .setting("logger." + AwsEc2SeedHostsProvider.class.getCanonicalName(), "DEBUG")
         .setting(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), ec2ApiFixture::getAddress)
-        .environment("AWS_REGION", REGION)
+        .environment("AWS_REGION", regionSupplier)
         .keystore("discovery.ec2.access_key", ACCESS_KEY)
         .keystore("discovery.ec2.secret_key", ESTestCase::randomSecretKey)
         .build();

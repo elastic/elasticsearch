@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -96,6 +97,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
@@ -117,6 +119,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -129,11 +132,13 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.junit.BeforeClass;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -150,12 +155,14 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -186,31 +193,33 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends ESTestCase {
-
     private static EsqlParser parser;
-    private static Analyzer analyzer;
     private static LogicalOptimizerContext logicalOptimizerCtx;
     private static LogicalPlanOptimizer logicalOptimizer;
+
     private static Map<String, EsField> mapping;
+    private static Analyzer analyzer;
     private static Map<String, EsField> mappingAirports;
-    private static Map<String, EsField> mappingTypes;
     private static Analyzer analyzerAirports;
+    private static Map<String, EsField> mappingTypes;
     private static Analyzer analyzerTypes;
     private static Map<String, EsField> mappingExtra;
     private static Analyzer analyzerExtra;
+    private static Map<String, EsField> metricMapping;
+    private static Analyzer metricsAnalyzer;
+    private static Analyzer multiIndexAnalyzer;
+
     private static EnrichResolution enrichResolution;
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
-    private static Map<String, EsField> metricMapping;
-    private static Analyzer metricsAnalyzer;
-
-    private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
-        static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());
+    public static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
+        public static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());
 
         SubstitutionOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
             super(optimizerContext);
@@ -240,7 +249,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 new EsqlFunctionRegistry(),
                 getIndexResult,
                 defaultLookupResolution(),
-                enrichResolution
+                enrichResolution,
+                emptyInferenceResolution()
             ),
             TEST_VERIFIER
         );
@@ -250,7 +260,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex airports = new EsIndex("airports", mappingAirports, Map.of("airports", IndexMode.STANDARD));
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResultAirports,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
 
@@ -259,7 +275,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex types = new EsIndex("types", mappingTypes, Map.of("types", IndexMode.STANDARD));
         IndexResolution getIndexResultTypes = IndexResolution.valid(types);
         analyzerTypes = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultTypes, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResultTypes,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
 
@@ -268,14 +290,47 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex extra = new EsIndex("extra", mappingExtra, Map.of("extra", IndexMode.STANDARD));
         IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
         analyzerExtra = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultExtra, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResultExtra,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
 
         metricMapping = loadMapping("k8s-mappings.json");
         var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), metricsIndex, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                metricsIndex,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+
+        var multiIndexMapping = loadMapping("mapping-basic.json");
+        multiIndexMapping.put("partial_type_keyword", new EsField("partial_type_keyword", KEYWORD, emptyMap(), true));
+        var multiIndex = IndexResolution.valid(
+            new EsIndex(
+                "multi_index",
+                multiIndexMapping,
+                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+                Set.of("partial_type_keyword")
+            )
+        );
+        multiIndexAnalyzer = new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                multiIndex,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
     }
@@ -1839,10 +1894,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     * TopN[[Order[first_name{f}#170,ASC,LAST]],1000[INTEGER]]
-     *  \_MvExpand[first_name{f}#170]
-     *    \_TopN[[Order[emp_no{f}#169,ASC,LAST]],1000[INTEGER]]
-     *      \_EsRelation[test][avg_worked_seconds{f}#167, birth_date{f}#168, emp_n..]
+     * TopN[[Order[first_name{r}#5575,ASC,LAST]],1000[INTEGER]]
+     * \_MvExpand[first_name{f}#5565,first_name{r}#5575,null]
+     *   \_EsRelation[test][_meta_field{f}#5570, emp_no{f}#5564, first_name{f}#..]
      */
     public void testDontCombineOrderByThroughMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -1854,9 +1908,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("first_name"));
         var mvExpand = as(topN.child(), MvExpand.class);
-        topN = as(mvExpand.child(), TopN.class);
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExpand.child(), EsRelation.class);
     }
 
     /**
@@ -2065,12 +2117,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Expected
-     * EsqlProject[[emp_no{f}#350, first_name{f}#351, salary{f}#352]]
-     *  \_TopN[[Order[salary{f}#352,ASC,LAST], Order[first_name{f}#351,ASC,LAST]],5[INTEGER]]
-     *    \_MvExpand[first_name{f}#351]
-     *      \_TopN[[Order[emp_no{f}#350,ASC,LAST]],10000[INTEGER]]
-     *        \_EsRelation[employees][emp_no{f}#350, first_name{f}#351, salary{f}#352]
+     * EsqlProject[[emp_no{f}#10, first_name{r}#21, salary{f}#15]]
+     * \_TopN[[Order[salary{f}#15,ASC,LAST], Order[first_name{r}#21,ASC,LAST]],5[INTEGER]]
+     *   \_MvExpand[first_name{f}#11,first_name{r}#21,null]
+     *     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      */
     public void testPushDownLimitThroughMultipleSort_AfterMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2086,20 +2136,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary", "first_name"));
         var mvExp = as(topN.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#361, first_name{f}#362, salary{f}#363]]
-     *  \_TopN[[Order[first_name{f}#362,ASC,LAST]],5[INTEGER]]
-     *    \_TopN[[Order[salary{f}#363,ASC,LAST]],5[INTEGER]]
-     *      \_MvExpand[first_name{f}#362]
-     *        \_TopN[[Order[emp_no{f}#361,ASC,LAST]],10000[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#361, first_name{f}#362, salary{f}#363]
+     * EsqlProject[[emp_no{f}#2560, first_name{r}#2571, salary{f}#2565]]
+     * \_TopN[[Order[first_name{r}#2571,ASC,LAST]],5[INTEGER]]
+     *   \_TopN[[Order[salary{f}#2565,ASC,LAST]],5[INTEGER]]
+     *     \_MvExpand[first_name{f}#2561,first_name{r}#2571,null]
+     *       \_EsRelation[test][_meta_field{f}#2566, emp_no{f}#2560, first_name{f}#..]
      */
     public void testPushDownLimitThroughMultipleSort_AfterMvExpand2() {
         LogicalPlan plan = optimizedPlan("""
@@ -2119,10 +2165,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary"));
         var mvExp = as(topN.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
@@ -2231,8 +2274,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *  \_TopN[[Order[salary{f}#12,ASC,LAST]],5[INTEGER]]
      *    \_Eval[[100[INTEGER] AS b]]
      *      \_MvExpand[first_name{f}#11]
-     *        \_TopN[[Order[first_name{f}#11,ASC,LAST]],10000[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#10, first_name{f}#11, salary{f}#12]
+     *        \_EsRelation[employees][emp_no{f}#10, first_name{f}#11, salary{f}#12]
      */
     public void testPushDownLimit_PastEvalAndMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2250,22 +2292,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(orderNames(topN), contains("salary"));
         var eval = as(topN.child(), Eval.class);
         var mvExp = as(eval.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("first_name"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#12, first_name{r}#22, salary{f}#17]]
-     * \_TopN[[Order[salary{f}#17,ASC,LAST], Order[first_name{r}#22,ASC,LAST]],1000[INTEGER]]
-     *   \_Filter[gender{f}#14 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#22)]
-     *     \_MvExpand[first_name{f}#13,first_name{r}#22,null]
-     *       \_TopN[[Order[emp_no{f}#12,ASC,LAST]],10000[INTEGER]]
-     *         \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     * EsqlProject[[emp_no{f}#5885, first_name{r}#5896, salary{f}#5890]]
+     * \_TopN[[Order[salary{f}#5890,ASC,LAST], Order[first_name{r}#5896,ASC,LAST]],1000[INTEGER]]
+     *   \_Filter[gender{f}#5887 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#5896)]
+     *     \_MvExpand[first_name{f}#5886,first_name{r}#5896,null]
+     *       \_EsRelation[test][_meta_field{f}#5891, emp_no{f}#5885, first_name{f}#..]
      */
-    public void testAddDefaultLimit_BeforeMvExpand_WithFilterOnExpandedField_ResultTruncationDefaultSize() {
+    public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedField_ResultTruncationDefaultSize() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
@@ -2282,9 +2320,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
         var mvExp = as(filter.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class); // TODO is it correct? Double-check AddDefaultTopN rule
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
@@ -2367,8 +2403,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var mvExpand = as(topN.child(), MvExpand.class);
         var filter = as(mvExpand.child(), Filter.class);
         mvExpand = as(filter.child(), MvExpand.class);
-        var topN2 = as(mvExpand.child(), TopN.class);  // TODO is it correct? Double-check AddDefaultTopN rule
-        as(topN2.child(), EsRelation.class);
+        as(mvExpand.child(), EsRelation.class);
     }
 
     /**
@@ -2463,20 +2498,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(orderNames(topN), contains("first_name"));
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
         var mvExpand = as(topN.child(), MvExpand.class);
-        var topN2 = as(mvExpand.child(), TopN.class); // TODO is it correct? Double-check AddDefaultTopN rule
-        as(topN2.child(), EsRelation.class);
+        as(mvExpand.child(), EsRelation.class);
     }
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#104, first_name{f}#105, salary{f}#106]]
-     *  \_TopN[[Order[salary{f}#106,ASC,LAST], Order[first_name{f}#105,ASC,LAST]],15[INTEGER]]
-     *    \_Filter[gender{f}#215 == [46][KEYWORD] AND WILDCARDLIKE(first_name{f}#105)]
-     *      \_MvExpand[first_name{f}#105]
-     *        \_TopN[[Order[emp_no{f}#104,ASC,LAST]],10000[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#104, first_name{f}#105, salary{f}#106]
+     * EsqlProject[[emp_no{f}#3517, first_name{r}#3528, salary{f}#3522]]
+     * \_TopN[[Order[salary{f}#3522,ASC,LAST], Order[first_name{r}#3528,ASC,LAST]],15[INTEGER]]
+     *   \_Filter[gender{f}#3519 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#3528)]
+     *     \_MvExpand[first_name{f}#3518,first_name{r}#3528,null]
+     *       \_EsRelation[test][_meta_field{f}#3523, emp_no{f}#3517, first_name{f}#..]
      */
-    public void testAddDefaultLimit_BeforeMvExpand_WithFilterOnExpandedField() {
+    public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedField() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
@@ -2494,24 +2527,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
         var mvExp = as(filter.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        // the filter acts on first_name (the one used in mv_expand), so the limit 15 is not pushed down past mv_expand
-        // instead the default limit is added
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#104, first_name{f}#105, salary{f}#106]]
-     *  \_TopN[[Order[salary{f}#106,ASC,LAST], Order[first_name{f}#105,ASC,LAST]],15[INTEGER]]
-     *    \_Filter[gender{f}#215 == [46][KEYWORD] AND salary{f}#106 > 60000[INTEGER]]
-     *      \_MvExpand[first_name{f}#105]
-     *        \_TopN[[Order[emp_no{f}#104,ASC,LAST]],10000[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#104, first_name{f}#105, salary{f}#106]
+     * EsqlProject[[emp_no{f}#3421, first_name{r}#3432, salary{f}#3426]]
+     * \_TopN[[Order[salary{f}#3426,ASC,LAST], Order[first_name{r}#3432,ASC,LAST]],15[INTEGER]]
+     *   \_Filter[gender{f}#3423 == [46][KEYWORD] AND salary{f}#3426 > 60000[INTEGER]]
+     *     \_MvExpand[first_name{f}#3422,first_name{r}#3432,null]
+     *       \_EsRelation[test][_meta_field{f}#3427, emp_no{f}#3421, first_name{f}#..]
      */
-    public void testAddDefaultLimit_BeforeMvExpand_WithFilter_NOT_OnExpandedField() {
+    public void testRedundantSort_BeforeMvExpand_WithFilter_NOT_OnExpandedField() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
@@ -2529,24 +2556,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
         var mvExp = as(filter.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        // the filters after mv_expand do not act on the expanded field values, as such the limit 15 is the one being pushed down
-        // otherwise that limit wouldn't have pushed down and the default limit was instead being added by default before mv_expanded
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#116, first_name{f}#117 AS x, salary{f}#119]]
-     *  \_TopN[[Order[salary{f}#119,ASC,LAST], Order[first_name{f}#117,ASC,LAST]],15[INTEGER]]
-     *    \_Filter[gender{f}#118 == [46][KEYWORD] AND WILDCARDLIKE(first_name{f}#117)]
-     *      \_MvExpand[first_name{f}#117]
-     *        \_TopN[[Order[gender{f}#118,ASC,LAST]],10000[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#116, first_name{f}#117, gender{f}#118, sa..]
+     * EsqlProject[[emp_no{f}#2085, first_name{r}#2096 AS x, salary{f}#2090]]
+     * \_TopN[[Order[salary{f}#2090,ASC,LAST], Order[first_name{r}#2096,ASC,LAST]],15[INTEGER]]
+     *   \_Filter[gender{f}#2087 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#2096)]
+     *     \_MvExpand[first_name{f}#2086,first_name{r}#2096,null]
+     *       \_EsRelation[test][_meta_field{f}#2091, emp_no{f}#2085, first_name{f}#..]
      */
-    public void testAddDefaultLimit_BeforeMvExpand_WithFilterOnExpandedFieldAlias() {
+    public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedFieldAlias() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort gender
@@ -2565,11 +2586,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
         var mvExp = as(filter.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        // the filter uses an alias ("x") to the expanded field ("first_name"), so the default limit is used and not the one provided
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("gender"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
@@ -2935,6 +2952,45 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testInsist_fieldDoesNotExist_createsUnmappedFieldInRelation() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 foo");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        assertPartialTypeKeyword(relation, "foo");
+    }
+
+    public void testInsist_multiIndexFieldPartiallyExistsAndIsKeyword_castsAreNotSupported() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_keyword");
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+
+        assertPartialTypeKeyword(relation, "partial_type_keyword");
+    }
+
+    public void testInsist_multipleInsistClauses_insistsAreFolded() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_keyword | INSIST_🐔 foo");
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+
+        assertPartialTypeKeyword(relation, "partial_type_keyword");
+        assertPartialTypeKeyword(relation, "foo");
+    }
+
+    private static void assertPartialTypeKeyword(EsRelation relation, String name) {
+        var attribute = (FieldAttribute) singleValue(relation.output().stream().filter(attr -> attr.name().equals(name)).toList());
+        assertThat(attribute.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
     }
 
     public void testSimplifyLikeNoWildcard() {
@@ -5244,7 +5300,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex empty = new EsIndex("empty_test", emptyMap(), Map.of());
         IndexResolution getIndexResultAirports = IndexResolution.valid(empty);
         var analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResultAirports,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
 
@@ -5426,11 +5488,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 renamingEval = as(enrich.child(), Eval.class);
             }
 
-            AttributeSet attributesCreatedInEval = new AttributeSet();
+            var attributesCreatedInEval = AttributeSet.builder();
             for (Alias field : renamingEval.fields()) {
                 attributesCreatedInEval.add(field.toAttribute());
             }
-            assertThat(attributesCreatedInEval, allOf(hasItem(renamed_emp_no), hasItem(renamed_salary), hasItem(renamed_emp_no2)));
+            assertThat(attributesCreatedInEval.build(), allOf(hasItem(renamed_emp_no), hasItem(renamed_salary), hasItem(renamed_emp_no2)));
 
             assertThat(renamingEval.fields().size(), anyOf(equalTo(2), equalTo(4))); // 4 for EVAL, 3 for the other overwritingCommands
             // emp_no ASC nulls first
@@ -5925,6 +5987,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query)));
     }
 
+    private LogicalPlan planMultiIndex(String query) {
+        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.createStatement(query)));
+    }
+
     private EsqlBinaryComparison extractPlannedBinaryComparison(String expression) {
         LogicalPlan plan = planTypes("FROM types | WHERE " + expression);
 
@@ -6051,10 +6117,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testSimplifyComparisonArithmeticWithFloatsAndDirectionChange() {
         doTestSimplifyComparisonArithmetics("float / -2 < 4", "float", GT, -8d);
         doTestSimplifyComparisonArithmetics("float * -2 < 4", "float", GT, -2d);
-    }
-
-    private void assertNullLiteral(Expression expression) {
-        assertNull(as(expression, Literal.class).value());
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108519")
@@ -6689,20 +6751,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s max(rate(network.total_bytes_in))";
+        var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
-        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
+        assertNull(aggsByTsid.timeBucket());
         as(aggsByTsid.child(), EsRelation.class);
 
-        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         assertThat(finalAggs.aggregates(), hasSize(1));
         Max max = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
         assertThat(Expressions.attribute(max.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(finalAggs.groupings(), empty());
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
         assertThat(aggsByTsid.aggregates(), hasSize(1)); // _tsid is dropped
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6710,14 +6772,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMixedAggsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s max(rate(network.total_bytes_in)), max(network.cost)";
+        var query = "TS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
-        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
+        assertNull(aggsByTsid.timeBucket());
         as(aggsByTsid.child(), EsRelation.class);
 
-        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         assertThat(finalAggs.aggregates(), hasSize(2));
         Max maxRate = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
         FromPartial maxCost = as(Alias.unwrap(finalAggs.aggregates().get(1)), FromPartial.class);
@@ -6725,7 +6788,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
         assertThat(finalAggs.groupings(), empty());
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
         assertThat(aggsByTsid.aggregates(), hasSize(2));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6735,7 +6797,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMixedAggsWithMathWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
+        var query = "TS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Project project = as(plan, Project.class);
         Eval mulEval = as(project.child(), Eval.class);
@@ -6743,9 +6805,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Mul mul = as(Alias.unwrap(mulEval.fields().get(0)), Mul.class);
         Limit limit = as(mulEval.child(), Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAggs.aggregates(), hasSize(2));
-        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2));
+        assertNull(aggsByTsid.timeBucket());
         Eval addEval = as(aggsByTsid.child(), Eval.class);
         assertThat(addEval.fields(), hasSize(1));
         Add add = as(Alias.unwrap(addEval.fields().get(0)), Add.class);
@@ -6754,14 +6818,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(finalAggs.aggregates().get(1).id()));
         assertThat(mul.right().fold(FoldContext.small()), equalTo(1.1));
 
-        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         Max maxRate = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
         FromPartial maxCost = as(Alias.unwrap(finalAggs.aggregates().get(1)), FromPartial.class);
         assertThat(Expressions.attribute(maxRate.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
         assertThat(finalAggs.groupings(), empty());
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         ToPartial toPartialMaxCost = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), ToPartial.class);
@@ -6772,22 +6834,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsGroupedByOneDimension() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         TopN topN = as(plan, TopN.class);
         Aggregate aggsByCluster = as(topN.child(), Aggregate.class);
+        assertThat(aggsByCluster, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(aggsByCluster.aggregates(), hasSize(2));
-        Aggregate aggsByTsid = as(aggsByCluster.child(), Aggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(aggsByCluster.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
+        assertNull(aggsByTsid.timeBucket());
         as(aggsByTsid.child(), EsRelation.class);
 
-        assertThat(aggsByCluster.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         Sum sum = as(Alias.unwrap(aggsByCluster.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(aggsByCluster.groupings(), hasSize(1));
         assertThat(Expressions.attribute(aggsByCluster.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         Values values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
@@ -6796,23 +6858,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsGroupedByTwoDimension() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s avg(rate(network.total_bytes_in)) BY cluster, pod";
+        var query = "TS k8s | STATS avg(rate(network.total_bytes_in)) BY cluster, pod";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         Limit limit = as(eval.child(), Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAggs.aggregates(), hasSize(4));
-        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // _tsid is dropped
+        assertNull(aggsByTsid.timeBucket());
         as(aggsByTsid.child(), EsRelation.class);
 
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAggs.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAggs.aggregates().get(1).id()));
 
-        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         Sum sum = as(Alias.unwrap(finalAggs.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         Count count = as(Alias.unwrap(finalAggs.aggregates().get(1)), Count.class);
@@ -6823,7 +6886,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(finalAggs.groupings(), hasSize(2));
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // rates, values(cluster), values(pod)
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6835,24 +6897,25 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsGroupedByTimeBucket() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAgg.aggregates(), hasSize(2));
-        Aggregate aggsByTsid = as(finalAgg.child(), Aggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval eval = as(aggsByTsid.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         as(eval.child(), EsRelation.class);
 
-        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(finalAgg.groupings(), hasSize(1));
         assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(eval.fields().get(0).id()));
@@ -6863,7 +6926,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testTranslateMetricsGroupedByTimeBucketAndDimensions() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = """
-            METRICS k8s avg(rate(network.total_bytes_in)) BY pod, bucket(@timestamp, 5 minute), cluster
+            TS k8s
+            | STATS avg(rate(network.total_bytes_in)) BY pod, bucket(@timestamp, 5 minute), cluster
             | SORT cluster
             | LIMIT 10
             """;
@@ -6874,13 +6938,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(eval.fields(), hasSize(1));
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
-        Aggregate aggsByTsid = as(finalAgg.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         Eval bucket = as(aggsByTsid.child(), Eval.class);
         as(bucket.child(), EsRelation.class);
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
 
-        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         assertThat(finalAgg.aggregates(), hasSize(5)); // sum, count, pod, bucket, cluster
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         Count count = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
@@ -6889,7 +6955,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(finalAgg.groupings(), hasSize(3));
         assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
         assertThat(aggsByTsid.aggregates(), hasSize(4)); // rate, values(pod), values(cluster), bucket
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6902,7 +6967,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testTranslateMixedAggsGroupedByTimeBucketAndDimensions() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = """
-            METRICS k8s avg(rate(network.total_bytes_in)), avg(network.cost) BY bucket(@timestamp, 5 minute), cluster
+            TS k8s
+            | STATS avg(rate(network.total_bytes_in)), avg(network.cost) BY bucket(@timestamp, 5 minute), cluster
             | SORT cluster
             | LIMIT 10
             """;
@@ -6913,13 +6979,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(eval.fields(), hasSize(2));
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
-        Aggregate aggsByTsid = as(finalAgg.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         Eval bucket = as(aggsByTsid.child(), Eval.class);
         as(bucket.child(), EsRelation.class);
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
 
-        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         assertThat(finalAgg.aggregates(), hasSize(6)); // sum, count, sum, count, bucket, cluster
         Sum sumRate = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         Count countRate = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
@@ -6934,7 +7002,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(finalAgg.groupings(), hasSize(2));
         assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(3).id()));
 
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
         assertThat(aggsByTsid.aggregates(), hasSize(5)); // rate, to_partial(sum(cost)), to_partial(count(cost)), values(cluster), bucket
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6951,7 +7018,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testAdjustMetricsRateBeforeFinalAgg() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = """
-            METRICS k8s avg(round(1.05 * rate(network.total_bytes_in))) BY bucket(@timestamp, 1 minute), cluster
+            TS k8s
+            | STATS avg(round(1.05 * rate(network.total_bytes_in))) BY bucket(@timestamp, 1 minute), cluster
             | SORT cluster
             | LIMIT 10
             """;
@@ -6963,6 +7031,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Div div = as(Alias.unwrap(evalDiv.fields().get(0)), Div.class);
 
         Aggregate finalAgg = as(evalDiv.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAgg.aggregates(), hasSize(4)); // sum, count, bucket, cluster
         assertThat(finalAgg.groupings(), hasSize(2));
 
@@ -6970,9 +7039,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Round round = as(Alias.unwrap(evalRound.fields().get(0)), Round.class);
         Mul mul = as(round.field(), Mul.class);
 
-        Aggregate aggsByTsid = as(evalRound.child(), Aggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(evalRound.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // rate, cluster, bucket
         assertThat(aggsByTsid.groupings(), hasSize(2));
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
 
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
@@ -6981,8 +7052,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
-
-        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
 
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         Count count = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
@@ -6997,7 +7066,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(mul.right().fold(FoldContext.small()), equalTo(1.05));
-        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         Values values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
@@ -7007,10 +7075,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testMetricsWithoutRate() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         List<String> queries = List.of("""
-            METRICS k8s count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
-            | LIMIT 10
-            """, """
-            METRICS k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
+            TS k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
             | LIMIT 10
             """, """
             FROM k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
@@ -7024,7 +7089,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         for (LogicalPlan plan : plans) {
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
-            assertThat(aggregate.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+            assertThat(aggregate, not(instanceOf(TimeSeriesAggregate.class)));
             assertThat(aggregate.aggregates(), hasSize(2));
             assertThat(aggregate.groupings(), hasSize(1));
             Eval eval = as(aggregate.child(), Eval.class);
@@ -7034,26 +7099,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             EsRelation relation = as(eval.child(), EsRelation.class);
             assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
         }
-        // TODO: Unmute this part
-        // https://github.com/elastic/elasticsearch/issues/110827
-        // for (int i = 1; i < plans.size(); i++) {
-        // assertThat(plans.get(i), equalTo(plans.get(0)));
-        // }
-    }
-
-    public void testRateInStats() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = """
-            METRICS k8s | STATS max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
-            | LIMIT 10
-            """;
-        VerificationException error = expectThrows(
-            VerificationException.class,
-            () -> logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)))
-        );
-        assertThat(error.getMessage(), equalTo("""
-            Found 1 problem
-            line 1:25: the rate aggregate[rate(network.total_bytes_in)] can only be used within the metrics command"""));
+        for (int i = 1; i < plans.size(); i++) {
+            assertThat(plans.get(i), equalTo(plans.get(0)));
+        }
     }
 
     public void testMvSortInvalidOrder() {
@@ -7240,38 +7288,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("1:60: argument of [to_timeduration(x)] must be a constant, received [x]", e.getMessage().substring(header.length()));
     }
 
-    // These should pass eventually once we lift some restrictions on match function
-    public void testMatchWithNonIndexedColumnCurrentlyUnsupported() {
-        final String header = "Found 1 problem\nline ";
-        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
-            from test | eval initial = substring(first_name, 1) | where match(initial, "A")"""));
-        assertTrue(e.getMessage().startsWith("Found "));
-        assertEquals(
-            "1:67: [MATCH] function cannot operate on [initial], which is not a field from an index mapping",
-            e.getMessage().substring(header.length())
-        );
-
-        e = expectThrows(VerificationException.class, () -> plan("""
-            from test | eval text=concat(first_name, last_name) | where match(text, "cat")"""));
-        assertTrue(e.getMessage().startsWith("Found "));
-        assertEquals(
-            "1:67: [MATCH] function cannot operate on [text], which is not a field from an index mapping",
-            e.getMessage().substring(header.length())
-        );
-    }
-
-    public void testMatchFunctionIsNotNullable() {
-        String queryText = """
-            row n = null | eval text = n + 5 | where match(text::keyword, "Anna")
-            """;
-
-        VerificationException ve = expectThrows(VerificationException.class, () -> plan(queryText));
-        assertThat(
-            ve.getMessage(),
-            containsString("[MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping")
-        );
-    }
-
     public void testWhereNull() {
         var plan = plan("""
             from test
@@ -7301,5 +7317,350 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("minimum_should_match", key.utf8ToString());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#11,ASC,LAST]],1000[INTEGER]]
+     * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#22]]
+     *   |_EsqlProject[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, l
+     * anguages{f}#14 AS language_code, last_name{f}#15, long_noidx{f}#21, salary{f}#16, foo{r}#7]]
+     *   | \_Eval[[[62 61 72][KEYWORD] AS foo]]
+     *   |   \_Filter[languages{f}#14 > 1[INTEGER]]
+     *   |     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
+     */
+    public void testRedundantSortOnJoin() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | RENAME languages AS language_code
+            | EVAL foo = "bar"
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_code > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var join = as(topN.child(), Join.class);
+        var project = as(join.left(), EsqlProject.class);
+        var eval = as(project.child(), Eval.class);
+        var filter = as(eval.child(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#9,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#9 > 1[INTEGER]]
+     *   \_MvExpand[languages{f}#12,languages{r}#20,null]
+     *     \_Eval[[[62 61 72][KEYWORD] AS foo]]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testRedundantSortOnMvExpand() {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | EVAL foo = "bar"
+            | MV_EXPAND languages
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#11,ASC,LAST]],1000[INTEGER]]
+     * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#22]]
+     *   |_Filter[emp_no{f}#11 > 1[INTEGER]]
+     *   | \_MvExpand[languages{f}#14,languages{r}#24,null]
+     *   |   \_Eval[[languages{f}#14 AS language_code]]
+     *   |     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
+     */
+    public void testRedundantSortOnMvExpandAndJoin() {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | EVAL language_code = languages
+            | MV_EXPAND languages
+            | WHERE emp_no > 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var join = as(topN.child(), Join.class);
+        var filter = as(join.left(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#12,ASC,LAST]],1000[INTEGER]]
+     * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#23]]
+     *   |_Filter[emp_no{f}#12 > 1[INTEGER]]
+     *   | \_MvExpand[languages{f}#15,languages{r}#25,null]
+     *   |   \_Eval[[languages{f}#15 AS language_code]]
+     *   |     \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#23, language_name{f}#24]
+     */
+    public void testMultlipleRedundantSortOnMvExpandAndJoin() {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT first_name
+            | EVAL language_code = languages
+            | MV_EXPAND languages
+            | sort last_name
+            | WHERE emp_no > 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var join = as(topN.child(), Join.class);
+        var filter = as(join.left(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#16,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#16 > 1[INTEGER]]
+     *   \_MvExpand[languages{f}#19,languages{r}#31]
+     *     \_Dissect[foo{r}#5,Parser[pattern=%{z}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@26f2cab],[z{r}#10
+     * ]]
+     *       \_Grok[foo{r}#5,Parser[pattern=%{WORD:y}, grok=org.elasticsearch.grok.Grok@6ea44ccd],[y{r}#9]]
+     *         \_Enrich[ANY,[6c 61 6e 67 75 61 67 65 73 5f 69 64 78][KEYWORD],foo{r}#5,{"match":{"indices":[],"match_field":"id","enrich_
+     * fields":["language_code","language_name"]}},{=languages_idx},[language_code{r}#29, language_name{r}#30]]
+     *           \_Eval[[TOSTRING(languages{f}#19) AS foo]]
+     *             \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     */
+    public void testRedundantSortOnMvExpandEnrichGrokDissect() {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | EVAL foo = to_string(languages)
+            | ENRICH languages_idx on foo
+            | GROK foo "%{WORD:y}"
+            | DISSECT foo "%{z}"
+            | MV_EXPAND languages
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var dissect = as(mvExpand.child(), Dissect.class);
+        var grok = as(dissect.child(), Grok.class);
+        var enrich = as(grok.child(), Enrich.class);
+        var eval = as(enrich.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#20,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#20 > 1[INTEGER]]
+     *   \_MvExpand[languages{f}#23,languages{r}#37]
+     *     \_Dissect[foo{r}#5,Parser[pattern=%{z}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@3e922db0],[z{r}#1
+     * 4]]
+     *       \_Grok[foo{r}#5,Parser[pattern=%{WORD:y}, grok=org.elasticsearch.grok.Grok@4d6ad024],[y{r}#13]]
+     *         \_Enrich[ANY,[6c 61 6e 67 75 61 67 65 73 5f 69 64 78][KEYWORD],foo{r}#5,{"match":{"indices":[],"match_field":"id","enrich_
+     * fields":["language_code","language_name"]}},{=languages_idx},[language_code{r}#35, language_name{r}#36]]
+     *           \_Join[LEFT,[language_code{r}#8],[language_code{r}#8],[language_code{f}#31]]
+     *             |_Eval[[TOSTRING(languages{f}#23) AS foo, languages{f}#23 AS language_code]]
+     *             | \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     *             \_EsRelation[languages_lookup][LOOKUP][language_code{f}#31]
+     */
+    public void testRedundantSortOnMvExpandJoinEnrichGrokDissect() {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | EVAL foo = to_string(languages), language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH languages_idx on foo
+            | GROK foo "%{WORD:y}"
+            | DISSECT foo "%{z}"
+            | MV_EXPAND languages
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var dissect = as(mvExpand.child(), Dissect.class);
+        var grok = as(dissect.child(), Grok.class);
+        var enrich = as(grok.child(), Enrich.class);
+        var join = as(enrich.child(), Join.class);
+        var eval = as(join.left(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#23,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#23 > 1[INTEGER]]
+     *   \_MvExpand[languages{f}#26,languages{r}#36]
+     *     \_EsqlProject[[language_name{f}#35, foo{r}#5 AS bar, languages{f}#26, emp_no{f}#23]]
+     *       \_Join[LEFT,[language_code{r}#8],[language_code{r}#8],[language_code{f}#34]]
+     *         |_Project[[_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, gender{f}#25, hire_date{f}#30, job{f}#31, job.raw{f}#32, l
+     * anguages{f}#26, last_name{f}#27, long_noidx{f}#33, salary{f}#28, foo{r}#5, languages{f}#26 AS language_code]]
+     *         | \_Eval[[TOSTRING(languages{f}#26) AS foo]]
+     *         |   \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#34, language_name{f}#35]
+     */
+    public void testRedundantSortOnMvExpandJoinKeepDropRename() {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | EVAL foo = to_string(languages), language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | KEEP language_name, language_code, foo, languages, emp_no
+            | DROP language_code
+            | RENAME foo AS bar
+            | MV_EXPAND languages
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var project = as(mvExpand.child(), Project.class);
+        var join = as(project.child(), Join.class);
+        var project2 = as(join.left(), Project.class);
+        var eval = as(project2.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#15,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#15 > 1[INTEGER]]
+     *   \_MvExpand[foo{r}#10,foo{r}#29]
+     *     \_Eval[[CONCAT(language_name{r}#28,[66 6f 6f][KEYWORD]) AS foo]]
+     *       \_MvExpand[language_name{f}#27,language_name{r}#28]
+     *         \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#26]]
+     *           |_Eval[[1[INTEGER] AS language_code]]
+     *           | \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *           \_EsRelation[languages_lookup][LOOKUP][language_code{f}#26, language_name{f}#27]
+     */
+    public void testEvalLookupMultipleSorts() {
+        var plan = optimizedPlan("""
+              FROM test
+            | EVAL language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT language_name
+            | MV_EXPAND language_name
+            | EVAL foo = concat(language_name, "foo")
+            | MV_EXPAND foo
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        mvExpand = as(eval.child(), MvExpand.class);
+        var join = as(mvExpand.child(), Join.class);
+        eval = as(join.left(), Eval.class);
+        as(eval.child(), EsRelation.class);
+
+    }
+
+    public void testUnboundedSortSimple() {
+        var query = """
+              ROW x = [1,2,3], y = 1
+              | SORT y
+              | MV_EXPAND x
+              | WHERE x > 2
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet [SORT y] please add a limit"));
+    }
+
+    public void testUnboundedSortJoin() {
+        var query = """
+              ROW x = [1,2,3], y = 2, language_code = 1
+              | SORT y
+              | LOOKUP JOIN languages_lookup ON language_code
+              | WHERE language_name == "foo"
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet [SORT y] please add a limit"));
+    }
+
+    public void testUnboundedSortWithMvExpandAndFilter() {
+        var query = """
+              FROM test
+            | EVAL language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT language_name
+            | EVAL foo = concat(language_name, "foo")
+            | MV_EXPAND foo
+            | WHERE foo == "foo"
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("line 4:3: Unbounded sort not supported yet [SORT language_name] please add a limit"));
+    }
+
+    public void testUnboundedSortWithLookupJoinAndFilter() {
+        var query = """
+              FROM test
+            | EVAL language_code = 1
+            | EVAL foo = concat(language_code::string, "foo")
+            | MV_EXPAND foo
+            | SORT foo
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name == "foo"
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("line 5:3: Unbounded sort not supported yet [SORT foo] please add a limit"));
+    }
+
+    public void testUnboundedSortExpandFilter() {
+        var query = """
+              ROW x = [1,2,3], y = 1
+              | SORT x
+              | MV_EXPAND x
+              | WHERE x > 2
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet [SORT x] please add a limit"));
+    }
+
+    public void testPruneRedundantOrderBy() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = [1,2,3], y = 1
+            | sort x
+            | mv_expand x
+            | sort x
+            | mv_expand x
+            | sort y
+            """;
+        LogicalPlan analyzed = analyzer.analyze(parser.createStatement(query));
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        // check that all the redundant SORTs are removed in a single run
+        var limit = as(optimized, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var mvExpand = as(orderBy.child(), MvExpand.class);
+        var mvExpand2 = as(mvExpand.child(), MvExpand.class);
+        as(mvExpand2.child(), Row.class);
     }
 }

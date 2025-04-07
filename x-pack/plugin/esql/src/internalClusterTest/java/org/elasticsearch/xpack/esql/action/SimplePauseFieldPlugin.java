@@ -24,6 +24,10 @@ public class SimplePauseFieldPlugin extends AbstractPauseFieldPlugin {
         startEmitting = new CountDownLatch(1);
     }
 
+    public static void release() {
+        allowEmitting.countDown();
+    }
+
     @Override
     public void onStartExecute() {
         startEmitting.countDown();
@@ -31,6 +35,10 @@ public class SimplePauseFieldPlugin extends AbstractPauseFieldPlugin {
 
     @Override
     public boolean onWait() throws InterruptedException {
-        return allowEmitting.await(30, TimeUnit.SECONDS);
+        try {
+            return allowEmitting.await(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            return true;
+        }
     }
 }

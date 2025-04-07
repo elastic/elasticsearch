@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
@@ -57,6 +58,7 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
         this.executor = executor;
     }
 
+    @FixForMultiProject(description = "consider taking project scoped state parameter")
     protected abstract ClusterBlockException checkBlock(Request request, ClusterState state);
 
     protected abstract void localClusterStateOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
@@ -64,6 +66,9 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
 
     @Override
     protected final void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        if (task != null) {
+            request.setParentTask(clusterService.localNode().getId(), task.getId());
+        }
         final var state = clusterService.state();
         final var clusterBlockException = checkBlock(request, state);
         if (clusterBlockException != null) {

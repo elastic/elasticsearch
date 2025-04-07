@@ -47,7 +47,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
     numberOfNodes = 3
-    systemProperty 'es.queryable_built_in_roles_enabled', 'true'
     systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
     //we don't want to hit real service from each test
     systemProperty 'ingest.geoip.downloader.endpoint.default', 'http://invalid.endpoint'
@@ -67,6 +66,10 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     setting 'xpack.security.transport.ssl.key', 'testnode.pem'
     setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
     keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+    if (bwcVersion.before('9.1.0')) {
+      jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'
+      jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
+    }
 
     if (bwcVersion.onOrAfter('7.0.0')) {
       setting 'xpack.security.authc.realms.file.file1.order', '0'

@@ -22,7 +22,7 @@ public abstract class InferenceInputs {
         );
     }
 
-    public <T> T castTo(Class<T> clazz) {
+    public <T extends InferenceInputs> T castTo(Class<T> clazz) {
         if (clazz.isInstance(this) == false) {
             throw createUnsupportedTypeException(this, clazz);
         }
@@ -34,5 +34,5 @@ public abstract class InferenceInputs {
         return stream;
     }
 
-    public abstract int inputSize();
+    public abstract boolean isSingleInput();
 }

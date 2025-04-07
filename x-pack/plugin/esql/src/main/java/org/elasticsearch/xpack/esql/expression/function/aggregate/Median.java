@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
@@ -39,12 +40,11 @@ public class Median extends AggregateFunction implements SurrogateExpression {
             + "also known as the 50% <<esql-percentile>>.",
         note = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.",
         appendix = """
-            [WARNING]
-            ====
+            ::::{warning}
             `MEDIAN` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
             This means you can get slightly different results using the same data.
-            ====""",
-        isAggregation = true,
+            ::::""",
+        type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats_percentile", tag = "median"),
             @Example(
@@ -55,7 +55,14 @@ public class Median extends AggregateFunction implements SurrogateExpression {
                 tag = "docsStatsMedianNestedExpression"
             ), }
     )
-    public Median(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
+    public Median(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long" },
+            description = "Expression that outputs values to calculate the median of."
+        ) Expression field
+    ) {
         this(source, field, Literal.TRUE);
     }
 

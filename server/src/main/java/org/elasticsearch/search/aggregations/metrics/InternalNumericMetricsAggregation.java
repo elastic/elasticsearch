@@ -90,15 +90,6 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
             super(in);
         }
 
-        /**
-         * Read from a stream.
-         *
-         * @param readFormat whether to read the "format" field
-         */
-        protected MultiValue(StreamInput in, boolean readFormat) throws IOException {
-            super(in, readFormat);
-        }
-
         public abstract double value(String name);
 
         public String valueAsString(String name) {

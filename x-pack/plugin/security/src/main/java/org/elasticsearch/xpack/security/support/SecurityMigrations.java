@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsA
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -75,7 +76,7 @@ public class SecurityMigrations {
          * @param securityIndexManagerState current state of the security index
          * @return true if pre-conditions met, otherwise false
          */
-        default boolean checkPreConditions(SecurityIndexManager.State securityIndexManagerState) {
+        default boolean checkPreConditions(SecurityIndexManager.IndexState securityIndexManagerState) {
             return true;
         }
 
@@ -107,7 +108,7 @@ public class SecurityMigrations {
             BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"))
                 .mustNot(QueryBuilders.existsQuery("metadata_flattened"));
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).size(0).trackTotalHits(true);
-            SearchRequest countRequest = new SearchRequest(indexManager.getConcreteIndexName());
+            SearchRequest countRequest = new SearchRequest(indexManager.forCurrentProject().getConcreteIndexName());
             countRequest.source(searchSourceBuilder);
 
             client.search(countRequest, ActionListener.wrap(response -> {
@@ -127,7 +128,7 @@ public class SecurityMigrations {
             BoolQueryBuilder filterQuery,
             ActionListener<Void> listener
         ) {
-            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(indexManager.getConcreteIndexName());
+            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(indexManager.forCurrentProject().getConcreteIndexName());
             updateByQueryRequest.setQuery(filterQuery);
             updateByQueryRequest.setScript(
                 new Script(ScriptType.INLINE, "painless", "ctx._source.metadata_flattened = ctx._source.metadata", Collections.emptyMap())
@@ -154,11 +155,12 @@ public class SecurityMigrations {
     public static class CleanupRoleMappingDuplicatesMigration implements SecurityMigration {
         @Override
         public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
-            if (indexManager.getRoleMappingsCleanupMigrationStatus() == SKIP) {
+            final IndexState projectSecurityIndex = indexManager.forCurrentProject();
+            if (projectSecurityIndex.getRoleMappingsCleanupMigrationStatus() == SKIP) {
                 listener.onResponse(null);
                 return;
             }
-            assert indexManager.getRoleMappingsCleanupMigrationStatus() == READY;
+            assert projectSecurityIndex.getRoleMappingsCleanupMigrationStatus() == READY;
 
             getRoleMappings(client, ActionListener.wrap(roleMappings -> {
                 List<String> roleMappingsToDelete = getDuplicateRoleMappingNames(roleMappings.mappings());
@@ -212,7 +214,7 @@ public class SecurityMigrations {
         }
 
         @Override
-        public boolean checkPreConditions(SecurityIndexManager.State securityIndexManagerState) {
+        public boolean checkPreConditions(SecurityIndexManager.IndexState securityIndexManagerState) {
             // Block migration until expected role mappings are in cluster state and in the correct format or skip if no role mappings
             // are expected
             return securityIndexManagerState.roleMappingsCleanupMigrationStatus == READY

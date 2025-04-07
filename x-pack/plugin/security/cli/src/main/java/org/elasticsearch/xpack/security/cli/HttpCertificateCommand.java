@@ -508,7 +508,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         map.put("DATE", now.format(DateTimeFormatter.ISO_LOCAL_DATE));
         map.put("TIME", now.format(DateTimeFormatter.ISO_OFFSET_TIME));
         map.put("VERSION", Version.CURRENT.toString());
-        map.put("CONF_DIR", env.configFile().toAbsolutePath().toString());
+        map.put("CONF_DIR", env.configDir().toAbsolutePath().toString());
         map.putAll(entries);
         return map;
     }
@@ -1116,7 +1116,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     private static Path requestPath(String prompt, Terminal terminal, Environment env, boolean requireExisting) {
         for (;;) {
             final String input = terminal.readText(prompt);
-            final Path path = env.configFile().resolve(input).toAbsolutePath();
+            final Path path = env.configDir().resolve(input).toAbsolutePath();
 
             if (path.getFileName() == null) {
                 terminal.println(Terminal.Verbosity.SILENT, input + " is not a valid file");

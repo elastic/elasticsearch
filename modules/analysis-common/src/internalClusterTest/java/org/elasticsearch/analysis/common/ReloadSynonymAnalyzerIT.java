@@ -57,7 +57,7 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
     }
 
     private void testSynonymsUpdate(boolean preview) throws FileNotFoundException, IOException, InterruptedException {
-        Path config = internalCluster().getInstance(Environment.class).configFile();
+        Path config = internalCluster().getInstance(Environment.class).configDir();
         String synonymsFileName = "synonyms.txt";
         Path synonymsFile = config.resolve(synonymsFileName);
         writeFile(synonymsFile, "foo, baz");
@@ -106,7 +106,7 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         final String synonymsFileName = "synonyms.txt";
         final String fieldName = "field";
 
-        Path config = internalCluster().getInstance(Environment.class).configFile();
+        Path config = internalCluster().getInstance(Environment.class).configDir();
         Path synonymsFile = config.resolve(synonymsFileName);
         writeFile(synonymsFile, "foo, baz");
 

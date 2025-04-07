@@ -17,10 +17,12 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -325,17 +327,20 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
             .put(indexMetadataBuilder)
             .build();
+        ProjectMetadata project = metadata.projects().values().iterator().next();
+
+        GlobalRoutingTable globalRoutingTable = GlobalRoutingTable.builder().put(project.id(), routingTable).build();
 
         ClusterState emptyState = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).metadata(metadata).build();
         ClusterState stateWithMasterNode1 = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(nodes.withMasterNodeId("node_1"))
             .metadata(metadata)
-            .routingTable(routingTable)
+            .routingTable(globalRoutingTable)
             .build();
         ClusterState stateWithMasterNode2 = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(nodes.withMasterNodeId("node_2"))
             .metadata(metadata)
-            .routingTable(routingTable)
+            .routingTable(globalRoutingTable)
             .build();
 
         return new ClusterChangedEvent[] {

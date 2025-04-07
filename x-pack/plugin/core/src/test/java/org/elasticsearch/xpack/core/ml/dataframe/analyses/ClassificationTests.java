@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -582,6 +583,6 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     private static FieldCapabilities createFieldCapabilities(String field, String type) {
-        return new FieldCapabilities(field, type, false, true, true, null, null, null, Collections.emptyMap());
+        return new FieldCapabilitiesBuilder(field, type).build();
     }
 }

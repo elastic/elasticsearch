@@ -24,6 +24,7 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(':libs:logging')
   compileOnly project(":libs:entitlement:qa:entitled-plugin")
+  implementation project(":libs:entitlement")
 }
 
 tasks.named("javadoc").configure {

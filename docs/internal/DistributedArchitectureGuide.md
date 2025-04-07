@@ -110,6 +110,16 @@ to communicate with Elasticsearch.
 
 ### Cluster State
 
+[ClusterState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+[Metadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
+[ProjectMetadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/ProjectMetadata.java
+
+The [Metadata] of a [ClusterState] is persisted on disk and comprises information from two categories:
+1. Cluster scope information such as `clusterUUID`, `CoordinationMetadata`
+2. Project scope information ([ProjectMetadata]) such as indices and templates belong to each project.
+
+Some concepts are applicable to both cluster and project scopes, e.g. [persistent tasks](#persistent-tasks). The state of a persistent task is therefore stored accordingly depending on the task's scope.
+
 #### Master Service
 
 #### Cluster State Publication
@@ -229,19 +239,45 @@ works in parallel with the storage engine.)
 
 # Allocation
 
-(AllocationService runs on the master node)
+### Core Components
 
-(Discuss different deciders that limit allocation. Sketch / list the different deciders that we have.)
+The `DesiredBalanceShardsAllocator` is what runs shard allocation decisions. It leverages the `DesiredBalanceComputer` to produce
+`DesiredBalance` instances for the cluster based on the latest cluster changes (add/remove nodes, create/remove indices, load, etc.). Then
+the `DesiredBalanceReconciler` is invoked to choose the next steps to take to move the cluster from the current shard allocation to the
+latest computed `DesiredBalance` shard allocation. The `DesiredBalanceReconciler` will apply changes to a copy of the `RoutingNodes`, which
+is then published in a cluster state update that will reach the data nodes to start the individual shard recovery/deletion/move work.
 
-### APIs for Balancing Operations
+The `DesiredBalanceReconciler` is throttled by cluster settings, like the max number of concurrent shard moves and recoveries per cluster
+and node: this is why the `DesiredBalanceReconciler` will make, and publish via cluster state updates, incremental changes to the cluster
+shard allocation. The `DesiredBalanceShardsAllocator` is the endpoint for reroute requests, which may trigger immediate requests to the
+`DesiredBalanceReconciler`, but asynchronous requests to the `DesiredBalanceComputer` via the `ContinuousComputation` component. Cluster
+state changes that affect shard balancing (for example index deletion) all call some reroute method interface that reaches the
+`DesiredBalanceShardsAllocator` to run reconciliation and queue a request for the `DesiredBalancerComputer`, leading to desired balance
+computation and reconciliation actions. Asynchronous completion of a new `DesiredBalance` will also invoke a reconciliation action, as will
+cluster state updates completing shard moves/recoveries (unthrottling the next shard move/recovery).
 
-(Significant internal APIs for balancing a cluster)
+The `ContinuousComputation` saves the latest desired balance computation request, which holds the cluster information at the time of that
+request, and a thread that runs the `DesiredBalanceComputer`. The `ContinuousComputation` thread takes the latest request, with the
+associated cluster information, feeds it into the `DesiredBalanceComputer` and publishes a `DesiredBalance` back to the
+`DesiredBalanceShardsAllocator` to use for reconciliation actions. Sometimes the `ContinuousComputation` thread's desired balance
+computation will be signalled to exit early and publish the initial `DesiredBalance` improvements it has made, when newer rebalancing
+requests (due to cluster state changes) have arrived, or in order to begin recovery of unassigned shards as quickly as possible.
 
-### Heuristics for Allocation
+### Rebalancing Process
 
-### Cluster Reroute Command
-
-(How does this command behave with the desired auto balancer.)
+There are different priorities in shard allocation, reflected in which moves the `DesiredBalancerReconciler` selects to do first given that
+it can only move, recover, or remove a limited number of shards at once. The first priority is assigning unassigned shards, primaries being
+more important than replicas. The second is to move shards that violate any rule (such as node resource limits) as defined by an
+`AllocationDecider`. The `AllocationDeciders` holds a group of `AllocationDecider` implementations that place hard constraints on shard
+allocation. There is a decider, `DiskThresholdDecider`, that manages disk memory usage thresholds, such that further shards may not be
+allowed assignment to a node, or shards may be required to move off because they grew to exceed the disk space; or another,
+`FilterAllocationDecider`, that excludes a configurable list of indices from certain nodes; or `MaxRetryAllocationDecider` that will not
+attempt to recover a shard on a certain node after so many failed retries. The third priority is to rebalance shards to even out the
+relative weight of shards on each node: the intention is to avoid, or ease, future hot-spotting on data nodes due to too many shards being
+placed on the same data node. Node shard weight is based on a sum of factors: disk memory usage, projected shard write load, total number
+of shards, and an incentive to distribute shards within the same index across different nodes. See the `WeightFunction` and
+`NodeAllocationStatsAndWeightsCalculator` classes for more details on the weight calculations that support the `DesiredBalanceComputer`
+decisions.
 
 # Autoscaling
 
@@ -280,7 +316,7 @@ policies.
 
 ### How cluster capacity is determined
 
-[AutoscalingMetadata][] implements [Metadata.Custom][] in order to persist autoscaling policies. Each
+[AutoscalingMetadata][] implements [Metadata.ClusterCustom][] in order to persist autoscaling policies. Each
 Decider is an implementation of [AutoscalingDeciderService][]. The [AutoscalingCalculateCapacityService][]
 is responsible for running the calculation.
 
@@ -296,7 +332,7 @@ calls [through the CapacityResponseCache][], into the `AutoscalingCalculateCapac
 concurrent callers.
 
 [AutoscalingMetadata]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/AutoscalingMetadata.java#L38
-[Metadata.Custom]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L141-L145
+[Metadata.ClusterCustom]: https://github.com/elastic/elasticsearch/blob/f461731a30a6fe55d7d7b343d38426ddca1ac873/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L147
 [AutoscalingDeciderService]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderService.java#L16-L19
 [AutoscalingCalculateCapacityService]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L43
 
@@ -479,6 +515,8 @@ The [Task management API] also exposes an endpoint where a task ID can be specif
 
 [PersistentTaskPlugin]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/plugins/PersistentTaskPlugin.java
 [PersistentTasksExecutor]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/PersistentTasksExecutor.java
+[PersistentTasksExecutor.Scope.Cluster]:https://github.com/elastic/elasticsearch/blob/f461731a30a6fe55d7d7b343d38426ddca1ac873/server/src/main/java/org/elasticsearch/persistent/PersistentTasksExecutor.java#L52
+[PersistentTasksExecutor.Scope.Project]:https://github.com/elastic/elasticsearch/blob/f461731a30a6fe55d7d7b343d38426ddca1ac873/server/src/main/java/org/elasticsearch/persistent/PersistentTasksExecutor.java#L48
 [PersistentTasksExecutorRegistry]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/PersistentTasksExecutorRegistry.java
 [PersistentTasksNodeService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/PersistentTasksNodeService.java
 [PersistentTasksClusterService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/PersistentTasksClusterService.java
@@ -487,13 +525,14 @@ The [Task management API] also exposes an endpoint where a task ID can be specif
 [HealthNodeTaskExecutor]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/node/selection/HealthNodeTaskExecutor.java
 [SystemIndexMigrationExecutor]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/upgrades/SystemIndexMigrationExecutor.java
 [PersistentTasksCustomMetadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/PersistentTasksCustomMetadata.java
+[ClusterPersistentTasksCustomMetadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/persistent/ClusterPersistentTasksCustomMetadata.java
 [PersistentTasksCustomMetadata.PersistentTask]:https://github.com/elastic/elasticsearch/blob/d466ad1c3c4cedc7d5f6ab5794abe7bfd72aef4e/server/src/main/java/org/elasticsearch/persistent/PersistentTasksCustomMetadata.java#L305
 
 Up until now we have discussed only ephemeral tasks. If we want a task to survive node failures, it needs to be registered as a persistent task at the cluster level.
 
-Plugins can register persistent tasks definitions by implementing [PersistentTaskPlugin] and returning one or more [PersistentTasksExecutor] instances. These are collated into a [PersistentTasksExecutorRegistry] which is provided to [PersistentTasksNodeService] active on each node in the cluster, and a [PersistentTasksClusterService] active on the master.
+Plugins can register persistent tasks definitions by implementing [PersistentTaskPlugin] and returning one or more [PersistentTasksExecutor] instances. These are collated into a [PersistentTasksExecutorRegistry] which is provided to [PersistentTasksNodeService] active on each node in the cluster, and a [PersistentTasksClusterService] active on the master. A [PersistentTasksExecutor] can declare either [project][PersistentTasksExecutor.Scope.Project] or [cluster][PersistentTasksExecutor.Scope.Cluster] scope, but not both. A project scope task is not able to access data on a different project.
 
-The [PersistentTasksClusterService] runs on the master to manage the set of running persistent tasks. It periodically checks that all persistent tasks are assigned to live nodes and handles the creation, completion, removal and updates-to-the-state of persistent task instances in the cluster state (see [PersistentTasksCustomMetadata]).
+The [PersistentTasksClusterService] runs on the master to manage the set of running persistent tasks. It periodically checks that all persistent tasks are assigned to live nodes and handles the creation, completion, removal and updates-to-the-state of persistent task instances in the cluster state (see [PersistentTasksCustomMetadata] and [ClusterPersistentTasksCustomMetadata]).
 
 The [PersistentTasksNodeService] monitors the cluster state to:
  - Start any tasks allocated to it (tracked in the local [TaskManager] by an [AllocatedPersistentTask])
@@ -503,7 +542,7 @@ If a node leaves the cluster while it has a persistent task allocated to it, the
 
 Some examples of the use of persistent tasks include:
  - [ShardFollowTasksExecutor]: Defined by [cross-cluster replication](#cross-cluster-replication-ccr) to poll a remote cluster for updates
- - [HealthNodeTaskExecutor]: Used to schedule work related to monitoring cluster health
+ - [HealthNodeTaskExecutor]: Used to schedule work related to monitoring cluster health. This is currently the only example of a cluster scope persistent task.
  - [SystemIndexMigrationExecutor]: Manages the migration of system indices after an upgrade
 
 ### Integration with APM

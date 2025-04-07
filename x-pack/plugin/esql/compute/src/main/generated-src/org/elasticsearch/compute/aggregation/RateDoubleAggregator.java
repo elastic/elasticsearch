@@ -31,7 +31,7 @@ import java.util.Arrays;
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    includeTimestamps = true,
+    timeseries = true,
     value = {
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
         @IntermediateState(name = "values", type = "DOUBLE_BLOCK"),
@@ -67,8 +67,12 @@ public class RateDoubleAggregator {
         current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
-    public static Block evaluateFinal(DoubleRateGroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.evaluateFinal(selected, driverContext.blockFactory());
+    public static Block evaluateFinal(
+        DoubleRateGroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext evaluatorContext
+    ) {
+        return state.evaluateFinal(selected, evaluatorContext.blockFactory());
     }
 
     private static class DoubleRateState {
@@ -333,7 +337,8 @@ public class RateDoubleAggregator {
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
             // noop - we handle the null states inside `toIntermediate` and `evaluateFinal`
         }
     }

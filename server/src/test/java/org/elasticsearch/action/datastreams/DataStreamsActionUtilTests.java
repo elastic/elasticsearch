@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -51,9 +51,10 @@ public class DataStreamsActionUtilTests extends ESTestCase {
         var dataStreamFailureIndex1 = new Index(".fs-foo1", IndexMetadata.INDEX_UUID_NA_VALUE);
         var dataStreamFailureIndex2 = new Index(".fs-bar2", IndexMetadata.INDEX_UUID_NA_VALUE);
 
+        var projectId = randomUniqueProjectId();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster"))
-            .metadata(
-                Metadata.builder()
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
                     .putCustom(
                         DataStreamMetadata.TYPE,
                         new DataStreamMetadata(
@@ -84,20 +85,20 @@ public class DataStreamsActionUtilTests extends ESTestCase {
                             dataStreamFailureIndex2
                         )
                     )
-                    .build()
             )
             .build();
 
         var query = new String[] { "foo*", "baz*" };
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
 
-        when(indexNameExpressionResolver.dataStreams(any(), any(), eq(query))).thenReturn(
+        when(indexNameExpressionResolver.dataStreams(any(ProjectMetadata.class), any(), eq(query))).thenReturn(
+
             List.of(new ResolvedExpression("fooDs"), new ResolvedExpression("foo2Ds"), new ResolvedExpression("bazDs"))
         );
 
         var resolved = DataStreamsActionUtil.resolveConcreteIndexNames(
             indexNameExpressionResolver,
-            clusterState,
+            clusterState.getMetadata().getProject(projectId),
             query,
             IndicesOptions.builder().wildcardOptions(IndicesOptions.WildcardOptions.builder().includeHidden(true)).build()
         );
@@ -107,7 +108,7 @@ public class DataStreamsActionUtilTests extends ESTestCase {
         // Including the failure indices
         resolved = DataStreamsActionUtil.resolveConcreteIndexNames(
             indexNameExpressionResolver,
-            clusterState,
+            clusterState.getMetadata().getProject(projectId),
             query,
             IndicesOptions.builder()
                 .wildcardOptions(IndicesOptions.WildcardOptions.builder().includeHidden(true))
@@ -117,7 +118,7 @@ public class DataStreamsActionUtilTests extends ESTestCase {
 
         assertThat(resolved, containsInAnyOrder(".ds-foo1", ".ds-foo2", ".ds-baz1", ".fs-foo1"));
 
-        when(indexNameExpressionResolver.dataStreams(any(), any(), eq(query))).thenReturn(
+        when(indexNameExpressionResolver.dataStreams(any(ProjectMetadata.class), any(), eq(query))).thenReturn(
             List.of(
                 new ResolvedExpression("fooDs", IndexComponentSelector.DATA),
                 new ResolvedExpression("fooDs", IndexComponentSelector.FAILURES),
@@ -130,7 +131,7 @@ public class DataStreamsActionUtilTests extends ESTestCase {
 
         resolved = DataStreamsActionUtil.resolveConcreteIndexNames(
             indexNameExpressionResolver,
-            clusterState,
+            clusterState.getMetadata().getProject(projectId),
             query,
             IndicesOptions.builder().wildcardOptions(IndicesOptions.WildcardOptions.builder().includeHidden(true)).build()
         );

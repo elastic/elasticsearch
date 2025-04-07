@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,6 +52,11 @@ class FieldValueFetcher {
         return fieldData.load(context).getFormattedValues(format);
     }
 
+    public SortedNumericDoubleValues getNumericLeaf(LeafReaderContext context) {
+        LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
+        return numericFieldData.getDoubleValues();
+    }
+
     public AbstractDownsampleFieldProducer fieldProducer() {
         return fieldProducer;
     }
@@ -82,7 +89,7 @@ class FieldValueFetcher {
             MappedFieldType fieldType = context.getFieldType(field);
             assert fieldType != null : "Unknown field type for field: [" + field + "]";
 
-            if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+            if (fieldType instanceof AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType) {
                 // If the field is an aggregate_metric_double field, we should load all its subfields
                 // This is a downsample-of-downsample case
                 for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {

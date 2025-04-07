@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
@@ -108,16 +109,18 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 file = "bucket",
                 tag = "docsBucketMonth",
                 explanation = """
-                    The goal isn't to provide *exactly* the target number of buckets,
-                    it's to pick a range that people are comfortable with that provides at most the target number of buckets."""
+                    The goal isn’t to provide **exactly** the target number of buckets,
+                    it’s to pick a range that people are comfortable with that provides at most the target number of buckets."""
             ),
             @Example(
                 description = "Combine `BUCKET` with an <<esql-agg-functions,aggregation>> to create a histogram:",
                 file = "bucket",
                 tag = "docsBucketMonthlyHistogram",
                 explanation = """
-                    NOTE: `BUCKET` does not create buckets that don't match any documents.
-                    That's why this example is missing `1985-03-01` and other dates."""
+                    ::::{note}
+                    `BUCKET` does not create buckets that don’t match any documents.
+                    That’s why this example is missing `1985-03-01` and other dates.
+                    ::::"""
             ),
             @Example(
                 description = """
@@ -126,22 +129,26 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 file = "bucket",
                 tag = "docsBucketWeeklyHistogram",
                 explanation = """
-                    NOTE: `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
+                    ::::{note}
+                    `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
                     For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
-                    Combine`BUCKET` with <<esql-where>> to filter rows."""
+                    Combine `BUCKET` with <<esql-where>> to filter rows.
+                    ::::"""
             ),
             @Example(description = """
                 If the desired bucket size is known in advance, simply provide it as the second
                 argument, leaving the range out:""", file = "bucket", tag = "docsBucketWeeklyHistogramWithSpan", explanation = """
-                NOTE: When providing the bucket size as the second parameter, it must be a time
-                duration or date period."""),
+                ::::{note}
+                When providing the bucket size as the second parameter, it must be a time
+                duration or date period. Also the reference is epoch, which starts at `0001-01-01T00:00:00Z`.
+                ::::"""),
             @Example(
                 description = "`BUCKET` can also operate on numeric fields. For example, to create a salary histogram:",
                 file = "bucket",
                 tag = "docsBucketNumeric",
                 explanation = """
                     Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
-                    You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically."""
+                    You have to find the `min` and `max` separately. {{esql}} doesn’t yet have an easy way to do that automatically."""
             ),
             @Example(description = """
                 The range can be omitted if the desired bucket size is known in advance. Simply
@@ -168,14 +175,15 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
             @Example(
                 description = """
                     Sometimes you need to change the start value of each bucket by a given duration (similar to date histogram
-                    aggregation's <<search-aggregations-bucket-histogram-aggregation,`offset`>> parameter). To do so, you will need to
+                    aggregation’s <<search-aggregations-bucket-histogram-aggregation,`offset`>> parameter). To do so, you will need to
                     take into account how the language handles expressions within the `STATS` command: if these contain functions or
                     arithmetic operators, a virtual `EVAL` is inserted before and/or after the `STATS` command. Consequently, a double
                     compensation is needed to adjust the bucketed date value before the aggregation and then again after. For instance,
                     inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:""",
                 file = "bucket",
                 tag = "bucketWithOffset"
-            ) }
+            ) },
+        type = FunctionType.GROUPING
     )
     public Bucket(
         Source source,
@@ -254,16 +262,7 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            Rounding.Prepared preparedRounding;
-            if (buckets.dataType().isWholeNumber()) {
-                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
-                long f = foldToLong(toEvaluator.foldCtx(), from);
-                long t = foldToLong(toEvaluator.foldCtx(), to);
-                preparedRounding = new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
-            } else {
-                assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
-                preparedRounding = DateTrunc.createRounding(buckets.fold(toEvaluator.foldCtx()), DEFAULT_TZ);
-            }
+            Rounding.Prepared preparedRounding = getDateRounding(toEvaluator.foldCtx());
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
@@ -285,6 +284,30 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
             return toEvaluator.apply(mul);
         }
         throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+    }
+
+    /**
+     * Returns the date rounding from this bucket function if the target field is a date type; otherwise, returns null.
+     */
+    public Rounding.Prepared getDateRoundingOrNull(FoldContext foldCtx) {
+        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
+            return getDateRounding(foldCtx);
+        } else {
+            return null;
+        }
+    }
+
+    private Rounding.Prepared getDateRounding(FoldContext foldContext) {
+        assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
+        if (buckets.dataType().isWholeNumber()) {
+            int b = ((Number) buckets.fold(foldContext)).intValue();
+            long f = foldToLong(foldContext, from);
+            long t = foldToLong(foldContext, to);
+            return new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
+        } else {
+            assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
+            return DateTrunc.createRounding(buckets.fold(foldContext), DEFAULT_TZ);
+        }
     }
 
     private record DateRoundingPicker(int buckets, long from, long to) {

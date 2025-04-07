@@ -14,15 +14,15 @@ import java.util.Locale;
 import java.util.MissingResourceException;
 
 /**
- * Utilities for for dealing with {@link Locale} objects
+ * Utilities for dealing with {@link Locale} objects
  */
 public class LocaleUtils {
 
     /**
      * Parse the given locale as {@code language}, {@code language-country} or
      * {@code language-country-variant}.
-     * Either underscores or hyphens may be used as separators, but consistently, ie.
-     * you may not use an hyphen to separate the language from the country and an
+     * Either underscores or hyphens may be used as separators, but consistently, i.e.
+     * you may not use a hyphen to separate the language from the country and an
      * underscore to separate the country from the variant.
      * @throws IllegalArgumentException if there are too many parts in the locale string
      * @throws IllegalArgumentException if the language or country is not recognized

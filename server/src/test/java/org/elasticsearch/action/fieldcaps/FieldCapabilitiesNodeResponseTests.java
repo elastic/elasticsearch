@@ -20,7 +20,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -37,7 +36,6 @@ import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponseT
 import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponseTests.randomMappingHashToIndices;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 
 public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingTestCase<FieldCapabilitiesNodeResponse> {
 
@@ -141,48 +139,6 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             for (FieldCapabilitiesIndexResponse r : rs) {
                 assertTrue(r.canMatch());
                 assertSame(r.get(), rs.get(0).get());
-            }
-        }
-    }
-
-    public void testSerializeNodeResponseBetweenOldNodes() throws IOException {
-        final TransportVersion minCompactVersion = TransportVersions.MINIMUM_COMPATIBLE;
-        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(TransportVersions.V_8_2_0));
-        List<FieldCapabilitiesIndexResponse> indexResponses = CollectionUtils.concatLists(
-            randomIndexResponsesWithMappingHash(randomMappingHashToIndices()),
-            randomIndexResponsesWithoutMappingHash()
-        );
-        Randomness.shuffle(indexResponses);
-        FieldCapabilitiesNodeResponse inResponse = randomNodeResponse(indexResponses);
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            minCompactVersion,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_2_0)
-        );
-        final FieldCapabilitiesNodeResponse outResponse = copyInstance(inResponse, version);
-        assertThat(outResponse.getFailures().keySet(), equalTo(inResponse.getFailures().keySet()));
-        assertThat(outResponse.getUnmatchedShardIds(), equalTo(inResponse.getUnmatchedShardIds()));
-        final List<FieldCapabilitiesIndexResponse> inList = inResponse.getIndexResponses();
-        final List<FieldCapabilitiesIndexResponse> outList = outResponse.getIndexResponses();
-        assertThat(outList, hasSize(inList.size()));
-        for (int i = 0; i < inList.size(); i++) {
-            assertThat("Responses between old nodes don't have mapping hash", outList.get(i).getIndexMappingHash(), nullValue());
-            assertThat(outList.get(i).getIndexName(), equalTo(inList.get(i).getIndexName()));
-            assertThat(outList.get(i).canMatch(), equalTo(inList.get(i).canMatch()));
-            Map<String, IndexFieldCapabilities> outCap = outList.get(i).get();
-            Map<String, IndexFieldCapabilities> inCap = inList.get(i).get();
-            if (version.onOrAfter(TransportVersions.V_8_0_0)) {
-                assertThat(outCap, equalTo(inCap));
-            } else {
-                // Exclude metric types which was introduced in 8.0
-                assertThat(outCap.keySet(), equalTo(inCap.keySet()));
-                for (String field : outCap.keySet()) {
-                    assertThat(outCap.get(field).name(), equalTo(inCap.get(field).name()));
-                    assertThat(outCap.get(field).type(), equalTo(inCap.get(field).type()));
-                    assertThat(outCap.get(field).isSearchable(), equalTo(inCap.get(field).isSearchable()));
-                    assertThat(outCap.get(field).isAggregatable(), equalTo(inCap.get(field).isAggregatable()));
-                    assertThat(outCap.get(field).meta(), equalTo(inCap.get(field).meta()));
-                }
             }
         }
     }

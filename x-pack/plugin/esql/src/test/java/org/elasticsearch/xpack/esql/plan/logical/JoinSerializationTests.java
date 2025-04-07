@@ -47,9 +47,4 @@ public class JoinSerializationTests extends AbstractLogicalPlanSerializationTest
         }
         return new Join(instance.source(), left, right, config);
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

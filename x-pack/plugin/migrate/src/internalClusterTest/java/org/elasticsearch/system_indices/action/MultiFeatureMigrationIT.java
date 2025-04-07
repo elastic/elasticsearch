@@ -36,6 +36,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.SystemIndices.UPGRADED_INDEX_SUFFIX;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -137,7 +138,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(currentResults, notNullValue());
             assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
-            assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedIndexName(), nullValue());
+            assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedResourceName(), nullValue());
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
 
             secondPluginPreMigrationHookCalled.set(true);
@@ -158,7 +159,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(currentResults, notNullValue());
             assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
-            assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedIndexName(), nullValue());
+            assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedResourceName(), nullValue());
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
 
             secondPluginPostMigrationHookCalled.set(true);
@@ -198,16 +199,16 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertThat(currentResults, notNullValue());
         assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(2), hasKey(FEATURE_NAME), hasKey(SECOND_FEATURE_NAME)));
         assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
-        assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedIndexName(), nullValue());
+        assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedResourceName(), nullValue());
         assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
         assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).succeeded(), is(true));
-        assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).getFailedIndexName(), nullValue());
+        assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).getFailedResourceName(), nullValue());
         assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).getException(), nullValue());
 
         // Finally, verify that all the indices exist and have the properties we expect.
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
+            ".int-man-old" + UPGRADED_INDEX_SUFFIX,
             INTERNAL_MANAGED_FLAG_VALUE,
             true,
             true,
@@ -215,7 +216,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-unman-old-reindexed-for-" + UPGRADED_TO_VERSION,
+            ".int-unman-old" + UPGRADED_INDEX_SUFFIX,
             INTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             true,
@@ -223,7 +224,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
+            ".ext-man-old" + UPGRADED_INDEX_SUFFIX,
             EXTERNAL_MANAGED_FLAG_VALUE,
             true,
             false,
@@ -231,7 +232,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-unman-old-reindexed-for-" + UPGRADED_TO_VERSION,
+            ".ext-unman-old" + UPGRADED_INDEX_SUFFIX,
             EXTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             false,
@@ -240,7 +241,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".second-int-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
+            ".second-int-man-old" + UPGRADED_INDEX_SUFFIX,
             SECOND_FEATURE_IDX_FLAG_VALUE,
             true,
             true,

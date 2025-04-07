@@ -1652,6 +1652,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine.IndexCommitRef indexCommit = null;
         store.incRef();
         try {
+            assert assertNoEngineResetLock();
             synchronized (engineMutex) {
                 // if the engine is not running, we can access the store directly, but we need to make sure no one starts
                 // the engine on us. If the engine is running, we can get a snapshot via the deletion policy of the engine.
@@ -1812,6 +1813,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void close(String reason, boolean flushEngine, Executor closeExecutor, ActionListener<Void> closeListener) throws IOException {
+        assert assertNoEngineResetLock();
         synchronized (engineMutex) {
             engineResetLock.readLock().lock(); // prevent engine resets while closing
             try {
@@ -1977,6 +1979,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // First, start a temporary engine, recover the local translog up to the given checkpoint, and then close the engine again.
             .<Void>newForked(l -> ActionListener.runWithResource(ActionListener.assertOnce(l), () -> () -> {
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
+                assert assertNoEngineResetLock();
                 synchronized (engineMutex) {
                     engineResetLock.readLock().lock(); // prevent engine resets while closing
                     try {
@@ -2199,6 +2202,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier) throws IOException {
         assert Thread.holdsLock(mutex) == false : "opening engine under mutex";
+        assert assertNoEngineResetLock();
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -2303,6 +2307,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void performRecoveryRestart() throws IOException {
         assert Thread.holdsLock(mutex) == false : "restart recovery under mutex";
+        assert assertNoEngineResetLock();
         synchronized (engineMutex) {
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
             engineResetLock.readLock().lock(); // prevent engine resets while closing
@@ -4443,6 +4448,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void resetEngine(Consumer<Engine> postResetNewEngineConsumer) {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert waitForEngineOrClosedShardListeners.isDone();
+        assert assertNoEngineResetLock();
         Engine previousEngine = null;
         try {
             synchronized (engineMutex) {
@@ -4489,6 +4495,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     void rollbackEngineToGlobalCheckpoint() throws IOException {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
+        assert assertNoEngineResetLock();
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED
             : "engine rollback without blocking operations; active operations are [" + getActiveOperationsCount() + ']';
         sync(); // persist the global checkpoint to disk
@@ -4517,6 +4524,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 ) {
                     @Override
                     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
+                        assert assertNoEngineResetLock();
                         synchronized (engineMutex) {
                             if (newEngineReference.get() == null) {
                                 throw new AlreadyClosedException("engine was closed");
@@ -4528,6 +4536,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     @Override
                     public IndexCommitRef acquireSafeIndexCommit() {
+                        assert assertNoEngineResetLock();
                         synchronized (engineMutex) {
                             if (newEngineReference.get() == null) {
                                 throw new AlreadyClosedException("engine was closed");
@@ -4539,6 +4548,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     @Override
                     public void close() throws IOException {
                         Engine newEngine;
+                        assert assertNoEngineResetLock();
                         synchronized (engineMutex) {
                             newEngine = newEngineReference.get();
                             if (newEngine == getCurrentEngine(true)) {
@@ -4691,5 +4701,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // package-private for tests
     EngineResetLock getEngineResetLock() {
         return engineResetLock;
+    }
+
+    private boolean assertNoEngineResetLock() {
+        assert engineResetLock.isReadLockedByCurrentThread()
+            : "Expected current thread ["
+            + Thread.currentThread()
+            + "] to not hold an engine read lock (lock ordering should be: engineMutex -> engineResetLock -> mutex)";
+        assert engineResetLock.isWriteLockedByCurrentThread()
+            : "Expected current thread ["
+            + Thread.currentThread()
+            + "] to not hold the engine write lock (lock ordering should be: engineMutex -> engineResetLock -> mutex)";
+        return true;
     }
 }

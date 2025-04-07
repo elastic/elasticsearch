@@ -36,24 +36,20 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ReshardIndexRequest extends AcknowledgedRequest<ReshardIndexRequest> implements IndicesRequest {
     private String index;
-    private final ActiveShardCount waitForActiveShards;
 
     public ReshardIndexRequest(StreamInput in) throws IOException {
         super(in);
         index = in.readString();
-        waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
     public ReshardIndexRequest(String index) {
         super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.index = index;
-        this.waitForActiveShards = ActiveShardCount.DEFAULT;
     }
 
     public ReshardIndexRequest(String index, ActiveShardCount waitForActiveShards) {
         super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.index = index;
-        this.waitForActiveShards = waitForActiveShards;
     }
 
     @Override
@@ -77,10 +73,6 @@ public class ReshardIndexRequest extends AcknowledgedRequest<ReshardIndexRequest
         return index;
     }
 
-    public ActiveShardCount getWaitForActiveShards() {
-        return waitForActiveShards;
-    }
-
     @Override
     public IndicesOptions indicesOptions() {
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
@@ -90,7 +82,6 @@ public class ReshardIndexRequest extends AcknowledgedRequest<ReshardIndexRequest
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);
-        waitForActiveShards.writeTo(out);
     }
 
     @Override

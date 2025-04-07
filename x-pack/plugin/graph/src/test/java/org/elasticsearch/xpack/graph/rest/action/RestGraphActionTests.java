@@ -15,15 +15,19 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
-import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public final class RestGraphActionTests extends RestActionTestCase {
     private final List<String> compatibleMediaType = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
@@ -33,7 +37,7 @@ public final class RestGraphActionTests extends RestActionTestCase {
         controller().registerHandler(new RestGraphAction());
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GraphExploreRequest.class));
-            return Mockito.mock(GraphExploreResponse.class);
+            return newMockResponse();
         });
     }
 
@@ -57,5 +61,17 @@ public final class RestGraphActionTests extends RestActionTestCase {
             dispatchRequest(request);
             assertCriticalWarnings(RestGraphAction.TYPES_DEPRECATION_MESSAGE);
         }
+    }
+
+    private static GraphExploreResponse newMockResponse() {
+        final var response = mock(GraphExploreResponse.class);
+        try {
+            when(response.toXContent(any(), any())).thenAnswer(
+                invocation -> asInstanceOf(XContentBuilder.class, invocation.getArgument(0)).startObject().endObject()
+            );
+        } catch (IOException e) {
+            fail(e);
+        }
+        return response;
     }
 }

@@ -319,6 +319,7 @@ public class RateIntAggregator {
 
         private static double computeRateWithoutExtrapolate(IntRateState state, long unitInMillis) {
             final int len = state.entries();
+            assert len >= 2 : "rate requires at least two samples; got " + len;
             final long firstTS = state.timestamps[state.timestamps.length - 1];
             final long lastTS = state.timestamps[0];
             double reset = state.reset;
@@ -343,6 +344,7 @@ public class RateIntAggregator {
          */
         private static double extrapolateRate(IntRateState state, long rangeStart, long rangeEnd, long unitInMillis) {
             final int len = state.entries();
+            assert len >= 2 : "rate requires at least two samples; got " + len;
             final long firstTS = state.timestamps[state.timestamps.length - 1];
             final long lastTS = state.timestamps[0];
             double reset = state.reset;

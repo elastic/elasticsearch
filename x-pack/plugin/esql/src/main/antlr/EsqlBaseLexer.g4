@@ -86,6 +86,7 @@ CHANGE_POINT : 'change_point' -> pushMode(CHANGE_POINT_MODE);
 // Once the command has been stabilized, remove the DEV_ prefix and the {}? conditional and move the command to the
 // main section while preserving alphabetical order:
 // MYCOMMAND : 'mycommand' -> ...
+DEV_COMPLETION : {this.isDevVersion()}? 'completion'      -> pushMode(EXPRESSION_MODE);
 DEV_INLINESTATS :  {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 DEV_LOOKUP :       {this.isDevVersion()}? 'lookup_🐔'     -> pushMode(LOOKUP_MODE);
 DEV_METRICS :      {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);

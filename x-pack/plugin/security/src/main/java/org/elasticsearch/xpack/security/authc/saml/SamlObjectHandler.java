@@ -268,7 +268,7 @@ public class SamlObjectHandler {
     }
 
     private String formatIssuer(Issuer issuer) {
-        return issuer != null ? String.format(" [%s]", issuer.getValue()) : "";
+        return issuer != null ? Strings.format(" [%s]", issuer.getValue()) : "";
     }
 
     private static String describeCredentials(List<Credential> credentials) {

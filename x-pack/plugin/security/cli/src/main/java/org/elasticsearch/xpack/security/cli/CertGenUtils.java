@@ -479,7 +479,7 @@ public class CertGenUtils {
 
         int usageBits = 0;
         for (String keyUsage : keyUsages) {
-            Integer keyUsageValue = KEY_USAGE_MAPPINGS.get(keyUsage);
+            Integer keyUsageValue = KEY_USAGE_MAPPINGS.get(keyUsage.trim());
             if (keyUsageValue == null) {
                 throw new IllegalArgumentException("Unknown keyUsage: " + keyUsage);
             }

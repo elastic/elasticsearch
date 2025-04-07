@@ -1050,9 +1050,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 }
                 if (CertGenUtils.isValidKeyUsage(keyUsage) == false) {
                     terminal.println("Invalid key usage: " + keyUsage);
-                    terminal.println(
-                        "The key usage should be one of [" + CertGenUtils.KEY_USAGE_MAPPINGS.keySet().stream().sorted() + "] values"
-                    );
+                    terminal.println("The key usage should be one of the following values: ");
+                    for (String keyUsageName : CertGenUtils.KEY_USAGE_MAPPINGS.keySet()) {
+                        terminal.println(" - " + keyUsageName);
+                    }
                     return null;
                 }
                 resolvedKeyUsages.add(keyUsage);

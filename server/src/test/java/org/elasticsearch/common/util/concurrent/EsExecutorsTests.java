@@ -797,7 +797,7 @@ public class EsExecutorsTests extends ESTestCase {
             EsExecutors.newScaling(
                 getTestName(),
                 0,
-                2,// between(2, 5),
+                between(2, 5),
                 0,
                 TimeUnit.MILLISECONDS,
                 true,

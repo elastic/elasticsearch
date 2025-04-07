@@ -16,7 +16,6 @@ import org.elasticsearch.logsdb.datageneration.matchers.GenericEqualsMatcher;
 import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,55 +54,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             .v2();
         this.expectedNormalizedMapping = MappingTransforms.normalizeMapping(expectedMappingAsMap);
 
-        this.fieldSpecificMatchers = new HashMap<>() {
-            {
-                put("keyword", new FieldSpecificMatcher.KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("date", new FieldSpecificMatcher.DateMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put(
-                    "long",
-                    new FieldSpecificMatcher.NumberMatcher("long", actualMappings, actualSettings, expectedMappings, expectedSettings)
-                );
-                put(
-                    "unsigned_long",
-                    new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
-                );
-                put(
-                    "integer",
-                    new FieldSpecificMatcher.NumberMatcher("integer", actualMappings, actualSettings, expectedMappings, expectedSettings)
-                );
-                put(
-                    "short",
-                    new FieldSpecificMatcher.NumberMatcher("short", actualMappings, actualSettings, expectedMappings, expectedSettings)
-                );
-                put(
-                    "byte",
-                    new FieldSpecificMatcher.NumberMatcher("byte", actualMappings, actualSettings, expectedMappings, expectedSettings)
-                );
-                put(
-                    "double",
-                    new FieldSpecificMatcher.NumberMatcher("double", actualMappings, actualSettings, expectedMappings, expectedSettings)
-                );
-                put(
-                    "float",
-                    new FieldSpecificMatcher.NumberMatcher("float", actualMappings, actualSettings, expectedMappings, expectedSettings)
-                );
-                put(
-                    "half_float",
-                    new FieldSpecificMatcher.HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
-                );
-                put(
-                    "scaled_float",
-                    new FieldSpecificMatcher.ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
-                );
-                put(
-                    "counted_keyword",
-                    new FieldSpecificMatcher.CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
-                );
-                put("boolean", new FieldSpecificMatcher.BooleanMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("geo_shape", new FieldSpecificMatcher.ShapeMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("shape", new FieldSpecificMatcher.ShapeMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-            }
-        };
+        this.fieldSpecificMatchers = FieldSpecificMatcher.matchers(actualMappings, actualSettings, expectedMappings, expectedSettings);
         this.dynamicFieldMatcher = new DynamicFieldMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
     }
 

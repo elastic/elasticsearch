@@ -188,8 +188,8 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = ValuesFloatAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = ValuesFloatAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

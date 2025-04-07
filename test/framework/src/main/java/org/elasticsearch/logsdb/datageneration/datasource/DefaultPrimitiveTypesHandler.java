@@ -10,6 +10,7 @@
 package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.math.BigInteger;
 import java.time.Instant;
@@ -71,5 +72,10 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.InstantGenerator handle(DataSourceRequest.InstantGenerator request) {
         return new DataSourceResponse.InstantGenerator(() -> ESTestCase.randomInstantBetween(Instant.ofEpochMilli(1), MAX_INSTANT));
+    }
+
+    @Override
+    public DataSourceResponse.GeoPointGenerator handle(DataSourceRequest.GeoPointGenerator request) {
+        return new DataSourceResponse.GeoPointGenerator(() -> RandomGeoGenerator.randomPoint(ESTestCase.random()));
     }
 }

@@ -339,23 +339,27 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             });
 
         try (Directory dir = createNewDirectory()) {
+            float docsWithSuggest1FieldRatio;
             try (IndexWriter writer = new IndexWriter(dir, config)) {
                 int numDocs = randomIntBetween(100, 1000);
+                int numDocsWithSuggest1Field = 0;
                 for (int i = 0; i < numDocs; i++) {
                     final Document doc = new Document();
                     if (randomDouble() < 0.5) {
+                        numDocsWithSuggest1Field++;
                         doc.add(new SuggestField("suggest_1", randomAlphaOfLength(10), randomIntBetween(1, 20)));
                     }
                     doc.add(new SuggestField("suggest_2", randomAlphaOfLength(10), randomIntBetween(1, 20)));
                     writer.addDocument(doc);
                 }
+                docsWithSuggest1FieldRatio = (float) numDocsWithSuggest1Field / (numDocs + numDocsWithSuggest1Field);
             }
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             assertFieldStats(
                 "suggest_1",
                 "inverted_index",
                 stats.getFields().get("suggest_1").getInvertedIndexBytes(),
-                stats.total().totalBytes() / 3,
+                (long) (stats.total().totalBytes() * docsWithSuggest1FieldRatio),
                 0.05,
                 2048
             );
@@ -364,7 +368,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 "suggest_2",
                 "inverted_index",
                 stats.getFields().get("suggest_2").getInvertedIndexBytes(),
-                stats.total().totalBytes() * 2 / 3,
+                (long) (stats.total().totalBytes() * (1 - docsWithSuggest1FieldRatio)),
                 0.05,
                 2048
             );

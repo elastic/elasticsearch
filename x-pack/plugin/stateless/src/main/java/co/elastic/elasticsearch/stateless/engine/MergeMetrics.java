@@ -72,7 +72,7 @@ public class MergeMetrics {
             MERGE_QUEUED_ESTIMATED_MEMORY_SIZE,
             "Estimated memory usage for queued merges",
             "bytes",
-            () -> new LongWithAttributes(runningMergeSizeInBytes.get())
+            () -> new LongWithAttributes(queuedEstimatedMergeMemoryInBytes.get())
         );
     }
 

@@ -579,18 +579,19 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected static BulkResponse indexDocs(String indexName, int numDocs, Supplier<String> docIdSupplier) {
-        return indexDocs(indexName, numDocs, UnaryOperator.identity(), docIdSupplier);
+        return indexDocs(indexName, numDocs, UnaryOperator.identity(), docIdSupplier, null);
     }
 
     protected static BulkResponse indexDocs(String indexName, int numDocs, UnaryOperator<BulkRequestBuilder> requestOperator) {
-        return indexDocs(indexName, numDocs, requestOperator, null);
+        return indexDocs(indexName, numDocs, requestOperator, null, null);
     }
 
-    private static <T> BulkResponse indexDocs(
+    protected static <T> BulkResponse indexDocs(
         String indexName,
         int numDocs,
         UnaryOperator<BulkRequestBuilder> bulkRequestOperator,
-        @Nullable Supplier<String> docIdSupplier
+        @Nullable Supplier<String> docIdSupplier,
+        @Nullable Supplier<Map<String, ?>> sourceSupplier
     ) {
         final var client = client();
         var bulkRequest = client.prepareBulk();
@@ -599,7 +600,16 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             if (docIdSupplier != null) {
                 indexRequest.setId(Objects.requireNonNull(docIdSupplier.get()));
             }
-            bulkRequest.add(indexRequest.setSource("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+            Map<String, ?> source;
+            if (sourceSupplier == null) {
+                source = Map.of("field", randomUnicodeOfCodepointLengthBetween(1, 25));
+            } else {
+                source = sourceSupplier.get();
+            }
+            if (sourceSupplier != null) {
+                source = sourceSupplier.get();
+            }
+            bulkRequest.add(indexRequest.setSource(source));
         }
         var bulkResponse = bulkRequestOperator.apply(bulkRequest).get();
         assertNoFailures(bulkResponse);

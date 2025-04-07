@@ -52,11 +52,15 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.function.IntSupplier;
+import java.util.function.UnaryOperator;
 
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -303,8 +307,10 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
                 plugin.collect();
                 List<Measurement> queuedBytes = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE);
                 List<Measurement> runningBytes = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE);
+                List<Measurement> queuedEstimated = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
                 assertThat(queuedBytes.stream().mapToLong(Measurement::getLong).sum(), greaterThanOrEqualTo(1L));
                 assertThat(runningBytes.stream().mapToLong(Measurement::getLong).sum(), equalTo(0L));
+                assertThat(queuedEstimated.stream().mapToLong(Measurement::getLong).sum(), equalTo(0L));
             });
         } finally {
             latch.countDown();
@@ -368,6 +374,53 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
         assertNoFailures(mergeFuture.actionGet());
 
         assertThat(indexEngine.hasQueuedOrRunningMerges(), is(false));
+    }
+
+    public void testQueuedVectorFieldMergesAreMemoryEstimated() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        var latch = new CountDownLatch(1);
+        var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
+        blockMergePool(threadPool, latch);
+
+        int numDims = randomIntBetween(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING + 1024);
+        int numDocs = randomIntBetween(2, 10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDocs(
+                indexName,
+                randomIntBetween(10, 20),
+                UnaryOperator.identity(),
+                null,
+                () -> Map.of("vectorField", randomVector(numDims))
+            );
+            refresh(indexName);
+        }
+
+        var mergeFuture = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+
+        var plugin = internalCluster().getInstance(PluginsService.class, indexNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        assertBusy(() -> {
+            plugin.collect();
+            List<Measurement> queuedEstimated = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
+            assertThat(queuedEstimated.stream().mapToLong(Measurement::getLong).sum(), greaterThan(0L));
+        });
+
+        latch.countDown();
+
+        assertNoFailures(mergeFuture.actionGet());
+
+        assertBusy(() -> {
+            plugin.collect();
+            List<Measurement> queuedEstimated = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
+            assertThat(queuedEstimated.getLast().getLong(), is(0L));
+        });
+
     }
 
     public static void blockMergePool(ThreadPool threadPool, CountDownLatch finishLatch) {

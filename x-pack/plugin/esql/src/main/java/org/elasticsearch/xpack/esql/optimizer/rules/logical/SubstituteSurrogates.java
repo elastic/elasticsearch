@@ -107,7 +107,7 @@ public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Agg
         if (changed) {
             var source = aggregate.source();
             if (newAggs.isEmpty() == false) {
-                plan = new Aggregate(source, aggregate.child(), aggregate.aggregateType(), aggregate.groupings(), newAggs);
+                plan = aggregate.with(aggregate.child(), aggregate.groupings(), newAggs);
             } else {
                 // All aggs actually have been surrogates for (foldable) expressions, e.g.
                 // \_Aggregate[[],[AVG([1, 2][INTEGER]) AS s]]

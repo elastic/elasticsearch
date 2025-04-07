@@ -7,7 +7,7 @@ Converts a multivalue expression into a single valued column containing the last
 value. This is most useful when reading from a function that emits multivalued
 columns in a known order like [`SPLIT`](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/esql-functions-operators#esql-split).
 
-```
+```esql
 ROW a="foo;bar;baz"
 | EVAL last_a = MV_LAST(SPLIT(a, ";"))
 ```

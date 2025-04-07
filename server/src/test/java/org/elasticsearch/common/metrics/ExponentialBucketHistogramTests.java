@@ -12,7 +12,9 @@ package org.elasticsearch.common.metrics;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ExponentialBucketHistogramTests extends ESTestCase {
 
@@ -93,7 +95,15 @@ public class ExponentialBucketHistogramTests extends ESTestCase {
             final long actualPercentile = (long) Math.ceil(valueCount * percentile);
             final long histogramPercentile = histogram.getPercentile(percentile);
             final String message = Strings.format("%d percentile is %d (actual=%d)", i, histogramPercentile, actualPercentile);
-            assertThat(message, histogramPercentile, greaterThan(actualPercentile));
+            assertThat(message, histogramPercentile, greaterThanOrEqualTo(actualPercentile));
         }
+    }
+
+    public void testMaxPercentile() {
+        ExponentialBucketHistogram histogram = new ExponentialBucketHistogram();
+        int[] bucketUpperBounds = ExponentialBucketHistogram.getBucketUpperBounds();
+        int secondToLastBucketUpperBound = bucketUpperBounds[bucketUpperBounds.length - 1];
+        histogram.addObservation(secondToLastBucketUpperBound + 1);
+        assertThat(histogram.getPercentile(1.0f), equalTo(Long.MAX_VALUE));
     }
 }

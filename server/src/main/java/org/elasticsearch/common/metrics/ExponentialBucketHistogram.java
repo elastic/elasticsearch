@@ -79,12 +79,16 @@ public class ExponentialBucketHistogram {
     public long getPercentile(float percentile) {
         assert percentile >= 0 && percentile <= 1;
         final long[] snapshot = getHistogram();
-        final long totalCount = Arrays.stream(snapshot).reduce(0L, Long::sum);
+        final long totalCount = Arrays.stream(snapshot).sum();
         long percentileIndex = (long) Math.ceil(totalCount * percentile);
         for (int i = 0; i < BUCKET_COUNT; i++) {
             percentileIndex -= snapshot[i];
             if (percentileIndex <= 0) {
-                return getBucketUpperBounds()[i];
+                if (i == snapshot.length - 1) {
+                    return Long.MAX_VALUE;
+                } else {
+                    return getBucketUpperBounds()[i];
+                }
             }
         }
         assert false : "We shouldn't ever get here";

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
@@ -466,7 +467,23 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        // TODO
-        return super.postAnalysisPlanVerification();
+        return (plan, failures) -> {
+            super.postAnalysisPlanVerification().accept(plan, failures);
+            plan.forEachExpression(MultiMatch.class, mm -> {
+                for (Expression field : fields) {
+                    if (Match.fieldAsFieldAttribute(field) == null) {
+                        failures.add(
+                            Failure.fail(
+                                field,
+                                "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
+                                functionName(),
+                                functionType(),
+                                field.sourceText()
+                            )
+                        );
+                    }
+                }
+            });
+        };
     }
 }

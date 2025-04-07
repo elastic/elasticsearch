@@ -103,13 +103,6 @@ public class RemoveProcessorTests extends ESTestCase {
                 source.put("some", some);
             }
         }
-
-        if (randomBoolean()) {
-            source.put("some", null);
-        } else {
-            some.put("map", null);
-            source.put("some", some);
-        }
         IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "some.map.path");

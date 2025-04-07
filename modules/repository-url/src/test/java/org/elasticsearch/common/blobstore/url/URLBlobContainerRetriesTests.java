@@ -29,6 +29,7 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.util.Objects;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.instanceOf;
@@ -77,7 +78,8 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
         TimeValue readTimeout,
         Boolean disableChunkedEncoding,
         ByteSizeValue bufferSize,
-        Integer maxBulkDeletes
+        Integer maxBulkDeletes,
+        BlobPath blobContainerPath
     ) {
         Settings.Builder settingsBuilder = Settings.builder();
 
@@ -98,7 +100,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
                 factory.create(httpClientSettings),
                 httpClientSettings
             );
-            return urlBlobStore.blobContainer(BlobPath.EMPTY);
+            return urlBlobStore.blobContainer(Objects.requireNonNullElse(blobContainerPath, BlobPath.EMPTY));
         } catch (MalformedURLException e) {
             throw new RuntimeException("Unable to create URLBlobStore", e);
         }

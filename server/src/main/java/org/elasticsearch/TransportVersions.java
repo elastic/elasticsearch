@@ -214,6 +214,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = def(9_045_0_00);
     public static final TransportVersion ADD_PROJECT_ID_TO_DSL_ERROR_INFO = def(9_046_0_00);
     public static final TransportVersion SEMANTIC_TEXT_CHUNKING_CONFIG = def(9_047_00_0);
+    public static final TransportVersion DFS_STATS = def(9_048_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

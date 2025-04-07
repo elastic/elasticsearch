@@ -103,9 +103,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         private Stats(StreamInput in) throws IOException {
-            dfsCount = in.readVLong();
-            dfsTimeInMillis = in.readVLong();
-            dfsCurrent = in.readVLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.DFS_STATS)) {
+                dfsCount = in.readVLong();
+                dfsTimeInMillis = in.readVLong();
+                dfsCurrent = in.readVLong();
+            }
 
             queryCount = in.readVLong();
             queryTimeInMillis = in.readVLong();
@@ -124,17 +126,22 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestCurrent = in.readVLong();
 
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                dfsFailure = in.readVLong();
                 queryFailure = in.readVLong();
                 fetchFailure = in.readVLong();
+            }
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.DFS_STATS)) {
+                dfsFailure = in.readVLong();
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(dfsCount);
-            out.writeVLong(dfsTimeInMillis);
-            out.writeVLong(dfsCurrent);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.DFS_STATS)) {
+                out.writeVLong(dfsCount);
+                out.writeVLong(dfsTimeInMillis);
+                out.writeVLong(dfsCurrent);
+            }
 
             out.writeVLong(queryCount);
             out.writeVLong(queryTimeInMillis);
@@ -153,9 +160,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeVLong(suggestCurrent);
 
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeVLong(dfsFailure);
                 out.writeVLong(queryFailure);
                 out.writeVLong(fetchFailure);
+            }
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.DFS_STATS)) {
+                out.writeVLong(dfsFailure);
             }
         }
 

@@ -104,7 +104,8 @@ import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsColle
 import co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
-import co.elastic.elasticsearch.stateless.reshard.TransportSplitHandoffStateAction;
+import co.elastic.elasticsearch.stateless.reshard.TransportReshardSplitAction;
+import co.elastic.elasticsearch.stateless.reshard.TransportUpdateSplitStateAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyMonitoringInfoTransportAction;
@@ -413,7 +414,8 @@ public class Stateless extends Plugin
             new ActionHandler<>(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
             new ActionHandler<>(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
             new ActionHandler<>(TransportUpdateReplicasAction.TYPE, TransportUpdateReplicasAction.class),
-            new ActionHandler<>(TransportSplitHandoffStateAction.TYPE, TransportSplitHandoffStateAction.class),
+            new ActionHandler<>(TransportUpdateSplitStateAction.TYPE, TransportUpdateSplitStateAction.class),
+            new ActionHandler<>(TransportReshardSplitAction.TYPE, TransportReshardSplitAction.class),
             new ActionHandler<>(TransportReshardAction.TYPE, TransportReshardAction.class)
         );
     }
@@ -479,23 +481,24 @@ public class Stateless extends Plugin
 
     @Override
     public Collection<Object> createComponents(PluginServices services) {
+
         this.projectResolver.set(services.projectResolver());
         Client client = services.client();
         ClusterService clusterService = services.clusterService();
         AllocationService allocationService = services.allocationService();
         ThreadPool threadPool = setAndGet(this.threadPool, services.threadPool());
         Environment environment = services.environment();
+        // use the settings that include additional settings.
+        Settings settings = environment.settings();
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
         IndicesService indicesService = setAndGet(this.indicesService, services.indicesService());
-        splitTargetService.set(new SplitTargetService(client));
+        splitTargetService.set(new SplitTargetService(settings, client, clusterService));
         final var blobCacheMetrics = setAndGet(
             this.blobCacheMetrics,
             new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
         );
 
         final Collection<Object> components = new ArrayList<>();
-        // use the settings that include additional settings.
-        Settings settings = environment.settings();
         var objectStoreService = setAndGet(
             this.objectStoreService,
             createObjectStoreService(settings, services.repositoriesService(), threadPool, clusterService)
@@ -1041,7 +1044,8 @@ public class Stateless extends Plugin
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
             HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,
             USE_INDEX_REFRESH_BLOCK_SETTING,
-            RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING
+            RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING,
+            SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT
         );
     }
 
@@ -1049,6 +1053,7 @@ public class Stateless extends Plugin
     public void onIndexModule(IndexModule indexModule) {
         var statelessCommitService = commitService.get();
         var localTranslogReplicator = translogReplicator.get();
+        var localSplitTargetService = splitTargetService.get();
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
 
@@ -1118,6 +1123,7 @@ public class Stateless extends Plugin
                     if (indexShard != null) {
                         statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
                         statelessCommitService.closeShard(shardId);
+                        localSplitTargetService.cancelSplits(indexShard);
                         hollowShardsService.get().removeHollowShard(indexShard, "index shard closed");
                     }
                 }

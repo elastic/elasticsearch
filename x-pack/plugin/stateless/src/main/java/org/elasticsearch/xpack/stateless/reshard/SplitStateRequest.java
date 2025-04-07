@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.reshard;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -29,17 +30,28 @@ public class SplitStateRequest extends MasterNodeRequest<SplitStateRequest> {
 
     private final ShardId shardId;
     private final long sourcePrimaryTerm;
+    private final long targetPrimaryTerm;
+    private final IndexReshardingState.Split.TargetShardState newTargetShardState;
 
-    public SplitStateRequest(ShardId shardId, long sourcePrimaryTerm) {
+    public SplitStateRequest(
+        ShardId shardId,
+        IndexReshardingState.Split.TargetShardState newTargetShardState,
+        long sourcePrimaryTerm,
+        long targetPrimaryTerm
+    ) {
         super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.shardId = shardId;
+        this.newTargetShardState = newTargetShardState;
         this.sourcePrimaryTerm = sourcePrimaryTerm;
+        this.targetPrimaryTerm = targetPrimaryTerm;
     }
 
     public SplitStateRequest(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
+        newTargetShardState = IndexReshardingState.Split.TargetShardState.readFrom(in);
         sourcePrimaryTerm = in.readVLong();
+        targetPrimaryTerm = in.readVLong();
     }
 
     @Override
@@ -55,10 +67,20 @@ public class SplitStateRequest extends MasterNodeRequest<SplitStateRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
+        newTargetShardState.writeTo(out);
         out.writeVLong(sourcePrimaryTerm);
+        out.writeVLong(targetPrimaryTerm);
     }
 
     public long getSourcePrimaryTerm() {
         return sourcePrimaryTerm;
+    }
+
+    public long getTargetPrimaryTerm() {
+        return targetPrimaryTerm;
+    }
+
+    public IndexReshardingState.Split.TargetShardState getNewTargetShardState() {
+        return newTargetShardState;
     }
 }

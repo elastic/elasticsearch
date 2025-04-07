@@ -44,6 +44,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -111,7 +112,8 @@ class StatelessIndexEventListener implements IndexEventListener {
             boolean success = false;
             try {
                 final var blobStore = objectStoreService.blobStore();
-                final var shardBasePath = objectStoreService.shardBasePath(indexShard.shardId());
+                final var shardId = indexShard.shardId();
+                final var shardBasePath = objectStoreService.shardBasePath(shardId);
                 BlobStoreCacheDirectory.unwrapDirectory(store.directory())
                     .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
                 final BlobContainer existingBlobContainer = hasNoExistingBlobContainer(indexShard.recoveryState().getRecoverySource())
@@ -122,11 +124,9 @@ class StatelessIndexEventListener implements IndexEventListener {
                     beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);
                 } else {
                     IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
-                    if (reshardingMetadata != null && reshardingMetadata.getSplit().isTargetShard(indexShard.shardId().id())) {
+                    if (IndexReshardingMetadata.isSplitTarget(shardId, reshardingMetadata)) {
                         splitTargetService.startSplitRecovery(
-                            indexShard.shardId(),
-                            indexSettings.getIndexMetadata(),
-                            reshardingMetadata,
+                            indexShard,
                             new ThreadedActionListener<>(
                                 threadPool.generic(),
                                 releaseAfterListener.delegateFailureAndWrap(
@@ -351,6 +351,15 @@ class StatelessIndexEventListener implements IndexEventListener {
         ActionListener.run(listener, l -> {
             if (indexShard.routingEntry().isPromotableToPrimary()) {
                 Engine engineOrNull = indexShard.getEngineOrNull();
+
+                IndexSettings indexSettings = indexShard.indexSettings();
+                IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
+                if (IndexReshardingMetadata.isSplitTarget(indexShard.shardId(), reshardingMetadata)) {
+                    // Should already have advanced past CLONE
+                    assert reshardingMetadata.getSplit()
+                        .targetStateAtLeast(indexShard.shardId().id(), IndexReshardingState.Split.TargetShardState.HANDOFF);
+                    l = l.delegateFailure((toWrap, unused) -> splitTargetService.afterIndexShardSplitRecovery(indexShard, toWrap));
+                }
                 if (engineOrNull instanceof IndexEngine engine) {
                     long currentGeneration = engine.getCurrentGeneration();
                     if (currentGeneration > statelessCommitService.getRecoveredGeneration(indexShard.shardId())) {

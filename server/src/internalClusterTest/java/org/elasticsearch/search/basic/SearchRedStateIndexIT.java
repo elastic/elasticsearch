@@ -13,7 +13,6 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -120,10 +119,9 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
 
-        assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        awaitClusterState(state -> {
             List<ShardRouting> unassigneds = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED);
-            assertThat(unassigneds.size(), greaterThan(0));
+            return unassigneds.isEmpty() == false;
         });
 
     }

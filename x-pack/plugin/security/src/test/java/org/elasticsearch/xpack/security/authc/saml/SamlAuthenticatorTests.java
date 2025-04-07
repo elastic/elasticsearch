@@ -108,7 +108,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + " that will not clash with any of [*]";
     private static final String SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE = "The XML Signature of this SAML message cannot be validated. "
         + "Please verify that the saml realm uses the correct SAML metadata file/URL for this Identity Provider "
-        + "https://idp.saml.elastic.test/";
+        + "[https://idp.saml.elastic.test/]";
 
     private SamlAuthenticator authenticator;
 
@@ -1334,9 +1334,6 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             assertThat(exception.getMessage(), containsString("could not be validated"));
 
             mockLog.awaitAllExpectationsMatched();
-        } finally {
-            // Restore the authenticator with credentials for the rest of the test cases
-            authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
         }
     }
 
@@ -1354,6 +1351,14 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE
                 )
             );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Null credentials",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    "Exception while attempting to validate SAML Signature [https://idp.saml.elastic.test/]"
+                )
+            );
 
             final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
             assertThat(exception.getCause(), nullValue());
@@ -1361,9 +1366,6 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             assertThat(exception.getMessage(), containsString("could not be validated"));
 
             mockLog.awaitAllExpectationsMatched();
-        } finally {
-            // Restore the authenticator with credentials for the rest of the test cases
-            authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
         }
     }
 

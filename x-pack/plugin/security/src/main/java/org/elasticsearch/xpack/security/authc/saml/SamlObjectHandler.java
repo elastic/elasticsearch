@@ -200,7 +200,7 @@ public class SamlObjectHandler {
                         );
                         return true;
                     } catch (PrivilegedActionException e) {
-                        logger.warn("SecurityException while attempting to validate SAML signature", e);
+                        logger.warn("SecurityException while attempting to validate SAML signature" + formatIssuer(issuer), e);
                         return false;
                     }
                 });
@@ -231,7 +231,7 @@ public class SamlObjectHandler {
                 logger.trace("SAML Signature failure caused by", e);
                 return false;
             } catch (Exception e) {
-                logger.warn("Exception while attempting to validate SAML Signature", e);
+                logger.warn("Exception while attempting to validate SAML Signature" + formatIssuer(issuer), e);
                 return false;
             }
         };
@@ -250,11 +250,10 @@ public class SamlObjectHandler {
         String signature,
         Exception cause
     ) {
-        final String issuerValue = issuer != null ? issuer.getValue() : "";
         logger.warn(
             "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML "
-                + "metadata file/URL for this Identity Provider {}",
-            issuerValue
+                + "metadata file/URL for this Identity Provider{}",
+            formatIssuer(issuer)
         );
         final String msg = "SAML Signature [{}] could not be validated against [{}]";
         if (cause != null) {
@@ -266,6 +265,10 @@ public class SamlObjectHandler {
 
     private ElasticsearchSecurityException samlSignatureException(Issuer issuer, List<Credential> credentials, String signature) {
         return samlSignatureException(issuer, credentials, signature, null);
+    }
+
+    private String formatIssuer(Issuer issuer) {
+        return issuer != null ? String.format(" [%s]", issuer.getValue()) : "";
     }
 
     private static String describeCredentials(List<Credential> credentials) {

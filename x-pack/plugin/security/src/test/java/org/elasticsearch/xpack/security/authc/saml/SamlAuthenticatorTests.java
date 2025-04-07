@@ -1374,29 +1374,25 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     public void testDescribeNullIssuer() {
-        assertThat(authenticator.describeIssuer(null), equalTo(""));
-    }
-
-    public void testDescribeNullIssuerValue() {
-        final Issuer issuer = new IssuerBuilder().buildObject();
-        assertThat(authenticator.describeIssuer(issuer), equalTo(""));
+        final Issuer issuer = randomFrom(new IssuerBuilder().buildObject(), null);
+        assertThat(SamlAuthenticator.describeIssuer(issuer), equalTo(""));
     }
 
     public void testDescribeIssuer() {
         final Issuer issuer = new IssuerBuilder().buildObject();
         issuer.setValue("https://idp.saml.elastic.test/");
         assertThat(
-            authenticator.describeIssuer(issuer),
+            SamlAuthenticator.describeIssuer(issuer),
             equalTo(" The issuer included in the SAML message was [https://idp.saml.elastic.test/]")
         );
     }
 
     public void testDescribeVeryLongIssuer() {
         final Issuer issuer = new IssuerBuilder().buildObject();
-        issuer.setValue("https://idp.saml.elastic.test/" + "a".repeat(128));
+        issuer.setValue("https://idp.saml.elastic.test/" + randomAlphaOfLength(512));
 
-        final String description = authenticator.describeIssuer(issuer);
-        assertThat(description, hasLength(114));
+        final String description = SamlAuthenticator.describeIssuer(issuer);
+        assertThat(description, hasLength(562));
         assertThat(description, endsWith("..."));
     }
 

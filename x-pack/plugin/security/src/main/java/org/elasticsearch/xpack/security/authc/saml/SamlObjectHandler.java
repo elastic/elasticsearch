@@ -95,6 +95,8 @@ public class SamlObjectHandler {
         }
     });
 
+    private static final int ISSUER_VALUE_MAX_LENGTH = 512;
+
     protected final Logger logger = LogManager.getLogger(getClass());
 
     @Nullable
@@ -268,13 +270,13 @@ public class SamlObjectHandler {
     }
 
     // package private for testing
-    String describeIssuer(@Nullable Issuer issuer) {
+    static String describeIssuer(@Nullable Issuer issuer) {
         if (issuer == null || issuer.getValue() == null) {
             return "";
         }
         final String msg = " The issuer included in the SAML message was [%s]";
-        if (issuer.getValue().length() > 64) {
-            return Strings.format(msg + "...", Strings.cleanTruncate(issuer.getValue(), 64));
+        if (issuer.getValue().length() > ISSUER_VALUE_MAX_LENGTH) {
+            return Strings.format(msg + "...", Strings.cleanTruncate(issuer.getValue(), ISSUER_VALUE_MAX_LENGTH));
         }
         return Strings.format(msg, issuer.getValue());
     }

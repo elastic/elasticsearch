@@ -18,6 +18,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -34,6 +35,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -51,6 +53,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -94,6 +97,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private static final String WRITE_ACCESS = "write_access";
     private static final String MANAGE_ACCESS = "manage_access";
     private static final String MANAGE_FAILURE_STORE_ACCESS = "manage_failure_store_access";
+    private static final String MANAGE_DATA_STREAM_LIFECYCLE = "manage_data_stream_lifecycle";
     private static final SecureString PASSWORD = new SecureString("admin-password");
 
     @Before
@@ -127,14 +131,10 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "global": [],
               "indices": [{
                   "names": ["*"],
-                  "privileges": ["read"],
+                  "privileges": ["read", "read_failure_store"],
                   "allow_restricted_indices": false
-                },
-                {
-                  "names": ["*"],
-                  "privileges": ["read_failure_store"],
-                  "allow_restricted_indices": false
-                }],
+                }
+              ],
               "applications": [],
               "run_as": []
             }""");
@@ -211,77 +211,768 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "indices": [
                 {
                   "names": ["*"],
-                  "privileges": ["read", "write"],
+                  "privileges": ["manage_failure_store", "read", "read_failure_store", "write"],
+                  "allow_restricted_indices": false
+                }
+              ],
+              "applications": [],
+              "run_as": []
+            }""");
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["read", "manage"],
                   "allow_restricted_indices": false
                 },
                 {
-                  "names": ["*"],
-                  "privileges": ["manage_failure_store", "read_failure_store"],
+                  "names": ["idx", "*"],
+                  "privileges": ["manage_data_stream_lifecycle"],
                   "allow_restricted_indices": false
-                }],
+                },
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["write"],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": ["idx", "*"],
+                  "privileges": ["manage"],
+                  "allow_restricted_indices": true
+                }
+              ]
+            }
+            """, "role");
+        expectUserPrivilegesResponse("""
+            {
+              "cluster": ["all"],
+              "global": [],
+              "indices": [
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["manage", "manage_data_stream_lifecycle", "read"],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["manage", "write"],
+                  "allow_restricted_indices": true
+                }
+              ],
               "applications": [],
               "run_as": []
             }""");
     }
 
+    public void testHasPrivileges() throws IOException {
+        createUser("user", PASSWORD, "role");
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["read", "read_failure_store"]
+                },
+                {
+                  "names": ["test2"],
+                  "privileges": ["manage_failure_store", "write"]
+                }
+              ]
+            }
+            """, "role");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [
+                  {
+                    "names": ["*"],
+                    "privileges": ["read", "read_failure_store"]
+                  },
+                  {
+                    "names": ["test2"],
+                    "privileges": ["manage_failure_store", "write"]
+                  }
+                ]
+              }
+            }
+            """);
+
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read", "read_failure_store"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["read"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["read_failure_store"]
+                    },
+                    {
+                        "names": ["test1"],
+                        "privileges": ["manage_failure_store"]
+                    },
+                    {
+                        "names": ["test1"],
+                        "privileges": ["manage"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["manage_failure_store"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["manage"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read": true,
+                        "read_failure_store": true,
+                        "manage_failure_store": false,
+                        "manage": false
+                    },
+                    "test2": {
+                        "read": true,
+                        "read_failure_store": true,
+                        "manage_failure_store": true,
+                        "manage": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["indices:data/write/*"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["indices:admin/*", "indices:data/write/*"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "indices:data/write/*": false
+                    },
+                    "test2": {
+                        "indices:admin/*": false,
+                        "indices:data/write/*": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["indices:data/write/*"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "indices:data/write/*": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read_failure_store"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read_failure_store": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": [".security-7"],
+                        "privileges": ["read_failure_store"],
+                        "allow_restricted_indices": true
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    ".security-7": {
+                        "read_failure_store": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": [".security-7", "test1"],
+                        "privileges": ["read_failure_store"],
+                        "allow_restricted_indices": true
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    ".security-7": {
+                        "read_failure_store": false
+                    },
+                    "test1": {
+                        "read_failure_store": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["indices:data/read/*"]
+                },
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"]
+                },
+                {
+                  "names": ["test2"],
+                  "privileges": ["all"]
+                }
+              ]
+            }
+            """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["*"],
+                      "privileges": ["indices:data/read/*"]
+                    },
+                    {
+                      "names": ["test*"],
+                      "privileges": ["read_failure_store"]
+                    },
+                    {
+                      "names": ["test2"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["all", "indices:data/read/*", "read", "read_failure_store", "write"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["all", "indices:data/read/*", "read", "read_failure_store", "write"]
+                    },
+                    {
+                        "names": ["test3"],
+                        "privileges": ["all", "indices:data/read/*", "read", "read_failure_store", "write"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "all": false,
+                        "indices:data/read/*": true,
+                        "read": false,
+                        "read_failure_store": true,
+                        "write": false
+                    },
+                    "test2": {
+                        "all": true,
+                        "indices:data/read/*": true,
+                        "read": true,
+                        "read_failure_store": true,
+                        "write": true
+                    },
+                    "test3": {
+                        "all": false,
+                        "indices:data/read/*": true,
+                        "read": false,
+                        "read_failure_store": true,
+                        "write": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1"],
+                  "privileges": ["read", "read_failure_store"]
+                }
+              ]
+            }
+            """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["test1"],
+                      "privileges": ["read", "read_failure_store"]
+                    }
+                  ]
+                }
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["all"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "all": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1"],
+                  "privileges": ["all"]
+                }
+              ]
+            }
+            """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["test1"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["all"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "all": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read_failure_store"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read_failure_store": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": [".security-7"],
+                        "privileges": ["read_failure_store", "read", "all"],
+                        "allow_restricted_indices": true
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    ".security-7": {
+                        "read_failure_store": false,
+                        "read": false,
+                        "all": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": [".*"],
+                  "privileges": ["read_failure_store"],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [".*"],
+                  "privileges": ["read"],
+                  "allow_restricted_indices": false
+                }
+              ]
+            }
+            """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [
+                        {
+                            "names": [".*"],
+                            "privileges": ["read_failure_store"],
+                            "allow_restricted_indices": true
+                        },
+                        {
+                            "names": [".*"],
+                            "privileges": ["read"],
+                            "allow_restricted_indices": false
+                        }
+                    ]
+                }
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": [".security-7"],
+                        "privileges": ["read_failure_store", "read", "all"],
+                        "allow_restricted_indices": true
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    ".security-7": {
+                        "read_failure_store": true,
+                        "read": false,
+                        "all": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        // invalid payloads with explicit selectors in index patterns
+        expectThrows(() -> expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1", "test1::failures"],
+                        "privileges": ["read_failure_store", "read", "all"],
+                        "allow_restricted_indices": false
+                    }
+                ]
+            }
+            """, """
+            {}
+            """), 400);
+        expectThrows(() -> expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1::data"],
+                        "privileges": ["read_failure_store", "read", "all"],
+                        "allow_restricted_indices": false
+                    }
+                ]
+            }
+            """, """
+            {}
+            """), 400);
+        expectThrows(() -> expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1::failures"],
+                        "privileges": ["read_failure_store", "read", "all"],
+                        "allow_restricted_indices": false
+                    }
+                ]
+            }
+            """, """
+            {}
+            """), 400);
+    }
+
+    public void testHasPrivilegesWithApiKeys() throws IOException {
+        var user = "user";
+        var role = "role";
+        createUser(user, PASSWORD, role);
+        upsertRole("""
+            {
+                "cluster": ["all"],
+                "indices": [
+                    {
+                        "names": ["*"],
+                        "privileges": ["read_failure_store"]
+                    }
+                ]
+            }
+            """, role);
+
+        String apiKey = createApiKey(user, """
+            {
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [{"names": ["test1"], "privileges": ["read_failure_store"]}]
+                }
+            }""");
+
+        expectHasPrivilegesWithApiKey(apiKey, """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read_failure_store"],
+                        "allow_restricted_indices": true
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["read_failure_store"],
+                        "allow_restricted_indices": true
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read_failure_store": true
+                    },
+                    "test2": {
+                        "read_failure_store": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+    }
+
     public void testRoleWithSelectorInIndexPattern() throws Exception {
         setupDataStream();
-
         createUser("user", PASSWORD, "role");
-        upsertRole("""
+        expectThrowsSelectorsNotAllowed(
+            () -> upsertRole(
+                Strings.format("""
+                    {
+                      "cluster": ["all"],
+                      "indices": [
+                        {
+                          "names": ["%s"],
+                          "privileges": ["%s"]
+                        }
+                      ]
+                    }""", randomFrom("*::failures", "test1::failures", "test1::data", "*::data"), randomFrom("read", "read_failure_store")),
+                "role",
+                false
+            )
+        );
+
+        AssertionError bulkFailedError = expectThrows(
+            AssertionError.class,
+            () -> upsertRole(
+                Strings.format("""
+                    {
+                      "cluster": ["all"],
+                      "indices": [
+                        {
+                          "names": ["%s"],
+                          "privileges": ["%s"]
+                        }
+                      ]
+                    }""", randomFrom("*::failures", "test1::failures", "test1::data", "*::data"), randomFrom("read", "read_failure_store")),
+                "role",
+                true
+            )
+        );
+        assertThat(bulkFailedError.getMessage(), containsString("selectors [::] are not allowed in the index name expression"));
+
+        expectThrowsSelectorsNotAllowed(() -> createApiKey("user", Strings.format("""
             {
-              "cluster": ["all"],
-              "indices": [
-                {
-                  "names": ["*::failures"],
-                  "privileges": ["read"]
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [
+                        {
+                            "names": ["%s"],
+                            "privileges": ["%s"]
+                        }
+                    ]
                 }
-              ]
-            }""", "role");
-        createAndStoreApiKey("user", null);
+            }""", randomFrom("*::failures", "test1::failures", "test1::data", "*::data"), randomFrom("read", "read_failure_store"))));
 
-        expectSearchThrows("user", new Search("test1::failures"), 403);
-        expectSearch("user", new Search("*::failures"));
-
-        upsertRole("""
-            {
-              "cluster": ["all"],
-              "indices": [
-                {
-                  "names": ["test1::failures"],
-                  "privileges": ["read"]
-                }
-              ]
-            }""", "role");
-
-        expectSearchThrows("user", new Search("test1::failures"), 403);
-        expectSearch("user", new Search("*::failures"));
-
-        upsertRole("""
-            {
-              "cluster": ["all"],
-              "indices": [
-                {
-                  "names": ["*::failures"],
-                  "privileges": ["read_failure_store"]
-                }
-              ]
-            }""", "role");
-        expectSearchThrows("user", new Search("test1::failures"), 403);
-        expectSearch("user", new Search("*::failures"));
-
-        upsertRole("""
-            {
-              "cluster": ["all"],
-              "indices": [
-                {
-                  "names": ["test1::failures"],
-                  "privileges": ["read_failure_store"]
-                }
-              ]
-            }""", "role");
-        expectSearchThrows("user", new Search("test1::failures"), 403);
-        expectSearch("user", new Search("*::failures"));
     }
 
     public void testFailureStoreAccess() throws Exception {
@@ -447,6 +1138,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearchThrows(user, request, 403);
+                        // also check authz message
+                        expectThrowsUnauthorized(
+                            user,
+                            request,
+                            containsString("this action is granted by the index privileges [read,all]")
+                        );
                         expectEsqlThrows(user, request, 400);
                         break;
                     default:
@@ -657,6 +1354,15 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearchThrows(user, request, 403);
+                        // also check authz message
+                        expectThrowsUnauthorized(
+                            user,
+                            request,
+                            containsString(
+                                "this action is granted by the index privileges [read,all] for data access, "
+                                    + "or by [read_failure_store] for access with the [::failures] selector"
+                            )
+                        );
                         expectEsqlThrows(user, request, 400);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
@@ -1217,7 +1923,89 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
     }
 
-    public void testWriteOperations() throws IOException {
+    @SuppressWarnings("unchecked")
+    private void expectEsql(String user, Search search, String... docIds) throws Exception {
+        var response = performRequestMaybeUsingApiKey(user, search.toEsqlRequest());
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> columns = (List<?>) responseAsMap.get("columns");
+        List<?> values = (List<?>) responseAsMap.get("values");
+        assertEquals(1, columns.size());
+        assertEquals(docIds.length, values.size());
+        List<String> flatList = values.stream()
+            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+            .collect(Collectors.toList());
+        assertThat(flatList, containsInAnyOrder(docIds));
+    }
+
+    private void expectEsqlThrows(String user, Search search, int statusCode) {
+        expectThrows(() -> performRequestMaybeUsingApiKey(user, search.toEsqlRequest()), statusCode);
+    }
+
+    private record Search(String searchTarget, String pathParamString) {
+        Search(String searchTarget) {
+            this(searchTarget, "");
+        }
+
+        Request toSearchRequest() {
+            return new Request("POST", Strings.format("/%s/_search%s", searchTarget, pathParamString));
+        }
+
+        Request toAsyncSearchRequest() {
+            var pathParam = pathParamString.isEmpty()
+                ? "?wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT
+                : pathParamString + "&wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT;
+            return new Request("POST", Strings.format("/%s/_async_search%s", searchTarget, pathParam));
+        }
+
+        Request toEsqlRequest() throws IOException {
+            String command = "from " + searchTarget + " METADATA _id | KEEP _id";
+            if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
+                // add a (high) limit to avoid warnings on default limit
+                command += " | limit 10000000";
+            }
+            XContentBuilder json = JsonXContent.contentBuilder();
+            json.startObject();
+            json.field("query", command);
+            addRandomPragmas(json);
+            json.endObject();
+            var request = new Request("POST", "_query");
+            request.setJsonEntity(Strings.toString(json));
+            return request;
+        }
+    }
+
+    static void addRandomPragmas(XContentBuilder builder) throws IOException {
+        if (Build.current().isSnapshot()) {
+            Settings pragmas = randomPragmas();
+            if (pragmas != Settings.EMPTY) {
+                builder.startObject("pragma");
+                builder.value(pragmas);
+                builder.endObject();
+            }
+        }
+    }
+
+    static Settings randomPragmas() {
+        Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put("page_size", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("exchange_buffer_size", between(1, 2));
+        }
+        if (randomBoolean()) {
+            settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
+        }
+        if (randomBoolean()) {
+            settings.put("enrich_max_workers", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("node_level_reduction", randomBoolean());
+        }
+        return settings.build();
+    }
+
+    public void testWriteAndManageOperations() throws IOException {
         setupDataStream();
         Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
         String dataIndexName = backingIndices.v1();
@@ -1253,16 +2041,53 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """);
 
-        // user with manage access to data stream does NOT get direct access to failure index
-        expectThrows(() -> deleteIndex(MANAGE_ACCESS, failureIndexName), 403);
+        createUser(MANAGE_DATA_STREAM_LIFECYCLE, PASSWORD, MANAGE_DATA_STREAM_LIFECYCLE);
+        upsertRole(Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["manage_data_stream_lifecycle"]}]
+            }"""), MANAGE_DATA_STREAM_LIFECYCLE);
+        createAndStoreApiKey(MANAGE_DATA_STREAM_LIFECYCLE, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*"], "privileges": ["manage_data_stream_lifecycle"]}]
+              }
+            }
+            """);
+
+        // explain lifecycle API with and without failures selector is granted by manage
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", "test1/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", "test1::failures/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", failureIndexName + "/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", dataIndexName + "/_lifecycle/explain")));
+
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", "test1/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", "test1::failures/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", failureIndexName + "/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", dataIndexName + "/_lifecycle/explain")));
+
+        // explain lifecycle API is granted by manage_failure_store only for failures selector
+        expectThrows(() -> performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", "test1/_lifecycle/explain")), 403);
+        assertOK(performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", "test1::failures/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", failureIndexName + "/_lifecycle/explain")));
+        expectThrows(() -> performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", dataIndexName + "/_lifecycle/explain")), 403);
+
+        // user with manage access to data stream can delete failure index because manage grants access to both data and failures
+        expectThrows(() -> deleteIndex(MANAGE_ACCESS, failureIndexName), 400);
         expectThrows(() -> deleteIndex(MANAGE_ACCESS, dataIndexName), 400);
-        // manage_failure_store user COULD delete failure index (not valid because it's a write index, but allow security-wise)
-        expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
+
+        // manage_failure_store user COULD delete failure index (not valid because it's a write index, but allowed security-wise)
         expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, failureIndexName), 400);
+        expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
 
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1"), 403);
-        expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"), 403);
+        // selectors aren't supported for deletes so we get a 403
+        expectThrowsBadRequest(
+            () -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"),
+            containsString("Index component selectors are not supported in this context but found selector in expression [test1::failures]")
+        );
 
         // manage user can delete data stream
         deleteDataStream(MANAGE_ACCESS, "test1");
@@ -1498,8 +2323,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             Map.of(dataIndexName, Set.of("@timestamp", "age"))
         );
 
-        // FLS sort of applies to failure store
-        // TODO this will change with FLS handling
+        // FLS applies to failure store
         assertSearchResponseContainsExpectedIndicesAndFields(
             performRequest(user, new Search("test1::failures").toSearchRequest()),
             Map.of(failureIndexName, Set.of("@timestamp"))
@@ -1520,11 +2344,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                         "names": ["test*"],
                         "privileges": ["read_failure_store"],
                         "field_security": {
-                            "grant": ["@timestamp", "age"]
+                            "grant": ["error.type", "error.message"]
                         }
                      }
                  ]
-             }""", randomFrom("test*", "test1")), role);
+             }""", "test1"), role);
 
         // FLS applies to regular data stream
         assertSearchResponseContainsExpectedIndicesAndFields(
@@ -1532,11 +2356,43 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             Map.of(dataIndexName, Set.of("@timestamp", "age"))
         );
 
-        // FLS sort of applies to failure store
-        // TODO this will change with FLS handling
+        // FLS applies to failure store
         assertSearchResponseContainsExpectedIndicesAndFields(
             performRequest(user, new Search("test1::failures").toSearchRequest()),
-            Map.of(failureIndexName, Set.of("@timestamp"))
+            Map.of(failureIndexName, Set.of("error.type", "error.message"))
+        );
+
+        upsertRole(Strings.format("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "field_security": {
+                            "grant": ["@timestamp", "age"]
+                        }
+                     },
+                     {
+                        "names": ["test*"],
+                        "privileges": ["read_failure_store"],
+                        "field_security": {
+                            "grant": ["error.type", "error.message"]
+                        }
+                     }
+                 ]
+             }""", "test*"), role);
+
+        // FLS applies to regular data stream
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search(randomFrom("test1", "test1::data")).toSearchRequest()),
+            Map.of(dataIndexName, Set.of("@timestamp", "age"))
+        );
+
+        // FLS applies to failure store
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search("test1::failures").toSearchRequest()),
+            Map.of(failureIndexName, Set.of("@timestamp", "error.type", "error.message"))
         );
 
         upsertRole("""
@@ -1562,10 +2418,56 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             performRequest(user, new Search(randomFrom("test1", "test1::data")).toSearchRequest()),
             Map.of(dataIndexName, Set.of("@timestamp", "age", "name", "email"))
         );
-
         assertSearchResponseContainsExpectedIndicesAndFields(
             performRequest(user, new Search("test1::failures").toSearchRequest()),
-            Map.of(failureIndexName, Set.of("@timestamp", "document", "error"))
+            Map.of(
+                failureIndexName,
+                Set.of(
+                    "@timestamp",
+                    "document.id",
+                    "document.index",
+                    "document.source.@timestamp",
+                    "document.source.age",
+                    "document.source.email",
+                    "document.source.name",
+                    "error.message",
+                    "error.stack_trace",
+                    "error.type"
+                )
+            )
+        );
+
+        // check that direct read access to backing indices is working
+        upsertRole(Strings.format("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "field_security": {
+                            "grant": ["@timestamp", "age"]
+                        }
+                     },
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "field_security": {
+                            "grant": ["@timestamp", "document.source.name"]
+                        }
+                     }
+                 ]
+             }""", dataIndexName, failureIndexName), role);
+
+        // FLS applies to backing data index
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search(randomFrom(dataIndexName, ".ds-*")).toSearchRequest()),
+            Map.of(dataIndexName, Set.of("@timestamp", "age"))
+        );
+        // and backing failure index
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search(randomFrom(failureIndexName, ".fs-*")).toSearchRequest()),
+            Map.of(failureIndexName, Set.of("@timestamp", "document.source.name"))
         );
 
         // DLS
@@ -1617,11 +2519,38 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
              }""", role);
         // DLS does not apply because there is a section without DLS
         expectSearch(user, new Search(randomFrom("test1", "test1::data")), dataIndexDocId);
+
+        // DLS is applicable to backing failure store when granted read directly
+        upsertRole(Strings.format("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "query":{"term":{"document.source.name":{"value":"jack"}}}
+                     }
+                 ]
+             }""", failureIndexName), role);
+        expectSearch(user, new Search(randomFrom(".fs-*", failureIndexName)));
+
     }
 
     private static void expectThrows(ThrowingRunnable runnable, int statusCode) {
         var ex = expectThrows(ResponseException.class, runnable);
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
+    }
+
+    private void expectThrowsBadRequest(ThrowingRunnable runnable, Matcher<String> errorMatcher) {
+        ResponseException ex = expectThrows(ResponseException.class, runnable);
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(ex.getMessage(), errorMatcher);
+    }
+
+    private void expectThrowsUnauthorized(String user, Search search, Matcher<String> errorMatcher) {
+        ResponseException ex = expectThrows(ResponseException.class, () -> performRequestMaybeUsingApiKey(user, search.toSearchRequest()));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(ex.getMessage(), errorMatcher);
     }
 
     private void expectSearchThrows(String user, Search search, int statusCode) {
@@ -1632,24 +2561,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private void expectSearch(String user, Search search, String... docIds) throws Exception {
         expectSearch(performRequestMaybeUsingApiKey(user, search.toSearchRequest()), docIds);
         expectAsyncSearch(performRequestMaybeUsingApiKey(user, search.toAsyncSearchRequest()), docIds);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void expectEsql(String user, Search search, String... docIds) throws Exception {
-        var response = performRequestMaybeUsingApiKey(user, search.toEsqlRequest());
-        Map<String, Object> responseAsMap = entityAsMap(response);
-        List<?> columns = (List<?>) responseAsMap.get("columns");
-        List<?> values = (List<?>) responseAsMap.get("values");
-        assertEquals(1, columns.size());
-        assertEquals(docIds.length, values.size());
-        List<String> flatList = values.stream()
-            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
-            .collect(Collectors.toList());
-        assertThat(flatList, containsInAnyOrder(docIds));
-    }
-
-    private void expectEsqlThrows(String user, Search search, int statusCode) {
-        expectThrows(() -> performRequestMaybeUsingApiKey(user, search.toEsqlRequest()), statusCode);
     }
 
     private void expectSearchWithApiKey(String apiKey, Search search, String... docIds) throws Exception {
@@ -1687,39 +2598,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             assertThat(actualDocIds, containsInAnyOrder(docIds));
         } finally {
             searchResponse.decRef();
-        }
-    }
-
-    private record Search(String searchTarget, String pathParamString) {
-        Search(String searchTarget) {
-            this(searchTarget, "");
-        }
-
-        Request toSearchRequest() {
-            return new Request("POST", Strings.format("/%s/_search%s", searchTarget, pathParamString));
-        }
-
-        Request toAsyncSearchRequest() {
-            var pathParam = pathParamString.isEmpty()
-                ? "?wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT
-                : pathParamString + "&wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT;
-            return new Request("POST", Strings.format("/%s/_async_search%s", searchTarget, pathParam));
-        }
-
-        Request toEsqlRequest() throws IOException {
-            String command = "from " + searchTarget + " METADATA _id | KEEP _id";
-            if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
-                // add a (high) limit to avoid warnings on default limit
-                command += " | limit 10000000";
-            }
-            XContentBuilder json = JsonXContent.contentBuilder();
-            json.startObject();
-            json.field("query", command);
-            addRandomPragmas(json);
-            json.endObject();
-            var request = new Request("POST", "_query");
-            request.setJsonEntity(Strings.toString(json));
-            return request;
         }
     }
 
@@ -1843,6 +2721,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
+    private Response performRequestWithRunAs(String user, Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).build());
+        return adminClient().performRequest(request);
+    }
+
     private Response performRequestMaybeUsingApiKey(String user, Request request) throws IOException {
         if (randomBoolean() && apiKeys.containsKey(user)) {
             return performRequestWithApiKey(apiKeys.get(user), request);
@@ -1882,7 +2765,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     protected String createAndStoreApiKey(String username, @Nullable String roleDescriptors) throws IOException {
         assertThat("API key already registered for user: " + username, apiKeys.containsKey(username), is(false));
         apiKeys.put(username, createApiKey(username, roleDescriptors));
-        return createApiKey(username, roleDescriptors);
+        return apiKeys.get(username);
     }
 
     private String createApiKey(String username, String roleDescriptors) throws IOException {
@@ -1907,22 +2790,35 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return (String) responseAsMap.get("encoded");
     }
 
-    protected void upsertRole(String roleDescriptor, String roleName) throws IOException {
-        Request createRoleRequest = roleRequest(roleDescriptor, roleName);
-        Response createRoleResponse = adminClient().performRequest(createRoleRequest);
-        assertOK(createRoleResponse);
+    protected Response upsertRole(String roleDescriptor, String roleName) throws IOException {
+        return upsertRole(roleDescriptor, roleName, randomBoolean());
     }
 
-    protected Request roleRequest(String roleDescriptor, String roleName) {
+    protected Response upsertRole(String roleDescriptor, String roleName, boolean bulk) throws IOException {
+        Request createRoleRequest = roleRequest(roleDescriptor, roleName, bulk);
+        Response createRoleResponse = adminClient().performRequest(createRoleRequest);
+        assertOK(createRoleResponse);
+        if (bulk) {
+            Map<String, Object> flattenedResponse = Maps.flatten(responseAsMap(createRoleResponse), true, true);
+            if (flattenedResponse.containsKey("errors.count") && (int) flattenedResponse.get("errors.count") > 0) {
+                throw new AssertionError(
+                    "Failed to create role [" + roleName + "], reason: " + flattenedResponse.get("errors.details." + roleName + ".reason")
+                );
+            }
+        }
+        return createRoleResponse;
+    }
+
+    protected Request roleRequest(String roleDescriptor, String roleName, boolean bulk) {
         Request createRoleRequest;
-        if (randomBoolean()) {
-            createRoleRequest = new Request(randomFrom(HttpPut.METHOD_NAME, HttpPost.METHOD_NAME), "/_security/role/" + roleName);
-            createRoleRequest.setJsonEntity(roleDescriptor);
-        } else {
+        if (bulk) {
             createRoleRequest = new Request(HttpPost.METHOD_NAME, "/_security/role");
             createRoleRequest.setJsonEntity(org.elasticsearch.core.Strings.format("""
                 {"roles": {"%s": %s}}
                 """, roleName, roleDescriptor));
+        } else {
+            createRoleRequest = new Request(randomFrom(HttpPut.METHOD_NAME, HttpPost.METHOD_NAME), "/_security/role/" + roleName);
+            createRoleRequest.setJsonEntity(roleDescriptor);
         }
         return createRoleRequest;
     }
@@ -1941,7 +2837,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 assertThat(searchResult.keySet(), equalTo(expectedIndicesAndFields.keySet()));
                 for (String index : expectedIndicesAndFields.keySet()) {
                     Set<String> expectedFields = expectedIndicesAndFields.get(index);
-                    assertThat(searchResult.get(index).keySet(), equalTo(expectedFields));
+                    assertThat(Maps.flatten(searchResult.get(index), false, true).keySet(), equalTo(expectedFields));
                 }
             } finally {
                 response.decRef();
@@ -1972,34 +2868,23 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return new Tuple<>(indices.v1().get(0), indices.v2().get(0));
     }
 
-    static void addRandomPragmas(XContentBuilder builder) throws IOException {
-        if (Build.current().isSnapshot()) {
-            Settings pragmas = randomPragmas();
-            if (pragmas != Settings.EMPTY) {
-                builder.startObject("pragma");
-                builder.value(pragmas);
-                builder.endObject();
-            }
-        }
+    private void expectHasPrivileges(String user, String requestBody, String expectedResponse) throws IOException {
+        Request req = new Request("POST", "/_security/user/_has_privileges");
+        req.setJsonEntity(requestBody);
+        Response response = randomBoolean() ? performRequestMaybeUsingApiKey(user, req) : performRequestWithRunAs(user, req);
+        assertThat(responseAsMap(response), equalTo(mapFromJson(expectedResponse)));
     }
 
-    static Settings randomPragmas() {
-        Settings.Builder settings = Settings.builder();
-        if (randomBoolean()) {
-            settings.put("page_size", between(1, 5));
-        }
-        if (randomBoolean()) {
-            settings.put("exchange_buffer_size", between(1, 2));
-        }
-        if (randomBoolean()) {
-            settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
-        }
-        if (randomBoolean()) {
-            settings.put("enrich_max_workers", between(1, 5));
-        }
-        if (randomBoolean()) {
-            settings.put("node_level_reduction", randomBoolean());
-        }
-        return settings.build();
+    private void expectHasPrivilegesWithApiKey(String apiKey, String requestBody, String expectedResponse) throws IOException {
+        Request req = new Request("POST", "/_security/user/_has_privileges");
+        req.setJsonEntity(requestBody);
+        Response response = performRequestWithApiKey(apiKey, req);
+        assertThat(responseAsMap(response), equalTo(mapFromJson(expectedResponse)));
+    }
+
+    private static void expectThrowsSelectorsNotAllowed(ThrowingRunnable runnable) {
+        ResponseException exception = expectThrows(ResponseException.class, runnable);
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(exception.getMessage(), containsString("selectors [::] are not allowed in the index name expression"));
     }
 }

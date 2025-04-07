@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -368,6 +369,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -403,6 +406,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -442,6 +447,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -493,6 +500,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("input text"),
                 false,
@@ -550,6 +559,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             try {
                 service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of("input text"),
                     false,
@@ -622,7 +633,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 service.chunkedInfer(
                     model,
                     null,
-                    List.of("input text"),
+                    List.of(new ChunkInferenceInput("input text")),
                     new HashMap<>(),
                     InputType.INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -750,7 +761,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of("input text"),
+                List.of(new ChunkInferenceInput("input text")),
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,

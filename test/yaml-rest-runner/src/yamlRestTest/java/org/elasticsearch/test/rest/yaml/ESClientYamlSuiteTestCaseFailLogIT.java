@@ -13,11 +13,16 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
 
     public ESClientYamlSuiteTestCaseFailLogIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -64,5 +69,10 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
 
             mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

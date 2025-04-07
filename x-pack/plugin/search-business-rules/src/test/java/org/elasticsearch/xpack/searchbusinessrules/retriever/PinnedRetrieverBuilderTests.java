@@ -67,7 +67,7 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
             parser,
             new RetrieverParserContext(
                 new SearchUsage(),
-                nf -> false
+                nf -> true
             )
         );
     }

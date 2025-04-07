@@ -15,7 +15,6 @@ import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
-import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
@@ -103,6 +102,9 @@ import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
+import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
+import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CA_KEY_USAGE;
+import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE;
 
 /**
  * Configures a new cluster node, by appending to the elasticsearch.yml, so that it forms a single node cluster with
@@ -444,7 +446,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     true,
                     HTTP_CA_CERTIFICATE_DAYS,
                     SIGNATURE_ALGORITHM,
-                    new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign),
+                    buildKeyUsage(DEFAULT_CA_KEY_USAGE),
                     Set.of()
                 );
             } catch (Throwable t) {
@@ -471,7 +473,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 false,
                 HTTP_CERTIFICATE_DAYS,
                 SIGNATURE_ALGORITHM,
-                new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment),
+                buildKeyUsage(DEFAULT_CERT_KEY_USAGE),
                 Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
             );
 

@@ -54,8 +54,10 @@ import java.security.cert.X509Certificate;
 import java.sql.Date;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -73,6 +75,66 @@ public class CertGenUtils {
 
     private static final int SERIAL_BIT_LENGTH = 20 * 8;
     private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
+
+    /**
+     * The mapping of key usage names to their corresponding integer values as defined in {@code KeyUsage} class.
+     */
+    public static final Map<String, Integer> KEY_USAGE_MAPPINGS = Map.of(
+        "digitalSignature",
+        KeyUsage.digitalSignature,
+        "nonRepudiation",
+        KeyUsage.nonRepudiation,
+        "keyEncipherment",
+        KeyUsage.keyEncipherment,
+        "dataEncipherment",
+        KeyUsage.dataEncipherment,
+        "keyAgreement",
+        KeyUsage.keyAgreement,
+        "keyCertSign",
+        KeyUsage.keyCertSign,
+        "cRLSign",
+        KeyUsage.cRLSign,
+        "encipherOnly",
+        KeyUsage.encipherOnly,
+        "decipherOnly",
+        KeyUsage.decipherOnly
+    );
+
+    /**
+     * The mapping of key usage names to their corresponding bit index as defined in {@code KeyUsage} class:
+     *
+     * <ul>
+     * <li>digitalSignature        (0)</li>
+     * <li>nonRepudiation          (1)</li>
+     * <li>keyEncipherment         (2)</li>
+     * <li>dataEncipherment        (3)</li>
+     * <li>keyAgreement            (4)</li>
+     * <li>keyCertSign             (5)</li>
+     * <li>cRLSign                 (6)</li>
+     * <li>encipherOnly            (7)</li>
+     * <li>decipherOnly            (8)</li>
+     * </ul>
+     */
+    public static final Map<String, Integer> KEY_USAGE_BITS = Map.of(
+        "digitalSignature",
+        0,
+        "nonRepudiation",
+        1,
+        "keyEncipherment",
+        2,
+        "dataEncipherment",
+        3,
+        "keyAgreement",
+        4,
+        "keyCertSign",
+        5,
+        "cRLSign",
+        6,
+        "encipherOnly",
+        7,
+        "decipherOnly",
+        8
+    );
 
     private CertGenUtils() {}
 
@@ -402,5 +464,25 @@ public class CertGenUtils {
      */
     public static String buildDnFromDomain(String domain) {
         return "DC=" + domain.replace(".", ",DC=");
+    }
+
+    public static KeyUsage buildKeyUsage(Collection<String> keyUsages) {
+        if (keyUsages == null || keyUsages.isEmpty()) {
+            return null;
+        }
+
+        int usageBits = 0;
+        for (String keyUsage : keyUsages) {
+            Integer keyUsageValue = KEY_USAGE_MAPPINGS.get(keyUsage);
+            if (keyUsageValue == null) {
+                throw new IllegalArgumentException("Unknown keyUsage: " + keyUsage);
+            }
+            usageBits |= keyUsageValue;
+        }
+        return new KeyUsage(usageBits);
+    }
+
+    public static boolean isValidKeyUsage(String keyUsage) {
+        return KEY_USAGE_MAPPINGS.containsKey(keyUsage);
     }
 }

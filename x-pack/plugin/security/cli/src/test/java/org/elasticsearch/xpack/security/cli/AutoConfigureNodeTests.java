@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionParser;
 
-import com.unboundid.util.ssl.cert.KeyUsageExtension;
-
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.elasticsearch.cli.MockTerminal;
@@ -39,7 +37,7 @@ import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.AUTO_CONFIG
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.AUTO_CONFIG_TRANSPORT_ALT_DN;
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.anyRemoteHostNodeAddress;
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.removePreviousAutoconfiguration;
-import static org.hamcrest.Matchers.contains;
+import static org.elasticsearch.xpack.security.cli.CertGenUtilsTests.assertExpectedKeyUsage;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -152,7 +150,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
         }
     }
 
-    public void testGeneratedHTTPCertificateSANs() throws Exception {
+    public void testGeneratedHTTPCertificateSANsAndKeyUsage() throws Exception {
         // test no publish settings
         Path tempDir = createTempDir();
         try {
@@ -296,18 +294,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
         assertEquals("Only one extended key usage expected for HTTP certificate.", 1, extendedKeyUsage.size());
         String expectedServerAuthUsage = KeyPurposeId.id_kp_serverAuth.toASN1Primitive().toString();
         assertEquals("Expected serverAuth extended key usage.", expectedServerAuthUsage, extendedKeyUsage.get(0));
-        final boolean[] keyUsage = httpCertificate.getKeyUsage();
-        assertThat("Expected 9 bits for key usage.", keyUsage.length, equalTo(9));
-        for (int i = 0; i < keyUsage.length; i++) {
-            if (i == 0 /* digitalSignature */ || i == 2 /* keyEncipherment */) {
-                assertThat("keyUsage bit [" + i + "] expected to be set", keyUsage[i], equalTo(true));
-            } else {
-                assertThat("keyUsage bit [" + i + "] not expected to be set", keyUsage[i], equalTo(false));
-            }
-        }
-        // key usage must be marked as critical
-        assertThat(httpCertificate.getCriticalExtensionOIDs(), contains(KeyUsageExtension.KEY_USAGE_OID.toString()));
-
+        assertExpectedKeyUsage(httpCertificate, HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE);
     }
 
     private X509Certificate runAutoConfigAndReturnHTTPCertificate(Path configDir, Settings settings) throws Exception {

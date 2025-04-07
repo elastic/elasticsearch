@@ -372,7 +372,7 @@ class S3Service extends AbstractLifecycleComponent {
         final AwsCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
             if (webIdentityTokenCredentialsProvider.isActive()) {
-                logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials"); // TODO: fix comment?
+                logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials");
                 return new PrivilegedAwsCredentialsProvider(
                     // Wrap the credential providers in ErrorLoggingCredentialsProvider so that we get log info if/when the STS
                     // (in CustomWebIdentityTokenCredentialsProvider) is unavailable to the ES server, before falling back to a standard
@@ -381,9 +381,6 @@ class S3Service extends AbstractLifecycleComponent {
                         // If credentials are refreshed, we want to look around for different forms of credentials again.
                         .reuseLastProviderEnabled(false)
                         .addCredentialsProvider(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER))
-                        // TODO NOMERGE: the V1 equivalent would use ContainerCredentialsProvider & InstanceProfileCredentialsProvider.
-                        // However, is there any reason to restrict credential sources to those providers? DefaultCredentialsProvider
-                        // provides those sources and several more.
                         .addCredentialsProvider(new ErrorLoggingCredentialsProvider(DefaultCredentialsProvider.create(), LOGGER))
                         .build()
                 );

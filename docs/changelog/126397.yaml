@@ -1,0 +1,6 @@
+pr: 126397
+summary: "ESQL: Filter `EmptyAttribute` in merging output expressions"
+area: ES|QL
+type: bug
+issues:
+ - 126392

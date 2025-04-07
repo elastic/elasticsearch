@@ -2216,15 +2216,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (engineMutex) {
             assert getEngineOrNull() == null : "engine is running";
             verifyNotClosed();
-            engineResetLock.readLock().lock(); // prevent engine resets while closing
-            try {
-                // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-                final Engine newEngine = createEngine(config);
-                onNewEngine(newEngine);
-                getAndSetCurrentEngine(newEngine);
-            } finally {
-                engineResetLock.readLock().unlock();
-            }
+            // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
+            final Engine newEngine = createEngine(config);
+            onNewEngine(newEngine);
+            getAndSetCurrentEngine(newEngine);
             // We set active because we are now writing operations to the engine; this way,
             // we can flush if we go idle after some time and become inactive.
             active.set(true);
@@ -2306,12 +2301,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertNoEngineResetLock();
         synchronized (engineMutex) {
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
-            engineResetLock.readLock().lock(); // prevent engine resets while closing
-            try {
-                IOUtils.close(getAndSetCurrentEngine(null));
-            } finally {
-                engineResetLock.readLock().unlock();
-            }
+            IOUtils.close(getAndSetCurrentEngine(null));
             resetRecoveryStage();
         }
     }
@@ -3380,7 +3370,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private Engine getAndSetCurrentEngine(Engine newEngine) {
         assert Thread.holdsLock(engineMutex);
-        assert engineResetLock.isReadLockedByCurrentThread() || engineResetLock.isWriteLockedByCurrentThread() /* for resets */;
         return currentEngine.getAndSet(newEngine);
     }
 
@@ -4545,7 +4534,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     assert assertNoEngineResetLock();
                     synchronized (engineMutex) {
                         newEngine = newEngineReference.get();
-                        if (newEngine == getCurrentEngine(true)) {
+                        if (newEngine == getEngineOrNull()) {
                             // we successfully installed the new engine so do not close it.
                             newEngine = null;
                         }
@@ -4569,12 +4558,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         newEngineReference.get().refresh("reset_engine");
         synchronized (engineMutex) {
             verifyNotClosed();
-            engineResetLock.readLock().lock();
-            try {
-                IOUtils.close(getAndSetCurrentEngine(newEngineReference.get()));
-            } finally {
-                engineResetLock.readLock().unlock();
-            }
+            IOUtils.close(getAndSetCurrentEngine(newEngineReference.get()));
             // We set active because we are now writing operations to the engine; this way,
             // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
             active.set(true);

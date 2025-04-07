@@ -25,7 +25,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 
@@ -37,10 +36,9 @@ public class ToCartesianPoint extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
+        Map.entry(CARTESIAN_POINT, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToCartesianPointFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
+        Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(

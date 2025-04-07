@@ -437,7 +437,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> query,
             null,
             maxBucket,
-            () -> buildSubSearchContext(indexSettings, searchExecutionContext, bitsetFilterCache),
+            () -> buildSubSearchContext(
+                indexSettings,
+                searchExecutionContext,
+                bitsetFilterCache,
+                breakerService.getBreaker(CircuitBreaker.REQUEST)
+            ),
             bitsetFilterCache,
             randomInt(),
             () -> 0L,
@@ -471,7 +476,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private SubSearchContext buildSubSearchContext(
         IndexSettings indexSettings,
         SearchExecutionContext searchExecutionContext,
-        BitsetFilterCache bitsetFilterCache
+        BitsetFilterCache bitsetFilterCache,
+        CircuitBreaker breaker
     ) {
         SearchContext ctx = mock(SearchContext.class);
         try {
@@ -488,7 +494,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             throw new RuntimeException(e);
         }
         when(ctx.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
-
+        when(ctx.circuitBreaker()).thenReturn(breaker);
+        when(ctx.memAccountingBufferSize()).thenReturn(1024 * 1024L);
         /*
          * Use a QueryShardContext that doesn't contain nested documents so we
          * don't try to fetch them which would require mocking a whole menagerie
@@ -678,6 +685,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     }
                     assertEquals(shouldBeCached, context.isCacheable());
                     List<InternalAggregation> internalAggregations = List.of(a.buildTopLevel());
+                    aggTestConfig.checkAggregator().accept(a);
                     assertRoundTrip(internalAggregations);
                     internalAggs.add(InternalAggregations.from(internalAggregations));
                 } finally {
@@ -1696,11 +1704,23 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         boolean useLogDocMergePolicy,
         boolean testReductionCancellation,
+        Consumer<Aggregator> checkAggregator,
         MappedFieldType... fieldTypes
     ) {
 
         public AggTestConfig(AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, randomBoolean(), false, true, fieldTypes);
+            this(
+                new MatchAllDocsQuery(),
+                builder,
+                DEFAULT_MAX_BUCKETS,
+                randomBoolean(),
+                true,
+                randomBoolean(),
+                false,
+                true,
+                a -> {},
+                fieldTypes
+            );
         }
 
         public AggTestConfig withQuery(Query query) {
@@ -1713,6 +1733,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1727,6 +1748,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1741,6 +1763,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1755,6 +1778,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1769,6 +1793,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1783,6 +1808,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 true,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1797,6 +1823,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 false,
+                checkAggregator,
+                fieldTypes
+            );
+        }
+
+        public AggTestConfig withCheckAggregator(Consumer<Aggregator> checkAggregator) {
+            return new AggTestConfig(
+                query,
+                builder,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                incrementalReduce,
+                useLogDocMergePolicy,
+                testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }

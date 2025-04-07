@@ -1,5 +1,0 @@
-pr: 113462
-summary: Suppress merge-on-recovery for older indices
-area: CRUD
-type: enhancement
-issues: []

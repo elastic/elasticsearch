@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -117,7 +118,7 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
         }
 
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
         final Allocation enable;
         final boolean usedIndexSetting;
         if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetadata.getSettings())) {
@@ -146,6 +147,11 @@ public class EnableAllocationDecider extends AllocationDecider {
         };
     }
 
+    /**
+     * Rebalancing is limited by the {@link Rebalance} value set on the cluster setting {@link #CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING}.
+     * We might allow movement only of primary shards, or replica shards, or none, or all.
+     * This method only concerns itself with whether {@link Rebalance#NONE} is set: rebalancing is allowed for all other setting values.
+     */
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
@@ -157,10 +163,12 @@ public class EnableAllocationDecider extends AllocationDecider {
         }
 
         if (enableRebalance == Rebalance.NONE) {
-            for (IndexMetadata indexMetadata : allocation.metadata()) {
-                if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetadata.getSettings())
-                    && INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexMetadata.getSettings()) != Rebalance.NONE) {
-                    return allocation.decision(Decision.YES, NAME, "rebalancing is permitted on one or more indices");
+            for (ProjectMetadata project : allocation.metadata().projects().values()) {
+                for (IndexMetadata indexMetadata : project) {
+                    if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetadata.getSettings())
+                        && INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexMetadata.getSettings()) != Rebalance.NONE) {
+                        return allocation.decision(Decision.YES, NAME, "rebalancing is permitted on one or more indices");
+                    }
                 }
             }
             return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to %s", setting(enableRebalance, false));
@@ -175,7 +183,7 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of rebalancing");
         }
 
-        Settings indexSettings = allocation.metadata().getIndexSafe(shardRouting.index()).getSettings();
+        Settings indexSettings = allocation.metadata().indexMetadata(shardRouting.index()).getSettings();
         final Rebalance enable;
         final boolean usedIndexSetting;
         if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexSettings)) {
@@ -243,7 +251,7 @@ public class EnableAllocationDecider extends AllocationDecider {
     }
 
     /**
-     * Rebalance values or rather their string representation to be used used with
+     * Rebalance values or rather their string representation to be used with
      * {@link EnableAllocationDecider#CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} /
      * {@link EnableAllocationDecider#INDEX_ROUTING_REBALANCE_ENABLE_SETTING}
      * via cluster / index settings.

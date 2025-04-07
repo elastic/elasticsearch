@@ -60,8 +60,8 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
-        var indexTemplates = clusterState.metadata().templatesV2().entrySet();
-        var componentTemplates = clusterState.metadata().componentTemplates().entrySet();
+        var indexTemplates = clusterState.metadata().getProject().templatesV2().entrySet();
+        var componentTemplates = clusterState.metadata().getProject().componentTemplates().entrySet();
         if (indexTemplates.isEmpty() && componentTemplates.isEmpty()) {
             return Map.of();
         }

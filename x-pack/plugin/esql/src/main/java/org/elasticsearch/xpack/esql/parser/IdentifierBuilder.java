@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -19,10 +20,13 @@ import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
+import static org.elasticsearch.transport.RemoteClusterAware.splitIndexName;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.EXCLUSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -72,32 +76,53 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         }
     }
 
+    @Override
+    public String visitSelectorString(EsqlBaseParser.SelectorStringContext ctx) {
+        if (ctx == null) {
+            return null;
+        } else if (ctx.UNQUOTED_SOURCE() != null) {
+            return ctx.UNQUOTED_SOURCE().getText();
+        } else {
+            return unquote(ctx.QUOTED_STRING().getText());
+        }
+    }
+
     public String visitIndexPattern(List<EsqlBaseParser.IndexPatternContext> ctx) {
         List<String> patterns = new ArrayList<>(ctx.size());
         Holder<Boolean> hasSeenStar = new Holder<>(false);
         ctx.forEach(c -> {
             String indexPattern = visitIndexString(c.indexString());
             String clusterString = visitClusterString(c.clusterString());
-            // At this point, we run 2 kinds of checks. The first check is to ensure that this string adheres to the valid
-            // pattern format. The second check is to ensure that the parts of this string, i.e. the remote name, cluster name, and
-            // other aspects of them are valid. There's no point in running the second check if the first one fails.
-            // Should clusterString be non-null, validateClusterString() handles the required validation. So for now, look only at
-            // the indexPattern.
-            var maxSeparators = clusterString == null ? 1 : 0;
-            if (patternExceedsMaxIndexSeparators(indexPattern, maxSeparators)) {
-                throw new ParsingException(source(c), "Unexpected index separator in index pattern");
-            }
-            // skip validating index on remote cluster, because the behavior of remote cluster is not consistent with local cluster
-            // For example, invalid#index is an invalid index name, however FROM *:invalid#index does not return an error
-            if (clusterString == null) {
-                hasSeenStar.set(indexPattern.contains(WILDCARD) || hasSeenStar.get());
-                validateIndexPattern(indexPattern, c, hasSeenStar.get());
-            } else {
-                validateClusterString(clusterString, c);
-            }
-            patterns.add(clusterString != null ? clusterString + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern);
+            String selectorString = visitSelectorString(c.selectorString());
+
+            hasSeenStar.set(indexPattern.contains(WILDCARD) || hasSeenStar.get());
+            validateClusterAndIndexPatterns(indexPattern, c, hasSeenStar.get(), clusterString, selectorString);
+            patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
         });
         return Strings.collectionToDelimitedString(patterns, ",");
+    }
+
+    private static void throwOnMixingSelectorWithCluster(String indexPattern, EsqlBaseParser.IndexPatternContext c) {
+        InvalidIndexNameException ie = new InvalidIndexNameException(
+            indexPattern,
+            "Selectors are not yet supported on remote cluster patterns"
+        );
+        throw new ParsingException(ie, source(c), ie.getMessage());
+    }
+
+    private static String reassembleIndexName(String clusterString, String indexPattern, String selectorString) {
+        if (clusterString == null && selectorString == null) {
+            return indexPattern;
+        }
+        StringBuilder expression = new StringBuilder();
+        if (clusterString != null) {
+            expression.append(clusterString).append(REMOTE_CLUSTER_INDEX_SEPARATOR);
+        }
+        expression.append(indexPattern);
+        if (selectorString != null) {
+            expression.append(SELECTOR_SEPARATOR).append(selectorString);
+        }
+        return expression.toString();
     }
 
     protected static void validateClusterString(String clusterString, EsqlBaseParser.IndexPatternContext ctx) {
@@ -106,13 +131,103 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         }
     }
 
-    private static void validateIndexPattern(String indexPattern, EsqlBaseParser.IndexPatternContext ctx, boolean hasSeenStar) {
+    private static void validateClusterAndIndexPatterns(
+        String indexPattern,
+        EsqlBaseParser.IndexPatternContext ctx,
+        boolean hasSeenStar,
+        String clusterString,
+        String selectorString
+    ) {
         // multiple index names can be in the same double quote, e.g. indexPattern = "idx1, *, -idx2"
-        String[] indices = indexPattern.split(",");
+        String[] patterns = indexPattern.split(",");
+        boolean isFirstPattern = true;
+
+        for (String pattern : patterns) {
+            pattern = pattern.strip();
+            String[] indices = new String[] { pattern };
+
+            /*
+             * Just because there was no clusterString before this index pattern does not mean that the indices
+             * are local indices. Patterns can be clubbed with remote names within quotes such as:
+             * "remote_one:remote_index,local_index". In this case, clusterString will be null.
+             */
+            if (isRemoteIndexName(pattern)) {
+                /*
+                 * Handle scenarios like remote_one:"index1,remote_two:index2". The clusterString here is
+                 * remote_one and is associated with index1 and not index2.
+                 */
+                if (clusterString != null && isFirstPattern) {
+                    throw new ParsingException(
+                        source(ctx),
+                        "Index pattern [{}] contains a cluster alias despite specifying one [{}]",
+                        pattern,
+                        clusterString
+                    );
+                }
+
+                // {cluster_alias, indexName}
+                String[] clusterAliasAndIndex = splitIndexName(pattern);
+                clusterString = clusterAliasAndIndex[0];
+                indices[0] = clusterAliasAndIndex[1];
+
+                /*
+                 * What if the pattern is index1|index2? We cannot split at the pipe char blindly as that'd mess with
+                 * logstash-like examples. We only split this way if an index is associated with a remote cluster.
+                 */
+                indices = Arrays.stream(indices)
+                    .map(IdentifierBuilder::breakPatternIntoIndices)
+                    .flatMap(Arrays::stream)
+                    .toArray(String[]::new);
+            } else if (clusterString != null) {
+                // Cluster alias was prefixed to the pattern and did not occur within the pattern.
+                indices = Arrays.stream(indices)
+                    .map(IdentifierBuilder::breakPatternIntoIndices)
+                    .flatMap(Arrays::stream)
+                    .toArray(String[]::new);
+            }
+
+            if (clusterString != null) {
+                if (selectorString != null) {
+                    throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, indexPattern, selectorString), ctx);
+                }
+                validateClusterString(clusterString, ctx);
+            }
+
+            if (selectorString != null) {
+                try {
+                    // Ensures that the selector provided is one of the valid kinds
+                    IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexPattern, selectorString);
+                } catch (InvalidIndexNameException e) {
+                    throw new ParsingException(e, source(ctx), e.getMessage());
+                }
+            }
+
+            validateIndicesForCluster(clusterString, indices, ctx, hasSeenStar);
+            isFirstPattern = false;
+        }
+    }
+
+    private static void validateIndicesForCluster(
+        String clusterString,
+        String[] indices,
+        EsqlBaseParser.IndexPatternContext ctx,
+        boolean hasSeenStar
+    ) {
         boolean hasExclusion = false;
         for (String index : indices) {
-            if (isRemoteIndexName(index)) { // skip the validation if there is remote cluster
-                continue;
+            // Strip spaces off first because validation checks are not written to handle them
+            index = index.strip();
+
+            try {
+                Tuple<String, String> splitPattern = IndexNameExpressionResolver.splitSelectorExpression(index);
+                if (splitPattern.v2() != null && clusterString != null) {
+                    throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, splitPattern.v1(), splitPattern.v2()), ctx);
+                }
+
+                index = splitPattern.v1();
+            } catch (InvalidIndexNameException e) {
+                // throws exception if the selector expression is invalid. Selector resolution does not complain about exclusions
+                throw new ParsingException(e, source(ctx), e.getMessage());
             }
             hasSeenStar = index.contains(WILDCARD) || hasSeenStar;
             index = index.replace(WILDCARD, "").strip();
@@ -141,26 +256,41 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 }
                 throw new ParsingException(e, source(ctx), e.getMessage());
             }
+
         }
+    }
+
+    private static String[] breakPatternIntoIndices(String pattern) {
+        if (pattern.codePoints().anyMatch(ch -> ch == ',')) {
+            throw new IllegalArgumentException("Found grouped index patterns, expecting a single pattern");
+        }
+
+        // Fast path: if there's no pipe char, no point in attempting to break down the string.
+        if (pattern.contains("|") == false) {
+            return new String[] { pattern };
+        }
+
+        var indices = new ArrayList<String>();
+        var sb = new StringBuilder();
+        var inDateMathExpr = false;
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == '<') {
+                inDateMathExpr = true;
+                sb.append(c);
+            } else if (c == '>') {
+                inDateMathExpr = false;
+                sb.append(c);
+            } else if (c == '|' && inDateMathExpr == false) {
+                indices.add(sb.toString());
+                sb.setLength(0);
+            }
+        }
+
+        return indices.toArray(new String[0]);
     }
 
     private static String removeExclusion(String indexPattern) {
         return indexPattern.charAt(0) == EXCLUSION.charAt(0) ? indexPattern.substring(1) : indexPattern;
-    }
-
-    private static boolean patternExceedsMaxIndexSeparators(String pattern, int maxAllowedSeparators) {
-        int seperatorsCount = 0;
-        boolean inDateTime = false;
-        for (char ch : pattern.toCharArray()) {
-            if (ch == '<') {
-                inDateTime = true;
-            } else if (ch == '>') {
-                inDateTime = false;
-            } else if (ch == REMOTE_CLUSTER_INDEX_SEPARATOR && inDateTime == false) {
-                seperatorsCount++;
-            }
-        }
-
-        return seperatorsCount > maxAllowedSeparators;
     }
 }

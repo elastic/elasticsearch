@@ -15,6 +15,6 @@ dependencies {
 boolean literalUsername = buildParams.random.nextBoolean()
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   systemProperty 'test.literalUsername', literalUsername
 }

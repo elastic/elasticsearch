@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.DriverProfile;
@@ -32,8 +31,8 @@ final class DataNodeComputeResponse extends TransportResponse {
     }
 
     DataNodeComputeResponse(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE)) {
-            this.profiles = in.readCollectionAsImmutableList(DriverProfile::new);
+        if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
+            this.profiles = in.readCollectionAsImmutableList(DriverProfile::readFrom);
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
         } else {
             this.profiles = Objects.requireNonNullElse(new ComputeResponse(in).getProfiles(), List.of());
@@ -43,7 +42,7 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE)) {
+        if (DataNodeComputeHandler.supportShardLevelRetryFailure(out.getTransportVersion())) {
             out.writeCollection(profiles, (o, v) -> v.writeTo(o));
             out.writeMap(shardLevelFailures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
         } else {

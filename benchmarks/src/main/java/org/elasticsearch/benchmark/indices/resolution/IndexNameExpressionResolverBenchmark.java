@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -84,7 +85,11 @@ public class IndexNameExpressionResolverBenchmark {
         }
         int mid = indices.length / 2;
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
-        resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(List.of()));
+        resolver = new IndexNameExpressionResolver(
+            new ThreadContext(Settings.EMPTY),
+            new SystemIndices(List.of()),
+            DefaultProjectResolver.INSTANCE
+        );
         indexListRequest = new Request(IndicesOptions.lenientExpandOpenHidden(), indices);
         starRequest = new Request(IndicesOptions.lenientExpandOpenHidden(), "*");
         String[] mixed = indices.clone();

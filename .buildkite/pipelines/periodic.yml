@@ -306,8 +306,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.16.5 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.16.5#bwcTest
+      - label: 8.16.7 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.16.7#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -316,7 +316,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.16.5
+          BWC_VERSION: 8.16.7
         retry:
           automatic:
             - exit_status: "-1"
@@ -325,8 +325,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.17.3 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.17.3#bwcTest
+      - label: 8.17.5 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.17.5#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -335,7 +335,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.17.3
+          BWC_VERSION: 8.17.5
         retry:
           automatic:
             - exit_status: "-1"
@@ -486,7 +486,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.16.5", "8.17.3", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
+            BWC_VERSION: ["8.16.7", "8.17.5", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -533,7 +533,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk23
-            BWC_VERSION: ["8.16.5", "8.17.3", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
+            BWC_VERSION: ["8.16.7", "8.17.5", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -637,7 +637,7 @@ steps:
             ES_VERSION:
               - "9.0.0"
             ES_COMMIT:
-              - "b2cc9d9b8f00ee621f93ddca07ea9c671aab1578" # update to match last commit before lucene bump
+              - "10352e57d85505984582616e1e38530d3ec6ca59" # update to match last commit before lucene bump maintained from combat-lucene-10-0-0 branch
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

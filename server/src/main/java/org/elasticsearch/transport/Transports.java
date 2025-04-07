@@ -21,7 +21,8 @@ public enum Transports {
         Task.TRACE_ID,
         Task.TRACE_PARENT,
         Task.X_OPAQUE_ID_HTTP_HEADER,
-        Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
+        Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER,
+        Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER
     );
 
     /** threads whose name is prefixed by this string will be considered network threads, even though they aren't */

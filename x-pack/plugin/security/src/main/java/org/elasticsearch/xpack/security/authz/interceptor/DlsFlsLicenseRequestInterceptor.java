@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -40,11 +40,10 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
     }
 
     @Override
-    public void intercept(
+    public SubscribableListener<Void> intercept(
         AuthorizationEngine.RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
-        AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener
+        AuthorizationInfo authorizationInfo
     ) {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             final Role role = RBACEngine.maybeGetRBACEngineRole(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
@@ -96,13 +95,12 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                                 "es.indices_with_dls_or_fls",
                                 indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity()
                             );
-                            listener.onFailure(licenseException);
-                            return;
+                            return SubscribableListener.newFailed(licenseException);
                         }
                     }
                 }
             }
         }
-        listener.onResponse(null);
+        return SubscribableListener.nullSuccess();
     }
 }

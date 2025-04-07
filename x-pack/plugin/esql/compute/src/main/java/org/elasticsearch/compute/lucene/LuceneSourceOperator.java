@@ -11,15 +11,14 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
 
@@ -37,6 +36,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     private int currentPagePos = 0;
     private int remainingDocs;
+    private final Limiter limiter;
 
     private IntVector.Builder docsBuilder;
     private DoubleVector.Builder scoreBuilder;
@@ -46,6 +46,7 @@ public class LuceneSourceOperator extends LuceneOperator {
     public static class Factory extends LuceneOperator.Factory {
 
         private final int maxPageSize;
+        private final Limiter limiter;
 
         public Factory(
             List<? extends ShardContext> contexts,
@@ -54,15 +55,24 @@ public class LuceneSourceOperator extends LuceneOperator {
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            boolean scoring
+            boolean needsScore
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, scoring ? COMPLETE : COMPLETE_NO_SCORES);
+            super(
+                contexts,
+                weightFunction(queryFunction, needsScore ? COMPLETE : COMPLETE_NO_SCORES),
+                dataPartitioning,
+                taskConcurrency,
+                limit,
+                needsScore
+            );
             this.maxPageSize = maxPageSize;
+            // TODO: use a single limiter for multiple stage execution
+            this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit, scoreMode);
+            return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
         }
 
         public int maxPageSize() {
@@ -77,22 +87,30 @@ public class LuceneSourceOperator extends LuceneOperator {
                 + maxPageSize
                 + ", limit = "
                 + limit
-                + ", scoreMode = "
-                + scoreMode
+                + ", needsScore = "
+                + needsScore
                 + "]";
         }
     }
 
     @SuppressWarnings("this-escape")
-    public LuceneSourceOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue, int limit, ScoreMode scoreMode) {
+    public LuceneSourceOperator(
+        BlockFactory blockFactory,
+        int maxPageSize,
+        LuceneSliceQueue sliceQueue,
+        int limit,
+        Limiter limiter,
+        boolean needsScore
+    ) {
         super(blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
+        this.limiter = limiter;
         int estimatedSize = Math.min(limit, maxPageSize);
         boolean success = false;
         try {
             this.docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
-            if (scoreMode.needsScores()) {
+            if (needsScore) {
                 scoreBuilder = blockFactory.newDoubleVectorBuilder(estimatedSize);
                 this.leafCollector = new ScoringCollector();
             } else {
@@ -140,7 +158,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public boolean isFinished() {
-        return doneCollecting;
+        return doneCollecting || limiter.remaining() == 0;
     }
 
     @Override
@@ -160,6 +178,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             if (scorer == null) {
                 return null;
             }
+            final int remainingDocsStart = remainingDocs = limiter.remaining();
             try {
                 scorer.scoreNextRange(
                     leafCollector,
@@ -171,28 +190,32 @@ public class LuceneSourceOperator extends LuceneOperator {
                 );
             } catch (CollectionTerminatedException ex) {
                 // The leaf collector terminated the execution
+                doneCollecting = true;
                 scorer.markAsDone();
             }
+            final int collectedDocs = remainingDocsStart - remainingDocs;
+            final int discardedDocs = collectedDocs - limiter.tryAccumulateHits(collectedDocs);
             Page page = null;
-            if (currentPagePos >= minPageSize || remainingDocs <= 0 || scorer.isDone()) {
-                IntBlock shard = null;
-                IntBlock leaf = null;
+            if (currentPagePos >= minPageSize || scorer.isDone() || (remainingDocs = limiter.remaining()) == 0) {
+                IntVector shard = null;
+                IntVector leaf = null;
                 IntVector docs = null;
                 DoubleVector scores = null;
                 DocBlock docBlock = null;
+                currentPagePos -= discardedDocs;
                 try {
-                    shard = blockFactory.newConstantIntBlockWith(scorer.shardContext().index(), currentPagePos);
-                    leaf = blockFactory.newConstantIntBlockWith(scorer.leafReaderContext().ord, currentPagePos);
-                    docs = docsBuilder.build();
+                    shard = blockFactory.newConstantIntVector(scorer.shardContext().index(), currentPagePos);
+                    leaf = blockFactory.newConstantIntVector(scorer.leafReaderContext().ord, currentPagePos);
+                    docs = buildDocsVector(currentPagePos);
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                    docBlock = new DocVector(shard.asVector(), leaf.asVector(), docs, true).asBlock();
+                    docBlock = new DocVector(shard, leaf, docs, true).asBlock();
                     shard = null;
                     leaf = null;
                     docs = null;
                     if (scoreBuilder == null) {
                         page = new Page(currentPagePos, docBlock);
                     } else {
-                        scores = scoreBuilder.build();
+                        scores = buildScoresVector(currentPagePos);
                         scoreBuilder = blockFactory.newDoubleVectorBuilder(Math.min(remainingDocs, maxPageSize));
                         page = new Page(currentPagePos, docBlock, scores.asBlock());
                     }
@@ -206,6 +229,38 @@ public class LuceneSourceOperator extends LuceneOperator {
             return page;
         } finally {
             processingNanos += System.nanoTime() - start;
+        }
+    }
+
+    private IntVector buildDocsVector(int upToPositions) {
+        final IntVector docs = docsBuilder.build();
+        assert docs.getPositionCount() >= upToPositions : docs.getPositionCount() + " < " + upToPositions;
+        if (docs.getPositionCount() == upToPositions) {
+            return docs;
+        }
+        try (docs) {
+            try (var slice = blockFactory.newIntVectorFixedBuilder(upToPositions)) {
+                for (int i = 0; i < upToPositions; i++) {
+                    slice.appendInt(docs.getInt(i));
+                }
+                return slice.build();
+            }
+        }
+    }
+
+    private DoubleVector buildScoresVector(int upToPositions) {
+        final DoubleVector scores = scoreBuilder.build();
+        assert scores.getPositionCount() >= upToPositions : scores.getPositionCount() + " < " + upToPositions;
+        if (scores.getPositionCount() == upToPositions) {
+            return scores;
+        }
+        try (scores) {
+            try (var slice = blockFactory.newDoubleVectorBuilder(upToPositions)) {
+                for (int i = 0; i < upToPositions; i++) {
+                    slice.appendDouble(scores.getDouble(i));
+                }
+                return slice.build();
+            }
         }
     }
 

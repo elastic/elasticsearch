@@ -63,13 +63,18 @@ import org.elasticsearch.compute.operator.ShuffleDocsOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -123,7 +128,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         }
                     });
                     DriverContext driverContext = driverContext();
-                    drivers.add(new Driver("test", driverContext, factory.get(driverContext), List.of(), docCollector, () -> {}));
+                    drivers.add(TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), docCollector));
                 }
                 OperatorTestCase.runDriver(drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
@@ -192,7 +197,7 @@ public class OperatorTests extends MapperServiceTestCase {
                 });
                 operators.add(
                     new OrdinalsGroupingOperator(
-                        shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null),
+                        shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(mockBlContext()),
                         List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
                         ElementType.BYTES_REF,
                         0,
@@ -214,8 +219,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         driverContext
                     )
                 );
-                Driver driver = new Driver(
-                    "test",
+                Driver driver = TestDriverFactory.create(
                     driverContext,
                     luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
                     operators,
@@ -228,8 +232,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             actualCounts.put(BytesRef.deepCopyOf(spare), counts.getLong(i));
                         }
                         page.releaseBlocks();
-                    }),
-                    () -> {}
+                    })
                 );
                 OperatorTestCase.runDriver(driver);
                 assertThat(actualCounts, equalTo(expectedCounts));
@@ -248,8 +251,7 @@ public class OperatorTests extends MapperServiceTestCase {
         var results = new ArrayList<Long>();
         DriverContext driverContext = driverContext();
         try (
-            var driver = new Driver(
-                "test",
+            var driver = TestDriverFactory.create(
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                 List.of((new LimitOperator.Factory(limit)).get(driverContext)),
@@ -258,8 +260,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     for (int i = 0; i < page.getPositionCount(); i++) {
                         results.add(block.getLong(i));
                     }
-                }),
-                () -> {}
+                })
             )
         ) {
             OperatorTestCase.runDriver(driver);
@@ -336,8 +337,7 @@ public class OperatorTests extends MapperServiceTestCase {
             var actualValues = new ArrayList<>();
             var actualPrimeOrds = new ArrayList<>();
             try (
-                var driver = new Driver(
-                    "test",
+                var driver = TestDriverFactory.create(
                     driverContext,
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                     List.of(
@@ -354,8 +354,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         } finally {
                             page.releaseBlocks();
                         }
-                    }),
-                    () -> {}
+                    })
                 )
             ) {
                 OperatorTestCase.runDriver(driver);
@@ -400,5 +399,44 @@ public class OperatorTests extends MapperServiceTestCase {
             limit,
             false // no scoring
         );
+    }
+
+    private MappedFieldType.BlockLoaderContext mockBlContext() {
+        return new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

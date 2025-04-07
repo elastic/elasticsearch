@@ -9,15 +9,18 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
+import java.util.Map;
+
 public class ShortFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Integer> {
-    public ShortFieldBlockLoaderTests() {
-        super(FieldType.SHORT);
+    public ShortFieldBlockLoaderTests(Params params) {
+        super(FieldType.SHORT, params);
     }
 
     @Override
-    protected Integer convert(Number value) {
+    protected Integer convert(Number value, Map<String, Object> fieldMapping) {
         // All values that fit into int are represented as ints
         return value.intValue();
     }

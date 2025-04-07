@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -269,6 +270,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         Operator intialAgg = new TimeSeriesAggregationOperatorFactories.Initial(
             1,
             3,
+            rounding,
             IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
             List.of(new SupplierWithChannels(new RateLongAggregatorFunctionSupplier(unitInMillis), List.of(4, 2))),
             List.of(),
@@ -279,6 +281,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         Operator intermediateAgg = new TimeSeriesAggregationOperatorFactories.Intermediate(
             0,
             1,
+            rounding,
             IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
             List.of(new SupplierWithChannels(new RateLongAggregatorFunctionSupplier(unitInMillis), List.of(2, 3, 4))),
             List.of(),
@@ -303,13 +306,11 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
 
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(
-            new Driver(
-                "test",
+            TestDriverFactory.create(
                 ctx,
                 sourceOperatorFactory.get(ctx),
                 CollectionUtils.concatLists(intermediateOperators, List.of(intialAgg, intermediateAgg, finalAgg)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         );
         List<List<Object>> values = new ArrayList<>();

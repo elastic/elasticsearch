@@ -12,12 +12,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -25,7 +26,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMasterNodeAction<ModifyDataStreamsAction.Request> {
+public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMasterNodeProjectAction<ModifyDataStreamsAction.Request> {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final MetadataDataStreamsService metadataDataStreamsService;
@@ -36,6 +37,7 @@ public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMaste
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataDataStreamsService metadataDataStreamsService
     ) {
@@ -46,6 +48,7 @@ public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMaste
             threadPool,
             actionFilters,
             ModifyDataStreamsAction.Request::new,
+            projectResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -56,20 +59,24 @@ public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMaste
     protected void masterOperation(
         Task task,
         ModifyDataStreamsAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
-        metadataDataStreamsService.modifyDataStream(request, listener);
+    ) {
+        metadataDataStreamsService.modifyDataStream(state.projectId(), request, listener);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ModifyDataStreamsAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(ModifyDataStreamsAction.Request request, ProjectState state) {
         ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         if (globalBlock != null) {
             return globalBlock;
         }
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(
+                state.projectId(),
+                ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(state.metadata(), request)
+            );
     }
 
 }

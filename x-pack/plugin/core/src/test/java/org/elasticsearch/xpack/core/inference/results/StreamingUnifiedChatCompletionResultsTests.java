@@ -10,7 +10,8 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -18,8 +19,10 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.function.Supplier;
 
-public class StreamingUnifiedChatCompletionResultsTests extends ESTestCase {
+public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSerializingTestCase<
+    StreamingUnifiedChatCompletionResults.Results> {
 
     public void testResults_toXContentChunked() throws IOException {
         String expected = """
@@ -195,4 +198,65 @@ public class StreamingUnifiedChatCompletionResultsTests extends ESTestCase {
         assertEquals(expected.replaceAll("\\s+", ""), Strings.toString(builder.prettyPrint()).trim());
     }
 
+    @Override
+    protected Writeable.Reader<StreamingUnifiedChatCompletionResults.Results> instanceReader() {
+        return StreamingUnifiedChatCompletionResults.Results::new;
+    }
+
+    @Override
+    protected StreamingUnifiedChatCompletionResults.Results createTestInstance() {
+        var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>();
+        for (int i = 0; i < randomIntBetween(1, 3); i++) {
+            results.offer(randomChatCompletionChunk());
+        }
+        return new StreamingUnifiedChatCompletionResults.Results(results);
+    }
+
+    private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk randomChatCompletionChunk() {
+        Supplier<String> randomOptionalString = () -> randomBoolean() ? null : randomAlphanumericOfLength(5);
+        return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(
+            randomAlphanumericOfLength(5),
+            randomBoolean() ? null : randomList(randomInt(5), () -> {
+                return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
+                    new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                        randomOptionalString.get(),
+                        randomOptionalString.get(),
+                        randomOptionalString.get(),
+                        randomBoolean() ? null : randomList(randomInt(5), () -> {
+                            return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
+                                randomInt(5),
+                                randomOptionalString.get(),
+                                randomBoolean()
+                                    ? null
+                                    : new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
+                                        randomOptionalString.get(),
+                                        randomOptionalString.get()
+                                    ),
+                                randomOptionalString.get()
+                            );
+                        })
+                    ),
+                    randomOptionalString.get(),
+                    randomInt(5)
+                );
+            }),
+            randomAlphanumericOfLength(5),
+            randomAlphanumericOfLength(5),
+            randomBoolean()
+                ? null
+                : new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(randomInt(5), randomInt(5), randomInt(5))
+        );
+    }
+
+    @Override
+    protected StreamingUnifiedChatCompletionResults.Results mutateInstance(StreamingUnifiedChatCompletionResults.Results instance)
+        throws IOException {
+        var results = new ArrayDeque<>(instance.chunks());
+        if (randomBoolean()) {
+            results.pop();
+        } else {
+            results.add(randomChatCompletionChunk());
+        }
+        return new StreamingUnifiedChatCompletionResults.Results(results); // immutable
+    }
 }

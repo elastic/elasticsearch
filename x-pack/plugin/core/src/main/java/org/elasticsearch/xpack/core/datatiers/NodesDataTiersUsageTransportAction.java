@@ -124,7 +124,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
             .map(routing -> routing.index().getName())
             .collect(Collectors.toSet());
         for (String indexName : localIndices) {
-            IndexMetadata indexMetadata = metadata.index(indexName);
+            IndexMetadata indexMetadata = metadata.getProject().index(indexName);
             if (indexMetadata == null) {
                 continue;
             }

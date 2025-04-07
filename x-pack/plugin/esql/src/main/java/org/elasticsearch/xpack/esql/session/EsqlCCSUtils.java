@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -28,8 +27,8 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Collections;
@@ -219,29 +218,8 @@ public class EsqlCCSUtils {
                     fatalErrorMessage += "; " + error;
                 }
             } else {
-                // no matching indices and no concrete index requested - just skip it, no error
-                EsqlExecutionInfo.Cluster.Status status;
-                ShardSearchFailure failure;
-                if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    // never mark local cluster as SKIPPED
-                    status = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-                    failure = null;
-                } else {
-                    status = EsqlExecutionInfo.Cluster.Status.SKIPPED;
-                    failure = new ShardSearchFailure(new VerificationException("Unknown index [" + indexExpression + "]"));
-                }
-                executionInfo.swapCluster(c, (k, v) -> {
-                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
-                        .setTook(new TimeValue(0))
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0);
-                    if (failure != null) {
-                        builder.setFailures(List.of(failure));
-                    }
-                    return builder.build();
-                });
+                // no matching indices and no concrete index requested - just mark it as done, no error
+                markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
             }
         }
         if (fatalErrorMessage != null) {
@@ -269,8 +247,8 @@ public class EsqlCCSUtils {
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINESTATS is made CCS compatible
+        execInfo.markEndPlanning();
         if (execInfo.isCrossClusterSearch()) {
-            execInfo.markEndPlanning();
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
                 if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
@@ -298,14 +276,15 @@ public class EsqlCCSUtils {
      */
     public static void checkForCcsLicense(
         EsqlExecutionInfo executionInfo,
-        List<TableInfo> indices,
+        List<IndexPattern> indices,
         IndicesExpressionGrouper indicesGrouper,
+        Set<String> configuredClusters,
         XPackLicenseState licenseState
     ) {
-        for (TableInfo tableInfo : indices) {
+        for (IndexPattern index : indices) {
             Map<String, OriginalIndices> groupedIndices;
             try {
-                groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, tableInfo.id().indexPattern());
+                groupedIndices = indicesGrouper.groupIndices(configuredClusters, IndicesOptions.DEFAULT, index.indexPattern());
             } catch (NoSuchRemoteClusterException e) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
                     throw e;
@@ -368,24 +347,5 @@ public class EsqlCCSUtils {
         }
 
         return ExceptionsHelper.isRemoteUnavailableException(e);
-    }
-
-    /**
-     * Wrap a listener so that it will skip errors that are ignorable
-     */
-    public static <T> ActionListener<T> skipUnavailableListener(
-        ActionListener<T> delegate,
-        EsqlExecutionInfo executionInfo,
-        String clusterAlias,
-        EsqlExecutionInfo.Cluster.Status status
-    ) {
-        return delegate.delegateResponse((l, e) -> {
-            if (shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
-                markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, status, e);
-                l.onResponse(null);
-            } else {
-                l.onFailure(e);
-            }
-        });
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -41,30 +42,38 @@ import static org.mockito.Mockito.mock;
 
 public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
 
+    private ProjectId projectId;
     private ClusterState initialClusterState;
     private DownsampleShardPersistentTaskExecutor executor;
 
     @Before
     public void setup() {
+        projectId = randomProjectIdOrDefault();
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Instant start = now.minus(2, ChronoUnit.HOURS);
         Instant end = now.plus(40, ChronoUnit.MINUTES);
-        initialClusterState = DataStreamTestHelper.getClusterStateWithDataStream("metrics-app1", List.of(new Tuple<>(start, end)));
+        initialClusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            projectId,
+            "metrics-app1",
+            List.of(new Tuple<>(start, end))
+        );
         executor = new DownsampleShardPersistentTaskExecutor(mock(Client.class), DownsampleShardTask.TASK_NAME, mock(Executor.class));
     }
 
     public void testGetAssignment() {
-        var backingIndex = initialClusterState.metadata().dataStreams().get("metrics-app1").getWriteIndex();
+        var backingIndex = initialClusterState.metadata().getProject(projectId).dataStreams().get("metrics-app1").getWriteIndex();
         var node = newNode();
         var shardId = new ShardId(backingIndex, 0);
         var clusterState = ClusterState.builder(initialClusterState)
             .nodes(new DiscoveryNodes.Builder().add(node).build())
-            .routingTable(
+            .putRoutingTable(
+                projectId,
                 RoutingTable.builder()
                     .add(
                         IndexRoutingTable.builder(backingIndex)
                             .addShard(shardRoutingBuilder(shardId, node.getId(), true, STARTED).withRecoverySource(null).build())
                     )
+                    .build()
             )
             .build();
 
@@ -83,17 +92,19 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
     }
 
     public void testGetAssignmentMissingIndex() {
-        var backingIndex = initialClusterState.metadata().dataStreams().get("metrics-app1").getWriteIndex();
+        var backingIndex = initialClusterState.metadata().getProject(projectId).dataStreams().get("metrics-app1").getWriteIndex();
         var node = newNode();
         var shardId = new ShardId(backingIndex, 0);
         var clusterState = ClusterState.builder(initialClusterState)
             .nodes(new DiscoveryNodes.Builder().add(node).build())
-            .routingTable(
+            .putRoutingTable(
+                projectId,
                 RoutingTable.builder()
                     .add(
                         IndexRoutingTable.builder(backingIndex)
                             .addShard(shardRoutingBuilder(shardId, node.getId(), true, STARTED).withRecoverySource(null).build())
                     )
+                    .build()
             )
             .build();
 

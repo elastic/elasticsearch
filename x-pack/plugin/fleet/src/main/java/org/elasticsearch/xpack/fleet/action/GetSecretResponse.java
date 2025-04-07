@@ -23,7 +23,6 @@ public class GetSecretResponse extends ActionResponse implements ToXContentObjec
     private final String value;
 
     public GetSecretResponse(StreamInput in) throws IOException {
-        super(in);
         id = in.readString();
         value = in.readString();
     }

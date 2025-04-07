@@ -1,5 +1,0 @@
-pr: 117778
-summary: "[Connector APIs] Enforce index prefix for managed connectors"
-area: Extract&Transform
-type: feature
-issues: []

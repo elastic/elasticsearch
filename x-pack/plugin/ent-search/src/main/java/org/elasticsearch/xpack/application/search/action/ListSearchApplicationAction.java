@@ -127,7 +127,6 @@ public class ListSearchApplicationAction {
         final QueryPage<SearchApplicationListItem> queryPage;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.queryPage = new QueryPage<>(in, SearchApplicationListItem::new);
         }
 

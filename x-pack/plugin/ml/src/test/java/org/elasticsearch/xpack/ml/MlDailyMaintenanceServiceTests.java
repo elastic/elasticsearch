@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -87,7 +88,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
 
         verify(client, times(triggerCount)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(client, times(2 * triggerCount)).execute(same(GetJobsAction.INSTANCE), any(), any());
-        verify(mlAssignmentNotifier, times(triggerCount)).auditUnassignedMlTasks(any(), any());
+        verify(mlAssignmentNotifier, times(triggerCount)).auditUnassignedMlTasks(eq(Metadata.DEFAULT_PROJECT_ID), any(), any());
     }
 
     public void testScheduledTriggeringWhileUpgradeModeIsEnabled() throws InterruptedException {
@@ -143,7 +144,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verify(client, never()).threadPool();
         verify(client, never()).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(client, never()).execute(same(GetJobsAction.INSTANCE), any(), any());
-        verify(mlAssignmentNotifier, Mockito.atLeast(1)).auditUnassignedMlTasks(any(), any());
+        verify(mlAssignmentNotifier, Mockito.atLeast(1)).auditUnassignedMlTasks(eq(Metadata.DEFAULT_PROJECT_ID), any(), any());
     }
 
     private void assertThatBothTasksAreTriggered(Answer<?> deleteExpiredDataAnswer, Answer<?> getJobsAnswer) throws InterruptedException {
@@ -156,7 +157,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verify(client, times(3)).threadPool();
         verify(client, times(1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(client, times(2)).execute(same(GetJobsAction.INSTANCE), any(), any());
-        verify(mlAssignmentNotifier, Mockito.atLeast(1)).auditUnassignedMlTasks(any(), any());
+        verify(mlAssignmentNotifier, Mockito.atLeast(1)).auditUnassignedMlTasks(eq(Metadata.DEFAULT_PROJECT_ID), any(), any());
     }
 
     public void testJobInDeletingStateAlreadyHasDeletionTask() throws InterruptedException {
@@ -195,7 +196,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verify(client, times(2)).execute(same(GetJobsAction.INSTANCE), any(), any());
         verify(client).execute(same(TransportListTasksAction.TYPE), any(), any());
         verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-        verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
+        verify(mlAssignmentNotifier).auditUnassignedMlTasks(eq(Metadata.DEFAULT_PROJECT_ID), any(), any());
         verifyNoMoreInteractions(client, mlAssignmentNotifier);
     }
 
@@ -230,7 +231,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verify(client).execute(same(TransportListTasksAction.TYPE), any(), any());
         verify(client).execute(same(DeleteJobAction.INSTANCE), any(), any());
         verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-        verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
+        verify(mlAssignmentNotifier).auditUnassignedMlTasks(eq(Metadata.DEFAULT_PROJECT_ID), any(), any());
         verifyNoMoreInteractions(client, mlAssignmentNotifier);
     }
 
@@ -284,7 +285,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             verify(client).execute(same(ResetJobAction.INSTANCE), any(), any());
         }
         verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-        verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
+        verify(mlAssignmentNotifier).auditUnassignedMlTasks(eq(Metadata.DEFAULT_PROJECT_ID), any(), any());
         verifyNoMoreInteractions(client, mlAssignmentNotifier);
     }
 

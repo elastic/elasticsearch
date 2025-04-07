@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -227,7 +228,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             final Map<String, Processor.Factory> registry,
             final String processorTag,
             final String description,
-            final Map<String, Object> config
+            final Map<String, Object> config,
+            final ProjectId projectId
         ) throws IOException {
             String ipField = readStringProperty(type, processorTag, config, "field");
             String targetField = readStringProperty(type, processorTag, config, "target_field", type);

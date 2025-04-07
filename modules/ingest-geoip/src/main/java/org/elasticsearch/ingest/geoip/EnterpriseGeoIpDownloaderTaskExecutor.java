@@ -163,7 +163,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         EnterpriseGeoIpDownloader currentDownloader = getCurrentTask();
         if (currentDownloader != null) {
             boolean hasGeoIpMetadataChanges = event.metadataChanged()
-                && event.changedCustomMetadataSet().contains(IngestGeoIpMetadata.TYPE);
+                && event.changedCustomProjectMetadataSet().contains(IngestGeoIpMetadata.TYPE);
             if (hasGeoIpMetadataChanges) {
                 currentDownloader.requestReschedule(); // watching the cluster changed events to kick the thing off if it's not running
             }

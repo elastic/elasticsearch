@@ -113,7 +113,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // 5. Revert the state
         ActionListener<Boolean> annotationsIndexUpdateListener = ActionListener.wrap(r -> {
             ActionListener<Job> jobListener = ActionListener.wrap(job -> {
-                PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
                 JobState jobState = MlTasks.getJobState(job.getId(), tasks);
                 if (request.isForce() == false && jobState.equals(JobState.CLOSED) == false) {
                     listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));
@@ -266,7 +266,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         Consumer<ModelSnapshot> handler,
         Consumer<Exception> errorHandler
     ) {
-        logger.info("Reverting to snapshot '" + request.getSnapshotId() + "'");
+        logger.info("[{}] Reverting to snapshot {}", request.getJobId(), request.getSnapshotId());
 
         if (ModelSnapshot.isTheEmptySnapshot(request.getSnapshotId())) {
             handler.accept(ModelSnapshot.emptySnapshot(request.getJobId()));

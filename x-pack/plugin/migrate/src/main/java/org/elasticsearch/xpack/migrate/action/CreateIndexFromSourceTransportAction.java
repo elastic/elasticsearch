@@ -78,7 +78,7 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     @Override
     protected void doExecute(Task task, CreateIndexFromSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
 
-        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(request.sourceIndex());
+        IndexMetadata sourceIndex = clusterService.state().getMetadata().getProject().index(request.sourceIndex());
 
         if (sourceIndex == null) {
             listener.onFailure(new IndexNotFoundException(request.sourceIndex()));
@@ -109,6 +109,7 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         }
 
         var createIndexRequest = new CreateIndexRequest(request.destIndex()).settings(settings);
+        createIndexRequest.cause("create-index-from-source");
         if (mergeMappings.isEmpty() == false) {
             createIndexRequest.mapping(mergeMappings);
         }

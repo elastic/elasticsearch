@@ -17,17 +17,20 @@ public class Clusters {
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
     public static ElasticsearchCluster remoteCluster() {
-        return ElasticsearchCluster.local()
+        Version version = distributionVersion("tests.version.remote_cluster");
+        var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
-            .version(distributionVersion("tests.version.remote_cluster"))
+            .version(version)
             .nodes(2)
             .setting("node.roles", "[data,ingest,master]")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            .shared(true)
-            .setting("cluster.routing.rebalance.enable", "none")
-            .build();
+            .shared(true);
+        if (supportRetryOnShardFailures(version) == false) {
+            cluster.setting("cluster.routing.rebalance.enable", "none");
+        }
+        return cluster.build();
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
@@ -35,10 +38,11 @@ public class Clusters {
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Boolean skipUnavailable) {
-        return ElasticsearchCluster.local()
+        Version version = distributionVersion("tests.version.local_cluster");
+        var cluster = ElasticsearchCluster.local()
             .name(LOCAL_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
-            .version(distributionVersion("tests.version.local_cluster"))
+            .version(version)
             .nodes(2)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
@@ -46,9 +50,11 @@ public class Clusters {
             .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
             .setting("cluster.remote.connections_per_cluster", "1")
             .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", skipUnavailable.toString())
-            .shared(true)
-            .setting("cluster.routing.rebalance.enable", "none")
-            .build();
+            .shared(true);
+        if (supportRetryOnShardFailures(version) == false) {
+            cluster.setting("cluster.routing.rebalance.enable", "none");
+        }
+        return cluster.build();
     }
 
     public static org.elasticsearch.Version localClusterVersion() {
@@ -64,5 +70,10 @@ public class Clusters {
     private static Version distributionVersion(String key) {
         final String val = System.getProperty(key);
         return val != null ? Version.fromString(val) : Version.CURRENT;
+    }
+
+    private static boolean supportRetryOnShardFailures(Version version) {
+        return version.onOrAfter(Version.fromString("9.1.0"))
+            || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
     }
 }

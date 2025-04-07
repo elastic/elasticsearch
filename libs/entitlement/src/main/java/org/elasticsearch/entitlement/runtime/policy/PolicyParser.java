@@ -14,8 +14,10 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteAllSystemPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,10 +33,12 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -45,22 +49,29 @@ import java.util.stream.Stream;
  */
 public class PolicyParser {
 
-    private static final Map<String, Class<?>> EXTERNAL_ENTITLEMENTS = Stream.of(
-        FilesEntitlement.class,
+    private static final Map<String, Class<? extends Entitlement>> EXTERNAL_ENTITLEMENT_CLASSES_BY_NAME = Stream.of(
         CreateClassLoaderEntitlement.class,
-        SetHttpsConnectionPropertiesEntitlement.class,
-        OutboundNetworkEntitlement.class,
+        FilesEntitlement.class,
         InboundNetworkEntitlement.class,
-        WriteSystemPropertiesEntitlement.class,
-        LoadNativeLibrariesEntitlement.class
-    ).collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
+        LoadNativeLibrariesEntitlement.class,
+        ManageThreadsEntitlement.class,
+        OutboundNetworkEntitlement.class,
+        SetHttpsConnectionPropertiesEntitlement.class,
+        WriteAllSystemPropertiesEntitlement.class,
+        WriteSystemPropertiesEntitlement.class
+    ).collect(Collectors.toUnmodifiableMap(PolicyParser::buildEntitlementNameFromClass, Function.identity()));
+
+    private static final Map<Class<? extends Entitlement>, String> EXTERNAL_ENTITLEMENT_NAMES_BY_CLASS =
+        EXTERNAL_ENTITLEMENT_CLASSES_BY_NAME.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getValue, Map.Entry::getKey));
 
     protected final XContentParser policyParser;
     protected final String policyName;
     private final boolean isExternalPlugin;
-    private final Map<String, Class<?>> externalEntitlements;
+    private final Map<String, Class<? extends Entitlement>> externalEntitlements;
 
-    static String getEntitlementTypeName(Class<? extends Entitlement> entitlementClass) {
+    static String buildEntitlementNameFromClass(Class<? extends Entitlement> entitlementClass) {
         var entitlementClassName = entitlementClass.getSimpleName();
 
         if (entitlementClassName.endsWith("Entitlement") == false) {
@@ -76,17 +87,77 @@ public class PolicyParser {
             .collect(Collectors.joining("_"));
     }
 
+    public static String getEntitlementName(Class<? extends Entitlement> entitlementClass) {
+        return EXTERNAL_ENTITLEMENT_NAMES_BY_CLASS.get(entitlementClass);
+    }
+
     public PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin) throws IOException {
-        this(inputStream, policyName, isExternalPlugin, EXTERNAL_ENTITLEMENTS);
+        this(inputStream, policyName, isExternalPlugin, EXTERNAL_ENTITLEMENT_CLASSES_BY_NAME);
     }
 
     // package private for tests
-    PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin, Map<String, Class<?>> externalEntitlements)
-        throws IOException {
+    PolicyParser(
+        InputStream inputStream,
+        String policyName,
+        boolean isExternalPlugin,
+        Map<String, Class<? extends Entitlement>> externalEntitlements
+    ) throws IOException {
         this.policyParser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, Objects.requireNonNull(inputStream));
         this.policyName = policyName;
         this.isExternalPlugin = isExternalPlugin;
         this.externalEntitlements = externalEntitlements;
+    }
+
+    public VersionedPolicy parseVersionedPolicy() {
+        Set<String> versions = Set.of();
+        Policy policy = emptyPolicy();
+        try {
+            if (policyParser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw newPolicyParserException("expected object <versioned policy>");
+            }
+
+            while (policyParser.nextToken() != XContentParser.Token.END_OBJECT) {
+                if (policyParser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                    if (policyParser.currentName().equals("versions")) {
+                        versions = parseVersions();
+                    } else if (policyParser.currentName().equals("policy")) {
+                        policy = parsePolicy();
+                    } else {
+                        throw newPolicyParserException("expected either <version> or <policy> field");
+                    }
+                } else {
+                    throw newPolicyParserException("expected either <version> or <policy> field");
+                }
+            }
+
+            return new VersionedPolicy(policy, versions);
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
+    }
+
+    private Policy emptyPolicy() {
+        return new Policy(policyName, List.of());
+    }
+
+    private Set<String> parseVersions() throws IOException {
+        try {
+            if (policyParser.nextToken() != XContentParser.Token.START_ARRAY) {
+                throw newPolicyParserException("expected array of <versions>");
+            }
+            Set<String> versions = new HashSet<>();
+            while (policyParser.nextToken() != XContentParser.Token.END_ARRAY) {
+                if (policyParser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    String version = policyParser.text();
+                    versions.add(version);
+                } else {
+                    throw newPolicyParserException("expected <version>");
+                }
+            }
+            return versions;
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
     }
 
     public Policy parsePolicy() {

@@ -71,8 +71,8 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean shouldSkipTestsWithSemanticTextFields() {
-        return true;
+    protected boolean supportTimeSeriesCommand() {
+        return false;
     }
 
     @Override
@@ -88,6 +88,11 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsIndexModeLookup() throws IOException {
         return hasCapabilities(List.of(JOIN_LOOKUP_V12.capabilityName()));
+    }
+
+    @Override
+    protected boolean supportsSourceFieldMapping() throws IOException {
+        return false;
     }
 
     @Override

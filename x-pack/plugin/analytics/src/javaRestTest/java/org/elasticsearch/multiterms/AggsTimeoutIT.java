@@ -53,12 +53,9 @@ public class AggsTimeoutIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .setting("xpack.watcher.enabled", "false")
-        .setting("xpack.ml.enabled", "false")
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.security.transport.ssl.enabled", "false")
-        .setting("xpack.security.http.ssl.enabled", "false")
+        .distribution(DistributionType.INTEG_TEST)
+        .plugin("x-pack-analytics")
+        .module("aggregations")
         .jvmArg("-Xmx1g")
         .build();
 

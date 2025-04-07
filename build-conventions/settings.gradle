@@ -6,6 +6,11 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
+plugins {
+  id "com.gradle.develocity" version "3.19.2"
+}
+
 rootProject.name = 'build-conventions'
 
 dependencyResolutionManagement {

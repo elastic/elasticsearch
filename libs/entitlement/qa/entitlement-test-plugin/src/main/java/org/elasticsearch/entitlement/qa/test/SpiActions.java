@@ -15,6 +15,7 @@ import java.nio.channels.spi.SelectorProvider;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class SpiActions {
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void createBreakIteratorProvider() {
@@ -78,14 +79,7 @@ class SpiActions {
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void getInheritedChannel() throws IOException {
-        Channel channel = null;
-        try {
-            channel = SelectorProvider.provider().inheritedChannel();
-        } finally {
-            if (channel != null) {
-                channel.close();
-            }
-        }
+        try (Channel channel = SelectorProvider.provider().inheritedChannel()) {}
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

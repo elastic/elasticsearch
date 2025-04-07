@@ -25,9 +25,4 @@ public class ToUpperSerializationTests extends AbstractExpressionSerializationTe
         Expression child = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
         return new ToUpper(source, child, configuration());
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

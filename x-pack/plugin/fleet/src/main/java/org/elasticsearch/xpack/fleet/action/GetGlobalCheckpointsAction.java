@@ -194,7 +194,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 return;
             }
 
-            final IndexMetadata indexMetadata = state.getMetadata().index(index);
+            final IndexMetadata indexMetadata = state.getMetadata().getProject().index(index);
             final IndexRoutingTable routingTable = state.routingTable().index(index);
 
             if (routingTable.allPrimaryShardsActive()) {
@@ -228,7 +228,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                 client,
                                 request,
                                 listener,
-                                state.getMetadata().index(index),
+                                state.getMetadata().getProject().index(index),
                                 TimeValue.timeValueNanos(remainingNanos)
                             ).run();
                         } else {
@@ -237,7 +237,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                     null,
                                     "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
                                     request.timeout(),
-                                    state.getMetadata().index(index).getNumberOfShards(),
+                                    state.getMetadata().getProject().index(index).getNumberOfShards(),
                                     state.routingTable().index(index).primaryShardsActive()
                                 )
                             );
@@ -257,7 +257,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                 null,
                                 "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
                                 request.timeout(),
-                                state.getMetadata().index(index).getNumberOfShards(),
+                                state.getMetadata().getProject().index(index).getNumberOfShards(),
                                 state.routingTable().index(index).primaryShardsActive()
                             )
                         );

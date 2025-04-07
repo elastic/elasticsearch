@@ -36,6 +36,8 @@ public class StubRelation extends LeafPlan {
         StubRelation::new
     );
 
+    public static final StubRelation EMPTY = new StubRelation(null, null);
+
     private final List<Attribute> output;
 
     public StubRelation(Source source, List<Attribute> output) {

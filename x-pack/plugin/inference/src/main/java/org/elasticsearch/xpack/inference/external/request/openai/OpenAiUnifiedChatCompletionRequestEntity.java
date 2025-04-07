@@ -21,12 +21,15 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
 
     public static final String USER_FIELD = "user";
     private static final String MODEL_FIELD = "model";
+    private static final String MAX_COMPLETION_TOKENS_FIELD = "max_completion_tokens";
 
+    private final UnifiedChatInput unifiedChatInput;
     private final OpenAiChatCompletionModel model;
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
 
     public OpenAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, OpenAiChatCompletionModel model) {
-        this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(Objects.requireNonNull(unifiedChatInput));
+        this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
+        this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
     }
 
@@ -39,6 +42,10 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
 
         if (Strings.isNullOrEmpty(model.getTaskSettings().user()) == false) {
             builder.field(USER_FIELD, model.getTaskSettings().user());
+        }
+
+        if (unifiedChatInput.getRequest().maxCompletionTokens() != null) {
+            builder.field(MAX_COMPLETION_TOKENS_FIELD, unifiedChatInput.getRequest().maxCompletionTokens());
         }
 
         builder.endObject();

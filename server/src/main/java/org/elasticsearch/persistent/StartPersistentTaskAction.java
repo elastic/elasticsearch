@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -119,6 +119,7 @@ public class StartPersistentTaskAction {
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
+        private final ProjectResolver projectResolver;
 
         @Inject
         public TransportAction(
@@ -129,7 +130,7 @@ public class StartPersistentTaskAction {
             PersistentTasksClusterService persistentTasksClusterService,
             PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
             PersistentTasksService persistentTasksService,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            ProjectResolver projectResolver
         ) {
             super(
                 INSTANCE.name(),
@@ -142,6 +143,7 @@ public class StartPersistentTaskAction {
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
+            this.projectResolver = projectResolver;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor();
             clusterService.addListener(
                 new PersistentTasksNodeService(
@@ -167,12 +169,22 @@ public class StartPersistentTaskAction {
             ClusterState state,
             final ActionListener<PersistentTaskResponse> listener
         ) {
-            persistentTasksClusterService.createPersistentTask(
-                request.taskId,
-                request.taskName,
-                request.params,
-                listener.safeMap(PersistentTaskResponse::new)
-            );
+            if (PersistentTasksExecutorRegistry.isClusterScopedTask(request.taskName)) {
+                persistentTasksClusterService.createClusterPersistentTask(
+                    request.taskId,
+                    request.taskName,
+                    request.params,
+                    listener.safeMap(PersistentTaskResponse::new)
+                );
+            } else {
+                persistentTasksClusterService.createProjectPersistentTask(
+                    projectResolver.getProjectId(),
+                    request.taskId,
+                    request.taskName,
+                    request.params,
+                    listener.safeMap(PersistentTaskResponse::new)
+                );
+            }
         }
     }
 }

@@ -91,7 +91,7 @@ public class DataGenerationTests extends ESTestCase {
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(
                     () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
-                        FieldType.values()[generatedFields++ % FieldType.values().length]
+                        FieldType.values()[generatedFields++ % FieldType.values().length].toString()
                     )
                 );
 
@@ -166,7 +166,7 @@ public class DataGenerationTests extends ESTestCase {
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(
-                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG)
+                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG.toString())
                 );
             }
         };

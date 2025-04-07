@@ -37,7 +37,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         Map<String, Object> config = new HashMap<>();
         config.put("field", fieldName);
 
-        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config));
+        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config), null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(fieldName));
         assertThat(processor.isIgnoreMissing(), is(false));
@@ -54,7 +54,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         config.put("field", fieldName);
         config.put("ignore_missing", true);
 
-        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config));
+        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config), null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(fieldName));
         assertThat(processor.isIgnoreMissing(), is(true));
@@ -72,7 +72,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         config.put("field", fieldName);
         config.put("target_field", targetFieldName);
 
-        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config));
+        AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config), null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(fieldName));
         assertThat(processor.isIgnoreMissing(), is(false));
@@ -84,7 +84,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         AbstractStringProcessor.Factory factory = newFactory();
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

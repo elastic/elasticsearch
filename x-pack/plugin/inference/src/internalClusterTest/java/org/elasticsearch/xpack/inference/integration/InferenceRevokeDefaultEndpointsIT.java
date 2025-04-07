@@ -22,13 +22,14 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.junit.After;
 import org.junit.Before;
 
@@ -57,7 +58,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         threadPool = createThreadPool(inferenceUtilityPool());
         webServer.start();
         gatewayUrl = getUrl(webServer);
-        modelRegistry = new ModelRegistry(client());
+        modelRegistry = node().injector().getInstance(ModelRegistry.class);
     }
 
     @After
@@ -73,7 +74,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ReindexPlugin.class);
+        return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
     }
 
     public void testDefaultConfigs_Returns_DefaultChatCompletion_V1_WhenTaskTypeIsCorrect() throws Exception {
@@ -91,13 +92,17 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         try (var service = createElasticInferenceService()) {
-            service.waitForAuthorizationToComplete(TIMEOUT);
+            ensureAuthorizationCallFinished(service);
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
             assertThat(
                 service.defaultConfigIds(),
                 is(
                     List.of(
-                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
+                        new InferenceService.DefaultConfigId(
+                            ".rainbow-sprinkles-elastic",
+                            MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
+                            service
+                        )
                     )
                 )
             );
@@ -125,7 +130,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
                 assertThat(
                     service.defaultConfigIds(),
@@ -133,7 +139,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                         List.of(
                             new InferenceService.DefaultConfigId(
                                 ".rainbow-sprinkles-elastic",
-                                MinimalServiceSettings.chatCompletion(),
+                                MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
                                 service
                             )
                         )
@@ -164,7 +170,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(noAuthorizationResponseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
                 assertTrue(service.defaultConfigIds().isEmpty());
                 assertThat(service.supportedTaskTypes(), is(EnumSet.noneOf(TaskType.class)));
@@ -198,16 +205,21 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
                 assertThat(
                     service.defaultConfigIds(),
                     is(
                         List.of(
-                            new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service),
+                            new InferenceService.DefaultConfigId(
+                                ".elser-v2-elastic",
+                                MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                                service
+                            ),
                             new InferenceService.DefaultConfigId(
                                 ".rainbow-sprinkles-elastic",
-                                MinimalServiceSettings.chatCompletion(),
+                                MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
                                 service
                             )
                         )
@@ -244,13 +256,18 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(noAuthorizationResponseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
                 assertThat(
                     service.defaultConfigIds(),
                     is(
                         List.of(
-                            new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service)
+                            new InferenceService.DefaultConfigId(
+                                ".elser-v2-elastic",
+                                MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                                service
+                            )
                         )
                     )
                 );
@@ -264,6 +281,11 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         }
     }
 
+    private void ensureAuthorizationCallFinished(ElasticInferenceService service) {
+        service.onNodeStarted();
+        service.waitForFirstAuthorizationToComplete(TIMEOUT);
+    }
+
     private ElasticInferenceService createElasticInferenceService() {
         var httpManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, httpManager);
@@ -271,9 +293,9 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(gatewayUrl),
+            ElasticInferenceServiceSettingsTests.create(gatewayUrl),
             modelRegistry,
-            new ElasticInferenceServiceAuthorizationHandler(gatewayUrl, threadPool)
+            new ElasticInferenceServiceAuthorizationRequestHandler(gatewayUrl, threadPool)
         );
     }
 }

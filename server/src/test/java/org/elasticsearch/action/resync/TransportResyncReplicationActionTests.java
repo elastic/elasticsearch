@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -86,9 +88,10 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
     }
 
     public void testResyncDoesNotBlockOnPrimaryAction() throws Exception {
+        ProjectId projectId = randomProjectIdOrDefault();
         try (ClusterService clusterService = createClusterService(threadPool)) {
             final String indexName = randomAlphaOfLength(5);
-            setState(clusterService, state(indexName, true, ShardRoutingState.STARTED));
+            setState(clusterService, state(projectId, indexName, true, ShardRoutingState.STARTED));
 
             setState(
                 clusterService,
@@ -126,11 +129,14 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 final ShardStateAction shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
 
-                final IndexMetadata indexMetadata = clusterService.state().metadata().index(indexName);
+                final IndexMetadata indexMetadata = clusterService.state().metadata().getProject(projectId).index(indexName);
                 final Index index = indexMetadata.getIndex();
                 final ShardId shardId = new ShardId(index, 0);
-                final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
-                final ShardRouting primaryShardRouting = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
+                final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable(projectId).shardRoutingTable(shardId);
+                final ShardRouting primaryShardRouting = clusterService.state()
+                    .routingTable(projectId)
+                    .shardRoutingTable(shardId)
+                    .primaryShard();
                 final String allocationId = primaryShardRouting.allocationId().getId();
                 final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
 
@@ -153,7 +159,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(
                         shardRoutingTable,
-                        clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),
+                        clusterService.state().metadata().getProject(projectId).index(index).inSyncAllocationIds(shardId.id()),
                         shardRoutingTable.getPromotableAllocationIds(),
                         0
                     )
@@ -174,7 +180,8 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     shardStateAction,
                     new ActionFilters(new HashSet<>()),
                     new IndexingPressure(Settings.EMPTY),
-                    EmptySystemIndices.INSTANCE
+                    EmptySystemIndices.INSTANCE,
+                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
                 );
 
                 assertThat(action.globalBlockLevel(), nullValue());

@@ -51,6 +51,10 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     }
 
     protected static RestChannelConsumer restChannelConsumer(EsqlQueryRequest esqlRequest, RestRequest request, NodeClient client) {
+        final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
+        if (partialResults != null) {
+            esqlRequest.allowPartialResults(partialResults);
+        }
         LOGGER.debug("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());
 
         return channel -> {

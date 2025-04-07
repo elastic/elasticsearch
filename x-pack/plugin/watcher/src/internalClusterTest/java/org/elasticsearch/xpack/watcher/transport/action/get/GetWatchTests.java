@@ -65,7 +65,10 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
                 GetIndexResponse indexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(Watch.INDEX).get();
                 boolean isWatchIndexAlias = Watch.INDEX.equals(indexResponse.indices()[0]) == false;
                 if (isWatchIndexAlias) {
-                    assertAcked(indicesAdmin().prepareAliases().removeAlias(indexResponse.indices()[0], Watch.INDEX));
+                    assertAcked(
+                        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                            .removeAlias(indexResponse.indices()[0], Watch.INDEX)
+                    );
                 } else {
                     assertAcked(indicesAdmin().prepareDelete(Watch.INDEX));
                 }

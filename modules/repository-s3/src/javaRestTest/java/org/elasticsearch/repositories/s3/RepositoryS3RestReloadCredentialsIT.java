@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpFixture;
-import io.netty.handler.codec.http.HttpMethod;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -26,6 +25,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.mutableAccessKey;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
@@ -39,7 +39,12 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
 
     private static volatile String repositoryAccessKey;
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, mutableAccessKey(() -> repositoryAccessKey));
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(
+        true,
+        BUCKET,
+        BASE_PATH,
+        mutableAccessKey(() -> repositoryAccessKey, ANY_REGION, "s3")
+    );
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
 
@@ -99,13 +104,5 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
 
         // Check access using refreshed credentials
         assertOK(client().performRequest(verifyRequest));
-    }
-
-    private Request createReloadSecureSettingsRequest() throws IOException {
-        return newXContentRequest(
-            HttpMethod.POST,
-            "/_nodes/reload_secure_settings",
-            (b, p) -> inFipsJvm() ? b.field("secure_settings_password", "keystore-password") : b
-        );
     }
 }

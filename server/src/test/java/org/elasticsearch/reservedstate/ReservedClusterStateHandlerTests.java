@@ -21,14 +21,14 @@ import static org.hamcrest.Matchers.is;
 
 public class ReservedClusterStateHandlerTests extends ESTestCase {
     public void testValidation() {
-        ReservedClusterStateHandler<ValidRequest> handler = new ReservedClusterStateHandler<>() {
+        ReservedClusterStateHandler<Object, ValidRequest> handler = new ReservedClusterStateHandler<>() {
             @Override
             public String name() {
                 return "handler";
             }
 
             @Override
-            public TransformState transform(Object source, TransformState prevState) throws Exception {
+            public TransformState<Object> transform(ValidRequest source, TransformState<Object> prevState) throws Exception {
                 return prevState;
             }
 

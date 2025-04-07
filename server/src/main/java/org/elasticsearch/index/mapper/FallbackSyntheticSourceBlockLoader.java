@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Stack;
 
 /**
  * Block loader for fields that use fallback synthetic source implementation.
@@ -191,29 +192,49 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                     .createParser(filterParserConfig, nameValue.value().bytes, nameValue.value().offset + 1, nameValue.value().length - 1)
             ) {
                 parser.nextToken();
-                var fieldNameInParser = new StringBuilder(nameValue.name());
-                while (true) {
-                    if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                        fieldNameInParser.append('.').append(parser.currentName());
-                        if (fieldNameInParser.toString().equals(fieldName)) {
-                            parser.nextToken();
-                            break;
-                        }
+                var fieldNames = new Stack<String>() {
+                    {
+                        push(nameValue.name());
                     }
+                };
+
+                while (parser.currentToken() != null) {
+                    // We are descending into an object/array hierarchy of arbitrary depth
+                    // until we find the field that we need.
+                    while (true) {
+                        if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                            fieldNames.push(parser.currentName());
+                            var nameInParser = String.join(".", fieldNames);
+                            if (nameInParser.equals(fieldName)) {
+                                parser.nextToken();
+                                break;
+                            }
+                        } else {
+                            assert parser.currentToken() == XContentParser.Token.START_OBJECT
+                                || parser.currentToken() == XContentParser.Token.START_ARRAY;
+                        }
+
+                        parser.nextToken();
+                    }
+                    parseWithReader(parser, blockValues);
                     parser.nextToken();
+
+                    // We are coming back up in object/array hierarchy.
+                    // If arrays are present we will explore all array items by going back down again.
+                    while (parser.currentToken() == XContentParser.Token.END_OBJECT
+                        || parser.currentToken() == XContentParser.Token.END_ARRAY) {
+                        // When exiting an object arrays we'll see END_OBJECT followed by END_ARRAY, but we only need to pop the object name
+                        // once.
+                        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
+                            fieldNames.pop();
+                        }
+                        parser.nextToken();
+                    }
                 }
-                parseWithReader(parser, blockValues);
             }
         }
 
         private void parseWithReader(XContentParser parser, List<T> blockValues) throws IOException {
-            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    reader.parse(parser, blockValues);
-                }
-                return;
-            }
-
             reader.parse(parser, blockValues);
         }
 
@@ -246,10 +267,15 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         void writeToBlock(List<T> values, Builder blockBuilder);
     }
 
-    public abstract static class ReaderWithNullValueSupport<T> implements Reader<T> {
-        private final T nullValue;
+    /**
+     * Reader for field types that don't parse arrays (arrays are always treated as multiple values)
+     * as opposed to field types that treat arrays as special cases (for example point).
+     * @param <T>
+     */
+    public abstract static class SingleValueReader<T> implements Reader<T> {
+        private final Object nullValue;
 
-        public ReaderWithNullValueSupport(T nullValue) {
+        public SingleValueReader(Object nullValue) {
             this.nullValue = nullValue;
         }
 
@@ -261,10 +287,22 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                 }
                 return;
             }
+            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                        if (nullValue != null) {
+                            convertValue(nullValue, accumulator);
+                        }
+                    } else {
+                        parseNonNullValue(parser, accumulator);
+                    }
+                }
+                return;
+            }
 
             parseNonNullValue(parser, accumulator);
         }
 
-        abstract void parseNonNullValue(XContentParser parser, List<T> accumulator) throws IOException;
+        protected abstract void parseNonNullValue(XContentParser parser, List<T> accumulator) throws IOException;
     }
 }

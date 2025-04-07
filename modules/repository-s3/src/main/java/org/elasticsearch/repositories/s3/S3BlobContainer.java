@@ -469,7 +469,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         S3BlobStore.configureRequestForMetrics(putRequest, blobStore, Operation.PUT_OBJECT, purpose);
 
         try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
-            SocketAccess.doPrivilegedVoid(() -> { clientReference.client().putObject(putRequest); });
+            SocketAccess.doPrivilegedVoid(() -> clientReference.client().putObject(putRequest));
         } catch (final AmazonClientException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
         }
@@ -899,11 +899,10 @@ class S3BlobContainer extends AbstractBlobContainer {
             logger.trace(() -> Strings.format("[%s]: compareAndExchangeRegister failed", key), e);
             if (e instanceof AmazonS3Exception amazonS3Exception
                 && (amazonS3Exception.getStatusCode() == 404
-                    || amazonS3Exception.getStatusCode() == 0 && "NoSuchUpload".equals(amazonS3Exception.getErrorCode()))) {
+                    || amazonS3Exception.getStatusCode() == 200 && "NoSuchUpload".equals(amazonS3Exception.getErrorCode()))) {
                 // An uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it.
                 // Also (rarely) S3 can start processing the request during a concurrent abort and this can result in a 200 OK with an
-                // <Error><Code>NoSuchUpload</Code>... in the response, which the SDK translates to status code 0. Either way, this means
-                // that our write encountered contention:
+                // <Error><Code>NoSuchUpload</Code>... in the response. Either way, this means that our write encountered contention:
                 delegate.onResponse(OptionalBytesReference.MISSING);
             } else {
                 delegate.onFailure(e);

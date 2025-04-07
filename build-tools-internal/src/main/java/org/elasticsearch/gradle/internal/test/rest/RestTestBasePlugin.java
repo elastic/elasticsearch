@@ -198,6 +198,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
+                    if (reasonForUsageProvided(args) == false) {
+                        throw new IllegalArgumentException(
+                            "Reason for using `usesDefaultDistribution` required.\nUse usesDefaultDistribution(\"reason why default distro is required here\")."
+                        );
+                    }
                     task.dependsOn(defaultDistro);
                     registerDistributionInputs(task, defaultDistro);
 
@@ -211,6 +216,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, defaultDistroFeatureMetadataConfig::getAsPath);
 
                     return null;
+                }
+
+                private static boolean reasonForUsageProvided(Object[] args) {
+                    return args.length == 1 && args[0] instanceof String && ((String) args[0]).isBlank() == false;
                 }
             });
 

@@ -1,29 +1,24 @@
-gradle.settingsEvaluated { settings ->
-  settings.pluginManager.withPlugin("com.gradle.develocity") {
-    settings.develocity {
-      server = 'https://gradle-enterprise.elastic.co'
-    }
-  }
-}
-
 final String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')
 final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))
 
-if (buildCacheUrl) {
-  gradle.settingsEvaluated { settings ->
-    settings.buildCache {
-      local {
-        // Disable the local build cache in CI since we use ephemeral workers and it incurs an IO penalty
-        enabled = false
-      }
-      remote(HttpBuildCache) {
-        url = buildCacheUrl
-        push = buildCachePush
-        credentials {
-          username = System.getenv("GRADLE_BUILD_CACHE_USERNAME")
-          password = System.getenv("GRADLE_BUILD_CACHE_PASSWORD")
+gradle.settingsEvaluated { settings ->
+  settings.pluginManager.withPlugin("com.gradle.develocity") {
+    settings.develocity {
+      server = "https://gradle-enterprise.elastic.co"
+    }
+    if (buildCacheUrl) {
+      settings.buildCache {
+        local {
+          // Disable the local build cache in CI since we use ephemeral workers and it incurs an IO penalty
+          enabled = false
+        }
+        remote(settings.develocity.buildCache) {
+          enabled = true
+          push = buildCachePush
         }
       }
     }
   }
 }
+
+

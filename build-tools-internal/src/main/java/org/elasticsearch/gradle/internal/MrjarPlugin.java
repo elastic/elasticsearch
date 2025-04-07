@@ -139,7 +139,7 @@ public class MrjarPlugin implements Plugin<Project> {
             compileOptions.getRelease().set(javaVersion);
         });
         if (isMainSourceSet) {
-            project.getTasks().create(sourceSet.getJavadocTaskName(), Javadoc.class, javadocTask -> {
+            project.getTasks().register(sourceSet.getJavadocTaskName(), Javadoc.class, javadocTask -> {
                 javadocTask.getJavadocTool().set(javaToolchains.javadocToolFor(spec -> {
                     spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion));
                 }));

@@ -46,7 +46,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     private static final long SEED = 0;
 
-    public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
+    public static BytesRef createField(
+        DocumentParserContext context,
+        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        BytesRef tsid
+    ) {
         final long timestamp = DataStreamTimestampFieldMapper.extractTimestampValue(context.doc());
         String id;
         if (routingBuilder != null) {
@@ -94,6 +98,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
+        return uidEncoded;
     }
 
     public static String createId(int routingHash, BytesRef tsid, long timestamp) {

@@ -19,11 +19,8 @@ public enum FeatureFlag {
     TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null),
     FAILURE_STORE_ENABLED("es.failure_store_feature_flag_enabled=true", Version.fromString("8.12.0"), null),
     SUB_OBJECTS_AUTO_ENABLED("es.sub_objects_auto_feature_flag_enabled=true", Version.fromString("8.16.0"), null),
-    INDEX_RECOVERY_USE_SYNTHETIC_SOURCE(
-        "es.index_recovery_use_synthetic_source_feature_flag_enabled=true",
-        Version.fromString("8.18.0"),
-        null
-    );
+    DOC_VALUES_SKIPPER("es.doc_values_skipper_feature_flag_enabled=true", Version.fromString("8.18.1"), null),
+    USE_LUCENE101_POSTINGS_FORMAT("es.use_lucene101_postings_format_feature_flag_enabled=true", Version.fromString("9.1.0"), null);
 
     public final String systemProperty;
     public final Version from;

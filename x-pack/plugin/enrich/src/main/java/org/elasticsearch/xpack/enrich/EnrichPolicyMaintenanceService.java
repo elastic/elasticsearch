@@ -151,9 +151,10 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         // list inflight list because it has already been promoted or because the policy execution failed.
         ClusterState clusterState = clusterService.state();
         Set<String> inflightPolicyExecutionIndices = enrichPolicyLocks.inflightPolicyIndices();
-        final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterState);
+        final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterState.metadata().getProject());
         logger.debug(() -> "Working enrich indices excluded from maintenance [" + String.join(", ", inflightPolicyExecutionIndices) + "]");
         String[] removeIndices = clusterState.metadata()
+            .getProject()
             .indices()
             .values()
             .stream()

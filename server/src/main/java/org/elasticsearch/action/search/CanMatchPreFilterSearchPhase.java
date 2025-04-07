@@ -201,7 +201,7 @@ final class CanMatchPreFilterSearchPhase {
 
     private void checkNoMissingShards(List<SearchShardIterator> shards) {
         assert assertSearchCoordinationThread();
-        SearchPhase.doCheckNoMissingShards("can_match", request, shards, SearchPhase::makeMissingShardsError);
+        SearchPhase.doCheckNoMissingShards("can_match", request, shards);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(List<SearchShardIterator> shards) {
@@ -343,7 +343,7 @@ final class CanMatchPreFilterSearchPhase {
         }
     }
 
-    private record SendingTarget(@Nullable String clusterAlias, @Nullable String nodeId) {}
+    public record SendingTarget(@Nullable String clusterAlias, @Nullable String nodeId) {}
 
     private CanMatchNodeRequest createCanMatchRequest(Map.Entry<SendingTarget, List<SearchShardIterator>> entry) {
         final SearchShardIterator first = entry.getValue().get(0);
@@ -387,7 +387,7 @@ final class CanMatchPreFilterSearchPhase {
     }
 
     public void start() {
-        if (shardsIts.size() == 0) {
+        if (shardsIts.isEmpty()) {
             finishPhase();
             return;
         }

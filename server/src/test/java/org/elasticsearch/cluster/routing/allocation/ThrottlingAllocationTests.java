@@ -200,7 +200,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             snapshotsInfoService
         );
         assertCriticalWarnings(
-            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
         logger.info("Building initial routing table");
 
@@ -364,7 +365,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();
         String restoreUUID = UUIDs.randomBase64UUID();
-        for (IndexMetadata im : metadata.indices().values()) {
+        for (IndexMetadata im : metadata.getProject().indices().values()) {
             Index index = im.getIndex();
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(im);
             final int recoveryType = randomInt(5);

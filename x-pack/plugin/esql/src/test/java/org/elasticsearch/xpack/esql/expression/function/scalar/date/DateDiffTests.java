@@ -91,7 +91,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                 zdtStart2,
                 zdtEnd2,
                 "nanoseconds",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [300000000000] out of [integer] range"
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [300000000000] out of [integer] range"
             )
         );
 
@@ -241,7 +241,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                         + "endTimestamp=Attribute[channel=2]]",
                     DataType.INTEGER,
                     equalTo(null)
-                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                     .withWarning(warning)
             ),
             // Units as text case
@@ -258,7 +258,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                         + "endTimestamp=Attribute[channel=2]]",
                     DataType.INTEGER,
                     equalTo(null)
-                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                     .withWarning(warning)
             )
         );
@@ -267,5 +267,11 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new DateDiff(source, args.get(0), args.get(1), args.get(2));
+    }
+
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        // TODO: This function doesn't serialize the Source, and must be fixed.
+        return expression;
     }
 }

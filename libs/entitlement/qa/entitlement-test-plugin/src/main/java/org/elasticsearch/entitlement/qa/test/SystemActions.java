@@ -14,6 +14,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
 
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class SystemActions {
 
     @SuppressForbidden(reason = "Specifically testing Runtime.exit")

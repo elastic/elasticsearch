@@ -37,8 +37,8 @@ import static org.elasticsearch.test.ESTestCase.randomSecretKey;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate the AWS STS endpoint")
 public class AwsStsHttpHandler implements HttpHandler {
 
-    static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
-    static final String ROLE_NAME = "sts-fixture-test";
+    public static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
+    public static final String ROLE_NAME = "sts-fixture-test";
 
     private final BiConsumer<String, String> newCredentialsConsumer;
     private final String webIdentityToken;

@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.s3;
 import fixture.aws.DynamicAwsCredentials;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.aws.sts.AwsStsHttpFixture;
+import fixture.aws.sts.AwsStsHttpHandler;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -58,12 +59,16 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
             S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION,
             Resource.fromString(WEB_IDENTITY_TOKEN_FILE_CONTENTS)
         )
-        .environment("AWS_WEB_IDENTITY_TOKEN_FILE", S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION)
-        // The AWS STS SDK requires the role and session names to be set. We can verify that they are sent to S3S in the
-        // S3HttpFixtureWithSTS fixture
-        .environment("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/FederatedWebIdentityRole")
-        .environment("AWS_ROLE_SESSION_NAME", "sts-fixture-test")
-        .environment("AWS_STS_REGIONAL_ENDPOINTS", "regional")
+        // When running in EKS with container identity the environment variable `AWS_WEB_IDENTITY_TOKEN_FILE` will point to a file which
+        // ES cannot access due to its security policy; we override it with `${ES_CONF_PATH}/repository-s3/aws-web-identity-token-file`
+        // and require the user to set up a symlink at this location. Thus we can set `AWS_WEB_IDENTITY_TOKEN_FILE` to any old path:
+        .environment("AWS_WEB_IDENTITY_TOKEN_FILE", () -> randomIdentifier() + "/" + randomIdentifier())
+        // The AWS STS SDK requires the role ARN, it also accepts a session name but will make one up if it's not set.
+        // These are checked in AwsStsHttpHandler:
+        .environment("AWS_ROLE_ARN", AwsStsHttpHandler.ROLE_ARN)
+        .environment("AWS_ROLE_SESSION_NAME", AwsStsHttpHandler.ROLE_NAME)
+        // SDKv2 always uses regional endpoints
+        .environment("AWS_STS_REGIONAL_ENDPOINTS", () -> randomBoolean() ? "regional" : null)
         .environment("AWS_REGION", regionSupplier)
         .build();
 

@@ -4,34 +4,41 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ParseIp}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
-public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final EvalOperator.ExpressionEvaluator wkb;
+public final class ParseIpLeadingZerosRejectedEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private final EvalOperator.ExpressionEvaluator string;
 
-  public ToStringFromCartesianPointEvaluator(Source source, EvalOperator.ExpressionEvaluator wkb,
+  private final BreakingBytesRefBuilder scratch;
+
+  public ParseIpLeadingZerosRejectedEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator string, BreakingBytesRefBuilder scratch,
       DriverContext driverContext) {
     super(driverContext, source);
-    this.wkb = wkb;
+    this.string = string;
+    this.scratch = scratch;
   }
 
   @Override
   public EvalOperator.ExpressionEvaluator next() {
-    return wkb;
+    return string;
   }
 
   @Override
@@ -40,11 +47,21 @@ public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFu
     int positionCount = v.getPositionCount();
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
-      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
+      try {
+        return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
+      } catch (IllegalArgumentException  e) {
+        registerException(e);
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
+      }
     }
     try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendBytesRef(evalValue(vector, p, scratchPad));
+        try {
+          builder.appendBytesRef(evalValue(vector, p, scratchPad));
+        } catch (IllegalArgumentException  e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
       return builder.build();
     }
@@ -52,7 +69,7 @@ public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFu
 
   private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToString.fromCartesianPoint(value);
+    return ParseIp.leadingZerosRejected(value, this.scratch);
   }
 
   @Override
@@ -68,13 +85,17 @@ public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFu
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          BytesRef value = evalValue(block, i, scratchPad);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+          try {
+            BytesRef value = evalValue(block, i, scratchPad);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendBytesRef(value);
+            valuesAppended = true;
+          } catch (IllegalArgumentException  e) {
+            registerException(e);
           }
-          builder.appendBytesRef(value);
-          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();
@@ -88,37 +109,41 @@ public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFu
 
   private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToString.fromCartesianPoint(value);
+    return ParseIp.leadingZerosRejected(value, this.scratch);
   }
 
   @Override
   public String toString() {
-    return "ToStringFromCartesianPointEvaluator[" + "wkb=" + wkb + "]";
+    return "ParseIpLeadingZerosRejectedEvaluator[" + "string=" + string + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(wkb);
+    Releasables.closeExpectNoException(string, scratch);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory wkb;
+    private final EvalOperator.ExpressionEvaluator.Factory string;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkb) {
+    private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory string,
+        Function<DriverContext, BreakingBytesRefBuilder> scratch) {
       this.source = source;
-      this.wkb = wkb;
+      this.string = string;
+      this.scratch = scratch;
     }
 
     @Override
-    public ToStringFromCartesianPointEvaluator get(DriverContext context) {
-      return new ToStringFromCartesianPointEvaluator(source, wkb.get(context), context);
+    public ParseIpLeadingZerosRejectedEvaluator get(DriverContext context) {
+      return new ParseIpLeadingZerosRejectedEvaluator(source, string.get(context), scratch.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromCartesianPointEvaluator[" + "wkb=" + wkb + "]";
+      return "ParseIpLeadingZerosRejectedEvaluator[" + "string=" + string + "]";
     }
   }
 }

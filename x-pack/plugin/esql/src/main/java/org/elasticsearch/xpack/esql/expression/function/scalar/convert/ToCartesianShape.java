@@ -38,8 +38,8 @@ public class ToCartesianShape extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
-        Map.entry(CARTESIAN_SHAPE, (fieldEval, source) -> fieldEval),
+        Map.entry(CARTESIAN_POINT, (source, fieldEval) -> fieldEval),
+        Map.entry(CARTESIAN_SHAPE, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToCartesianShapeFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToCartesianShapeFromStringEvaluator.Factory::new),
         Map.entry(SEMANTIC_TEXT, ToCartesianShapeFromStringEvaluator.Factory::new)

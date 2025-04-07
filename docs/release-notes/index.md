@@ -118,6 +118,7 @@ Machine Learning
 * Increase default `queue_capacity` to 10_000 and decrease max `queue_capacity` to 100_000 [#115041](https://github.com/elastic/elasticsearch/pull/115041)
 * Inference duration and error metrics [#115876](https://github.com/elastic/elasticsearch/pull/115876)
 * Remove all mentions of eis and gateway and deprecate flags that do [#116692](https://github.com/elastic/elasticsearch/pull/116692)
+* Update Linux build images to Rocky Linux 8 with gcc 13.3 [#2773](https://github.com/elastic/ml-cpp/pull/2773)
 * [Inference API] Add API to get configuration of inference services [#114862](https://github.com/elastic/elasticsearch/pull/114862)
 * [Inference API] Improve chunked results error message [#115807](https://github.com/elastic/elasticsearch/pull/115807)
 

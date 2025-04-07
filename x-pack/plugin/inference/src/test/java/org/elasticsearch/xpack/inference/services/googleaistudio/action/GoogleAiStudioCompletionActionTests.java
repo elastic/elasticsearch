@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
-import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;

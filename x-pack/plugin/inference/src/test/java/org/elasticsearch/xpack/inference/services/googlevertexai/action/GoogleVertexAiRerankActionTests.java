@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
-import org.elasticsearch.xpack.inference.external.http.sender.GoogleVertexAiRerankRequestManager;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRerankRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelTests;

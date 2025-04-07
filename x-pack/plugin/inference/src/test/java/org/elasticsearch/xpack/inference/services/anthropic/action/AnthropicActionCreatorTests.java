@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.request.anthropic.AnthropicRequestUtils;
+import org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicRequestUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettingsTests;

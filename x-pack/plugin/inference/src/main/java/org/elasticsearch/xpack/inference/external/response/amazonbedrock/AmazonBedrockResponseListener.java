@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.response.amazonbedrock;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockRequest;
 
 import java.util.Objects;
 

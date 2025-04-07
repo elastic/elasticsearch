@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 
 import java.io.IOException;

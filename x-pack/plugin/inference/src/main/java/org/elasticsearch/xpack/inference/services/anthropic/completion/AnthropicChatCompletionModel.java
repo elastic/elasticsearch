@@ -13,7 +13,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.request.anthropic.AnthropicRequestUtils;
+import org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicRequestUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicModel;

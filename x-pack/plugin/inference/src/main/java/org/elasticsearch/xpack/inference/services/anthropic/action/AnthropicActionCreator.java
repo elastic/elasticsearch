@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.anthropic.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.AnthropicCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModel;

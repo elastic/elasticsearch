@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
-import org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.completion.AmazonBedrockChatCompletionResponseListener;
 

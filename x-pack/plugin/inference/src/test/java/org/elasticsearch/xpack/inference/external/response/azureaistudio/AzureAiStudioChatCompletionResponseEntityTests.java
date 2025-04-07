@@ -11,7 +11,7 @@ import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;

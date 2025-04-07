@@ -12,7 +12,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings.AmazonBedrockEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseListener;
 

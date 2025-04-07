@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioChatCompletionRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioChatCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;

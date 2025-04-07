@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.BaseResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 

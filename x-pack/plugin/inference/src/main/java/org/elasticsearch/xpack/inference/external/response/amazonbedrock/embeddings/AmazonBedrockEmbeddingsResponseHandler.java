@@ -13,7 +13,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 
 public class AmazonBedrockEmbeddingsResponseHandler extends AmazonBedrockResponseHandler {

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequestTests;
+import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequestTests;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;

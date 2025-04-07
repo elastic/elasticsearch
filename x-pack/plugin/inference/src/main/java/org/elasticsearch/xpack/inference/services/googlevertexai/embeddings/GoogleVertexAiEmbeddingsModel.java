@@ -14,7 +14,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleVertexAiUtils;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;

@@ -16,7 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.AlibabaCloudSearchCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;

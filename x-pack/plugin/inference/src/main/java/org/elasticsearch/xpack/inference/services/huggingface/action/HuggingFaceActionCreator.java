@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.huggingface.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.HuggingFaceRequestManager;
+import org.elasticsearch.xpack.inference.services.huggingface.request.HuggingFaceRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceElserResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceEmbeddingsResponseEntity;

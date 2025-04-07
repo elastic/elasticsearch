@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.RateLimiter;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
+import org.elasticsearch.xpack.inference.services.openai.request.OpenAiEmbeddingsRequestManagerTests;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;

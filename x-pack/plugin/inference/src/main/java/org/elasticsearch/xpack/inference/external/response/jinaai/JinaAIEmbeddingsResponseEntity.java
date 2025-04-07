@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.XContentUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 

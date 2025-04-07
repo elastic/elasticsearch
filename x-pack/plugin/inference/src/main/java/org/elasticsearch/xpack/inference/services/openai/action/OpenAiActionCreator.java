@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.TruncatingRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.openai.request.OpenAiEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.openai.request.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;

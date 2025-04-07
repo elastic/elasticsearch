@@ -70,5 +70,4 @@ public class RestUpdateTrainedModelDeploymentActionTests extends RestActionTestC
         dispatchRequest(inferenceRequest);
         assertThat(executeCalled.get(), equalTo(true));
     }
-
 }

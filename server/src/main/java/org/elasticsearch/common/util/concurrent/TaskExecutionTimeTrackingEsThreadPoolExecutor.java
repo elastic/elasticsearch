@@ -127,6 +127,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         if (trackOngoingTasks) {
             ongoingTasks.put(r, System.nanoTime());
         }
+        assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
+        final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
+        timedRunnable.beforeExecute();
+        final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
+        queueLatencyHistogram.addObservation(TimeUnit.NANOSECONDS.toMillis(taskQueueLatency));
     }
 
     @Override
@@ -150,15 +155,6 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 // taskExecutionNanos may be -1 if the task threw an exception
                 executionEWMA.addValue(taskExecutionNanos);
                 totalExecutionTime.add(taskExecutionNanos);
-            }
-            final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
-            assert taskQueueLatency >= 0 || (failedOrRejected && taskQueueLatency == -1)
-                : "queue latency should always be non-negative or `-1` to indicate rejection, got: "
-                    + taskQueueLatency
-                    + ", failedOrRejected: "
-                    + failedOrRejected;
-            if (taskQueueLatency != -1) {
-                queueLatencyHistogram.addObservation(TimeUnit.NANOSECONDS.toMillis(taskQueueLatency));
             }
         } finally {
             // if trackOngoingTasks is false -> ongoingTasks must be empty

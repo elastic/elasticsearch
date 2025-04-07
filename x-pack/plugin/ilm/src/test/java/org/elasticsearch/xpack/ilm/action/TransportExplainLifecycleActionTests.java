@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -78,14 +78,14 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, errorStepState.build().asMap())
                 .build();
-            Metadata metadata = Metadata.builder()
+            ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(indexMetadata, true)
                 .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
                 .build();
 
             IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
                 indexInErrorStep,
-                metadata,
+                project,
                 true,
                 true,
                 REGISTRY,
@@ -111,14 +111,14 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, checkRolloverReadyStepState.build().asMap())
                 .build();
-            Metadata metadata = Metadata.builder()
+            ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(indexMetadata, true)
                 .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
                 .build();
 
             IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
                 indexInCheckRolloverStep,
-                metadata,
+                project,
                 true,
                 true,
                 REGISTRY,
@@ -128,7 +128,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
 
             IndexLifecycleExplainResponse allManagedResponse = getIndexLifecycleExplainResponse(
                 indexInCheckRolloverStep,
-                metadata,
+                project,
                 false,
                 true,
                 REGISTRY,
@@ -150,14 +150,14 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();
-            Metadata metadata = Metadata.builder()
+            ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(indexMetadata, true)
                 .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
                 .build();
 
             IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
                 indexWithMissingPolicy,
-                metadata,
+                project,
                 true,
                 true,
                 REGISTRY,
@@ -175,14 +175,14 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();
-            Metadata metadata = Metadata.builder()
+            ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(indexMetadata, true)
                 .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
                 .build();
 
             IndexLifecycleExplainResponse onlyManaged = getIndexLifecycleExplainResponse(
                 "index",
-                metadata,
+                project,
                 false,
                 true,
                 REGISTRY,
@@ -205,14 +205,14 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, checkRolloverReadyStepState.build().asMap())
                 .build();
-            Metadata metadata = Metadata.builder()
+            ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(indexMetadata, true)
                 .putCustom(IndexLifecycleMetadata.TYPE, createIndexLifecycleMetadata())
                 .build();
 
             IndexLifecycleExplainResponse response = getIndexLifecycleExplainResponse(
                 indexInCheckRolloverStep,
-                metadata,
+                project,
                 false,
                 true,
                 REGISTRY,

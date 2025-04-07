@@ -79,12 +79,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     private final List<String> ids;
     private final List<SpecifiedDocument> docs;
 
-    public PinnedRetrieverBuilder(
-        List<String> ids,
-        List<SpecifiedDocument> docs,
-        RetrieverBuilder retrieverBuilder,
-        int rankWindowSize
-    ) {
+    public PinnedRetrieverBuilder(List<String> ids, List<SpecifiedDocument> docs, RetrieverBuilder retrieverBuilder, int rankWindowSize) {
         super(new ArrayList<>(), rankWindowSize);
         this.ids = ids != null ? ids : new ArrayList<>();
         this.docs = docs != null ? docs : new ArrayList<>();
@@ -156,14 +151,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
 
     @Override
     protected PinnedRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
-        return new PinnedRetrieverBuilder(
-            ids,
-            docs,
-            newChildRetrievers,
-            rankWindowSize,
-            retrieverName,
-            newPreFilterQueryBuilders
-        );
+        return new PinnedRetrieverBuilder(ids, docs, newChildRetrievers, rankWindowSize, retrieverName, newPreFilterQueryBuilders);
     }
 
     @Override
@@ -214,4 +202,4 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
             return createPinnedQuery(in.explainQuery());
         }
     }
-} 
+}

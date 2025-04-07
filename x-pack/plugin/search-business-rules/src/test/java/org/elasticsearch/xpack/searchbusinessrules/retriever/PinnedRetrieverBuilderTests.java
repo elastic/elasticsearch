@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.searchbusinessrules.retriever;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -24,11 +22,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,19 +37,16 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
     public static PinnedRetrieverBuilder createRandomPinnedRetrieverBuilder() {
         boolean useIds = randomBoolean();
         boolean useDocs = !useIds || randomBoolean();
-        
+
         List<String> ids = useIds ? List.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)) : new ArrayList<>();
-        List<SpecifiedDocument> docs = useDocs ? List.of(
-            new SpecifiedDocument(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)),
-            new SpecifiedDocument(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10))
-        ) : new ArrayList<>();
-        
-        return new PinnedRetrieverBuilder(
-            ids,
-            docs,
-            TestRetrieverBuilder.createRandomTestRetrieverBuilder(),
-            randomIntBetween(1, 100)
-        );
+        List<SpecifiedDocument> docs = useDocs
+            ? List.of(
+                new SpecifiedDocument(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)),
+                new SpecifiedDocument(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10))
+            )
+            : new ArrayList<>();
+
+        return new PinnedRetrieverBuilder(ids, docs, TestRetrieverBuilder.createRandomTestRetrieverBuilder(), randomIntBetween(1, 100));
     }
 
     @Override
@@ -65,10 +58,7 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
     protected PinnedRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (PinnedRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(
-                new SearchUsage(),
-                nf -> true
-            )
+            new RetrieverParserContext(new SearchUsage(), nf -> true)
         );
     }
 
@@ -79,9 +69,7 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
 
     @Override
     protected String[] getShuffleFieldsExceptions() {
-        return new String[] {
-            PinnedRetrieverBuilder.IDS_FIELD.getPreferredName(),
-            PinnedRetrieverBuilder.DOCS_FIELD.getPreferredName() };
+        return new String[] { PinnedRetrieverBuilder.IDS_FIELD.getPreferredName(), PinnedRetrieverBuilder.DOCS_FIELD.getPreferredName() };
     }
 
     @Override
@@ -170,4 +158,4 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
             }
         }
     }
-} 
+}

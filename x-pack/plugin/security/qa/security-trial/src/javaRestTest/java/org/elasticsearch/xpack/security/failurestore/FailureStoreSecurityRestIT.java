@@ -1941,70 +1941,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows(() -> performRequestMaybeUsingApiKey(user, search.toEsqlRequest()), statusCode);
     }
 
-    private record Search(String searchTarget, String pathParamString) {
-        Search(String searchTarget) {
-            this(searchTarget, "");
-        }
-
-        Request toSearchRequest() {
-            return new Request("POST", Strings.format("/%s/_search%s", searchTarget, pathParamString));
-        }
-
-        Request toAsyncSearchRequest() {
-            var pathParam = pathParamString.isEmpty()
-                ? "?wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT
-                : pathParamString + "&wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT;
-            return new Request("POST", Strings.format("/%s/_async_search%s", searchTarget, pathParam));
-        }
-
-        Request toEsqlRequest() throws IOException {
-            String command = "from " + searchTarget + " METADATA _id | KEEP _id";
-            if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
-                // add a (high) limit to avoid warnings on default limit
-                command += " | limit 10000000";
-            }
-            XContentBuilder json = JsonXContent.contentBuilder();
-            json.startObject();
-            json.field("query", command);
-            addRandomPragmas(json);
-            json.endObject();
-            var request = new Request("POST", "_query");
-            request.setJsonEntity(Strings.toString(json));
-            return request;
-        }
-    }
-
-    static void addRandomPragmas(XContentBuilder builder) throws IOException {
-        if (Build.current().isSnapshot()) {
-            Settings pragmas = randomPragmas();
-            if (pragmas != Settings.EMPTY) {
-                builder.startObject("pragma");
-                builder.value(pragmas);
-                builder.endObject();
-            }
-        }
-    }
-
-    static Settings randomPragmas() {
-        Settings.Builder settings = Settings.builder();
-        if (randomBoolean()) {
-            settings.put("page_size", between(1, 5));
-        }
-        if (randomBoolean()) {
-            settings.put("exchange_buffer_size", between(1, 2));
-        }
-        if (randomBoolean()) {
-            settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
-        }
-        if (randomBoolean()) {
-            settings.put("enrich_max_workers", between(1, 5));
-        }
-        if (randomBoolean()) {
-            settings.put("node_level_reduction", randomBoolean());
-        }
-        return settings.build();
-    }
-
     public void testWriteAndManageOperations() throws IOException {
         setupDataStream();
         Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
@@ -2601,6 +2537,39 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
     }
 
+    private record Search(String searchTarget, String pathParamString) {
+        Search(String searchTarget) {
+            this(searchTarget, "");
+        }
+
+        Request toSearchRequest() {
+            return new Request("POST", Strings.format("/%s/_search%s", searchTarget, pathParamString));
+        }
+
+        Request toAsyncSearchRequest() {
+            var pathParam = pathParamString.isEmpty()
+                ? "?wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT
+                : pathParamString + "&wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT;
+            return new Request("POST", Strings.format("/%s/_async_search%s", searchTarget, pathParam));
+        }
+
+        Request toEsqlRequest() throws IOException {
+            String command = "from " + searchTarget + " METADATA _id | KEEP _id";
+            if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
+                // add a (high) limit to avoid warnings on default limit
+                command += " | limit 10000000";
+            }
+            XContentBuilder json = JsonXContent.contentBuilder();
+            json.startObject();
+            json.field("query", command);
+            addRandomPragmas(json);
+            json.endObject();
+            var request = new Request("POST", "_query");
+            request.setJsonEntity(Strings.toString(json));
+            return request;
+        }
+    }
+
     private List<String> setupDataStream() throws IOException {
         createTemplates();
         return randomBoolean() ? populateDataStreamWithBulkRequest() : populateDataStreamWithDocRequests();
@@ -2845,6 +2814,37 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    static void addRandomPragmas(XContentBuilder builder) throws IOException {
+        if (Build.current().isSnapshot()) {
+            Settings pragmas = randomPragmas();
+            if (pragmas != Settings.EMPTY) {
+                builder.startObject("pragma");
+                builder.value(pragmas);
+                builder.endObject();
+            }
+        }
+    }
+
+    static Settings randomPragmas() {
+        Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put("page_size", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("exchange_buffer_size", between(1, 2));
+        }
+        if (randomBoolean()) {
+            settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
+        }
+        if (randomBoolean()) {
+            settings.put("enrich_max_workers", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("node_level_reduction", randomBoolean());
+        }
+        return settings.build();
     }
 
     @SuppressWarnings("unchecked")

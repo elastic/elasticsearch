@@ -1,0 +1,5 @@
+pr: 123074
+summary: Adding ES|QL Reranker command in snapshot builds
+area: Ranking
+type: feature
+issues: []

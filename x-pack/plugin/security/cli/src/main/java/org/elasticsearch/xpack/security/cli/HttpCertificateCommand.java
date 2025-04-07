@@ -353,7 +353,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     keyPair,
                     cert.subject,
                     sanList,
-                    buildKeyUsage(DEFAULT_CERT_KEY_USAGE),
+                    buildKeyUsage(cert.keyUsage),
                     Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
                 );
                 final String csrFile = "http-" + cert.name + ".csr";
@@ -387,7 +387,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     notBefore,
                     notAfter,
                     null,
-                    buildKeyUsage(DEFAULT_CERT_KEY_USAGE),
+                    buildKeyUsage(cert.keyUsage),
                     Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
                 );
 

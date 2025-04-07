@@ -316,7 +316,7 @@ public class RateLongAggregator {
             }
         }
 
-        private static double computeRate(LongRateState state, long unitInMillis) {
+        private static double computeRateWithoutExtrapolate(LongRateState state, long unitInMillis) {
             final int len = state.entries();
             final long firstTS = state.timestamps[state.timestamps.length - 1];
             final long lastTS = state.timestamps[0];
@@ -331,7 +331,16 @@ public class RateLongAggregator {
             return (lastValue - firstValue) * unitInMillis / (lastTS - firstTS);
         }
 
-        private static double computeRate(LongRateState state, long rangeStart, long rangeEnd, long unitInMillis) {
+        /**
+         * Credit to PromQL for this extrapolation algorithm:
+         * If samples are close enough to the rangeStart and rangeEnd, we extrapolate the rate all the way to the boundary in question.
+         * "Close enough" is defined as "up to 10% more than the average duration between samples within the range".
+         * Essentially, we assume a more or less regular spacing between samples. If we don't see a sample where we would expect one,
+         * we assume the series does not cover the whole range but starts and/or ends within the range.
+         * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
+         * samples (which is our guess for where the series actually starts or ends).
+         */
+        private static double extrapolateRate(LongRateState state, long rangeStart, long rangeEnd, long unitInMillis) {
             final int len = state.entries();
             final long firstTS = state.timestamps[state.timestamps.length - 1];
             final long lastTS = state.timestamps[0];
@@ -349,7 +358,6 @@ public class RateLongAggregator {
             double startGap = firstTS - rangeStart;
             if (startGap > 0) {
                 if (startGap > averageSampleInterval * 1.1) {
-                    // limit to half of the average sample interval if samples are far from the boundary
                     startGap = averageSampleInterval / 2.0;
                 }
                 firstValue = Math.max(0.0, firstValue - startGap * slope);
@@ -377,9 +385,9 @@ public class RateLongAggregator {
                     int len = state.entries();
                     final double rate;
                     if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                        rate = computeRate(state, tsContext.rangeStartInMillis(groupId), tsContext.rangeEndInMillis(groupId), unitInMillis);
+                        rate = extrapolateRate(state, tsContext.rangeStartInMillis(groupId), tsContext.rangeEndInMillis(groupId), unitInMillis);
                     } else {
-                        rate = computeRate(state, unitInMillis);
+                        rate = computeRateWithoutExtrapolate(state, unitInMillis);
                     }
                     rates.appendDouble(rate);
                 }

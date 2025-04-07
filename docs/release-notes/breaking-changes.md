@@ -10,8 +10,6 @@ Breaking changes can impact your Elastic applications, potentially disrupting no
 
 If you are migrating from a version prior to version 9.0, you must first upgrade to the last 8.x version available. To learn how to upgrade, check out [Upgrade](docs-content://deploy-manage/upgrade.md).
 
-To learn how to upgrade, check out <upgrade docs>.
-
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
 ## 9.0.0 [elasticsearch-900-breaking-changes]

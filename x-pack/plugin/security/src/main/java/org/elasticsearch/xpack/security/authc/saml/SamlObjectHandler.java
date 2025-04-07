@@ -161,7 +161,7 @@ public class SamlObjectHandler {
         return credentials.stream().map(credential -> describe(credential.getEntityCertificate())).collect(Collectors.joining(","));
     }
 
-    void validateSignature(Signature signature, Issuer issuer) {
+    void validateSignature(Signature signature, @Nullable Issuer issuer) {
         final String signatureText = text(signature, 32);
         SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();
         try {
@@ -200,7 +200,7 @@ public class SamlObjectHandler {
                         );
                         return true;
                     } catch (PrivilegedActionException e) {
-                        logger.warn("SecurityException while attempting to validate SAML signature" + formatIssuer(issuer), e);
+                        logger.warn("SecurityException while attempting to validate SAML signature." + describeIssuer(issuer), e);
                         return false;
                     }
                 });
@@ -214,7 +214,7 @@ public class SamlObjectHandler {
      * Tests whether the provided function returns {@code true} for any of the IdP's signing credentials.
      * @throws ElasticsearchSecurityException - A SAML exception if no matching credential is found.
      */
-    protected void checkIdpSignature(CheckedFunction<Credential, Boolean, Exception> check, String signatureText, Issuer issuer) {
+    protected void checkIdpSignature(CheckedFunction<Credential, Boolean, Exception> check, String signatureText, @Nullable Issuer issuer) {
         final Predicate<Credential> predicate = credential -> {
             try {
                 return check.apply(credential);
@@ -231,7 +231,7 @@ public class SamlObjectHandler {
                 logger.trace("SAML Signature failure caused by", e);
                 return false;
             } catch (Exception e) {
-                logger.warn("Exception while attempting to validate SAML Signature" + formatIssuer(issuer), e);
+                logger.warn("Exception while attempting to validate SAML Signature." + describeIssuer(issuer), e);
                 return false;
             }
         };
@@ -245,15 +245,15 @@ public class SamlObjectHandler {
      * Constructs a SAML specific exception with a consistent message regarding SAML Signature validation failures
      */
     private ElasticsearchSecurityException samlSignatureException(
-        Issuer issuer,
+        @Nullable Issuer issuer,
         List<Credential> credentials,
         String signature,
         Exception cause
     ) {
         logger.warn(
             "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML "
-                + "metadata file/URL for this Identity Provider{}",
-            formatIssuer(issuer)
+                + "metadata file/URL for this Identity Provider.{}",
+            describeIssuer(issuer)
         );
         final String msg = "SAML Signature [{}] could not be validated against [{}]";
         if (cause != null) {
@@ -267,8 +267,8 @@ public class SamlObjectHandler {
         return samlSignatureException(issuer, credentials, signature, null);
     }
 
-    private String formatIssuer(Issuer issuer) {
-        return issuer != null ? Strings.format(" [%s]", issuer.getValue()) : "";
+    private String describeIssuer(@Nullable Issuer issuer) {
+        return issuer != null ? Strings.format(" The issuer included in the SAML message was [%s]", issuer.getValue()) : "";
     }
 
     private static String describeCredentials(List<Credential> credentials) {

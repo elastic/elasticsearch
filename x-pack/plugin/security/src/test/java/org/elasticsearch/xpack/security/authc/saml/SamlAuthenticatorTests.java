@@ -107,8 +107,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "Change your IdP configuration to use a different attribute *"
             + " that will not clash with any of [*]";
     private static final String SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE = "The XML Signature of this SAML message cannot be validated. "
-        + "Please verify that the saml realm uses the correct SAML metadata file/URL for this Identity Provider "
-        + "[https://idp.saml.elastic.test/]";
+        + "Please verify that the saml realm uses the correct SAML metadata file/URL for this Identity Provider. "
+        + "The issuer included in the SAML message was [https://idp.saml.elastic.test/]";
 
     private SamlAuthenticator authenticator;
 
@@ -1356,7 +1356,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     "Null credentials",
                     authenticator.getClass().getName(),
                     Level.WARN,
-                    "Exception while attempting to validate SAML Signature [https://idp.saml.elastic.test/]"
+                    "Exception while attempting to validate SAML Signature. " +
+                        "The issuer included in the SAML message was [https://idp.saml.elastic.test/]"
                 )
             );
 

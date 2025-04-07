@@ -195,8 +195,8 @@ public final class PercentileFloatGroupingAggregatorFunction implements Grouping
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = PercentileFloatAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = PercentileFloatAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

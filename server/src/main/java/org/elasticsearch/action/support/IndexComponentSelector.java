@@ -83,7 +83,7 @@ public enum IndexComponentSelector implements Writeable {
         }
         IndexComponentSelector selector = getByKey(key);
         if (selector == null) {
-            throw new IllegalArgumentException(
+            throw new InvalidSelectorException(
                 "Unknown key of index component selector [" + key + "], available options are: " + KEY_REGISTRY.keySet()
             );
         }
@@ -107,7 +107,7 @@ public enum IndexComponentSelector implements Writeable {
     static IndexComponentSelector getById(byte id) {
         IndexComponentSelector indexComponentSelector = ID_REGISTRY.get(id);
         if (indexComponentSelector == null) {
-            throw new IllegalArgumentException(
+            throw new InvalidSelectorException(
                 "Unknown id of index component selector [" + id + "], available options are: " + ID_REGISTRY
             );
         }

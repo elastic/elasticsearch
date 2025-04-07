@@ -54,8 +54,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         Map.entry(DataType.IP, MinIpAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, MinBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, MinBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, MinBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.SEMANTIC_TEXT, MinBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TEXT, MinBytesRefAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(

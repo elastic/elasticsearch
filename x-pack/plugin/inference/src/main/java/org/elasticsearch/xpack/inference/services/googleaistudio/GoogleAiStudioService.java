@@ -34,8 +34,6 @@ import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
-import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioCompletionRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -364,7 +362,13 @@ public class GoogleAiStudioService extends SenderService {
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            doInfer(model, new EmbeddingsInput(request.batch().inputs(), inputType), taskSettings, timeout, request.listener());
+            doInfer(
+                model,
+                EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType),
+                taskSettings,
+                timeout,
+                request.listener()
+            );
         }
     }
 

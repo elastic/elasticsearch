@@ -1356,8 +1356,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     "Null credentials",
                     authenticator.getClass().getName(),
                     Level.WARN,
-                    "Exception while attempting to validate SAML Signature. " +
-                        "The issuer included in the SAML message was [https://idp.saml.elastic.test/]"
+                    "Exception while attempting to validate SAML Signature. "
+                        + "The issuer included in the SAML message was [https://idp.saml.elastic.test/]"
                 )
             );
 

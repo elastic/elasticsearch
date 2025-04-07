@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -124,7 +125,7 @@ public class SystemDataStreamMigrationIT extends AbstractFeatureMigrationIntegTe
         // Waiting for shards to stabilize if indices were moved around
         ensureGreen();
 
-        Metadata finalMetadata = assertMetadataAfterMigration(DATA_STREAM_FEATURE);
+        ProjectMetadata finalMetadata = assertMetadataAfterMigration(DATA_STREAM_FEATURE);
 
         DataStream dataStream = finalMetadata.dataStreams().get(TEST_DATA_STREAM_NAME);
         assertNotNull(dataStream);

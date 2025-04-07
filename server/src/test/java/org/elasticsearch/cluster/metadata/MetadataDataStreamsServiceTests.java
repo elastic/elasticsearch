@@ -106,7 +106,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
         IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -133,15 +133,15 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .build();
         mb.put(indexToAdd, false);
 
-        ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
-        ClusterState newState = MetadataDataStreamsService.modifyDataStream(
-            originalState,
+        ProjectMetadata projectMetadata = mb.build();
+        ProjectMetadata newState = MetadataDataStreamsService.modifyDataStream(
+            projectMetadata,
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
         );
 
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
@@ -152,7 +152,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
+        IndexMetadata zeroIndex = newState.index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.isSystem(), equalTo(true));

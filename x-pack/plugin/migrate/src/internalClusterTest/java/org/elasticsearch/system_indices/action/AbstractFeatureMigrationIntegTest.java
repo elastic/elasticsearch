@@ -22,7 +22,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -150,10 +150,10 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     protected String masterAndDataNode;
     protected String masterName;
 
-    protected static Metadata assertMetadataAfterMigration(String featureName) {
-        Metadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
+    protected static ProjectMetadata assertMetadataAfterMigration(String featureName) {
+        ProjectMetadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject();
         // Check that the results metadata is what we expect.
-        FeatureMigrationResults currentResults = finalMetadata.getProject().custom(FeatureMigrationResults.TYPE);
+        FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
         assertThat(currentResults, notNullValue());
         assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(featureName)));
         assertThat(currentResults.getFeatureStatuses().get(featureName).succeeded(), is(true));
@@ -268,14 +268,14 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     }
 
     protected void assertIndexHasCorrectProperties(
-        Metadata metadata,
+        ProjectMetadata metadata,
         String indexName,
         int settingsFlagValue,
         boolean isManaged,
         boolean isInternal,
         Collection<String> aliasNames
     ) {
-        IndexMetadata imd = metadata.getProject().index(indexName);
+        IndexMetadata imd = metadata.index(indexName);
         assertThat(imd.getSettings().get(FlAG_SETTING_KEY), equalTo(Integer.toString(settingsFlagValue)));
         final Map<String, Object> mapping = imd.mapping().getSourceAsMap();
         @SuppressWarnings("unchecked")

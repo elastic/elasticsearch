@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -194,7 +195,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertTrue("the pre-migration hook wasn't actually called", preUpgradeHookCalled.get());
         assertTrue("the post-migration hook wasn't actually called", postUpgradeHookCalled.get());
 
-        Metadata finalMetadata = assertMetadataAfterMigration(FEATURE_NAME);
+        ProjectMetadata finalMetadata = assertMetadataAfterMigration(FEATURE_NAME);
 
         assertIndexHasCorrectProperties(
             finalMetadata,
@@ -359,7 +360,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         executeMigration(SCRIPTED_INDEX_FEATURE_NAME);
         ensureGreen();
 
-        Metadata metadata = assertMetadataAfterMigration(SCRIPTED_INDEX_FEATURE_NAME);
+        ProjectMetadata metadata = assertMetadataAfterMigration(SCRIPTED_INDEX_FEATURE_NAME);
         String newIndexName = ".int-mans-old" + UPGRADED_INDEX_SUFFIX;
         assertIndexHasCorrectProperties(
             metadata,

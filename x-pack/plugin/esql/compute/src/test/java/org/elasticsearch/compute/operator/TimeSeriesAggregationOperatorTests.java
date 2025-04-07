@@ -270,6 +270,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         Operator intialAgg = new TimeSeriesAggregationOperatorFactories.Initial(
             1,
             3,
+            rounding,
             IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
             List.of(new SupplierWithChannels(new RateLongAggregatorFunctionSupplier(unitInMillis), List.of(4, 2))),
             List.of(),
@@ -280,6 +281,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         Operator intermediateAgg = new TimeSeriesAggregationOperatorFactories.Intermediate(
             0,
             1,
+            rounding,
             IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
             List.of(new SupplierWithChannels(new RateLongAggregatorFunctionSupplier(unitInMillis), List.of(2, 3, 4))),
             List.of(),

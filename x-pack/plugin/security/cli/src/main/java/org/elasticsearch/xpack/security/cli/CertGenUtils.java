@@ -147,9 +147,9 @@ public class CertGenUtils {
     /**
      * Generates a CA certificate
      */
-    public static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair, int days)
+    public static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair, int days, KeyUsage keyUsage)
         throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
-        return generateSignedCertificate(x500Principal, null, keyPair, null, null, true, days, null, null, Set.of());
+        return generateSignedCertificate(x500Principal, null, keyPair, null, null, true, days, null, keyUsage, Set.of());
     }
 
     /**

@@ -18,7 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -46,10 +45,8 @@ public class ClusterStateRequest extends LocalClusterStateRequest implements Ind
     }
 
     /**
-     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
-     * we no longer need to support calling this action remotely.
+     * Even though this request is only executed on the local node, we still need to be able to serialize it for cross-cluster requests.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     public ClusterStateRequest(StreamInput in) throws IOException {
         super(in);
         routingTable = in.readBoolean();

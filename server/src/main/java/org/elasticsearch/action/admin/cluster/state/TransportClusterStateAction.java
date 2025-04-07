@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -59,11 +58,6 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
 
-    /**
-     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
-     * we no longer need to support calling this action remotely.
-     */
-    @SuppressWarnings("this-escape")
     @Inject
     public TransportClusterStateAction(
         TransportService transportService,
@@ -83,15 +77,6 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.threadPool = threadPool;
-
-        transportService.registerRequestHandler(
-            actionName,
-            executor,
-            false,
-            true,
-            ClusterStateRequest::new,
-            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
-        );
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -298,7 +299,7 @@ public class CcrLicenseChecker {
                             onFailure
                         );
                         // following an index in remote cluster, so use remote client to fetch leader index metadata
-                        remoteClient.execute(ClusterStateAction.REMOTE_TYPE, request, clusterStateListener);
+                        remoteClient.execute(ClusterStateAction.REMOTE_TYPE, new RemoteClusterStateRequest(request), clusterStateListener);
                     } else {
                         onFailure.accept(nonCompliantLicense.apply(licenseCheck));
                     }

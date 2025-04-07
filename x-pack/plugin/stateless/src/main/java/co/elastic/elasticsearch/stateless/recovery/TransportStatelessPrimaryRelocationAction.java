@@ -71,7 +71,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -166,7 +165,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             (request, channel, task) -> handleStartRelocation(
                 task,
                 request,
-                new ChannelActionListener<>(channel).map(ignored -> TransportResponse.Empty.INSTANCE)
+                new ChannelActionListener<>(channel).map(ignored -> ActionResponse.Empty.INSTANCE)
             )
         );
 
@@ -178,7 +177,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             PrimaryContextHandoffRequest::new,
             (request, channel, task) -> handlePrimaryContextHandoff(
                 request,
-                new ChannelActionListener<>(channel).map(ignored -> TransportResponse.Empty.INSTANCE)
+                new ChannelActionListener<>(channel).map(ignored -> ActionResponse.Empty.INSTANCE)
             )
         );
     }
@@ -353,9 +352,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
                 // Create a compound listener which will trigger both the stateless commit service listener and top-level
                 // handoffResultListener
-                ActionListener<TransportResponse.Empty> compoundHandoffListener = new ActionListener<>() {
+                ActionListener<ActionResponse.Empty> compoundHandoffListener = new ActionListener<>() {
                     @Override
-                    public void onResponse(TransportResponse.Empty unused) {
+                    public void onResponse(ActionResponse.Empty unused) {
                         final var relocationDuration = getTimeSince(beforeRelocation);
 
                         logger.debug("[{}] primary context handoff succeeded", request.shardId());
@@ -435,7 +434,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         ),
                         task,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(finalHandoffListener, in -> TransportResponse.Empty.INSTANCE, recoveryExecutor)
+                        new ActionListenerResponseHandler<>(finalHandoffListener, in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
                     );
                 }), recoveryExecutor, threadContext);
             }, listener0);

@@ -72,7 +72,7 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
     chown 1000:1000 bin config config/jvm.options.d data logs plugins
 
 # The distribution includes a `config` directory, no need to create it
-COPY config/elasticsearch.yml config/log4j2.properties config/
+COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
 
 
 ################################################################################

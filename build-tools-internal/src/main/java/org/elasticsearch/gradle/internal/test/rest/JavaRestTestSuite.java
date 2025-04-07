@@ -9,6 +9,4 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.gradle.api.plugins.jvm.JvmTestSuite;
-
-public interface JavaRestTestSuite extends JvmTestSuite {}
+interface JavaRestTestSuite extends RestTestSuite {}

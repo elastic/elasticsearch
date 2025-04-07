@@ -32,7 +32,7 @@ public class InternalClusterTestPlugin implements Plugin<Project> {
         testing.getSuites().register(SOURCE_SET_NAME, JvmTestSuite.class, suite -> {
             suite.useJUnit();
             suite.getDependencies().getImplementation().add(suite.getDependencies().project());
-            suite.getTargets().all(target -> { target.getTestTask().configure(test -> { test.jvmArgs("-XX:+UseG1GC"); }); });
+            suite.getTargets().configureEach(target -> { target.getTestTask().configure(test -> { test.jvmArgs("-XX:+UseG1GC"); }); });
         });
 
         project.getPluginManager().withPlugin("java", plugin -> {

@@ -177,7 +177,6 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, freeScrollContext.get());
             assertEquals(0, validateSearchContext.get());
 
-
             compositeListener.onQueryPhase(ctx, timeInNanos.get());
             assertEquals(0, preDfs.get());
             assertEquals(0, preFetch.get());

@@ -1289,7 +1289,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Asynchronously refreshes the engine for new search operations to reflect the latest
-     * changes unless another thread is already refreshing the engine concurrently.
+     * changes unless another thread is already refreshing or reseting the engine concurrently.
      */
     @Nullable
     public abstract void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException;

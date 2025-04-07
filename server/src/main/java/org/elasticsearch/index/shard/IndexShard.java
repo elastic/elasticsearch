@@ -4433,6 +4433,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * In general, resetting the engine should be done with care, to consider any in-progress operations and listeners.
      * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
+     * Reseting the engine can prevent non-blocking engine refreshes (see {@link Engine#maybeRefresh(String, ActionListener)} to be
+     * immediately executed, so it is expected that the new engine instance provides refreshed readers (if supported) after the reset.
      *
      * @param postResetNewEngineConsumer A consumer that will be called with the newly created engine after the reset
      *                                   is complete, allowing for post-reset operations on the new engine instance.

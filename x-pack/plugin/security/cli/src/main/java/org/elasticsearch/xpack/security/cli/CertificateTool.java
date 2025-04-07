@@ -281,7 +281,10 @@ class CertificateTool extends MultiCommand {
         final void acceptCertificateAuthorityKeyUsage() {
             OptionSpecBuilder builder = parser.accepts(
                 "ca-keyusage",
-                "comma separated key usages to use for the generated CA. defaults to " + DEFAULT_CA_KEY_USAGE
+                "comma separated key usages to use for the generated CA. "
+                    + "defaults to '"
+                    + Strings.collectionToCommaDelimitedString(DEFAULT_CA_KEY_USAGE)
+                    + "'"
             );
             if (caPkcs12PathSpec != null) {
                 builder = builder.availableUnless(caPkcs12PathSpec);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.dependencies.patches.hdfs;
 
+import org.elasticsearch.gradle.internal.dependencies.patches.PatcherInfo;
 import org.elasticsearch.gradle.internal.dependencies.patches.Utils;
 import org.gradle.api.artifacts.transform.CacheableTransform;
 import org.gradle.api.artifacts.transform.InputArtifact;
@@ -21,41 +22,36 @@ import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
 import org.jetbrains.annotations.NotNull;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.ClassWriter;
 
 import java.io.File;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 
-import static java.util.Map.entry;
+import static org.elasticsearch.gradle.internal.dependencies.patches.PatcherInfo.classPatcher;
 
 @CacheableTransform
 public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatcher.Parameters> {
 
-    record JarPatchers(String artifactTag, Pattern artifactPattern, Map<String, Function<ClassWriter, ClassVisitor>> jarPatchers) {}
+    record JarPatchers(String artifactTag, Pattern artifactPattern, List<PatcherInfo> jarPatchers) {}
 
     static final List<JarPatchers> allPatchers = List.of(
         new JarPatchers(
             "hadoop-common",
             Pattern.compile("hadoop-common-(?!.*tests)"),
-            Map.ofEntries(
-                entry("org/apache/hadoop/util/ShutdownHookManager.class", ShutdownHookManagerPatcher::new),
-                entry("org/apache/hadoop/util/Shell.class", ShellPatcher::new),
-                entry("org/apache/hadoop/security/UserGroupInformation.class", SubjectGetSubjectPatcher::new)
+            List.of(
+                classPatcher("org/apache/hadoop/util/ShutdownHookManager.class", ShutdownHookManagerPatcher::new),
+                classPatcher("org/apache/hadoop/util/Shell.class", ShellPatcher::new),
+                classPatcher("org/apache/hadoop/security/UserGroupInformation.class", SubjectGetSubjectPatcher::new)
             )
         ),
         new JarPatchers(
             "hadoop-client-api",
             Pattern.compile("hadoop-client-api.*"),
-            Map.ofEntries(
-                entry("org/apache/hadoop/util/ShutdownHookManager.class", ShutdownHookManagerPatcher::new),
-                entry("org/apache/hadoop/util/Shell.class", ShellPatcher::new),
-                entry("org/apache/hadoop/security/UserGroupInformation.class", SubjectGetSubjectPatcher::new),
-                entry("org/apache/hadoop/security/authentication/client/KerberosAuthenticator.class", SubjectGetSubjectPatcher::new)
+            List.of(
+                classPatcher("org/apache/hadoop/util/ShutdownHookManager.class", ShutdownHookManagerPatcher::new),
+                classPatcher("org/apache/hadoop/util/Shell.class", ShellPatcher::new),
+                classPatcher("org/apache/hadoop/security/UserGroupInformation.class", SubjectGetSubjectPatcher::new),
+                classPatcher("org/apache/hadoop/security/authentication/client/KerberosAuthenticator.class", SubjectGetSubjectPatcher::new)
             )
         )
     );
@@ -85,11 +81,8 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
         } else {
             patchersToApply.forEach(patchers -> {
                 System.out.println("Patching " + inputFile.getName());
-
-                Map<String, Function<ClassWriter, ClassVisitor>> jarPatchers = new HashMap<>(patchers.jarPatchers());
                 File outputFile = outputs.file(inputFile.getName().replace(".jar", "-patched.jar"));
-
-                Utils.patchJar(inputFile, outputFile, jarPatchers);
+                Utils.patchJar(inputFile, outputFile, patchers.jarPatchers());
             });
         }
     }

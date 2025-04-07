@@ -10,28 +10,50 @@
 package org.elasticsearch.gradle.internal.dependencies.patches;
 
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Collection;
 import java.util.Enumeration;
-import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import java.util.stream.Collectors;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 
 public class Utils {
-    public static void patchJar(File inputFile, File outputFile, Map<String, Function<ClassWriter, ClassVisitor>> patchers) {
-        var classPatchers = new HashMap<>(patchers);
+
+    private static final MessageDigest SHA_256;
+
+    static {
+        try {
+            SHA_256 = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Patches the classes in the input JAR file, using the collection of patchers. If the patcher info specify a SHA256 digest, and
+     * the class to patch does not match it, an IllegalArgumentException is thrown.
+     * If the input file does not contain all the classes to patch specified in the patcher info collection, an IllegalArgumentException
+     * is also thrown.
+     * @param inputFile the JAR file to patch
+     * @param outputFile the output (patched) JAR file
+     * @param patchers list of patcher info (classes to patch (jar entry name + optional SHA256 digest) and ASM visitor to transform them)
+     */
+    public static void patchJar(File inputFile, File outputFile, Collection<PatcherInfo> patchers) {
+        var classPatchers = patchers.stream().collect(Collectors.toMap(PatcherInfo::jarEntryName, Function.identity()));
         try (JarFile jarFile = new JarFile(inputFile); JarOutputStream jos = new JarOutputStream(new FileOutputStream(outputFile))) {
             Enumeration<JarEntry> entries = jarFile.entries();
             while (entries.hasMoreElements()) {
@@ -40,13 +62,27 @@ public class Utils {
                 // Add the entry to the new JAR file
                 jos.putNextEntry(new JarEntry(entryName));
 
-                Function<ClassWriter, ClassVisitor> classPatcher = classPatchers.remove(entryName);
+                var classPatcher = classPatchers.remove(entryName);
                 if (classPatcher != null) {
                     byte[] classToPatch = jarFile.getInputStream(entry).readAllBytes();
+                    var classSha256 = SHA_256.digest(classToPatch);
+
+                    if (classPatcher.matches(classSha256) == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "error patching [%s]: jar entry [%s] digest mismatch (expected: [%s], found: [%s])",
+                                inputFile.getName(),
+                                classPatcher.jarEntryName(),
+                                HexFormat.of().formatHex(classPatcher.classSha256()),
+                                HexFormat.of().formatHex(classSha256)
+                            )
+                        );
+                    }
 
                     ClassReader classReader = new ClassReader(classToPatch);
                     ClassWriter classWriter = new ClassWriter(classReader, COMPUTE_MAXS | COMPUTE_FRAMES);
-                    classReader.accept(classPatcher.apply(classWriter), 0);
+                    classReader.accept(classPatcher.visitorFactory().apply(classWriter), 0);
                     jos.write(classWriter.toByteArray());
                 } else {
                     // Read the entry's data and write it to the new JAR
@@ -66,7 +102,7 @@ public class Utils {
                     Locale.ROOT,
                     "error patching [%s]: the jar does not contain [%s]",
                     inputFile.getName(),
-                    String.join(", ", patchers.keySet())
+                    String.join(", ", classPatchers.keySet())
                 )
             );
         }

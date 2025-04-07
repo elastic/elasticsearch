@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
@@ -111,8 +112,8 @@ public class HttpRequestSender implements Sender {
         }
     }
 
-    public void updateRateLimitDivisor(int rateLimitDivisor) {
-        service.updateRateLimitDivisor(rateLimitDivisor);
+    public void updateRateLimitDivisor(String serviceName, TaskType taskType, int rateLimitDivisor) {
+        service.updateRateLimitDivisor(serviceName, taskType, rateLimitDivisor);
     }
 
     private void waitForStartToComplete() {

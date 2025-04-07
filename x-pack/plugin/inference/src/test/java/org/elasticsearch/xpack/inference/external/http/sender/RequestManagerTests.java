@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.when;
 
 public class RequestManagerTests {
     public static RequestManager createMock() {
+        var mockRequestManager = mock(RequestManager.class);
         return createMock(mock(RequestSender.class));
     }
 
@@ -59,6 +61,8 @@ public class RequestManagerTests {
 
         when(mockManager.rateLimitSettings()).thenReturn(settings);
         when(mockManager.inferenceEntityId()).thenReturn(inferenceEntityId);
+        when(mockManager.service()).thenReturn("test-service");
+        when(mockManager.taskType()).thenReturn(TaskType.ANY);
 
         return mockManager;
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -23,17 +24,28 @@ abstract class BaseRequestManager implements RequestManager {
     // the rate and the other inference endpoint's rate will be ignored
     private final EndpointGrouping endpointGrouping;
     private final RateLimitSettings rateLimitSettings;
+    private final String service;
+    private final TaskType taskType;
 
-    BaseRequestManager(ThreadPool threadPool, String inferenceEntityId, Object rateLimitGroup, RateLimitSettings rateLimitSettings) {
+    BaseRequestManager(
+        ThreadPool threadPool,
+        String inferenceEntityId,
+        Object rateLimitGroup,
+        RateLimitSettings rateLimitSettings,
+        String service,
+        TaskType taskType
+    ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
 
         Objects.requireNonNull(rateLimitSettings);
         this.endpointGrouping = new EndpointGrouping(Objects.requireNonNull(rateLimitGroup).hashCode(), rateLimitSettings);
         this.rateLimitSettings = rateLimitSettings;
+        this.service = service;
+        this.taskType = taskType;
     }
 
-    BaseRequestManager(ThreadPool threadPool, RateLimitGroupingModel rateLimitGroupingModel) {
+    BaseRequestManager(ThreadPool threadPool, RateLimitGroupingModel rateLimitGroupingModel, String service, TaskType taskType) {
         this.threadPool = Objects.requireNonNull(threadPool);
         Objects.requireNonNull(rateLimitGroupingModel);
 
@@ -43,6 +55,8 @@ abstract class BaseRequestManager implements RequestManager {
             rateLimitGroupingModel.rateLimitSettings()
         );
         this.rateLimitSettings = rateLimitGroupingModel.rateLimitSettings();
+        this.service = service;
+        this.taskType = taskType;
     }
 
     protected void execute(Runnable runnable) {
@@ -62,6 +76,16 @@ abstract class BaseRequestManager implements RequestManager {
     @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
+    }
+
+    @Override
+    public String service() {
+        return this.service;
+    }
+
+    @Override
+    public TaskType taskType() {
+        return this.taskType;
     }
 
     private record EndpointGrouping(int group, RateLimitSettings settings) {}

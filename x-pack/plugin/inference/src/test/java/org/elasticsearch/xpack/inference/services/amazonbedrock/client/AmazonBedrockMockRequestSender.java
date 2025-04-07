@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -71,7 +72,7 @@ public class AmazonBedrockMockRequestSender implements Sender {
     }
 
     @Override
-    public void updateRateLimitDivisor(int rateLimitDivisor) {
+    public void updateRateLimitDivisor(String serviceName, TaskType taskType, int rateLimitDivisor) {
         // do nothing
     }
 

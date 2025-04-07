@@ -330,7 +330,7 @@ public class DataStreamAutoShardingService {
                 increaseCalculation.writeIndexLoadForIncrease,
                 decreaseCalculation == null
                     ? ""
-                    : String.format(
+                    : Strings.format(
                         ", decrease calculation gives %d shards using %s load %g for %s",
                         decreaseCalculation.optimalShardCountForDecrease,
                         inputs.decreaseShardsMetric,

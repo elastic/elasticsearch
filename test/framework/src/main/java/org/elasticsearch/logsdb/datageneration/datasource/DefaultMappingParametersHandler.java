@@ -108,7 +108,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             if (ESTestCase.randomDouble() <= 0.2) {
                 injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
-
+            // NOCOMMIT - randomize this
+            injected.put("normalizer", "lowercase");
             return injected;
         };
     }

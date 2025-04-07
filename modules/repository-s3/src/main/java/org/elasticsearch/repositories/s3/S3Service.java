@@ -248,7 +248,7 @@ class S3Service extends AbstractLifecycleComponent {
         s3clientBuilder.region(getClientRegion(clientSettings));
 
         if (Strings.hasLength(clientSettings.endpoint)) {
-            s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint)); // TODO NOMERGE what if URI.create fails?
+            s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint));
         }
 
         return s3clientBuilder;

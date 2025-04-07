@@ -292,10 +292,25 @@ class S3Service extends AbstractLifecycleComponent {
         return null;
     }
 
-    static SdkHttpClient buildHttpClient(S3ClientSettings clientSettings, @Nullable /* to use default resolver */ DnsResolver dnsResolver) {
+    /**
+     * An override for testing purposes.
+     */
+    Optional<Duration> getConnectionAcquisitionTimeout() {
+        return Optional.empty();
+    }
+
+    private SdkHttpClient buildHttpClient(
+        S3ClientSettings clientSettings,
+        @Nullable /* to use default resolver */ DnsResolver dnsResolver
+    ) {
         ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
 
-        // TODO NOMERGE: an IT test for maxConnections?
+        var optConnectionAcquisitionTimout = getConnectionAcquisitionTimeout();
+        if (optConnectionAcquisitionTimout.isPresent()) {
+            // Only tests set this.
+            httpClientBuilder.connectionAcquisitionTimeout(optConnectionAcquisitionTimout.get());
+        }
+
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
         httpClientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
 

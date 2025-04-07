@@ -17,6 +17,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.apache.http.conn.ConnectionPoolTimeoutException;
 import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
@@ -72,14 +73,18 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntConsumer;
@@ -90,6 +95,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomN
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
+import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.allOf;
@@ -133,6 +139,19 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             DnsResolver getCustomDnsResolver() {
                 return this::resolveHost;
             }
+
+            /**
+             * Overrides the S3Client's HTTP Client connection acquisition timeout. Essentially, once the client's max connection number is
+             * reached ({@link S3ClientSettings#MAX_CONNECTIONS_SETTING}), new requests will fail (timeout) fast when a connection is not
+             * available.
+             */
+            @Override
+            Optional<Duration> getConnectionAcquisitionTimeout() {
+                // This override is used to make requests timeout nearly immediately if the max number of concurrent connections is reached
+                // on the HTTP client.
+                return Optional.of(Duration.of(1, ChronoUnit.MILLIS));
+            }
+
         };
         service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();
@@ -165,6 +184,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
         final @Nullable Boolean disableChunkedEncoding,
+        final @Nullable Integer maxConnections,
         final @Nullable ByteSizeValue bufferSize,
         final @Nullable Integer maxBulkDeletes,
         BlobPath blobContainerPath
@@ -185,6 +205,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         }
         if (disableChunkedEncoding != null) {
             clientSettings.put(DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace(clientName).getKey(), disableChunkedEncoding);
+        }
+        if (maxConnections != null) {
+            clientSettings.put(MAX_CONNECTIONS_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxConnections);
         }
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
@@ -268,7 +291,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final int maxRetries = randomInt(5);
         final CountDown countDown = new CountDown(maxRetries + 1);
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null, null, null, null);
 
         final byte[] bytes = randomBlobContent();
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_max_retries"), exchange -> {
@@ -316,7 +339,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     public void testWriteBlobWithReadTimeouts() {
         final byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 128));
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
-        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null, null, null, null);
 
         // HTTP server does not send a response
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_timeout"), exchange -> {
@@ -350,7 +373,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final boolean useTimeout = rarely();
         final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
         final ByteSizeValue bufferSize = ByteSizeValue.of(5, ByteSizeUnit.MB);
-        final BlobContainer blobContainer = createBlobContainer(null, readTimeout, true, bufferSize, null, null);
+        final BlobContainer blobContainer = createBlobContainer(null, readTimeout, true, null, bufferSize, null, null);
 
         final int parts = randomIntBetween(1, 5);
         final long lastPartSize = randomLongBetween(10, 512);
@@ -446,7 +469,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final boolean useTimeout = rarely();
         final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
         final ByteSizeValue bufferSize = ByteSizeValue.of(5, ByteSizeUnit.MB);
-        final BlobContainer blobContainer = createBlobContainer(null, readTimeout, true, bufferSize, null, null);
+        final BlobContainer blobContainer = createBlobContainer(null, readTimeout, true, null, bufferSize, null, null);
 
         final int parts = randomIntBetween(1, 5);
         final long lastPartSize = randomLongBetween(10, 512);
@@ -549,13 +572,87 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertEquals(blobSize, bytesReceived.get());
     }
 
+    public void testMaxConnections() throws InterruptedException, IOException {
+        final CountDownLatch requestReceived = new CountDownLatch(1);
+        final CountDownLatch releaseRequest = new CountDownLatch(1);
+        int maxConnections = 1;
+        final BlobContainer blobContainer = createBlobContainer(null, null, null, maxConnections, null, null, null);
+
+        // Setting up a simple request handler that returns NOT_FOUND, so as to avoid setting up a response.
+        @SuppressForbidden(reason = "use a http server")
+        class NotFoundReadHandler implements HttpHandler {
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                logger.info("---> First request received");
+                // Signal that the request has begun.
+                requestReceived.countDown();
+                try {
+                    // Wait for a signal to stop hanging.
+                    releaseRequest.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+
+                logger.info("---> First request released");
+                exchange.sendResponseHeaders(HttpStatus.SC_NOT_FOUND, -1);
+                exchange.close();
+                logger.info("---> First request finished");
+            }
+        }
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "max_connection_timeout"), new NotFoundReadHandler());
+
+        // Start up an async thread to monopolize the one http client connection (the request will hang per the above handling).
+        Thread thread = new Thread(() -> {
+            expectThrows(NoSuchFileException.class, () -> {
+                try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "max_connection_timeout")) {
+                    Streams.readFully(inputStream);
+                }
+            });
+        });
+        thread.start();
+        logger.info("---> Sending first request");
+        requestReceived.await();
+        logger.info("---> First request was received and is hanging");
+
+        // Now we'll run a second request, which should error out with a connection exception.
+        Exception exception = new Exception();
+        try {
+            var inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_not_found");
+            Streams.readFully(inputStream);
+            inputStream.close();
+        } catch (SdkClientException e) {
+            logger.info("---> Threw the expected SdkClientException (should have a connection error): " + e);
+            exception = e;
+        } finally {
+            releaseRequest.countDown();
+            logger.info("---> First request is released");
+            thread.join();
+            logger.info("---> First request has finished");
+        }
+        assertFalse("Somehow failed to set the exception variable", exception.getMessage().isBlank());
+
+        assertThat(exception, instanceOf(SdkClientException.class));
+        assertThat(exception.getCause(), instanceOf(ConnectionPoolTimeoutException.class));
+
+        assertThat(exception.getMessage(), containsString("Unable to execute HTTP request: Timeout waiting for connection from pool"));
+        assertThat(exception.getCause().getMessage(), containsString("Timeout waiting for connection from pool"));
+    }
+
     public void testReadRetriesAfterMeaningfulProgress() throws Exception {
         final int maxRetries = between(0, 5);
         final int bufferSizeBytes = scaledRandomIntBetween(
             0,
             randomFrom(1000, Math.toIntExact(S3Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY).getBytes()))
         );
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, ByteSizeValue.ofBytes(bufferSizeBytes), null, null);
+        final BlobContainer blobContainer = createBlobContainer(
+            maxRetries,
+            null,
+            true,
+            null,
+            ByteSizeValue.ofBytes(bufferSizeBytes),
+            null,
+            null
+        );
         final int meaningfulProgressBytes = Math.max(1, bufferSizeBytes / 100);
 
         final byte[] bytes = randomBlobContent();
@@ -628,7 +725,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             0,
             randomFrom(1000, Math.toIntExact(S3Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY).getBytes()))
         );
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, ByteSizeValue.ofBytes(bufferSizeBytes), null, null);
+        final BlobContainer blobContainer = createBlobContainer(
+            maxRetries,
+            null,
+            true,
+            null,
+            ByteSizeValue.ofBytes(bufferSizeBytes),
+            null,
+            null
+        );
 
         final byte[] bytes = randomBlobContent();
 
@@ -666,7 +771,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             0,
             randomFrom(1000, Math.toIntExact(S3Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY).getBytes()))
         );
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, ByteSizeValue.ofBytes(bufferSizeBytes), null, null);
+        final BlobContainer blobContainer = createBlobContainer(
+            maxRetries,
+            null,
+            true,
+            null,
+            ByteSizeValue.ofBytes(bufferSizeBytes),
+            null,
+            null
+        );
         final int meaningfulProgressBytes = Math.max(1, bufferSizeBytes / 100);
 
         final byte[] bytes = randomBlobContent(512);
@@ -759,7 +872,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testDoesNotRetryOnNotFound() {
         final int maxRetries = between(3, 5);
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null, null, null, null);
 
         final AtomicInteger numberOfReads = new AtomicInteger(0);
         @SuppressForbidden(reason = "use a http server")
@@ -791,7 +904,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testSnapshotDeletesRetryOnThrottlingError() throws IOException {
         // disable AWS-client retries
-        final BlobContainer blobContainer = createBlobContainer(0, null, true, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(0, null, true, null, null, null, null);
 
         int numBlobsToDelete = randomIntBetween(500, 3000);
         List<String> blobsToDelete = new ArrayList<>();
@@ -811,7 +924,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testSnapshotDeletesAbortRetriesWhenThreadIsInterrupted() {
         // disable AWS-client retries
-        final BlobContainer blobContainer = createBlobContainer(0, null, true, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(0, null, true, null, null, null, null);
 
         int numBlobsToDelete = randomIntBetween(500, 3000);
         List<String> blobsToDelete = new ArrayList<>();
@@ -848,7 +961,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testNonSnapshotDeletesAreNotRetried() {
         // disable AWS-client retries
-        final BlobContainer blobContainer = createBlobContainer(0, null, true, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(0, null, true, null, null, null, null);
 
         int numBlobsToDelete = randomIntBetween(500, 3000);
         List<String> blobsToDelete = new ArrayList<>();
@@ -877,7 +990,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testNonThrottlingErrorsAreNotRetried() {
         // disable AWS-client retries
-        final BlobContainer blobContainer = createBlobContainer(0, null, true, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(0, null, true, null, null, null, null);
 
         int numBlobsToDelete = randomIntBetween(500, 3000);
         List<String> blobsToDelete = new ArrayList<>();
@@ -956,7 +1069,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testGetRegisterRetries() {
         final var maxRetries = between(0, 3);
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null, null, null);
 
         interface FailingHandlerFactory {
             void addHandler(String blobName, Integer... responseCodes);
@@ -1030,7 +1143,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     public void testSuppressedDeletionErrorsAreCapped() {
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
         int maxBulkDeleteSize = randomIntBetween(1, 10);
-        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null, maxBulkDeleteSize, null);
+        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null, null, maxBulkDeleteSize, null);
         httpServer.createContext("/", exchange -> {
             if (isMultiDeleteRequest(exchange)) {
                 exchange.sendResponseHeaders(
@@ -1070,7 +1183,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     public void testTrimmedLogAndCappedSuppressedErrorOnMultiObjectDeletionException() {
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
         int maxBulkDeleteSize = randomIntBetween(10, 30);
-        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null, maxBulkDeleteSize, null);
+        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null, null, maxBulkDeleteSize, null);
 
         final Pattern pattern = Pattern.compile("<Key>(.+?)</Key>");
         httpServer.createContext("/", exchange -> {
@@ -1126,7 +1239,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final var denyAccessAfterAttempt = between(1, 5);
         logger.info("--> maxRetries = {}, denyAccessAfterAttempt = {}", maxRetries, denyAccessAfterAttempt);
         final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
-        final var statefulBlobContainer = createBlobContainer(maxRetries, null, null, null, null, blobContainerPath);
+        final var statefulBlobContainer = createBlobContainer(maxRetries, null, null, null, null, null, blobContainerPath);
         final var requestCount = new AtomicInteger();
         final var invalidAccessKeyIdResponseCount = new AtomicInteger();
         final var accessDeniedResponseCount = new AtomicInteger();
@@ -1185,7 +1298,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         );
         service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();
-        final var statelessBlobContainer = createBlobContainer(maxRetries, null, null, null, null, blobContainerPath);
+        final var statelessBlobContainer = createBlobContainer(maxRetries, null, null, null, null, null, blobContainerPath);
 
         assertThat(
             ExceptionsHelper.unwrap(

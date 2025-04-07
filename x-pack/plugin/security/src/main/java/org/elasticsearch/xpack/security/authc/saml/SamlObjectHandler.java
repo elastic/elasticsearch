@@ -269,7 +269,7 @@ public class SamlObjectHandler {
 
     // package private for testing
     String describeIssuer(@Nullable Issuer issuer) {
-        if (issuer == null) {
+        if (issuer == null || issuer.getValue() == null) {
             return "";
         }
         final String msg = " The issuer included in the SAML message was [%s]";

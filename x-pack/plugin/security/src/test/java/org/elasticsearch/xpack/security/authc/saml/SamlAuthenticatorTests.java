@@ -1377,6 +1377,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(authenticator.describeIssuer(null), equalTo(""));
     }
 
+    public void testDescribeNullIssuerValue() {
+        final Issuer issuer = new IssuerBuilder().buildObject();
+        assertThat(authenticator.describeIssuer(issuer), equalTo(""));
+    }
+
     public void testDescribeIssuer() {
         final Issuer issuer = new IssuerBuilder().buildObject();
         issuer.setValue("https://idp.saml.elastic.test/");

@@ -107,13 +107,13 @@ public final class ShardSearchStats implements SearchOperationListener {
         });
     }
 
-      @Override
-   public void onPreDfsPhase(SearchContext searchContext) {
+    @Override
+    public void onPreDfsPhase(SearchContext searchContext) {
         computeStats(searchContext, statsHolder -> statsHolder.dfsCurrent.inc());
     }
 
     @Override
-   public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
+    public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
         computeStats(searchContext, statsHolder -> {
             statsHolder.dfsMetric.inc(tookInNanos);
             statsHolder.dfsCurrent.dec();

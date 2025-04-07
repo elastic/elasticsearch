@@ -79,7 +79,7 @@ public interface SearchOperationListener {
      *
      * @see #onFailedQueryPhase(SearchContext)
      */
-   default void onDfsPhase(SearchContext searchContext, long tookInNanos) {}
+    default void onDfsPhase(SearchContext searchContext, long tookInNanos) {}
 
     /**
      * Executed if a dfs phased failed.

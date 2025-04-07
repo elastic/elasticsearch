@@ -273,7 +273,6 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             )
         );
 
-
         client(searchNode).prepareSearch("time*").setPreference(preference).setSize(100).get().decRef();
         var search2 = indicesService.stats(CommonStatsFlags.ALL, false).getSearch().getTotal();
         collectThenAssertMetrics(

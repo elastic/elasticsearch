@@ -130,7 +130,7 @@ public class SearchStatsIT extends ESIntegTestCase {
 
         IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();
         logger.debug("###### indices search stats: {}", indicesStats.getTotal().getSearch());
-        assertThat(indicesStats.getTotal().getSearch().getTotal().getDfsCount(),equalTo(0L));
+        assertThat(indicesStats.getTotal().getSearch().getTotal().getDfsCount(), equalTo(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getDfsTimeInMillis(), equalTo(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0L));

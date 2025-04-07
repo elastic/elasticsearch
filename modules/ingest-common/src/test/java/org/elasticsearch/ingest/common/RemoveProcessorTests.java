@@ -66,6 +66,59 @@ public class RemoveProcessorTests extends ESTestCase {
         processor.execute(document);
     }
 
+    public void testIgnoreMissingAndNullInPath() throws Exception {
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> some = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
+        Map<String, Object> path = new HashMap<>();
+
+        switch (randomIntBetween(0, 6)) {
+            case 0 -> {
+                // empty source
+            }
+            case 1 -> {
+                source.put("some", null);
+            }
+            case 2 -> {
+                some.put("map", null);
+                source.put("some", some);
+            }
+            case 3 -> {
+                some.put("map", map);
+                source.put("some", some);
+            }
+            case 4 -> {
+                map.put("path", null);
+                some.put("map", map);
+                source.put("some", some);
+            }
+            case 5 -> {
+                map.put("path", path);
+                some.put("map", map);
+                source.put("some", some);
+            }
+            case 6 -> {
+                map.put("path", "foobar");
+                some.put("map", map);
+                source.put("some", some);
+            }
+        }
+
+        if (randomBoolean()) {
+            source.put("some", null);
+        } else {
+            some.put("map", null);
+            source.put("some", some);
+        }
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "some.map.path");
+        config.put("ignore_missing", true);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, null, null, config, null);
+        processor.execute(document);
+        assertThat(document.hasField("some.map.path"), is(false));
+    }
+
     public void testKeepFields() throws Exception {
         Map<String, Object> address = new HashMap<>();
         address.put("street", "Ipiranga Street");

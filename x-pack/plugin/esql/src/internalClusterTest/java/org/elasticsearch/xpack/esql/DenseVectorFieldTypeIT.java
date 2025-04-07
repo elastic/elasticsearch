@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.esql;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -39,6 +39,8 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     );
 
     private final String indexType;
+    private int numDims;
+    private int numDocs;
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
@@ -49,15 +51,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         this.indexType = indexType;
     }
 
-    private static Map<Integer, List<Float>> DOC_VALUES = new HashMap<>();
-    static {
-        DOC_VALUES.put(1, List.of(1.0f, 2.0f, 3.0f));
-        DOC_VALUES.put(2, List.of(4.0f, 5.0f, 6.0f));
-        DOC_VALUES.put(3, List.of(7.0f, 8.0f, 9.0f));
-        DOC_VALUES.put(4, List.of(10.0f, 11.0f, 12.0f));
-        DOC_VALUES.put(5, List.of(13.0f, 14.0f, 15.0f));
-        DOC_VALUES.put(6, List.of(16.0f, 17.0f, 18.0f));
-    }
+    private Map<Integer, List<Float>> indexedDocs = new HashMap<>();
 
     public void testRetrieveFieldType() {
         var query = """
@@ -66,12 +60,12 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "vector"));
-            assertColumnTypes(resp.columns(), List.of("long", "double"));
+            assertColumnTypes(resp.columns(), List.of("integer", "dense_vector"));
         }
     }
 
     @SuppressWarnings("unchecked")
-    public void testRetrieveDenseVectorFieldData() {
+    public void testRetrieveOrderedDenseVectorFieldData() {
         var query = """
             FROM test
             | SORT id ASC
@@ -79,13 +73,33 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
-            DOC_VALUES.forEach((id, vector) -> {
-                var values = valuesList.get(id - 1);
-                assertEquals(id.intValue(), ((Long) values.get(0)).intValue());
+            indexedDocs.forEach((id, vector) -> {
+                var values = valuesList.get(id);
+                assertEquals(id, values.get(0));
                 List<Double> vectors = (List<Double>) values.get(1);
                 assertEquals(vector.size(), vectors.size());
                 for (int i = 0; i < vector.size(); i++) {
-                    assertEquals((float) vector.get(i), vectors.get(i).floatValue(), 0F);
+                    assertEquals(vector.get(i), vectors.get(i).floatValue(), 0F);
+                }
+            });
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRetrieveUnOrderedDenseVectorFieldData() {
+        var query = "FROM test";
+
+        try (var resp = run(query)) {
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(valuesList.size(), indexedDocs.size());
+            valuesList.forEach(value -> {;
+                assertEquals(2, value.size());
+                Integer id = (Integer) value.get(0);
+                List<Double> vector = (List<Double>) value.get(1);
+
+                List<Float> expectedVector = indexedDocs.get(id);
+                for (int i = 0; i < vector.size(); i++) {
+                    assertEquals(expectedVector.get(i), vector.get(i).floatValue(), 0F);
                 }
             });
         }
@@ -93,30 +107,49 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() {
+        numDims = randomIntBetween(64, 256);
+        numDocs = randomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            List<Float> vector = new ArrayList<>(numDims);
+            for (int j = 0; j < numDims; j++) {
+//                vector.add(randomFloat());
+                vector.add(1.0f);
+            }
+            indexedDocs.put(i, vector);
+        }
+
         var indexName = "test";
         var client = client().admin().indices();
         var mapping = String.format(Locale.ROOT, """
-                "id": integer,
+            {
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
                 "vector": {
-                    "type": "dense_vector",
-                    "index_options": {
-                        "type": "%s"
-                    }
+                  "type": "dense_vector",
+                  "similarity": "l2_norm",
+                  "index_options": {
+                    "type": "%s"
+                  }
                 }
+              }
+            }
             """, indexType);
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+            .build();
         var CreateRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping(mapping);
+            .setMapping(mapping)
+            .setSettings(settings);
         assertAcked(CreateRequest);
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (var entry : DOC_VALUES.entrySet()) {
-            bulkRequestBuilder.add(
-                new IndexRequest(indexName).id(entry.getKey().toString()).source("id", entry.getKey(), "vector", entry.getValue())
-            );
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = prepareIndex("test").setId("" + i).setSource("id", i, "vector", indexedDocs.get(i));
         }
-
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        ensureYellow(indexName);
+        indexRandom(true, docs);
     }
 }

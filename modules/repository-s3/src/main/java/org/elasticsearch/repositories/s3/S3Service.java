@@ -463,11 +463,11 @@ class S3Service extends AbstractLifecycleComponent {
     }
 
     /**
-     * Customizes {@link StsAssumeRoleWithWebIdentityCredentialsProvider}.
+     * Customizes {@link StsWebIdentityTokenFileCredentialsProvider}.
      *
      * <ul>
      * <li>Reads the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
-     * in the plugin directory, so we don't need to create a hardcoded read file permission for the plugin.</li>
+     * in the S3 plugin directory, so we don't need to create a hardcoded read file permission for the plugin.</li>
      * <li>Supports customization of the STS (Security Token Service) endpoint via a system property, so we can
      * test it against a test fixture.</li>
      * <li>Supports gracefully shutting down the provider and the STS client.</li>
@@ -569,7 +569,7 @@ class S3Service extends AbstractLifecycleComponent {
         }
 
         /**
-         * Sets up a {@link FileWatcher} that runs {@link StsAssumeRoleWithWebIdentityCredentialsProvider#resolveCredentials()} whenever the
+         * Sets up a {@link FileWatcher} that runs {@link StsWebIdentityTokenFileCredentialsProvider#resolveCredentials()} whenever the
          * file to which {@code webIdentityTokenFileSymlink} refers gets updated.
          */
         private void setupFileWatcherToRefreshCredentials(Path webIdentityTokenFileSymlink, ResourceWatcherService resourceWatcherService) {

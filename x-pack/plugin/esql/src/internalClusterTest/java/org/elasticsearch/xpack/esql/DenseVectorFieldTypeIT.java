@@ -7,21 +7,47 @@
 
 package org.elasticsearch.xpack.esql;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
+
+    private static final Set<String> DENSE_VECTOR_INDEX_TYPES = Set.of(
+        "int8_hnsw",
+        "hnsw",
+        "int4_hnsw",
+        "bbq_hnsw",
+        "int8_flat",
+        "int4_flat",
+        "bbq_flat",
+        "flat"
+    );
+
+    private final String indexType;
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return DENSE_VECTOR_INDEX_TYPES.stream().map(type -> new Object[] { type }).toList();
+    }
+
+    public DenseVectorFieldTypeIT(@Name("indexType") String indexType) {
+        this.indexType = indexType;
+    }
 
     private static Map<Integer, List<Float>> DOC_VALUES = new HashMap<>();
     static {
@@ -80,15 +106,15 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     public void setup() {
         var indexName = "test";
         var client = client().admin().indices();
-        var mapping = """
+        var mapping = String.format(Locale.ROOT, """
                 "id": integer,
                 "vector": {
                     "type": "dense_vector",
                     "index_options": {
-                        "type": "hnsw"
+                        "type": "%s"
                     }
                 }
-            """;
+            """, indexType);
         var CreateRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .setMapping(mapping);

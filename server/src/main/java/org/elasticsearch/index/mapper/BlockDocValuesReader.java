@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -529,10 +530,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
     private static class FloatVectorValuesBlockReader extends BlockDocValuesReader {
         private final FloatVectorValues floatVectorValues;
-        private int docId = -1;
+        private final KnnVectorValues.DocIndexIterator iterator;
 
         FloatVectorValuesBlockReader(FloatVectorValues floatVectorValues) {
             this.floatVectorValues = floatVectorValues;
+            iterator = floatVectorValues.iterator();
         }
 
         @Override
@@ -540,7 +542,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             try (BlockLoader.DoubleBuilder builder = factory.doubles(docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
-                    if (doc < docId) {
+                    if (doc < iterator.docID()) {
                         throw new IllegalStateException("docs within same block must be in order");
                     }
                     read(doc, builder);
@@ -555,9 +557,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         private void read(int doc, DoubleBuilder builder) throws IOException {
-            float[] floats = floatVectorValues.vectorValue(doc);
-            if (floats != null) {
+            if (iterator.advance(doc) == doc) {
                 builder.beginPositionEntry();
+                float[] floats = floatVectorValues.vectorValue(iterator.index());
                 for (float aFloat : floats) {
                     builder.appendDouble(aFloat);
                 }
@@ -565,12 +567,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             } else {
                 builder.appendNull();
             }
-            docId = doc;
         }
 
         @Override
         public int docId() {
-            return docId;
+            return iterator.docID();
         }
 
         @Override

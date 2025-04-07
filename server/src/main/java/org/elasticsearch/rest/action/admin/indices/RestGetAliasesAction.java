@@ -91,14 +91,14 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 if (aliases.isEmpty() == false) {
                     // only display indices that have aliases
                     indicesToDisplay.add(cursor.getKey());
-                    for (final AliasMetadata aliasMetadata : cursor.getValue()) {
+                    for (final AliasMetadata aliasMetadata : aliases) {
                         returnedAliasNames.add(aliasMetadata.alias());
                     }
                 }
             }
 
-            for (final Map.Entry<String, List<DataStreamAlias>> entry : dataStreamAliases.entrySet()) {
-                for (final DataStreamAlias dataStreamAlias : entry.getValue()) {
+            for (final List<DataStreamAlias> dataStreamAliasList : dataStreamAliases.values()) {
+                for (final DataStreamAlias dataStreamAlias : dataStreamAliasList) {
                     returnedAliasNames.add(dataStreamAlias.getName());
                 }
             }

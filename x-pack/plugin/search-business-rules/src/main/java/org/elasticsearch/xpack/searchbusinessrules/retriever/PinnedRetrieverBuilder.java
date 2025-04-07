@@ -118,9 +118,9 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
      * @return a PinnedQueryBuilder or the original query if no pinned documents
      */
     private QueryBuilder createPinnedQuery(QueryBuilder baseQuery) {
-        if (!docs.isEmpty()) {
+        if (docs.isEmpty() == false) {
             return new PinnedQueryBuilder(baseQuery, docs.toArray(new SpecifiedDocument[0]));
-        } else if (!ids.isEmpty()) {
+        } else if (ids.isEmpty() == false) {
             return new PinnedQueryBuilder(baseQuery, ids.toArray(new String[0]));
         } else {
             return baseQuery;
@@ -135,10 +135,10 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
 
     @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (ids != null && !ids.isEmpty()) {
+        if (ids != null && ids.isEmpty() == false) {
             builder.array(IDS_FIELD.getPreferredName(), ids.toArray());
         }
-        if (docs != null && !docs.isEmpty()) {
+        if (docs != null && docs.isEmpty() == false) {
             builder.startArray(DOCS_FIELD.getPreferredName());
             for (SpecifiedDocument doc : docs) {
                 builder.value(doc);

@@ -186,8 +186,8 @@ public final class ValuesIntGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = ValuesIntAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = ValuesIntAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

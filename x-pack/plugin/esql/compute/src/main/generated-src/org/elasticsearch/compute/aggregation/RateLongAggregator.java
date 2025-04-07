@@ -387,7 +387,12 @@ public class RateLongAggregator {
                     int len = state.entries();
                     final double rate;
                     if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                        rate = extrapolateRate(state, tsContext.rangeStartInMillis(groupId), tsContext.rangeEndInMillis(groupId), unitInMillis);
+                        rate = extrapolateRate(
+                            state,
+                            tsContext.rangeStartInMillis(groupId),
+                            tsContext.rangeEndInMillis(groupId),
+                            unitInMillis
+                        );
                     } else {
                         rate = computeRateWithoutExtrapolate(state, unitInMillis);
                     }

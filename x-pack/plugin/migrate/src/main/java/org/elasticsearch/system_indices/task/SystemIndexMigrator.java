@@ -119,6 +119,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
 
     public void run(SystemIndexMigrationTaskState taskState) {
         ClusterState clusterState = clusterService.state();
+        ProjectMetadata projectMetadata = clusterState.metadata().getProject();
 
         final String stateIndexName;
         final String stateFeatureName;
@@ -138,7 +139,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 return;
             }
 
-            if (stateIndexName != null && clusterState.metadata().getProject().hasIndexAbstraction(stateIndexName) == false) {
+            if (stateIndexName != null && projectMetadata.hasIndexAbstraction(stateIndexName) == false) {
                 markAsFailed(new IndexNotFoundException(stateIndexName, "cannot migrate because that index does not exist"));
                 return;
             }
@@ -156,8 +157,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
 
             systemIndices.getFeatures()
                 .stream()
-                .flatMap(feature -> SystemResourceMigrationFactory.fromFeature(feature, clusterState.metadata(), indexScopedSettings))
-                .filter(migrationInfo -> needToBeMigrated(migrationInfo.getIndices(clusterState.metadata().getProject())))
+                .flatMap(feature -> SystemResourceMigrationFactory.fromFeature(feature, projectMetadata, indexScopedSettings))
+                .filter(migrationInfo -> needToBeMigrated(migrationInfo.getIndices(projectMetadata)))
                 .sorted() // Stable order between nodes
                 .collect(Collectors.toCollection(() -> migrationQueue));
 
@@ -190,7 +191,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         + nextMigrationInfo.getFeatureName()
                         + "] of locally computed queue, see logs";
                 if (nextMigrationInfo.getCurrentResourceName().equals(stateIndexName) == false) {
-                    if (clusterState.metadata().getProject().hasIndexAbstraction(stateIndexName) == false) {
+                    if (projectMetadata.hasIndexAbstraction(stateIndexName) == false) {
                         // If we don't have that index at all, and also don't have the next one
                         markAsFailed(
                             new IllegalStateException(

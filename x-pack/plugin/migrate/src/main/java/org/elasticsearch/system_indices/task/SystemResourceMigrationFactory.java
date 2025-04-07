@@ -8,7 +8,7 @@
 package org.elasticsearch.system_indices.task;
 
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.indices.SystemIndices;
 
@@ -25,7 +25,7 @@ class SystemResourceMigrationFactory {
      */
     static Stream<SystemResourceMigrationInfo> fromFeature(
         SystemIndices.Feature feature,
-        Metadata metadata,
+        ProjectMetadata metadata,
         IndexScopedSettings indexScopedSettings
     ) {
         return Stream.concat(
@@ -36,7 +36,7 @@ class SystemResourceMigrationFactory {
 
     private static Stream<SystemIndexMigrationInfo> getSystemIndicesMigrationInfos(
         SystemIndices.Feature feature,
-        Metadata metadata,
+        ProjectMetadata metadata,
         IndexScopedSettings indexScopedSettings
     ) {
         return feature.getIndexDescriptors()
@@ -54,7 +54,7 @@ class SystemResourceMigrationFactory {
 
     private static Stream<SystemDataStreamMigrationInfo> getSystemDataStreamsMigrationInfos(
         SystemIndices.Feature feature,
-        Metadata metadata
+        ProjectMetadata metadata
     ) {
         return feature.getDataStreamDescriptors().stream().map(descriptor -> {
             DataStream dataStream = metadata.dataStreams().get(descriptor.getDataStreamName());

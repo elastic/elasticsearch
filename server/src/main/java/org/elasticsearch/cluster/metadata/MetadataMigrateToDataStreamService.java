@@ -156,7 +156,7 @@ public class MetadataMigrateToDataStreamService {
         ProjectMetadata.Builder mb = ProjectMetadata.builder(project);
         for (Index index : alias.getIndices()) {
             IndexMetadata im = project.index(index);
-            prepareBackingIndex(mb, im, request.aliasName, mapperSupplier, true, false, Settings.EMPTY);
+            prepareBackingIndex(mb, im, request.aliasName, mapperSupplier, true, false, false, Settings.EMPTY);
         }
         ClusterState updatedState = ClusterState.builder(projectState.cluster()).putProjectMetadata(mb).build();
 
@@ -199,17 +199,6 @@ public class MetadataMigrateToDataStreamService {
         if (aliasMetadata.filteringRequired() || aliasMetadata.getIndexRouting() != null || aliasMetadata.getSearchRouting() != null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] may not have custom filtering or routing");
         }
-    }
-
-    // hides the index, optionally removes the alias, and adds data stream timestamp field mapper
-    static void prepareBackingIndex(
-        ProjectMetadata.Builder b,
-        IndexMetadata im,
-        String dataStreamName,
-        Function<IndexMetadata, MapperService> mapperSupplier,
-        boolean removeAlias
-    ) throws IOException {
-        prepareBackingIndex(b, im, dataStreamName, mapperSupplier, removeAlias, false, false, Settings.EMPTY);
     }
 
     /**

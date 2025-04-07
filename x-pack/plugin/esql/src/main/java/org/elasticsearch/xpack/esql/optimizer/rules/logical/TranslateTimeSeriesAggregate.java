@@ -123,7 +123,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        if (aggregate instanceof TimeSeriesAggregate ts) {
+        if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null) {
             return translate(ts);
         } else {
             return aggregate;
@@ -226,7 +226,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             newChild.source(),
             newChild,
             firstPassGroupings,
-            mergeExpressions(firstPassAggs, firstPassGroupings)
+            mergeExpressions(firstPassAggs, firstPassGroupings),
+            (Bucket) Alias.unwrap(timeBucket)
         );
         return new Aggregate(firstPhase.source(), firstPhase, secondPassGroupings, mergeExpressions(secondPassAggs, secondPassGroupings));
     }

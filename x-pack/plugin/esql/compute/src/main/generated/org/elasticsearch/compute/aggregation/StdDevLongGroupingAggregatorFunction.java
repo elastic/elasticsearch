@@ -203,8 +203,8 @@ public final class StdDevLongGroupingAggregatorFunction implements GroupingAggre
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = StdDevLongAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = StdDevLongAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

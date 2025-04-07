@@ -1197,6 +1197,11 @@ public class CertificateToolTests extends ESTestCase {
         final int caKeySize = randomIntBetween(4, 8) * 512;
         final int days = randomIntBetween(7, 1500);
         final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 80));
+        final String caKeyUsage = randomFrom(
+            "",
+            Strings.collectionToCommaDelimitedString(CertificateTool.DEFAULT_CA_KEY_USAGE),
+            Strings.collectionToCommaDelimitedString(randomNonEmptySubsetOf(CertGenUtils.KEY_USAGE_MAPPINGS.keySet()))
+        );
 
         final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
         String[] args = {
@@ -1209,7 +1214,9 @@ public class CertificateToolTests extends ESTestCase {
             "-keysize",
             String.valueOf(caKeySize),
             "-days",
-            String.valueOf(days) };
+            String.valueOf(days),
+            "--ca-keyusage",
+            caKeyUsage };
         if (pem) {
             args = ArrayUtils.append(args, "--pem");
         }

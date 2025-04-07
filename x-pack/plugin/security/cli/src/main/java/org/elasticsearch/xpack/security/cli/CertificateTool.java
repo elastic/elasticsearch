@@ -327,6 +327,18 @@ class CertificateTool extends MultiCommand {
             }
         }
 
+        final List<String> getCaKeyUsage(OptionSet options) {
+            if (options.has(caKeyUsageSpec)) {
+                String rawCaKeyUsage = caKeyUsageSpec.value(options);
+                if (Strings.isNullOrEmpty(rawCaKeyUsage)) {
+                    return DEFAULT_CA_KEY_USAGE;
+                }
+                return List.of(Strings.splitStringByCommaToArray(rawCaKeyUsage));
+            } else {
+                return DEFAULT_CA_KEY_USAGE;
+            }
+        }
+
         final int getDays(OptionSet options) {
             if (options.has(daysSpec)) {
                 return daysSpec.value(options);
@@ -414,15 +426,7 @@ class CertificateTool extends MultiCommand {
             }
             X500Principal x500Principal = new X500Principal(dn);
             KeyPair keyPair = CertGenUtils.generateKeyPair(getKeySize(options));
-            final Function<String, Stream<? extends String>> splitByComma = v -> Arrays.stream(Strings.splitStringByCommaToArray(v));
-            final KeyUsage caKeyUsage;
-            if (options.hasArgument(caKeyUsageSpec)) {
-                List<String> keyUsageNames = caKeyUsageSpec.values(options).stream().flatMap(splitByComma).toList();
-                caKeyUsage = CertGenUtils.buildKeyUsage(keyUsageNames);
-            } else {
-                caKeyUsage = CertGenUtils.buildKeyUsage(DEFAULT_CA_KEY_USAGE);
-            }
-
+            final KeyUsage caKeyUsage = CertGenUtils.buildKeyUsage(getCaKeyUsage(options));
             X509Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, getDays(options), caKeyUsage);
 
             if (options.hasArgument(caPasswordSpec)) {

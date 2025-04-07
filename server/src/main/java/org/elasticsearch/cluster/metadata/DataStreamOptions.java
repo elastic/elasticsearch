@@ -182,7 +182,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         }
 
         /**
-         * Updates this builder with the values of the provided template. This is not a replacement necessarily, the
+         * Composes this builder with the values of the provided template. This is not a replacement necessarily, the
          * inner values will be merged.
          */
         public Builder composeTemplate(DataStreamOptions.Template options) {
@@ -190,7 +190,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         }
 
         /**
-         * Updates the current failure store configuration with the provided value. This is not a replacement necessarily, if both
+         * Composes the current failure store configuration with the provided value. This is not a replacement necessarily, if both
          * instance contain data the configurations are merged.
          */
         public Builder failureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {

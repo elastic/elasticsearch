@@ -251,6 +251,10 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
             return this;
         }
 
+        /**
+         * Composes the provided enabled value with the current one. Because enabled is a resettable boolean, if it is defined
+         * it will overwrite the current value.
+         */
         public Builder enabled(ResettableValue<Boolean> enabled) {
             if (enabled.isDefined()) {
                 this.enabled = enabled.get();
@@ -263,6 +267,11 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
             return this;
         }
 
+        /**
+         * Composes the provided lifecycle value with the current one. Because lifecycle is a resettable template that can be merged,
+         * if it is defined it will delegate to {@link DataStreamLifecycle.Builder#composeTemplate(DataStreamLifecycle.Template)} to
+         * correctly compose the contents.
+         */
         public Builder lifecycle(ResettableValue<DataStreamLifecycle.Template> lifecycle) {
             if (lifecycle.shouldReset()) {
                 this.lifecycleBuilder = null;
@@ -277,6 +286,9 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
 
         }
 
+        /**
+         * Composes the provided failure store template with this builder.
+         */
         public Builder composeTemplate(DataStreamFailureStore.Template failureStore) {
             this.enabled(failureStore.enabled());
             this.lifecycle(failureStore.lifecycle());

@@ -10,11 +10,8 @@
 package org.elasticsearch.gradle.internal.test.rest;
 
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.jvm.JvmTestSuiteTarget;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.testing.base.TestingExtension;
 
@@ -36,13 +33,6 @@ public class InternalYamlRestTestPlugin implements Plugin<Project> {
         testing.getSuites().register(SOURCE_SET_NAME, YamlRestTestSuite.class, suite -> {
             suite.useJUnit();
             configureYamlSourceSet(project, suite.getSources());
-            suite.getTargets()
-                .all(
-                    (Action<JvmTestSuiteTarget>) jvmTestSuiteTarget -> jvmTestSuiteTarget.getTestTask()
-                        .configure(
-                            test -> project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(test))
-                        )
-                );
         });
     }
 

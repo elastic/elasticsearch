@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -361,10 +363,8 @@ public class EsqlSession {
         EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, configuredClusters, verifier.licenseState());
         initializeClusterData(indices, executionInfo);
 
-        final Set<String> targetClusters = executionInfo.getClusters().keySet();
-
         var listener = SubscribableListener.<EnrichResolution>newForked(
-            l -> enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, executionInfo, l)
+            l -> enrichPolicyResolver.resolvePolicies(getEnrichTargets(executionInfo), unresolvedPolicies, executionInfo, l)
         )
             .<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l))
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
@@ -411,6 +411,15 @@ public class EsqlSession {
             LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
             l.onResponse(plan);
         }).addListener(logicalPlanListener);
+    }
+
+    private static Set<String> getEnrichTargets(EsqlExecutionInfo executionInfo) {
+        Set<String> targetClusters = executionInfo.getClusters().keySet();
+        if (targetClusters.isEmpty()) {
+            // Always include local cluster for enrich resolution
+            return Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        }
+        return targetClusters;
     }
 
     private void preAnalyzeLookupIndex(IndexPattern table, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {

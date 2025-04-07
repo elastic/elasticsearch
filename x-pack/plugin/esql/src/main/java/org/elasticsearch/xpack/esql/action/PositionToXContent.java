@@ -187,7 +187,7 @@ public abstract class PositionToXContent {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
-                    return builder.value(((FloatBlock) block).getFloat(valueIndex));
+                    return builder.value(((DoubleBlock) block).getDouble(valueIndex));
                 }
             };
             case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT,

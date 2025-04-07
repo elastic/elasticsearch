@@ -1815,7 +1815,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void close(String reason, boolean flushEngine, Executor closeExecutor, ActionListener<Void> closeListener) throws IOException {
         assert assertNoEngineResetLock();
         synchronized (engineMutex) {
-            engineResetLock.readLock().lock(); // prevent engine resets while closing
+            // The engineMutex prevents any other engine changes (like reseting the engine) to run concurrently, so we acquire the engine
+            // read lock here just to respect the lock ordering (engineMutex -> engineResetLock -> mutex).
+            engineResetLock.readLock().lock();
             try {
                 try {
                     synchronized (mutex) {
@@ -1981,12 +1983,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
                 assert assertNoEngineResetLock();
                 synchronized (engineMutex) {
-                    engineResetLock.readLock().lock(); // prevent engine resets while closing
-                    try {
-                        IOUtils.close(getAndSetCurrentEngine(null));
-                    } finally {
-                        engineResetLock.readLock().unlock();
-                    }
+                    IOUtils.close(getAndSetCurrentEngine(null));
                 }
             }, (recoveryCompleteListener, ignoredRef) -> {
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
@@ -4509,62 +4506,57 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert globalCheckpoint == getLastSyncedGlobalCheckpoint();
         synchronized (engineMutex) {
             verifyNotClosed();
-            engineResetLock.readLock().lock(); // prevent engine resets during rollback
-            try {
-                // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
-                // acquireXXXCommit and close works.
-                final Engine readOnlyEngine = new ReadOnlyEngine(
-                    newEngineConfig(replicationTracker),
-                    seqNoStats,
-                    translogStats,
-                    false,
-                    Function.identity(),
-                    true,
-                    false
-                ) {
-                    @Override
-                    public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
-                        assert assertNoEngineResetLock();
-                        synchronized (engineMutex) {
-                            if (newEngineReference.get() == null) {
-                                throw new AlreadyClosedException("engine was closed");
-                            }
-                            // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
-                            return newEngineReference.get().acquireLastIndexCommit(false);
+            // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
+            // acquireXXXCommit and close works.
+            final Engine readOnlyEngine = new ReadOnlyEngine(
+                newEngineConfig(replicationTracker),
+                seqNoStats,
+                translogStats,
+                false,
+                Function.identity(),
+                true,
+                false
+            ) {
+                @Override
+                public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
+                    assert assertNoEngineResetLock();
+                    synchronized (engineMutex) {
+                        if (newEngineReference.get() == null) {
+                            throw new AlreadyClosedException("engine was closed");
                         }
+                        // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
+                        return newEngineReference.get().acquireLastIndexCommit(false);
                     }
+                }
 
-                    @Override
-                    public IndexCommitRef acquireSafeIndexCommit() {
-                        assert assertNoEngineResetLock();
-                        synchronized (engineMutex) {
-                            if (newEngineReference.get() == null) {
-                                throw new AlreadyClosedException("engine was closed");
-                            }
-                            return newEngineReference.get().acquireSafeIndexCommit();
+                @Override
+                public IndexCommitRef acquireSafeIndexCommit() {
+                    assert assertNoEngineResetLock();
+                    synchronized (engineMutex) {
+                        if (newEngineReference.get() == null) {
+                            throw new AlreadyClosedException("engine was closed");
                         }
+                        return newEngineReference.get().acquireSafeIndexCommit();
                     }
+                }
 
-                    @Override
-                    public void close() throws IOException {
-                        Engine newEngine;
-                        assert assertNoEngineResetLock();
-                        synchronized (engineMutex) {
-                            newEngine = newEngineReference.get();
-                            if (newEngine == getCurrentEngine(true)) {
-                                // we successfully installed the new engine so do not close it.
-                                newEngine = null;
-                            }
+                @Override
+                public void close() throws IOException {
+                    Engine newEngine;
+                    assert assertNoEngineResetLock();
+                    synchronized (engineMutex) {
+                        newEngine = newEngineReference.get();
+                        if (newEngine == getCurrentEngine(true)) {
+                            // we successfully installed the new engine so do not close it.
+                            newEngine = null;
                         }
-                        IOUtils.close(super::close, newEngine);
                     }
-                };
-                IOUtils.close(getAndSetCurrentEngine(readOnlyEngine));
-                newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
-                onNewEngine(newEngineReference.get());
-            } finally {
-                engineResetLock.readLock().unlock();
-            }
+                    IOUtils.close(super::close, newEngine);
+                }
+            };
+            IOUtils.close(getAndSetCurrentEngine(readOnlyEngine));
+            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
+            onNewEngine(newEngineReference.get());
         }
         final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
             engine,

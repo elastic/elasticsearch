@@ -7,11 +7,11 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -24,31 +24,31 @@ import static java.util.stream.Collectors.joining;
 public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     public record Factory(
-        BlockHash.GroupSpec tsidGroup,
-        BlockHash.GroupSpec timestampGroup,
+        Rounding.Prepared timeBucket,
+        List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int maxPageSize
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new HashAggregationOperator(aggregators, () -> {
-                if (aggregatorMode.isInputPartial()) {
-                    return BlockHash.build(
-                        List.of(tsidGroup, timestampGroup),
-                        driverContext.blockFactory(),
-                        maxPageSize,
-                        true // we can enable optimizations as the inputs are vectors
-                    );
-                } else {
-                    return new TimeSeriesBlockHash(timestampGroup.channel(), timestampGroup.channel(), driverContext.blockFactory());
-                }
-            }, driverContext);
+            // TODO: use TimeSeriesBlockHash when possible
+            return new TimeSeriesAggregationOperator(
+                timeBucket,
+                aggregators,
+                () -> BlockHash.build(
+                    groups,
+                    driverContext.blockFactory(),
+                    maxPageSize,
+                    true // we can enable optimizations as the inputs are vectors
+                ),
+                driverContext
+            );
         }
 
         @Override
         public String describe() {
-            return "MetricsAggregationOperator[mode = "
+            return "TimeSeriesAggregationOperator[mode = "
                 + "<not-needed>"
                 + ", aggs = "
                 + aggregators.stream().map(Describable::describe).collect(joining(", "))
@@ -56,11 +56,15 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         }
     }
 
+    private final Rounding.Prepared timeBucket;
+
     public TimeSeriesAggregationOperator(
+        Rounding.Prepared timeBucket,
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
         super(aggregators, blockHash, driverContext);
+        this.timeBucket = timeBucket;
     }
 }

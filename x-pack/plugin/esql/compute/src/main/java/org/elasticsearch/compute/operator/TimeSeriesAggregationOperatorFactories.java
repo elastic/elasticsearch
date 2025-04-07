@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
@@ -46,6 +47,7 @@ public final class TimeSeriesAggregationOperatorFactories {
     public record Initial(
         int tsHashChannel,
         int timeBucketChannel,
+        Rounding.Prepared timeBucket,
         List<BlockHash.GroupSpec> groupings,
         List<SupplierWithChannels> rates,
         List<SupplierWithChannels> nonRates,
@@ -62,6 +64,7 @@ public final class TimeSeriesAggregationOperatorFactories {
             }
             aggregators.addAll(valuesAggregatorForGroupings(groupings, timeBucketChannel));
             return new TimeSeriesAggregationOperator(
+                timeBucket,
                 aggregators,
                 () -> new TimeSeriesBlockHash(tsHashChannel, timeBucketChannel, driverContext.blockFactory()),
                 driverContext
@@ -77,6 +80,7 @@ public final class TimeSeriesAggregationOperatorFactories {
     public record Intermediate(
         int tsHashChannel,
         int timeBucketChannel,
+        Rounding.Prepared timeBucket,
         List<BlockHash.GroupSpec> groupings,
         List<SupplierWithChannels> rates,
         List<SupplierWithChannels> nonRates,
@@ -97,6 +101,7 @@ public final class TimeSeriesAggregationOperatorFactories {
                 new BlockHash.GroupSpec(timeBucketChannel, ElementType.LONG)
             );
             return new TimeSeriesAggregationOperator(
+                timeBucket,
                 aggregators,
                 () -> BlockHash.build(hashGroups, driverContext.blockFactory(), maxPageSize, true),
                 driverContext

@@ -17,9 +17,6 @@ The node that a REST request arrives at is called the "coordinating" node. Its j
 
 By default, all nodes will act as coordinating nodes, but by specifying `node.roles` to be empty you can create a [coordinating-only node](https://www.elastic.co/guide/en/elasticsearch/reference/current/node-roles-overview.html#coordinating-only-node-role).
 
-> [!NOTE]
-> `Rest*Action` classes often have a corresponding `Transport*Action`, this naming convention makes it easy to locate the corresponding [RestHandler] for a [TransportAction]. (e.g. `RestGetAction` calls `TransportGetAction`)
-
 ### REST Layer
 
 [BaseRestHandler]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java
@@ -33,6 +30,9 @@ Each REST endpoint is defined by a [RestHandler] instance. [RestHandler] impleme
 [BaseRestHandler] is the base class for almost all REST endpoints in Elasticsearch. It validates the request parameters against those which are supported, delegates to its sub-classes to set up the execution of the requested action, then delivers the request content to the action either as a single parsed payload or a stream of binary chunks. Actions such as the [RestBulkAction] use the streaming capability to process large payloads incrementally and apply back-pressure when overloaded.
 
 The sub-classes of [BaseRestHandler], usually named `Rest*Action`, are the entry-points to the cluster, where HTTP requests from outside the cluster are translated into internal [TransportAction] invocations.
+
+> [!NOTE]
+> `Rest*Action` classes often have a corresponding `Transport*Action`, this naming convention makes it easy to locate the corresponding [RestHandler] for a [TransportAction]. (e.g. `RestGetAction` calls `TransportGetAction`)
 
 ### Transport Layer
 

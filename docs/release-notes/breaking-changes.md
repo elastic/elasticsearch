@@ -37,6 +37,9 @@ will prevent node from starting [#118366](https://github.com/elastic/elasticsear
 Cluster Coordination:
 * Remove unsupported legacy value for `discovery.type` [#112903](https://github.com/elastic/elasticsearch/pull/112903)
 
+Discovery-Plugins:
+* Upgrade `discovery-ec2` to AWS SDK v2 [#122062](https://github.com/elastic/elasticsearch/pull/122062)
+
 EQL:
 * Set allow_partial_search_results=true by default [#120267](https://github.com/elastic/elasticsearch/pull/120267)
 
@@ -60,6 +63,7 @@ Infra/Core:
 
 Infra/Logging:
 * Change `deprecation.elasticsearch` keyword to `elasticsearch.deprecation` [#117933](https://github.com/elastic/elasticsearch/pull/117933) (issue: {es-issue}83251[#83251])
+* Rename deprecation index template [#125606](https://github.com/elastic/elasticsearch/pull/125606) (issue: {es-issue}125445[#125445])
 
 Infra/Metrics:
 * Deprecated tracing.apm.* settings got removed. [#119926](https://github.com/elastic/elasticsearch/pull/119926)
@@ -90,6 +94,7 @@ Snapshot/Restore:
 * Remove deprecated `xpack.searchable.snapshot.allocate_on_rolling_restart` setting [#114202](https://github.com/elastic/elasticsearch/pull/114202)
 
 TLS:
+* Drop `TLS_RSA` cipher support for JDK 24 [#123600](https://github.com/elastic/elasticsearch/pull/123600)
 * Remove TLSv1.1 from default protocols [#121731](https://github.com/elastic/elasticsearch/pull/121731)
 
 Transform:
@@ -100,18 +105,5 @@ Vector Search:
 
 Watcher:
 * Removing support for types field in watcher search [#120748](https://github.com/elastic/elasticsearch/pull/120748)
-
-
-
-## 9.1.0 [elasticsearch-910-breaking-changes]
-
-Discovery-Plugins:
-* Upgrade `discovery-ec2` to AWS SDK v2 [#122062](https://github.com/elastic/elasticsearch/pull/122062)
-
-Infra/Logging:
-* Rename deprecation index template [#125606](https://github.com/elastic/elasticsearch/pull/125606) (issue: {es-issue}125445[#125445])
-
-TLS:
-* Drop `TLS_RSA` cipher support for JDK 24 [#123600](https://github.com/elastic/elasticsearch/pull/123600)
 
 

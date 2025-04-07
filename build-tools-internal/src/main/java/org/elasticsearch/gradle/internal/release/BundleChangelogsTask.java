@@ -74,7 +74,7 @@ public class BundleChangelogsTask extends DefaultTask {
     public void executeTask() throws IOException {
         final String upstreamRemote = gitWrapper.getUpstream();
 
-        String ref = "main";
+        String ref = "43827b943938345d348826f5766dd8e986ec7b20";
         try {
             checkoutChangelogs(gitWrapper, upstreamRemote, ref);
             Properties props = new Properties();

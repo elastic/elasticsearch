@@ -15,7 +15,13 @@ To give you insight into what deprecated features you’re using, {{es}}:
 * [Provides a deprecation info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-deprecations) that scans a cluster’s configuration and mappings for deprecated functionality.
 
 % ## Next version [elasticsearch-nextversion-deprecations]
-
+<%
+for(bundle in changelogBundles) {
+    def version = bundle.version
+    def versionWithoutSeparator = bundle.versionWithoutSeparator
+    def changelogsByTypeByArea = bundle.changelogsByTypeByArea
+    def unqualifiedVersion = bundle.unqualifiedVersion
+%>
 ## ${unqualifiedVersion} [elasticsearch-${versionWithoutSeparator}-deprecations]
 <%
     if (!changelogsByTypeByArea['deprecation']) {
@@ -36,3 +42,4 @@ To give you insight into what deprecated features you’re using, {{es}}:
         }
         print "\n\n"
     }
+}

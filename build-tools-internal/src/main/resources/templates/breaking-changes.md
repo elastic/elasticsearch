@@ -13,7 +13,13 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 To learn how to upgrade, check out <upgrade docs>.
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
-
+<%
+for(bundle in changelogBundles) {
+    def version = bundle.version
+    def versionWithoutSeparator = bundle.versionWithoutSeparator
+    def changelogsByTypeByArea = bundle.changelogsByTypeByArea
+    def unqualifiedVersion = bundle.unqualifiedVersion
+%>
 ## ${unqualifiedVersion} [elasticsearch-${versionWithoutSeparator}-breaking-changes]
 <%
     if (!changelogsByTypeByArea['breaking']) {
@@ -35,3 +41,4 @@ To learn how to upgrade, check out <upgrade docs>.
 
         print "\n\n"
     }
+}

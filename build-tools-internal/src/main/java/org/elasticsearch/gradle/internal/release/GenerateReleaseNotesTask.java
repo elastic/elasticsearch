@@ -111,6 +111,8 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         LOGGER.info("Generating release notes...");
         ReleaseNotesGenerator.update(this.releaseNotesTemplate.get().getAsFile(), this.releaseNotesFile.get().getAsFile(), bundles);
+        ReleaseNotesGenerator.update(this.breakingChangesTemplate.get().getAsFile(), this.breakingChangesFile.get().getAsFile(), bundles);
+        ReleaseNotesGenerator.update(this.deprecationsTemplate.get().getAsFile(), this.deprecationsFile.get().getAsFile(), bundles);
 
         // Only update breaking changes and deprecations for new minors
         // if (qualifiedVersion.revision() == 0) {

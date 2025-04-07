@@ -21,17 +21,45 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-## 9.1.0 [elasticsearch-910-release-notes]
-
-### Fixes [elasticsearch-910-fixes]
-
-ES|QL:
-* Catch parsing exception [#124958](https://github.com/elastic/elasticsearch/pull/124958) (issue: [#124958](https://github.com/elastic/elasticsearch/pull/124958))
-
-
 ## 9.0.0 [elasticsearch-900-release-notes]
 
-### Highlights [elasticsearch-900-highlights]
+### Features and enhancements [elasticsearch-900-features-enhancements]
+
+Allocation:
+* Add `FailedShardEntry` info to shard-failed task source string [#125520](https://github.com/elastic/elasticsearch/pull/125520) (issue: [#125520](https://github.com/elastic/elasticsearch/pull/125520))
+
+ES|QL:
+* Fix sorting when `aggregate_metric_double` present [#125191](https://github.com/elastic/elasticsearch/pull/125191)
+* Infer the score mode to use from the Lucene collector [#125930](https://github.com/elastic/elasticsearch/pull/125930)
+* Take double parameter markers for identifiers out of snapshot [#125690](https://github.com/elastic/elasticsearch/pull/125690)
+
+ILM+SLM:
+* Optimize usage calculation in ILM policies retrieval API [#106953](https://github.com/elastic/elasticsearch/pull/106953) (issue: [#106953](https://github.com/elastic/elasticsearch/pull/106953))
+
+Search:
+* Introduce batched query execution and data-node side reduce [#121885](https://github.com/elastic/elasticsearch/pull/121885)
+
+### Fixes [elasticsearch-900-fixes]
+
+Data streams:
+* Fixes a invalid warning from being issued when restoring a system data stream from a snapshot. [#125881](https://github.com/elastic/elasticsearch/pull/125881)
+
+ES|QL:
+* Fix `ReplaceMissingFieldsWithNull` [#125764](https://github.com/elastic/elasticsearch/pull/125764) (issues: [#125764](https://github.com/elastic/elasticsearch/pull/125764), [#125764](https://github.com/elastic/elasticsearch/pull/125764), [#125764](https://github.com/elastic/elasticsearch/pull/125764))
+
+Indices APIs:
+* Preventing `ConcurrentModificationException` when updating settings for more than one index [#126077](https://github.com/elastic/elasticsearch/pull/126077)
+
+Machine Learning:
+* Prevent get datafeeds stats API returning an error when local tasks are slow to stop [#125477](https://github.com/elastic/elasticsearch/pull/125477) (issue: [#125477](https://github.com/elastic/elasticsearch/pull/125477))
+
+Search:
+* Re-enable parallel collection for field sorted top hits [#125916](https://github.com/elastic/elasticsearch/pull/125916)
+
+
+## 9.1.0 [elasticsearch-910-release-notes]
+
+### Highlights [elasticsearch-910-highlights]
 
 ::::{dropdown} Release semantic_text as a GA feature
 semantic_text is now an official GA (generally available) feature! This field type allows you to easily set up and perform semantic search with minimal ramp up time.
@@ -39,7 +67,7 @@ semantic_text is now an official GA (generally available) feature! This field ty
 For more information, check [PR #124669](https://github.com/elastic/elasticsearch/pull/124669).
 ::::
 
-### Features and enhancements [elasticsearch-900-features-enhancements]
+### Features and enhancements [elasticsearch-910-features-enhancements]
 
 Allocation:
 * Add cache support in `TransportGetAllocationStatsAction` [#124898](https://github.com/elastic/elasticsearch/pull/124898) (issue: [#124898](https://github.com/elastic/elasticsearch/pull/124898))
@@ -120,7 +148,6 @@ Infra/CLI:
 Infra/Core:
 * Give Kibana user 'all' permissions for .entity_analytics.* indices [#123588](https://github.com/elastic/elasticsearch/pull/123588)
 * Improve size limiting string message [#122427](https://github.com/elastic/elasticsearch/pull/122427)
-* Permanently switch from Java SecurityManager to Entitlements. The Java SecurityManager has been deprecated since Java 17, and it is now completely disabled in Java 24. In order to retain an similar level of protection, Elasticsearch implemented its own protection mechanism, Entitlements. Starting with this version, Entitlements will permanently replace the Java SecurityManager. [#124865](https://github.com/elastic/elasticsearch/pull/124865)
 * Permanently switch from Java SecurityManager to Entitlements. The Java SecurityManager has been deprecated since Java 17, and it is now completely disabled in Java 24. In order to retain an similar level of protection, Elasticsearch implemented its own protection mechanism, Entitlements. Starting with this version, Entitlements will permanently replace the Java SecurityManager. [#125117](https://github.com/elastic/elasticsearch/pull/125117)
 
 Infra/REST API:
@@ -205,7 +232,7 @@ Vector Search:
 Watcher:
 * Run `TransportGetWatcherSettingsAction` on local node [#122857](https://github.com/elastic/elasticsearch/pull/122857)
 
-### Fixes [elasticsearch-900-fixes]
+### Fixes [elasticsearch-910-fixes]
 
 Aggregations:
 * Aggs: Let terms run in global ords mode no match [#124782](https://github.com/elastic/elasticsearch/pull/124782)
@@ -235,6 +262,7 @@ EQL:
 ES|QL:
 * Add support to VALUES aggregation for spatial types [#122886](https://github.com/elastic/elasticsearch/pull/122886) (issue: [#122886](https://github.com/elastic/elasticsearch/pull/122886))
 * Avoid over collecting in Limit or Lucene Operator [#123296](https://github.com/elastic/elasticsearch/pull/123296)
+* Catch parsing exception [#124958](https://github.com/elastic/elasticsearch/pull/124958) (issue: [#124958](https://github.com/elastic/elasticsearch/pull/124958))
 * Change the order of the optimization rules [#124335](https://github.com/elastic/elasticsearch/pull/124335)
 * ESQL - date nanos range bug? [#125345](https://github.com/elastic/elasticsearch/pull/125345) (issue: [#125345](https://github.com/elastic/elasticsearch/pull/125345))
 * ESQL: Fail in `AggregateFunction` when `LogicPlan` is not an `Aggregate` [#124446](https://github.com/elastic/elasticsearch/pull/124446) (issue: [#124446](https://github.com/elastic/elasticsearch/pull/124446))
@@ -274,7 +302,6 @@ Infra/Core:
 * Prevent rare starvation bug when using scaling `EsThreadPoolExecutor` with empty core pool size. [#124732](https://github.com/elastic/elasticsearch/pull/124732) (issue: [#124732](https://github.com/elastic/elasticsearch/pull/124732))
 * Reduce Data Loss in System Indices Migration [#121327](https://github.com/elastic/elasticsearch/pull/121327)
 * System Index Migration Failure Results in a Non-Recoverable State [#122326](https://github.com/elastic/elasticsearch/pull/122326)
-* System data streams are not being upgraded in the feature migration API [#124884](https://github.com/elastic/elasticsearch/pull/124884) (issue: [#124884](https://github.com/elastic/elasticsearch/pull/124884))
 
 Ingest Node:
 * Fix geoip databases index access after system feature migration (again) [#122938](https://github.com/elastic/elasticsearch/pull/122938)

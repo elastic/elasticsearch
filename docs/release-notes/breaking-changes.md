@@ -14,6 +14,10 @@ To learn how to upgrade, check out <upgrade docs>.
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.0.0 [elasticsearch-900-breaking-changes]
+
+No breaking changes in this version.
+
 ## 9.1.0 [elasticsearch-910-breaking-changes]
 
 Discovery-Plugins:
@@ -21,5 +25,8 @@ Discovery-Plugins:
 
 Infra/Logging:
 * Rename deprecation index template [#125606](https://github.com/elastic/elasticsearch/pull/125606) (issue: {es-issue}125445[#125445])
+
+TLS:
+* Drop `TLS_RSA` cipher support for JDK 24 [#123600](https://github.com/elastic/elasticsearch/pull/123600)
 
 

@@ -681,7 +681,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public Block constantNulls() {
-            if (nullBlock == null) {
+            // Avoid creating a new null block if we already have one.
+            // However, downstream operators take ownership of the null block we hand to them and may close it, forcing us to create a new
+            // one.
+            // This could be avoided altogether if this factory itself kept a reference to the null block, but we'd have to also ensure
+            // to release this block once the factory is not used anymore.
+            if (nullBlock == null || nullBlock.isReleased()) {
                 nullBlock = factory.newConstantNullBlock(pageSize);
             } else {
                 nullBlock.incRef();

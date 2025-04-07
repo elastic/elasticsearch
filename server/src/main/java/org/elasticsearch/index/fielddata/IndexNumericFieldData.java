@@ -96,13 +96,12 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
          * 3. We Aren't using max or min to resolve the duplicates.
          * 4. We have to cast the results to another type.
          */
-        boolean optimizeSortWithPoints = isIndexed()
-            && nested == null
-            && (sortMode == MultiValueMode.MAX || sortMode == MultiValueMode.MIN)
-            && targetNumericType == getNumericType();
-        if (sortRequiresCustomComparator() || optimizeSortWithPoints == false) {
+        boolean requiresCustomComparator = nested != null
+            || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
+            || targetNumericType != getNumericType();
+        if (sortRequiresCustomComparator() || requiresCustomComparator) {
             SortField sortField = new SortField(getFieldName(), source, reverse);
-            sortField.setOptimizeSortWithPoints(optimizeSortWithPoints);
+            sortField.setOptimizeSortWithPoints(requiresCustomComparator == false && isIndexed());
             return sortField;
         }
 

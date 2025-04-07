@@ -196,6 +196,7 @@ public abstract class GradleUtils {
     }
 
     public static void disableTransitiveDependencies(Configuration config) {
+        System.out.println("config = " + config);
         config.getDependencies().configureEach(dep -> {
             if (dep instanceof ModuleDependency
                 && dep instanceof ProjectDependency == false

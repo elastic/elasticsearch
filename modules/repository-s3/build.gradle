@@ -6,8 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+org.elasticsearch.gradle.internal.test.rest.RestTestSuite
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -15,7 +14,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   description = 'The S3 repository plugin adds S3 repositories'
-  classname ='org.elasticsearch.repositories.s3.S3RepositoryPlugin'
+  classname = 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
 }
 
 dependencies {
@@ -39,31 +38,53 @@ dependencies {
   api 'javax.xml.bind:jaxb-api:2.2.2'
 
   testImplementation project(':test:fixtures:s3-fixture')
+}
 
-  internalClusterTestImplementation project(':test:fixtures:minio-fixture')
-  internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+tasks.named('check') {
+  dependsOn tasks.withType(Test)
+}
 
-  yamlRestTestImplementation project(':modules:repository-s3')
-  yamlRestTestImplementation project(':test:fixtures:aws-fixture-utils')
-  yamlRestTestImplementation project(':test:fixtures:s3-fixture')
-  yamlRestTestImplementation project(':test:fixtures:testcontainer-utils')
-  yamlRestTestImplementation project(':test:framework')
-  yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 
-  javaRestTestImplementation project(':modules:repository-s3')
-  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
-  javaRestTestImplementation project(':test:fixtures:aws-sts-fixture')
-  javaRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
-  javaRestTestImplementation project(':test:fixtures:minio-fixture')
-  javaRestTestImplementation project(':test:fixtures:s3-fixture')
-  javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
-  javaRestTestImplementation project(':test:framework')
-  javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+testing {
+  suites {
+    internalClusterTest {
+      dependencies {
+        implementation project(':test:fixtures:minio-fixture')
+      }
+    }
+    javaRestTest {
+      dependencies {
+        implementation project()
+        implementation project(':test:fixtures:aws-fixture-utils')
+        implementation project(':test:fixtures:s3-fixture')
+        implementation project(':test:fixtures:testcontainer-utils')
+        implementation project(':test:fixtures:aws-sts-fixture')
+        implementation project(':test:fixtures:ec2-imds-fixture')
+        implementation project(':test:fixtures:minio-fixture')
+        implementation project(':test:fixtures:testcontainer-utils')
+      }
+    }
+    yamlRestTest {
+      dependencies {
+        implementation project()
+        implementation project(':test:fixtures:aws-fixture-utils')
+        implementation project(':test:fixtures:s3-fixture')
+        implementation project(':test:fixtures:testcontainer-utils')
+      }
+    }
+    configureEach {
+      dependencies {
+        implementation project(':test:framework')
+        implementation project(':test:fixtures:s3-fixture')
+        runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+      }
+    }
+  }
 }
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+    include '_common', 'cluster', 'nodes', 'snapshot', 'indices', 'index', 'bulk', 'count'
   }
 }
 
@@ -75,7 +96,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 esplugin.bundleSpec.from('config/repository-s3') {
-    into 'config'
+  into 'config'
 }
 
 tasks.named("internalClusterTest").configure {
@@ -83,25 +104,28 @@ tasks.named("internalClusterTest").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
+
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-          // classes are missing
-          'javax.servlet.ServletContextEvent',
-          'javax.servlet.ServletContextListener',
-          'org.apache.avalon.framework.logger.Logger',
-          'org.apache.log.Hierarchy',
-          'org.apache.log.Logger',
-          'javax.jms.Message',
-          // We don't use the kms dependency
-          'com.amazonaws.services.kms.AWSKMS',
-          'com.amazonaws.services.kms.AWSKMSClient',
-          'com.amazonaws.services.kms.AWSKMSClientBuilder',
-          'com.amazonaws.services.kms.model.DecryptRequest',
-          'com.amazonaws.services.kms.model.DecryptResult',
-          'com.amazonaws.services.kms.model.EncryptRequest',
-          'com.amazonaws.services.kms.model.EncryptResult',
-          'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
-          'com.amazonaws.services.kms.model.GenerateDataKeyResult',
-          'javax.activation.DataHandler'
+    // classes are missing
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    'javax.jms.Message',
+    // We don't use the kms dependency
+    'com.amazonaws.services.kms.AWSKMS',
+    'com.amazonaws.services.kms.AWSKMSClient',
+    'com.amazonaws.services.kms.AWSKMSClientBuilder',
+    'com.amazonaws.services.kms.model.DecryptRequest',
+    'com.amazonaws.services.kms.model.DecryptResult',
+    'com.amazonaws.services.kms.model.EncryptRequest',
+    'com.amazonaws.services.kms.model.EncryptResult',
+    'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+    'com.amazonaws.services.kms.model.GenerateDataKeyResult',
+    'javax.activation.DataHandler'
   )
 }
+
+

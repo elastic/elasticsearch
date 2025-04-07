@@ -29,6 +29,7 @@ public class InternalClusterTestPlugin implements Plugin<Project> {
         project.getPluginManager().apply(JavaPlugin.class);
         project.getPluginManager().apply(JvmTestSuitePlugin.class);
         TestingExtension testing = project.getExtensions().getByType(TestingExtension.class);
+
         testing.getSuites().register(SOURCE_SET_NAME, JvmTestSuite.class, suite -> {
             suite.useJUnit();
             suite.getDependencies().getImplementation().add(suite.getDependencies().project());

@@ -16,13 +16,14 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestResponseUtils.setUpXContentMock;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public final class RestGetActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
@@ -32,7 +33,7 @@ public final class RestGetActionTests extends RestActionTestCase {
         controller().registerHandler(new RestGetAction());
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GetRequest.class));
-            return Mockito.mock(GetResponse.class);
+            return setUpXContentMock(mock(GetResponse.class));
         });
     }
 

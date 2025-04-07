@@ -37,7 +37,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(GEO_POINT, (fieldEval, source) -> fieldEval),
+        Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToGeoPointFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new),
         Map.entry(SEMANTIC_TEXT, ToGeoPointFromStringEvaluator.Factory::new)

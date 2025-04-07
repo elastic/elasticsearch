@@ -17,6 +17,9 @@ The node that a REST request arrives at is called the "coordinating" node. Its j
 
 By default, all nodes will act as coordinating nodes, but by specifying `node.roles` to be empty you can create a [coordinating-only node](https://www.elastic.co/guide/en/elasticsearch/reference/current/node-roles-overview.html#coordinating-only-node-role).
 
+> [!NOTE]
+> `Rest*Action` classes often have a corresponding `Transport*Action`, this naming convention makes it easy to locate the corresponding [RestHandler] for a [TransportAction]. (e.g. `RestGetAction` calls `TransportGetAction`)
+
 ### REST Layer
 
 [BaseRestHandler]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java

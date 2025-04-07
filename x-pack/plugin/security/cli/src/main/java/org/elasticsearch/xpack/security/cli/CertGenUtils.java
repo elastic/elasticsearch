@@ -55,11 +55,13 @@ import java.sql.Date;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -79,25 +81,29 @@ public class CertGenUtils {
     /**
      * The mapping of key usage names to their corresponding integer values as defined in {@code KeyUsage} class.
      */
-    public static final Map<String, Integer> KEY_USAGE_MAPPINGS = Map.of(
-        "digitalSignature",
-        KeyUsage.digitalSignature,
-        "nonRepudiation",
-        KeyUsage.nonRepudiation,
-        "keyEncipherment",
-        KeyUsage.keyEncipherment,
-        "dataEncipherment",
-        KeyUsage.dataEncipherment,
-        "keyAgreement",
-        KeyUsage.keyAgreement,
-        "keyCertSign",
-        KeyUsage.keyCertSign,
-        "cRLSign",
-        KeyUsage.cRLSign,
-        "encipherOnly",
-        KeyUsage.encipherOnly,
-        "decipherOnly",
-        KeyUsage.decipherOnly
+    public static final Map<String, Integer> KEY_USAGE_MAPPINGS = Collections.unmodifiableMap(
+        new TreeMap<>(
+            Map.of(
+                "digitalSignature",
+                KeyUsage.digitalSignature,
+                "nonRepudiation",
+                KeyUsage.nonRepudiation,
+                "keyEncipherment",
+                KeyUsage.keyEncipherment,
+                "dataEncipherment",
+                KeyUsage.dataEncipherment,
+                "keyAgreement",
+                KeyUsage.keyAgreement,
+                "keyCertSign",
+                KeyUsage.keyCertSign,
+                "cRLSign",
+                KeyUsage.cRLSign,
+                "encipherOnly",
+                KeyUsage.encipherOnly,
+                "decipherOnly",
+                KeyUsage.decipherOnly
+            )
+        )
     );
 
     /**

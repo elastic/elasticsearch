@@ -69,6 +69,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -757,11 +758,12 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
 
             printHeader("What key usage should your certificate have?", terminal);
             terminal.println("The key usage extension defines the purpose of the key contained in the certificate.");
-            terminal.println(
-                "The usage restriction might be employed when a key, that could be used for more than one operation, is to be restricted."
-            );
+            terminal.println("The usage restriction might be employed when a key, that could be used for more than ");
+            terminal.println("one operation, is to be restricted.");
             terminal.println("You may enter the key usage as a comma-delimited list of following values: ");
-            terminal.println(" - " + CertGenUtils.KEY_USAGE_MAPPINGS.keySet().stream().sorted());
+            for (String keyUsageName : CertGenUtils.KEY_USAGE_MAPPINGS.keySet()) {
+                terminal.println(" - " + keyUsageName);
+            }
             terminal.println("");
 
             keyUsage = readKeyUsage(terminal, keyUsage);
@@ -939,11 +941,12 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
 
             printHeader("What key usage should your CA have?", terminal);
             terminal.println("The key usage extension defines the purpose of the key contained in the certificate.");
-            terminal.println(
-                "The usage restriction might be employed when a key, that could be used for more than one operation, is to be restricted."
-            );
+            terminal.println("The usage restriction might be employed when a key, that could be used for more than ");
+            terminal.println("one operation, is to be restricted.");
             terminal.println("You may enter the key usage as a comma-delimited list of following values: ");
-            terminal.println(" - " + CertGenUtils.KEY_USAGE_MAPPINGS.keySet().stream().sorted());
+            for (String keyUsageName : CertGenUtils.KEY_USAGE_MAPPINGS.keySet()) {
+                terminal.println(" - " + keyUsageName);
+            }
             terminal.println("");
 
             keyUsage = readKeyUsage(terminal, keyUsage);
@@ -1040,6 +1043,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             final String[] keyUsages = input.split(",");
             final List<String> resolvedKeyUsages = new ArrayList<>(keyUsages.length);
             for (String keyUsage : keyUsages) {
+                keyUsage = keyUsage.trim();
                 if (keyUsage.isEmpty()) {
                     terminal.println("Key usage cannot be empty");
                     return null;
@@ -1053,7 +1057,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 }
                 resolvedKeyUsages.add(keyUsage);
             }
-            return resolvedKeyUsages;
+            return Collections.unmodifiableList(resolvedKeyUsages);
         });
     }
 

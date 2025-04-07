@@ -33,7 +33,7 @@ public class MetricsRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_metrics"));
+        return List.of(new Route(POST, "/_metrics/{index}"));
     }
 
     @Override
@@ -55,7 +55,7 @@ public class MetricsRestAction extends BaseRestHandler {
         }
 
         // according to spec empty requests are successful
-        return channel -> { channel.sendResponse(successResponse()); };
+        return channel -> channel.sendResponse(successResponse());
     }
 
     private RestResponse successResponse() throws IOException {

@@ -11,6 +11,7 @@ import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -18,17 +19,31 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 
 public class MetricsTransportAction extends HandledTransportAction<
     MetricsTransportAction.MetricsRequest,
@@ -39,6 +54,7 @@ public class MetricsTransportAction extends HandledTransportAction<
 
     private static final Logger logger = LogManager.getLogger(MetricsTransportAction.class);
 
+    private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final IndicesService indicesService;
 
@@ -46,10 +62,12 @@ public class MetricsTransportAction extends HandledTransportAction<
     public MetricsTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        ClusterService clusterService,
         ProjectResolver projectResolver,
         IndicesService indicesService
     ) {
         super(NAME, transportService, actionFilters, MetricsRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.indicesService = indicesService;
     }
@@ -61,13 +79,68 @@ public class MetricsTransportAction extends HandledTransportAction<
 
             logger.info("Received " + metricsServiceRequest.getResourceMetricsCount() + " metrics");
 
-            // resolve index somehow
-            logger.info("Indices service " + indicesService);
+            final ClusterState clusterState = clusterService.state();
+            final ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+            var indexAbstraction = project.getIndicesLookup().get(request.index);
+            if (indexAbstraction == null) {
+                throw new IllegalStateException("Index [" + request.index + "] does not exist");
+            }
+            var writeIndex = indexAbstraction.getWriteIndex();
+            var indexService = indicesService.indexServiceSafe(writeIndex);
+
+            // TODO proper routing ???
+            var shard = indexService.getShard(0);
+            var engine = shard.getEngineOrNull();
+
+            // We receive a batch so there will be multiple documents as a result of processing it.
+            var documents = createLuceneDocuments(metricsServiceRequest);
+
+            // TODO thread pool for writing
+            for (var luceneDocument : documents) {
+                var id = UUIDs.randomBase64UUID();
+
+                var parsedDocument = new ParsedDocument(
+                    // Even though this version field is here, it is not added to the LuceneDocument and won't be stored.
+                    // This is just the contract that the code expects.
+                    new NumericDocValuesField(NAME, -1L),
+                    SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+                    id,
+                    null,
+                    List.of(luceneDocument),
+                    null,
+                    XContentType.JSON,
+                    null,
+                    0
+                );
+                var indexRequest = new Engine.Index(
+                    Uid.encodeId(id),
+                    parsedDocument,
+                    SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    1,
+                    Versions.MATCH_ANY,
+                    VersionType.INTERNAL,
+                    Engine.Operation.Origin.PRIMARY,
+                    System.nanoTime(),
+                    System.currentTimeMillis(),
+                    false,
+                    SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    1
+                );
+
+                engine.index(indexRequest);
+            }
+
+            // TODO make sure to enable periodic flush on the index (?)
 
             listener.onResponse(new MetricsResponse());
         } catch (Exception e) {
+            logger.error(e);
             listener.onFailure(e);
         }
+    }
+
+    private List<LuceneDocument> createLuceneDocuments(ExportMetricsServiceRequest exportMetricsServiceRequest) {
+        return List.of(new LuceneDocument());
     }
 
     public static class MetricsRequest extends ActionRequest {

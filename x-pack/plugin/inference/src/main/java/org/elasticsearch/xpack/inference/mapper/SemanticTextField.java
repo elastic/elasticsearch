@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -292,6 +293,12 @@ public record SemanticTextField(
             (p, c) -> p.map(),
             null,
             new ParseField(CHUNKING_SETTINGS_FIELD)
+        );
+        INFERENCE_RESULT_PARSER.declareObjectOrNull(
+            optionalConstructorArg(),
+            (p, c) -> parseIndexOptionsFromMap(c.fieldName, p.map(), c.indexVersion()),
+            null,
+            new ParseField(INDEX_OPTIONS_FIELD)
         );
         INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
             if (c.useLegacyFormat()) {

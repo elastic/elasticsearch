@@ -264,6 +264,7 @@ public class InferencePlugin extends Plugin
 
         ModelRegistry modelRegistry = new ModelRegistry(services.clusterService(), services.client());
         services.clusterService().addListener(modelRegistry);
+        SemanticTextFieldMapper.setModelRegistry(modelRegistry);
 
         if (inferenceServiceExtensions == null) {
             inferenceServiceExtensions = new ArrayList<>();

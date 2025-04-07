@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -142,6 +143,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
             notFromDynamicTemplates(type).accept(n, c);
         };
+    }
+
+    private static ModelRegistry modelRegistry;
+
+    public static void setModelRegistry(ModelRegistry registry) {
+        modelRegistry = registry;
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -281,6 +288,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             if (modelSettings.get() != null) {
                 validateServiceSettings(modelSettings.get());
             }
+            if (indexOptions.get() != null) {
+                validateIndexOptions(indexOptions.get(), inferenceId.getValue(), modelSettings.get());
+            }
             final String fullName = context.buildFullName(leafName());
 
             if (context.isInNestedContext()) {
@@ -321,6 +331,26 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         + settings.taskType().name()
                 );
             }
+        }
+
+        private void validateIndexOptions(SemanticTextIndexOptions indexOptions, String inferenceId, MinimalServiceSettings modelSettings) {
+            if (indexOptions == null) {
+                return;
+            }
+            if (modelSettings == null) {
+                modelSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
+            }
+
+            if (modelSettings == null) {
+                // TODO throw
+                return;
+            }
+
+            if (modelSettings.taskType() != TEXT_EMBEDDING) {
+                throw new IllegalArgumentException("Invalid task type");
+            }
+
+            // TODO additional verification
         }
 
         /**

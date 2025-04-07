@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -126,6 +128,17 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
             return envelope.get();
         }
         throw new IllegalArgumentException("Cannot determine envelope of bounds geometry");
+    }
+
+    protected static GeoBoundingBox asGeoBoundingBox(BytesRef boundsBytesRef) {
+        return asGeoBoundingBox(asRectangle(boundsBytesRef));
+    }
+
+    protected static GeoBoundingBox asGeoBoundingBox(Rectangle rectangle) {
+        return new GeoBoundingBox(
+            new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+        );
     }
 
     protected static boolean inBounds(Point point, Rectangle bounds) {

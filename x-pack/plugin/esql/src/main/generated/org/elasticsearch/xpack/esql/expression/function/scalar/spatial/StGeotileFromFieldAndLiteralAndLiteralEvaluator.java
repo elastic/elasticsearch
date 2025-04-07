@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -26,20 +26,17 @@ public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
   private final EvalOperator.ExpressionEvaluator in;
 
-  private final int precision;
-
-  private final Rectangle bounds;
+  private final GeoTileBoundedPredicate bounds;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeotileFromFieldAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator in, int precision, Rectangle bounds,
+      EvalOperator.ExpressionEvaluator in, GeoTileBoundedPredicate bounds,
       DriverContext driverContext) {
     this.source = source;
     this.in = in;
-    this.precision = precision;
     this.bounds = bounds;
     this.driverContext = driverContext;
   }
@@ -63,7 +60,7 @@ public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements Ev
           continue position;
         }
         try {
-          StGeotile.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.precision, this.bounds);
+          StGeotile.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -75,7 +72,7 @@ public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
   @Override
   public String toString() {
-    return "StGeotileFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + ", bounds=" + bounds + "]";
+    return "StGeotileFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
   }
 
   @Override
@@ -100,26 +97,23 @@ public final class StGeotileFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
     private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    private final int precision;
+    private final GeoTileBoundedPredicate bounds;
 
-    private final Rectangle bounds;
-
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in, int precision,
-        Rectangle bounds) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
+        GeoTileBoundedPredicate bounds) {
       this.source = source;
       this.in = in;
-      this.precision = precision;
       this.bounds = bounds;
     }
 
     @Override
     public StGeotileFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeotileFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), precision, bounds, context);
+      return new StGeotileFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds, context);
     }
 
     @Override
     public String toString() {
-      return "StGeotileFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + ", bounds=" + bounds + "]";
+      return "StGeotileFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
     }
   }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -16,7 +17,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -30,7 +30,7 @@ public final class StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator implem
 
   private final EvalOperator.ExpressionEvaluator precision;
 
-  private final Rectangle bounds;
+  private final GeoBoundingBox bbox;
 
   private final DriverContext driverContext;
 
@@ -38,11 +38,11 @@ public final class StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator implem
 
   public StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator(Source source,
       EvalOperator.ExpressionEvaluator encoded, EvalOperator.ExpressionEvaluator precision,
-      Rectangle bounds, DriverContext driverContext) {
+      GeoBoundingBox bbox, DriverContext driverContext) {
     this.source = source;
     this.encoded = encoded;
     this.precision = precision;
-    this.bounds = bounds;
+    this.bbox = bbox;
     this.driverContext = driverContext;
   }
 
@@ -78,7 +78,7 @@ public final class StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator implem
           continue position;
         }
         try {
-          StGeotile.fromFieldDocValuesAndFieldAndLiteral(result, p, encodedBlock, precisionBlock.getInt(precisionBlock.getFirstValueIndex(p)), this.bounds);
+          StGeotile.fromFieldDocValuesAndFieldAndLiteral(result, p, encodedBlock, precisionBlock.getInt(precisionBlock.getFirstValueIndex(p)), this.bbox);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -90,7 +90,7 @@ public final class StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator implem
 
   @Override
   public String toString() {
-    return "StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator[" + "encoded=" + encoded + ", precision=" + precision + ", bounds=" + bounds + "]";
+    return "StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator[" + "encoded=" + encoded + ", precision=" + precision + ", bbox=" + bbox + "]";
   }
 
   @Override
@@ -117,24 +117,24 @@ public final class StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator implem
 
     private final EvalOperator.ExpressionEvaluator.Factory precision;
 
-    private final Rectangle bounds;
+    private final GeoBoundingBox bbox;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded,
-        EvalOperator.ExpressionEvaluator.Factory precision, Rectangle bounds) {
+        EvalOperator.ExpressionEvaluator.Factory precision, GeoBoundingBox bbox) {
       this.source = source;
       this.encoded = encoded;
       this.precision = precision;
-      this.bounds = bounds;
+      this.bbox = bbox;
     }
 
     @Override
     public StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator get(DriverContext context) {
-      return new StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator(source, encoded.get(context), precision.get(context), bounds, context);
+      return new StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator(source, encoded.get(context), precision.get(context), bbox, context);
     }
 
     @Override
     public String toString() {
-      return "StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator[" + "encoded=" + encoded + ", precision=" + precision + ", bounds=" + bounds + "]";
+      return "StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator[" + "encoded=" + encoded + ", precision=" + precision + ", bbox=" + bbox + "]";
     }
   }
 }

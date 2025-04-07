@@ -277,8 +277,8 @@ FROM airports
 ;
 
 count:long | centroid:geo_point                           | geotile:keyword
-36         | POINT (6.52789649553597 48.36977661703713)   | 3/4/2
-5          | POINT (6.707012789323926 37.031419202685356) | 3/4/3
+100        | POINT (18.10569669920951 50.40505832391791)  | 3/4/2
+79         | POINT (24.516750878736943 23.93036561181085) | 3/4/3
 ;
 
 gridGeotileStatsByWhereUK
@@ -304,7 +304,7 @@ required_capability: spatial_grid
 
 FROM airports
 | EVAL bounds = ST_ENVELOPE(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
-| EVAL geotile = ST_GEOTILE(location, 2, bounds)
+| EVAL geotile = ST_GEOTILE(location, 4, bounds)
 | WHERE geotile IS NOT NULL
 | STATS
     count = COUNT(location),
@@ -314,8 +314,10 @@ FROM airports
 ;
 
 count:long | centroid:geo_point                            | geotile:keyword
-20         | POINT (-3.3905635555274785 54.08363554766402) | 2/1/1
-1          | POINT (0.15865350142121315 49.36166098807007) | 2/2/1
+56         | POINT (10.54233039047436 47.85997457644304)   | 4/8/5
+18         | POINT (-3.5578574100509286 51.27018998377025) | 4/7/5
+11         | POINT (14.310833624648778 59.85619530801407)  | 4/8/4
+7          | POINT (-6.466632609122565 59.19681839378817)  | 4/7/4
 ;
 
 gridGeotileInStatsBy

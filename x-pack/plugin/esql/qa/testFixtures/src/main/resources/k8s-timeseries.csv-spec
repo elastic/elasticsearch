@@ -127,3 +127,31 @@ max(rate(network.total_bytes_in)):double | time_bucket:datetime     | cluster:ke
 11.860805860805861                       | 2024-05-10T00:15:00.000Z | prod
 11.562737642585551                       | 2024-05-10T00:10:00.000Z | prod
 ;
+
+
+oneRateWithBucketAndClusterThenFilter
+required_capability: metrics_command
+TS k8s | WHERE cluster=="prod" | STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC | LIMIT 3;
+
+max(rate(network.total_bytes_in)):double | time_bucket:datetime     | cluster:keyword
+6.980660660660663                        | 2024-05-10T00:20:00.000Z | prod
+11.860805860805861                       | 2024-05-10T00:15:00.000Z | prod
+11.562737642585551                       | 2024-05-10T00:10:00.000Z | prod
+;
+
+notEnoughSamples
+required_capability: metrics_command
+TS k8s | WHERE @timestamp <= "2024-05-10T00:06:14.000Z" | STATS max(rate(network.total_bytes_in)) BY pod, time_bucket = bucket(@timestamp,1minute) | SORT pod, time_bucket DESC | LIMIT 10;
+
+max(rate(network.total_bytes_in)):double | pod:keyword | time_bucket:datetime    
+null                                     | one         | 2024-05-10T00:06:00.000Z
+0.075                                    | one         | 2024-05-10T00:05:00.000Z
+null                                     | one         | 2024-05-10T00:04:00.000Z
+16.45                                    | one         | 2024-05-10T00:03:00.000Z
+null                                     | one         | 2024-05-10T00:01:00.000Z
+null                                     | three       | 2024-05-10T00:06:00.000Z
+null                                     | three       | 2024-05-10T00:05:00.000Z
+1.534413580246913                        | three       | 2024-05-10T00:03:00.000Z
+null                                     | three       | 2024-05-10T00:02:00.000Z
+null                                     | three       | 2024-05-10T00:01:00.000Z
+;

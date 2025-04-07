@@ -33,8 +33,11 @@ public class DeprecatedIndexPredicate {
      *                              if false, only non-system indices are returned
      * @return a predicate that returns true for indices that need to be reindexed
      */
-    public static Predicate<Index> getReindexRequiredPredicate(ProjectMetadata metadata, boolean filterToBlockedStatus,
-                                                               boolean includeSystem) {
+    public static Predicate<Index> getReindexRequiredPredicate(
+        ProjectMetadata metadata,
+        boolean filterToBlockedStatus,
+        boolean includeSystem
+    ) {
         return index -> {
             IndexMetadata indexMetadata = metadata.index(index);
             return reindexRequired(indexMetadata, filterToBlockedStatus, includeSystem);

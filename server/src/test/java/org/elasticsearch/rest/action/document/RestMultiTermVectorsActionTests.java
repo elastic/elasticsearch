@@ -27,14 +27,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestResponseUtils.setUpXContentMock;
+
 public final class RestMultiTermVectorsActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
 
     @Before
     public void setUpAction() {
         controller().registerHandler(new RestMultiTermVectorsAction());
-        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiTermVectorsResponse.class));
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiTermVectorsResponse.class));
+        verifyingClient.setExecuteVerifier((actionType, request) -> setUpXContentMock(Mockito.mock(MultiTermVectorsResponse.class)));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> setUpXContentMock(Mockito.mock(MultiTermVectorsResponse.class)));
     }
 
     public void testTypeInPath() {

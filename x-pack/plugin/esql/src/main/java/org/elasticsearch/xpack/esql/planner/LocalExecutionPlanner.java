@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
@@ -734,16 +735,9 @@ public class LocalExecutionPlanner {
         List<Integer> projectionList = new ArrayList<>(projections.size());
 
         Layout.Builder layout = new Layout.Builder();
-        Map<Integer, Layout.ChannelSet> inputChannelToOutputIds = new HashMap<>();
-        for (int index = 0, size = projections.size(); index < size; index++) {
-            NamedExpression ne = projections.get(index);
-
-            NameId inputId = null;
-            if (ne instanceof Alias a) {
-                inputId = ((NamedExpression) a.child()).id();
-            } else {
-                inputId = ne.id();
-            }
+        Map<Integer, Layout.ChannelSet> inputChannelToOutputIds = Maps.newHashMapWithExpectedSize(projections.size());
+        for (NamedExpression ne : projections) {
+            NameId inputId = ne instanceof Alias a ? ((NamedExpression) a.child()).id() : ne.id();
             Layout.ChannelAndType input = source.layout.get(inputId);
             if (input == null) {
                 throw new IllegalStateException("can't find input for [" + ne + "]");

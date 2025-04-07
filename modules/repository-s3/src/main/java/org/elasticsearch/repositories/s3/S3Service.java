@@ -475,8 +475,6 @@ class S3Service extends AbstractLifecycleComponent {
      */
     static class CustomWebIdentityTokenCredentialsProvider implements AwsCredentialsProvider {
 
-        private static final String STS_HOSTNAME = "https://sts.amazonaws.com";
-
         static final String WEB_IDENTITY_TOKEN_FILE_LOCATION = "repository-s3/aws-web-identity-token-file";
 
         private StsWebIdentityTokenFileCredentialsProvider credentialsProvider;
@@ -495,12 +493,15 @@ class S3Service extends AbstractLifecycleComponent {
                 return;
             }
 
-            // Make sure that a readable symlink to the token file exists in the plugin config directory
-            // AWS_WEB_IDENTITY_TOKEN_FILE exists but we only use Web Identity Tokens if a corresponding symlink exists and is readable
+            // The AWS_WEB_IDENTITY_TOKEN_FILE environment variable exists, but in EKS it will point to a file outside the config directory
+            // and ES therefore does not have access. Instead as per the docs we require the users to set up a symlink to a fixed location
+            // within ${ES_CONF_PATH} which we can access:
             final var webIdentityTokenFileLocation = environment.configDir().resolve(WEB_IDENTITY_TOKEN_FILE_LOCATION);
             if (Files.exists(webIdentityTokenFileLocation) == false) {
                 LOGGER.warn(
-                    "Cannot use AWS Web Identity Tokens: AWS_WEB_IDENTITY_TOKEN_FILE is defined as [{}] but file [{}] does not exist",
+                    """
+                        Cannot use AWS Web Identity Tokens: AWS_WEB_IDENTITY_TOKEN_FILE is defined as [{}] but Elasticsearch requires a \
+                        symlink to this token file at location [{}] and there is nothing at that location.""",
                     webIdentityTokenFileEnvVar,
                     webIdentityTokenFileLocation
                 );
@@ -509,7 +510,9 @@ class S3Service extends AbstractLifecycleComponent {
             if (Files.isReadable(webIdentityTokenFileLocation) == false) {
                 throw new IllegalStateException(
                     Strings.format(
-                        "Cannot use AWS Web Identity Tokens: AWS_WEB_IDENTITY_TOKEN_FILE is defined as [%s] but file [%s] is not readable",
+                        """
+                            Cannot use AWS Web Identity Tokens: AWS_WEB_IDENTITY_TOKEN_FILE is defined as [%s] but Elasticsearch requires \
+                            a symlink to this token file at location [{}] and this location is not readable.""",
                         webIdentityTokenFileEnvVar,
                         webIdentityTokenFileLocation
                     )
@@ -518,9 +521,12 @@ class S3Service extends AbstractLifecycleComponent {
 
             final var roleArn = systemEnvironment.getEnv(AWS_ROLE_ARN.name());
             if (roleArn == null) {
-                LOGGER.warn("""
-                    Unable to use a web identity token for authentication. The AWS_WEB_IDENTITY_TOKEN_FILE environment variable is set,
-                    but the AWS_ROLE_ARN environment variable is missing""");
+                LOGGER.warn(
+                    """
+                        Cannot use AWS Web Identity Tokens: AWS_WEB_IDENTITY_TOKEN_FILE is defined as [{}] but Elasticsearch requires \
+                        the AWS_ROLE_ARN environment variable to be set to the ARN of the role and this variable is not set.""",
+                    webIdentityTokenFileEnvVar
+                );
                 return;
             }
 
@@ -533,6 +539,7 @@ class S3Service extends AbstractLifecycleComponent {
 
             {
                 final var securityTokenServiceClientBuilder = StsClient.builder();
+                // allow an endpoint override in tests
                 final var endpointOverride = jvmEnvironment.getProperty("org.elasticsearch.repositories.s3.stsEndpointOverride", null);
                 if (endpointOverride != null) {
                     securityTokenServiceClientBuilder.endpointOverride(URI.create(endpointOverride));

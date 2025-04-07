@@ -223,15 +223,20 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), parentName, field);
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass() || super.equals(o) == false) {
+            return false;
+        }
+        FieldAttribute that = (FieldAttribute) o;
+        return Objects.equals(parentName, that.parentName) && Objects.equals(field, that.field);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj)
-            && Objects.equals(parentName, ((FieldAttribute) obj).parentName)
-            && Objects.equals(field, ((FieldAttribute) obj).field);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), parentName, field);
     }
 
     @Override

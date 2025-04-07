@@ -70,10 +70,12 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
          * to ignore it in equals for the transform
          * tests to pass.
          */
+        if (this == obj) {
+            return true;
+        }
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-
         UnresolvedStar other = (UnresolvedStar) obj;
         return Objects.equals(qualifier, other.qualifier);
     }

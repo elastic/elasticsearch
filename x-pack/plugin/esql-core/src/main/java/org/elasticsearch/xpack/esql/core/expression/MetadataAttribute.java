@@ -173,12 +173,15 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass() || super.equals(o) == false) {
             return false;
         }
-        MetadataAttribute other = (MetadataAttribute) obj;
-        return searchable == other.searchable;
+        MetadataAttribute that = (MetadataAttribute) o;
+        return searchable == that.searchable;
     }
 
     @Override

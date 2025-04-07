@@ -119,16 +119,21 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), resolutionMetadata, unresolvedMsg);
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass() || super.equals(o) == false) {
+            return false;
+        }
+        UnresolvedAttribute that = (UnresolvedAttribute) o;
+        return customMessage == that.customMessage
+            && Objects.equals(unresolvedMsg, that.unresolvedMsg)
+            && Objects.equals(resolutionMetadata, that.resolutionMetadata);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            UnresolvedAttribute ua = (UnresolvedAttribute) obj;
-            return Objects.equals(resolutionMetadata, ua.resolutionMetadata) && Objects.equals(unresolvedMsg, ua.unresolvedMsg);
-        }
-        return false;
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), resolutionMetadata, unresolvedMsg);
     }
 }

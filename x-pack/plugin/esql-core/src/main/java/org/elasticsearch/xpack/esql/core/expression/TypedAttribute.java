@@ -34,12 +34,19 @@ public abstract class TypedAttribute extends Attribute {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), dataType);
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass() || super.equals(o) == false) {
+            return false;
+        }
+        TypedAttribute that = (TypedAttribute) o;
+        return dataType == that.dataType;
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(dataType, ((TypedAttribute) obj).dataType);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), dataType);
     }
 }

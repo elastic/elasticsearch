@@ -69,9 +69,8 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-
         NamedExpression other = (NamedExpression) obj;
-        return Objects.equals(synthetic, other.synthetic)
+        return synthetic == other.synthetic
             /*
              * It is important that the line below be `name`
              * and not `name()` because subclasses might override

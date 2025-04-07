@@ -98,17 +98,20 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), pattern);
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass() || super.equals(o) == false) {
+            return false;
+        }
+        UnresolvedNamePattern that = (UnresolvedNamePattern) o;
+        return Objects.equals(pattern, that.pattern);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            UnresolvedNamePattern ua = (UnresolvedNamePattern) obj;
-            return Objects.equals(pattern, ua.pattern);
-        }
-        return false;
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), pattern);
     }
 
     @Override

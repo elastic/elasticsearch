@@ -69,11 +69,9 @@ public class EmptyAttribute extends Attribute {
         if (this == obj) {
             return true;
         }
-
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-
         return true;
     }
 }

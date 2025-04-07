@@ -478,10 +478,10 @@ public class CertGenUtils {
         }
 
         int usageBits = 0;
-        for (String keyUsage : keyUsages) {
-            Integer keyUsageValue = KEY_USAGE_MAPPINGS.get(keyUsage.trim());
+        for (String keyUsageName : keyUsages) {
+            Integer keyUsageValue = findKeyUsageByName(keyUsageName);
             if (keyUsageValue == null) {
-                throw new IllegalArgumentException("Unknown keyUsage: " + keyUsage);
+                throw new IllegalArgumentException("Unknown keyUsage: " + keyUsageName);
             }
             usageBits |= keyUsageValue;
         }
@@ -489,6 +489,13 @@ public class CertGenUtils {
     }
 
     public static boolean isValidKeyUsage(String keyUsage) {
-        return KEY_USAGE_MAPPINGS.containsKey(keyUsage);
+        return findKeyUsageByName(keyUsage) != null;
+    }
+
+    private static Integer findKeyUsageByName(String keyUsageName) {
+        if (keyUsageName == null) {
+            return null;
+        }
+        return KEY_USAGE_MAPPINGS.get(keyUsageName.trim());
     }
 }

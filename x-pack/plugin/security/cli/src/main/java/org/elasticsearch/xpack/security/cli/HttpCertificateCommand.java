@@ -84,6 +84,7 @@ import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
 import static org.elasticsearch.xpack.security.cli.CertGenUtils.generateSignedCertificate;
+import static org.elasticsearch.xpack.security.cli.CertGenUtils.isValidKeyUsage;
 
 /**
  * This command is the "elasticsearch-certutil http" command. It provides a guided process for creating
@@ -1048,7 +1049,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     terminal.println("Key usage cannot be empty");
                     return null;
                 }
-                if (CertGenUtils.isValidKeyUsage(keyUsage) == false) {
+                if (isValidKeyUsage(keyUsage) == false) {
                     terminal.println("Invalid key usage: " + keyUsage);
                     terminal.println("The key usage should be one of the following values: ");
                     for (String keyUsageName : CertGenUtils.KEY_USAGE_MAPPINGS.keySet()) {

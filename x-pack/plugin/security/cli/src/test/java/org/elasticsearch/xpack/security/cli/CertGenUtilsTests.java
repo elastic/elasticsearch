@@ -13,6 +13,7 @@ import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.SuppressForbidden;
@@ -38,7 +39,11 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.xpack.security.cli.CertGenUtils.KEY_USAGE_BITS;
+import static org.elasticsearch.xpack.security.cli.CertGenUtils.KEY_USAGE_MAPPINGS;
 import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
+import static org.elasticsearch.xpack.security.cli.CertGenUtils.isValidKeyUsage;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -188,6 +193,69 @@ public class CertGenUtilsTests extends ESTestCase {
             assertExpectedKeyUsage(endEntityCert, endEntityKeyUsage);
         }
 
+    }
+
+    public void testBuildKeyUsage() {
+        // sanity check that lookup maps are containing the same keyUsage entries
+        assertThat(KEY_USAGE_BITS.keySet(), containsInAnyOrder(KEY_USAGE_MAPPINGS.keySet().toArray()));
+
+        // passing null or empty list of keyUsage names should return null
+        assertThat(buildKeyUsage(null), is(nullValue()));
+        assertThat(buildKeyUsage(List.of()), is(nullValue()));
+
+        // invalid names should throw IAE
+        var e = expectThrows(IllegalArgumentException.class, () -> buildKeyUsage(List.of(randomAlphanumericOfLength(5))));
+        assertThat(e.getMessage(), containsString("Unknown keyUsage"));
+
+        {
+            final List<String> keyUsages = randomNonEmptySubsetOf(KEY_USAGE_MAPPINGS.keySet());
+            final KeyUsage keyUsage = buildKeyUsage(keyUsages);
+            for (String usageName : keyUsages) {
+                final Integer usage = KEY_USAGE_MAPPINGS.get(usageName);
+                assertThat(" mapping for keyUsage [" + usageName + "] is missing", usage, is(notNullValue()));
+                assertThat("expected keyUsage [" + usageName + "] to be set in [" + keyUsage + "]", keyUsage.hasUsages(usage), is(true));
+            }
+
+            final Set<String> keyUsagesNotSet = KEY_USAGE_MAPPINGS.keySet()
+                .stream()
+                .filter(u -> keyUsages.contains(u) == false)
+                .collect(Collectors.toSet());
+
+            for (String usageName : keyUsagesNotSet) {
+                final Integer usage = KEY_USAGE_MAPPINGS.get(usageName);
+                assertThat(" mapping for keyUsage [" + usageName + "] is missing", usage, is(notNullValue()));
+                assertThat(
+                    "expected keyUsage [" + usageName + "] not to be set in [" + keyUsage + "]",
+                    keyUsage.hasUsages(usage),
+                    is(false)
+                );
+            }
+
+        }
+
+        {
+            // test that duplicates and whitespaces are ignored
+            KeyUsage keyUsage = buildKeyUsage(
+                List.of("digitalSignature   ", "    nonRepudiation", "\tkeyEncipherment", "keyEncipherment\n")
+            );
+            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("digitalSignature")), is(true));
+            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("nonRepudiation")), is(true));
+            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("digitalSignature")), is(true));
+            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("keyEncipherment")), is(true));
+        }
+    }
+
+    public void testIsValidKeyUsage() {
+        assertThat(isValidKeyUsage(randomFrom(KEY_USAGE_MAPPINGS.keySet())), is(true));
+        assertThat(isValidKeyUsage(randomAlphanumericOfLength(5)), is(false));
+
+        // keyUsage names are case-sensitive
+        assertThat(isValidKeyUsage("DigitalSignature"), is(false));
+
+        // white-spaces are ignored
+        assertThat(isValidKeyUsage("keyAgreement "), is(true));
+        assertThat(isValidKeyUsage("keyCertSign\n"), is(true));
+        assertThat(isValidKeyUsage("\tcRLSign  "), is(true));
     }
 
     public static void assertExpectedKeyUsage(X509Certificate certificate, List<String> expectedKeyUsage) {

@@ -4507,7 +4507,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ) {
                 @Override
                 public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
-                    assert assertNoEngineResetLock();
                     synchronized (engineMutex) {
                         if (newEngineReference.get() == null) {
                             throw new AlreadyClosedException("engine was closed");
@@ -4519,7 +4518,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 @Override
                 public IndexCommitRef acquireSafeIndexCommit() {
-                    assert assertNoEngineResetLock();
                     synchronized (engineMutex) {
                         if (newEngineReference.get() == null) {
                             throw new AlreadyClosedException("engine was closed");
@@ -4531,7 +4529,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 @Override
                 public void close() throws IOException {
                     Engine newEngine;
-                    assert assertNoEngineResetLock();
                     synchronized (engineMutex) {
                         newEngine = newEngineReference.get();
                         if (newEngine == getEngineOrNull()) {

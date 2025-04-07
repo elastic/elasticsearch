@@ -269,8 +269,12 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         this(source, query, fields, options, null);
     }
 
-    private final transient Expression options;
+    // Due to current limitations, the options field may contain a field, in which case treat it as a field, and use "null" for actual
+    // options. We also remember the originally supplied arguments in order to make tests happy.
     private final transient List<Expression> fields;
+    private final transient List<Expression> fieldsOriginal;
+    private final transient Expression options;
+    private final transient Expression optionsOriginal;
 
     private static List<Expression> initChildren(Expression query, List<Expression> fields, Expression options) {
         Stream<Expression> fieldsAndQuery = Stream.concat(Stream.of(query), fields.stream());
@@ -279,17 +283,23 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
     private MultiMatch(Source source, Expression query, List<Expression> fields, Expression options, QueryBuilder queryBuilder) {
         super(source, query, initChildren(query, fields, options), queryBuilder);
-        this.options = options;
-        this.fields = fields;
+        this.fieldsOriginal = fields;
+        this.optionsOriginal = options;
+
+        if (options == null || options instanceof MapExpression) {
+            this.fields = fields;
+            this.options = options;
+        } else {
+            this.fields = Stream.concat(fields.stream(), Stream.of(options)).toList();
+            this.options = null;
+        }
     }
 
     private static MultiMatch readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
         List<Expression> fields = in.readNamedWriteableCollectionAsList(Expression.class);
-        QueryBuilder queryBuilder = null;
-        queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-
+        QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         return new MultiMatch(source, query, fields, null, queryBuilder);
     }
 
@@ -324,7 +334,8 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MultiMatch::new, query(), fields, options);
+        // Specifically create new instance with original arguments.
+        return NodeInfo.create(this, MultiMatch::new, query(), fieldsOriginal, optionsOriginal);
     }
 
     @Override
@@ -341,7 +352,8 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new MultiMatch(source(), query(), fields, options, queryBuilder);
+        // Specifically create new instance with original arguments.
+        return new MultiMatch(source(), query(), fieldsOriginal, optionsOriginal, queryBuilder);
     }
 
     public List<Expression> fields() {

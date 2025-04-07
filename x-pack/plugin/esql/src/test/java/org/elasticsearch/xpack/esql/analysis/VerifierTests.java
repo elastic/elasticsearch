@@ -2328,7 +2328,7 @@ public class VerifierTests extends ESTestCase {
         query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name)");
         query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, {\"analyzer\": \"standard\"})");
         query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", last_name, {\"slop\": 10})");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"slop\": 10})");
         query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"auto_generate_synonyms_phrase_query\": true})");
         query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"fuzziness\": 2})");
         query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"fuzzy_transpositions\": false})");

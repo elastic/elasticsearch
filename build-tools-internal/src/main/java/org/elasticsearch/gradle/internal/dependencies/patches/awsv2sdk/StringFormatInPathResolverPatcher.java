@@ -59,8 +59,10 @@ class StringFormatInPathResolverPatcher extends ClassVisitor {
         public void visitLdcInsn(Object value) {
             if (value instanceof String s && s.startsWith("%s")) {
                 if (foundFormatPattern) {
-                    throw new IllegalStateException("A previous string format constant was not paired with a String.format() call. " +
-                        "Patching would generate an unbalances stack");
+                    throw new IllegalStateException(
+                        "A previous string format constant was not paired with a String.format() call. "
+                            + "Patching would generate an unbalances stack"
+                    );
                 }
                 // Push the extra arg on the stack
                 mv.visitFieldInsn(GETSTATIC, Type.getInternalName(Locale.class), "ROOT", Type.getDescriptor(Locale.class));

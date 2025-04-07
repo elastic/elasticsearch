@@ -77,7 +77,8 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
         TimeValue readTimeout,
         Boolean disableChunkedEncoding,
         ByteSizeValue bufferSize,
-        Integer maxBulkDeletes
+        Integer maxBulkDeletes,
+        BlobPath blobContainerPath
     ) {
         Settings.Builder settingsBuilder = Settings.builder();
 

@@ -312,8 +312,7 @@ class S3Service extends AbstractLifecycleComponent {
         return httpClientBuilder.build();
     }
 
-    // TODO NOMERGE naming
-    static boolean RETRYABLE_403_PREDICATE(Throwable e) {
+    static boolean isInvalidAccessKeyIdException(Throwable e) {
         if (e instanceof AwsServiceException ase) {
             return ase.statusCode() == RestStatus.FORBIDDEN.getStatus() && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
         }
@@ -329,8 +328,7 @@ class S3Service extends AbstractLifecycleComponent {
         if (isStateless) {
             // Create a 403 error retryable policy. In serverless we sometimes get 403s during because of delays in propagating updated
             // credentials because IAM is not strongly consistent.
-            // TODO NOMERGE this should be covered by some end-to-end test, and documented more accurately
-            retryStrategyBuilder.retryOnException(S3Service::RETRYABLE_403_PREDICATE);
+            retryStrategyBuilder.retryOnException(S3Service::isInvalidAccessKeyIdException);
         }
         clientOverrideConfiguration.retryStrategy(retryStrategyBuilder.build());
         return clientOverrideConfiguration.build();

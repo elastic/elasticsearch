@@ -1046,7 +1046,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             for (String keyUsage : keyUsages) {
                 keyUsage = keyUsage.trim();
                 if (keyUsage.isEmpty()) {
-                    terminal.println("Key usage cannot be empty");
+                    terminal.println("Key usage cannot be blank or empty");
                     return null;
                 }
                 if (isValidKeyUsage(keyUsage) == false) {

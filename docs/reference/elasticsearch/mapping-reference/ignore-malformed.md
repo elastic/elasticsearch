@@ -59,7 +59,7 @@ The `ignore_malformed` setting is currently supported by the following [mapping 
 :   `date_nanos`
 
 [Geopoint](/reference/elasticsearch/mapping-reference/geo-point.md)
-:   `geo_point` for lat/lon points
+:   `geo_point` for lat/lon points, although there is a [special case](#_ignore_malformed_geo_point) for out-of-range values
 
 [Geoshape](/reference/elasticsearch/mapping-reference/geo-shape.md)
 :   `geo_shape` for complex shapes like polygons
@@ -103,8 +103,21 @@ PUT my-index-000001
 
 ## Dealing with malformed fields [_dealing_with_malformed_fields]
 
-Malformed fields are silently ignored at indexing time when `ignore_malformed` is turned on. Whenever possible it is recommended to keep the number of documents that have a malformed field contained, or queries on this field will become meaningless. Elasticsearch makes it easy to check how many documents have malformed fields by using `exists`,`term` or `terms` queries on the special [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md) field.
+Malformed fields are silently ignored at indexing time when `ignore_malformed` is turned on.
+Whenever possible it is recommended to keep the number of documents that have a malformed field contained,
+or queries on this field will become meaningless.
+Elasticsearch makes it easy to check how many documents have malformed fields by using `exists`,
+`term` or `terms` queries on the special [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md) field.
 
+## The special case of `geo_point` fields [_ignore_malformed_geo_point]
+
+With [`geo_point`](/reference/elasticsearch/mapping-reference/geo-point.md) fields,
+there is the special case of values that have a syntactically valid format,
+but the numerical values for `latitude` and `longitude` are out of range.
+If `ignore_malformed` is `false`, an exception will be thrown as usual. But if it is `true`,
+the document will be indexed correctly, by normalizing the latitude and longitude values into the valid range.
+The special [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md) field will not be set.
+The original source document will remain as before, but indexed values, doc-values and stored fields will all be normalized.
 
 ## Limits for JSON Objects [json-object-limits]
 

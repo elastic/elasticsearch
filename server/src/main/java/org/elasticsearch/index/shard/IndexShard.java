@@ -4697,12 +4697,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private boolean assertNoEngineResetLock() {
         assert engineResetLock.isReadLockedByCurrentThread()
             : "Expected current thread ["
-            + Thread.currentThread()
-            + "] to not hold an engine read lock (lock ordering should be: engineMutex -> engineResetLock -> mutex)";
+                + Thread.currentThread()
+                + "] to not hold an engine read lock (lock ordering should be: engineMutex -> engineResetLock -> mutex)";
         assert engineResetLock.isWriteLockedByCurrentThread()
             : "Expected current thread ["
-            + Thread.currentThread()
-            + "] to not hold the engine write lock (lock ordering should be: engineMutex -> engineResetLock -> mutex)";
+                + Thread.currentThread()
+                + "] to not hold the engine write lock (lock ordering should be: engineMutex -> engineResetLock -> mutex)";
         return true;
     }
 }

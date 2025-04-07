@@ -8,7 +8,7 @@
 
 There are two main types of network communication used in Elasticsearch:
 - External clients interact with the cluster via the public REST API over HTTP connections
-- Cluster nodes communicate internally using a binary messaging format over TCP connections
+- Cluster nodes communicate internally using a binary message format over TCP connections
 
 > [!NOTE]
 > Cross-cluster [replication](https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-ccr.html) and [search](https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cross-cluster-search.html) use binary/TCP messaging for inter-cluster communication but this is out of scope for this section

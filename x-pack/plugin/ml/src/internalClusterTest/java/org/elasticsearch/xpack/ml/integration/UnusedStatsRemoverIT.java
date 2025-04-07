@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -48,6 +49,7 @@ import java.util.Collections;
 public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
     private OriginSettingClient client;
+    private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     @Before
     public void createComponents() {
@@ -159,7 +161,11 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
     private void runUnusedStatsRemover() {
         PlainActionFuture<Boolean> deletionListener = new PlainActionFuture<>();
-        new UnusedStatsRemover(client, new TaskId("test", 0L)).remove(10000.0f, deletionListener, () -> false);
+        new UnusedStatsRemover(client, new TaskId("test", 0L), clusterService(), indexNameExpressionResolver).remove(
+            10000.0f,
+            deletionListener,
+            () -> false
+        );
         deletionListener.actionGet();
     }
 

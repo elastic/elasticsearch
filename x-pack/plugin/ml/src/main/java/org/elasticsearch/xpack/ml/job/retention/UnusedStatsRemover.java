@@ -13,6 +13,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.persistence.DocIdBatchedDocumentIterator;
 
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Objects;
@@ -47,10 +50,19 @@ public class UnusedStatsRemover implements MlDataRemover {
 
     private final OriginSettingClient client;
     private final TaskId parentTaskId;
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public UnusedStatsRemover(OriginSettingClient client, TaskId parentTaskId) {
+    public UnusedStatsRemover(
+        OriginSettingClient client,
+        TaskId parentTaskId,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         this.client = Objects.requireNonNull(client);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
     }
 
     @Override
@@ -120,7 +132,26 @@ public class UnusedStatsRemover implements MlDataRemover {
     }
 
     private void executeDeleteUnusedStatsDocs(QueryBuilder dbq, float requestsPerSec, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(MlStatsIndex.indexPattern()).setIndicesOptions(
+        var clusterState = clusterService.state();
+        var concreteIndices = indexNameExpressionResolver.concreteIndexNames(
+            clusterState,
+            IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN,
+            MlStatsIndex.indexPattern()
+        );
+        var indicesToQuery = new ArrayList<String>();
+        for (String concreteIndex : concreteIndices) {
+            var indexSettings = clusterState.metadata().getProject().index(concreteIndex).getSettings();
+            if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexSettings) == false) {
+                indicesToQuery.add(concreteIndex);
+            }
+        }
+
+        if (indicesToQuery.isEmpty()) {
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setIndicesOptions(
             IndicesOptions.lenientExpandOpen()
         ).setAbortOnVersionConflict(false).setRequestsPerSecond(requestsPerSec).setTimeout(DEFAULT_MAX_DURATION).setQuery(dbq);
         deleteByQueryRequest.setParentTask(parentTaskId);

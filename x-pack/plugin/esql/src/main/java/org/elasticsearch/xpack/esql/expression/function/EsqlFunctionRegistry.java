@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -1025,7 +1026,12 @@ public class EsqlFunctionRegistry {
             } else if (hasMinimumOne == false && children.size() < 2) {
                 throw new QlIllegalArgumentException("expects at least two arguments");
             }
-            return ctorRef.build(source, children.get(0), children.subList(1, children.size() - 1), children.getLast());
+            Expression options = children.getLast();
+            if (options instanceof MapExpression) {
+                return ctorRef.build(source, children.get(0), children.subList(1, children.size() - 1), options);
+            }
+
+            return ctorRef.build(source, children.get(0), children.subList(1, children.size()), null);
         };
         return def(function, builder, names);
     }

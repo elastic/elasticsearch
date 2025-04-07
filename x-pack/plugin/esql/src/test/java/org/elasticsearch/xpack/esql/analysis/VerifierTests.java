@@ -2325,6 +2325,8 @@ public class VerifierTests extends ESTestCase {
 
     public void testMultiMatchOptions() {
         // Check positive cases
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name)");
+        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, {\"analyzer\": \"standard\"})");
         query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"analyzer\": \"standard\"})");
         query("FROM test | WHERE MULTI_MATCH(\"Jean\", \"first_name\", last_name, {\"slop\": 10})");
         query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"auto_generate_synonyms_phrase_query\": true})");

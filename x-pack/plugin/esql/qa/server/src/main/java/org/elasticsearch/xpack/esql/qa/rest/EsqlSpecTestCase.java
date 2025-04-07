@@ -51,6 +51,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
@@ -74,6 +75,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteRerankInfere
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
 
 // This test can run very long in serverless configurations
@@ -177,8 +179,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        if (testCase.requiredCapabilities.contains("semantic_text_field_caps") || testCase.requiredCapabilities.contains("rerank")) {
-            assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
+        if (requiresInferenceTestService(testCase)) {
+            assumeTrue("Inference test service needs to be supported", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
@@ -246,6 +248,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsInferenceTestService() {
         return true;
+    }
+
+    protected boolean requiresInferenceTestService(CsvTestCase testCase) {
+        return Stream.of("semantic_text_field_caps", RERANK.capabilityName()).anyMatch(testCase.requiredCapabilities::contains);
     }
 
     protected boolean supportsIndexModeLookup() throws IOException {

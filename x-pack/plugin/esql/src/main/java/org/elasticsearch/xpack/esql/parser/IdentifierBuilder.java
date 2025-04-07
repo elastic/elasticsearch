@@ -193,6 +193,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 validateClusterString(clusterString, ctx);
             }
 
+            validateIndicesForCluster(clusterString, indices, ctx, hasSeenStar);
             if (selectorString != null) {
                 try {
                     // Ensures that the selector provided is one of the valid kinds
@@ -202,7 +203,6 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 }
             }
 
-            validateIndicesForCluster(clusterString, indices, ctx, hasSeenStar);
             isFirstPattern = false;
         }
     }

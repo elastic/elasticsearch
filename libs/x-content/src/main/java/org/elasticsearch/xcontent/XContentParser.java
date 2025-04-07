@@ -109,6 +109,10 @@ public interface XContentParser extends Closeable {
 
     String textOrNull() throws IOException;
 
+    default ProtoBytesRef textRefOrNull() throws IOException {
+        return null;
+    }
+
     CharBuffer charBufferOrNull() throws IOException;
 
     /**

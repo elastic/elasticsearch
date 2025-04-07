@@ -38,6 +38,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSortConfig;
@@ -66,6 +67,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.xcontent.ProtoBytesRef;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -80,6 +82,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
@@ -1104,17 +1107,97 @@ public final class KeywordFieldMapper extends FieldMapper {
         return offsetsFieldName;
     }
 
+    private static class RawString {
+        private BytesRef bytesValue;
+        private String stringValue;
+        private boolean isNull;
+
+        RawString(BytesRef bytesValue) {
+            if(bytesValue == null) {
+                throw new IllegalArgumentException();
+            }
+            this.bytesValue = bytesValue;
+            this.isNull = false;
+        }
+
+        RawString(String stringValue) {
+            if(stringValue == null) {
+                throw new IllegalArgumentException();
+            }
+            this.stringValue = stringValue;
+            this.isNull = false;
+        }
+
+        RawString() {
+            this.isNull = true;
+        }
+
+        BytesRef bytesValue() {
+            if(isNull) {
+                return null;
+            }
+
+            if(bytesValue != null) {
+                return bytesValue;
+            }
+
+            bytesValue = new BytesRef(stringValue);
+            return bytesValue;
+        }
+
+        String stringValue() {
+            if(isNull) {
+                return null;
+            }
+
+            if(stringValue != null) {
+                return stringValue;
+            }
+
+            stringValue = bytesValue.utf8ToString();
+            return stringValue;
+        }
+
+        boolean isNull() {
+            return isNull;
+        }
+
+        int length() {
+            if(isNull) {
+                throw new UnsupportedOperationException();
+            }
+
+            if(stringValue != null) {
+                return stringValue.length();
+            } else {
+                return bytesValue.length;
+            }
+        }
+    }
+
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String value = context.parser().textOrNull();
-        if (value == null) {
-            value = fieldType().nullValue;
+        RawString value;
+        var bytesValue = context.parser().textRefOrNull();
+        if(bytesValue != null) {
+            value = new RawString(new BytesRef(bytesValue.bytes(), bytesValue.start(), bytesValue.end() - bytesValue.start()));
+        } else {
+            var stringValue = context.parser().textOrNull();
+            if(stringValue != null) {
+                value = new RawString(stringValue);
+            } else {
+                value = new RawString();
+            }
+        }
+
+        if(value.isNull() && fieldType().nullValue != null) {
+            value = new RawString(fieldType().nullValue);
         }
 
         boolean indexed = indexValue(context, value);
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (indexed) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value);
-            } else if (value == null) {
+                context.getOffSetContext().recordOffset(offsetsFieldName, value.stringValue());
+            } else if (value.isNull()) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
         }
@@ -1131,9 +1214,18 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean indexValue(DocumentParserContext context, String value) {
-        if (value == null) {
+        try {
+            return indexValue(context, new RawString(value));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private boolean indexValue(DocumentParserContext context, RawString value) throws IOException {
+        if(value.isNull()) {
             return false;
         }
+
         // if field is disabled, skip indexing
         if ((fieldType.indexOptions() == IndexOptions.NONE) && (fieldType.stored() == false) && (fieldType().hasDocValues() == false)) {
             return false;
@@ -1143,15 +1235,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.addIgnoredField(fullPath());
             if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it
-                context.doc().add(new StoredField(originalName(), new BytesRef(value)));
+                context.doc().add(new StoredField(originalName(), value.bytesValue));
             }
             return false;
         }
 
-        value = normalizeValue(fieldType().normalizer(), fullPath(), value);
+        if(fieldType().normalizer() != Lucene.KEYWORD_ANALYZER) {
+            String normalizedString = normalizeValue(fieldType().normalizer(), fullPath(), value.stringValue());
+            value = new RawString(normalizedString);
+        }
 
-        // convert to utf8 only once before feeding postings/dv/stored fields
-        final BytesRef binaryValue = new BytesRef(value);
+        BytesRef binaryValue = value.bytesValue();
 
         if (fieldType().isDimension()) {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);

@@ -194,6 +194,10 @@ SHOW INFO
 
 ## `CHANGE_POINT` [esql-change-point]
 
+::::{warning}
+This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
+::::
+
 `CHANGE_POINT` detects spikes, dips, and change points in a metric.
 
 **Syntax**

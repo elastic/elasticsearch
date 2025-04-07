@@ -843,7 +843,7 @@ public class EsqlCapabilities {
         /**
          * Support change point detection "CHANGE_POINT".
          */
-        CHANGE_POINT(Build.current().isSnapshot()),
+        CHANGE_POINT,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/120817

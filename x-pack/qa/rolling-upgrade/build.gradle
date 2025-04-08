@@ -17,6 +17,7 @@ dependencies {
   testImplementation testArtifact(project(xpackModule('core')))
   testImplementation project(':x-pack:qa')
   testImplementation project(':modules:reindex')
+  testImplementation testArtifact(project(xpackModule('inference')))
 }
 
 restResources {

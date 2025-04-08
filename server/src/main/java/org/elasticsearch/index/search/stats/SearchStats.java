@@ -107,6 +107,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 dfsCount = in.readVLong();
                 dfsTimeInMillis = in.readVLong();
                 dfsCurrent = in.readVLong();
+                dfsFailure = in.readVLong();
             }
 
             queryCount = in.readVLong();
@@ -129,10 +130,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 queryFailure = in.readVLong();
                 fetchFailure = in.readVLong();
             }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.DFS_STATS)) {
-                dfsFailure = in.readVLong();
-            }
         }
 
         @Override
@@ -141,6 +138,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(dfsCount);
                 out.writeVLong(dfsTimeInMillis);
                 out.writeVLong(dfsCurrent);
+                out.writeVLong(dfsFailure);
             }
 
             out.writeVLong(queryCount);
@@ -162,10 +160,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeVLong(queryFailure);
                 out.writeVLong(fetchFailure);
-            }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.DFS_STATS)) {
-                out.writeVLong(dfsFailure);
             }
         }
 

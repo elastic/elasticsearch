@@ -1211,7 +1211,7 @@ public class CertificateToolTests extends ESTestCase {
             String.valueOf(caKeySize),
             "-days",
             String.valueOf(days),
-            "--ca-keyusage",
+            "-keyusage",
             caKeyUsage };
         if (pem) {
             args = ArrayUtils.append(args, "--pem");

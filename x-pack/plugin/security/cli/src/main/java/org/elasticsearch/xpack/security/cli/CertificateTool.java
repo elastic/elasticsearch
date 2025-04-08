@@ -250,7 +250,6 @@ class CertificateTool extends MultiCommand {
                 .withOptionalArg();
 
             acceptsCertificateAuthorityName();
-            acceptCertificateAuthorityKeyUsage();
         }
 
         void acceptsCertificateAuthorityName() {
@@ -280,7 +279,7 @@ class CertificateTool extends MultiCommand {
 
         final void acceptCertificateAuthorityKeyUsage() {
             OptionSpecBuilder builder = parser.accepts(
-                "ca-keyusage",
+                "keyusage",
                 "comma separated key usages to use for the generated CA. "
                     + "defaults to '"
                     + Strings.collectionToCommaDelimitedString(DEFAULT_CA_KEY_USAGE)
@@ -332,11 +331,16 @@ class CertificateTool extends MultiCommand {
 
         final List<String> getCaKeyUsage(OptionSet options) {
             if (options.has(caKeyUsageSpec)) {
-                String rawCaKeyUsage = caKeyUsageSpec.value(options);
-                if (Strings.isNullOrEmpty(rawCaKeyUsage)) {
+                final Function<String, Stream<? extends String>> splitByComma = v -> Stream.of(Strings.splitStringByCommaToArray(v));
+                final List<String> caKeyUsage = caKeyUsageSpec.values(options)
+                    .stream()
+                    .flatMap(splitByComma)
+                    .filter(v -> false == Strings.isNullOrEmpty(v))
+                    .toList();
+                if (caKeyUsage.isEmpty()) {
                     return DEFAULT_CA_KEY_USAGE;
                 }
-                return List.of(Strings.splitStringByCommaToArray(rawCaKeyUsage));
+                return caKeyUsage;
             } else {
                 return DEFAULT_CA_KEY_USAGE;
             }

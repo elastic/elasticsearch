@@ -441,6 +441,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/trained_model_cat_apis/Test cat trained models}
   issue: https://github.com/elastic/elasticsearch/issues/125750
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/126124
 
 # Examples:
 #

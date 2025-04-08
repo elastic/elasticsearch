@@ -31,6 +31,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         this.client = client;
         this.jobIterator = jobIterator;
         this.parentTaskId = parentTaskId;
+
     }
 
     protected TaskId getParentTaskId() {

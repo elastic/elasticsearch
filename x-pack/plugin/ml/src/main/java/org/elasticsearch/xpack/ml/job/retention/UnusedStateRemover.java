@@ -51,10 +51,12 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private final OriginSettingClient client;
     private final TaskId parentTaskId;
+    private final WritableIndexExpander writableIndexExpander;
 
-    public UnusedStateRemover(OriginSettingClient client, TaskId parentTaskId) {
+    public UnusedStateRemover(OriginSettingClient client, TaskId parentTaskId, WritableIndexExpander writableIndexExpander) {
         this.client = Objects.requireNonNull(client);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
+        this.writableIndexExpander = Objects.requireNonNull(writableIndexExpander);
     }
 
     @Override
@@ -137,8 +139,18 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, float requestsPerSec, ActionListener<Boolean> listener) {
         LOGGER.info("Found [{}] unused state documents; attempting to delete", unusedDocIds.size());
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+
+        var indicesToQuery = writableIndexExpander.getWritableIndices(AnomalyDetectorsIndex.jobStateIndexPattern());
+
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable indices found for unused state documents");
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setIndicesOptions(
+            IndicesOptions.lenientExpandOpen()
+        )
             .setAbortOnVersionConflict(false)
             .setRequestsPerSecond(requestsPerSec)
             .setTimeout(DEFAULT_MAX_DURATION)
@@ -149,7 +161,7 @@ public class UnusedStateRemover implements MlDataRemover {
         deleteByQueryRequest.setParentTask(parentTaskId);
 
         client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
-            if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
+            if (response.getBulkFailures().isEmpty() == false || response.getSearchFailures().isEmpty() == false) {
                 LOGGER.error(
                     "Some unused state documents could not be deleted due to failures: {}",
                     Strings.collectionToCommaDelimitedString(response.getBulkFailures())

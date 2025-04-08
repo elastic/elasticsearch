@@ -9,17 +9,12 @@ package org.elasticsearch.xpack.ml.job.retention;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -32,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.persistence.DocIdBatchedDocumentIterator;
 
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Objects;
@@ -50,19 +44,12 @@ public class UnusedStatsRemover implements MlDataRemover {
 
     private final OriginSettingClient client;
     private final TaskId parentTaskId;
-    private final ClusterService clusterService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final WritableIndexExpander writableIndexExpander;
 
-    public UnusedStatsRemover(
-        OriginSettingClient client,
-        TaskId parentTaskId,
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
-    ) {
+    public UnusedStatsRemover(OriginSettingClient client, TaskId parentTaskId, WritableIndexExpander writableIndexExpander) {
         this.client = Objects.requireNonNull(client);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
-        this.clusterService = Objects.requireNonNull(clusterService);
-        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
+        this.writableIndexExpander = Objects.requireNonNull(writableIndexExpander);
     }
 
     @Override
@@ -116,37 +103,11 @@ public class UnusedStatsRemover implements MlDataRemover {
         return modelIds;
     }
 
-    private static boolean hasNonReadOnlyBulkFailures(BulkByScrollResponse response) {
-        for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
-            if (failure.getMessage().contains(IndexMetadata.INDEX_WRITE_BLOCK.description())) {
-                LOGGER.debug(
-                    "Ignoring failure to delete orphan stats docs from read-only index [{}]: {}",
-                    failure.getIndex(),
-                    failure.getMessage()
-                );
-            } else {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void executeDeleteUnusedStatsDocs(QueryBuilder dbq, float requestsPerSec, ActionListener<Boolean> listener) {
-        var clusterState = clusterService.state();
-        var concreteIndices = indexNameExpressionResolver.concreteIndexNames(
-            clusterState,
-            IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN,
-            MlStatsIndex.indexPattern()
-        );
-        var indicesToQuery = new ArrayList<String>();
-        for (String concreteIndex : concreteIndices) {
-            var indexSettings = clusterState.metadata().getProject().index(concreteIndex).getSettings();
-            if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexSettings) == false) {
-                indicesToQuery.add(concreteIndex);
-            }
-        }
+        var indicesToQuery = writableIndexExpander.getWritableIndices(MlStatsIndex.indexPattern());
 
         if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable indices found for unused stats documents");
             listener.onResponse(true);
             return;
         }
@@ -157,7 +118,7 @@ public class UnusedStatsRemover implements MlDataRemover {
         deleteByQueryRequest.setParentTask(parentTaskId);
 
         client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
-            if (hasNonReadOnlyBulkFailures(response) || response.getSearchFailures().isEmpty() == false) {
+            if (response.getBulkFailures().isEmpty() == false || response.getSearchFailures().isEmpty() == false) {
                 LOGGER.error(
                     "Some unused stats documents could not be deleted due to failures: {}",
                     Strings.collectionToCommaDelimitedString(response.getBulkFailures())
@@ -173,4 +134,5 @@ public class UnusedStatsRemover implements MlDataRemover {
             listener.onFailure(e);
         }));
     }
+
 }

@@ -70,17 +70,20 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     private final AnomalyDetectionAuditor auditor;
     private final ThreadPool threadPool;
+    private final WritableIndexExpander writableIndexExpander;
 
     public ExpiredResultsRemover(
         OriginSettingClient client,
         Iterator<Job> jobIterator,
         TaskId parentTaskId,
         AnomalyDetectionAuditor auditor,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        WritableIndexExpander writableIndexExpander
     ) {
         super(client, jobIterator, parentTaskId);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
+        this.writableIndexExpander = Objects.requireNonNull(writableIndexExpander);
     }
 
     @Override
@@ -136,7 +139,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         });
     }
 
-    private static DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
+    private DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(
             Result.RESULT_TYPE.getPreferredName(),
             ModelSizeStats.RESULT_TYPE_VALUE,
@@ -148,7 +151,15 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"))
             .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
             .mustNot(excludeFilter);
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId())).setSlices(
+
+        var indicesToQuery = writableIndexExpander.getWritableIndices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
+
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.warn("No writable indices found for job [{}]", job.getId());
+            return new DeleteByQueryRequest();
+        }
+
+        DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setSlices(
             AbstractBulkByScrollRequest.AUTO_SLICES
         )
             .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)

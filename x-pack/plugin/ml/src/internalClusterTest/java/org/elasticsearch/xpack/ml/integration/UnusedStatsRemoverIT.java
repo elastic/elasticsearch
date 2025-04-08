@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.job.retention.UnusedStatsRemover;
+import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
@@ -49,11 +49,12 @@ import java.util.Collections;
 public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
     private OriginSettingClient client;
-    private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+    private WritableIndexExpander writableIndexExpander;
 
     @Before
     public void createComponents() {
         client = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
+        writableIndexExpander = new WritableIndexExpander(clusterService(), TestIndexNameExpressionResolver.newInstance());
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         MlStatsIndex.createStatsIndexAndAliasIfNecessary(
             client(),
@@ -161,11 +162,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
     private void runUnusedStatsRemover() {
         PlainActionFuture<Boolean> deletionListener = new PlainActionFuture<>();
-        new UnusedStatsRemover(client, new TaskId("test", 0L), clusterService(), indexNameExpressionResolver).remove(
-            10000.0f,
-            deletionListener,
-            () -> false
-        );
+        new UnusedStatsRemover(client, new TaskId("test", 0L), writableIndexExpander).remove(10000.0f, deletionListener, () -> false);
         deletionListener.actionGet();
     }
 

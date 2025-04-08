@@ -241,7 +241,7 @@ public class ServerProcessTests extends ESTestCase {
             assertThat(pb.redirectInput(), equalTo(ProcessBuilder.Redirect.PIPE));
             assertThat(pb.redirectOutput(), equalTo(ProcessBuilder.Redirect.INHERIT));
             assertThat(pb.redirectError(), equalTo(ProcessBuilder.Redirect.PIPE));
-            assertThat(pb.directory().toString(), equalTo(workingDir.toString())); // leave default, which is working directory
+            assertThat(String.valueOf(pb.directory()), equalTo(workingDir.toString())); // leave default, which is working directory
         };
         mainCallback = (args, stdin, stderr, exitCode) -> {
             try (PrintStream err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {

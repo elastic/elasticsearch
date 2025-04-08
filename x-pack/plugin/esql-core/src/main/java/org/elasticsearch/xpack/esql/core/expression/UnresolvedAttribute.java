@@ -119,21 +119,17 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass() || super.equals(o) == false) {
-            return false;
-        }
-        UnresolvedAttribute that = (UnresolvedAttribute) o;
-        return customMessage == that.customMessage
-            && Objects.equals(unresolvedMsg, that.unresolvedMsg)
-            && Objects.equals(resolutionMetadata, that.resolutionMetadata);
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), resolutionMetadata, unresolvedMsg);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), resolutionMetadata, unresolvedMsg);
+    protected boolean innerEquals(Object o) {
+        var other = (UnresolvedAttribute) o;
+        return super.innerEquals(other)
+            && customMessage == other.customMessage
+            && Objects.equals(unresolvedMsg, other.unresolvedMsg)
+            && Objects.equals(resolutionMetadata, other.resolutionMetadata);
     }
 }

@@ -112,20 +112,15 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), nullability);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass() || super.equals(obj) == false) {
-            return false;
-        }
-        Attribute other = (Attribute) obj;
-        return Objects.equals(nullability, other.nullability);
+    protected boolean innerEquals(Object o) {
+        var other = (Attribute) o;
+        return super.innerEquals(other) && Objects.equals(nullability, other.nullability);
     }
 
     @Override

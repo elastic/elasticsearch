@@ -163,20 +163,15 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass() || super.equals(o) == false) {
-            return false;
-        }
-        UnsupportedAttribute that = (UnsupportedAttribute) o;
-        return hasCustomMessage == that.hasCustomMessage && Objects.equals(message, that.message);
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), message, hasCustomMessage);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), message, hasCustomMessage);
+    protected boolean innerEquals(Object o) {
+        var other = (UnsupportedAttribute) o;
+        return super.innerEquals(other) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
     }
 
     @Override

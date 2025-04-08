@@ -223,20 +223,15 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass() || super.equals(o) == false) {
-            return false;
-        }
-        FieldAttribute that = (FieldAttribute) o;
-        return Objects.equals(parentName, that.parentName) && Objects.equals(field, that.field);
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), parentName, field);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), parentName, field);
+    protected boolean innerEquals(Object o) {
+        var other = (FieldAttribute) o;
+        return super.innerEquals(other) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
     }
 
     @Override

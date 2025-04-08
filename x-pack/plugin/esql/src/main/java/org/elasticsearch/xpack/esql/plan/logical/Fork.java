@@ -65,16 +65,16 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
             return false;
         }
 
-        if (children().stream().anyMatch(p -> p.outputSet().names().contains("<no-fields>"))) {
+        if (children().stream().anyMatch(p -> p.outputSet().names().contains(Analyzer.NO_FIELDS_NAME))) {
             return false;
         }
 
         // Here we check if all sub plans output the same column names.
         // If they don't then FORK was not resolved.
-        List<String> firstOutputNames = children().getFirst().output().stream().map(Attribute::name).collect(Collectors.toList());
+        List<String> firstOutputNames = children().getFirst().output().stream().map(Attribute::name).toList();
         Holder<Boolean> resolved = new Holder<>(true);
         children().stream().skip(1).forEach(subPlan -> {
-            List<String> names = subPlan.output().stream().map(Attribute::name).collect(Collectors.toList());
+            List<String> names = subPlan.output().stream().map(Attribute::name).toList();
             if (names.equals(firstOutputNames) == false) {
                 resolved.set(false);
             }

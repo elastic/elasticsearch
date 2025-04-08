@@ -282,7 +282,6 @@ forkSubQueryCommand
 forkSubQueryProcessingCommand
     : evalCommand
     | whereCommand
-    | keepCommand
     | limitCommand
     | statsCommand
     | sortCommand

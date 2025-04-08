@@ -679,8 +679,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
-
-            List<String> forkColumns = fork.output().stream().map(Attribute::name).collect(Collectors.toList());
+            Set<String> forkColumns = fork.outputSet().names();
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -695,7 +694,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 List<Alias> aliases = missing.stream()
-                    .map(attr -> new Alias(source, attr.name(), new Literal(source, null, attr.dataType())))
+                    .map(attr -> new Alias(source, attr.name(), Literal.of(attr, null)))
                     .collect(Collectors.toList());
                 ;
 

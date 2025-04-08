@@ -140,12 +140,7 @@ public class TieredPartitionedClusterFactory implements PartitionedClusterFactor
                 assert nodePartitionsAreDisjointAndUnionToAll(allNodes, searchNodes, indexingNodes);
                 searchNodeSorter = new BalancedShardsAllocator.NodeSorter(searchNodes, searchWeightFunction, balancer);
                 indexingNodeSorter = new BalancedShardsAllocator.NodeSorter(indexingNodes, indexingWeightFunction, balancer);
-                // sometimes (probably just in tests) we only have indexing nodes
-                if (searchNodes.length == 0) {
-                    allNodeSorters = List.of(indexingNodeSorter);
-                } else {
-                    allNodeSorters = List.of(indexingNodeSorter, searchNodeSorter);
-                }
+                allNodeSorters = List.of(indexingNodeSorter, searchNodeSorter);
             }
 
             @Override

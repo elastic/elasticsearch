@@ -1366,7 +1366,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public float delta() {
-            return weights[weights.length - 1] - weights[0];
+            return weights.length == 0 ? 0.0f : weights[weights.length - 1] - weights[0];
         }
 
         public WeightFunction getWeightFunction() {

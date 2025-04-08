@@ -9,6 +9,7 @@
 
 package org.elasticsearch.server.cli;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 @WithoutSecurityManager
+@LuceneTestCase.SuppressFileSystems("*")
 public class JvmOptionsParserTests extends ESTestCase {
 
     private static Map<String, String> testSysprops;

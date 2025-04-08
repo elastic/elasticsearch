@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -180,11 +178,6 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
-            } else if (p instanceof Fork fork) {
-                var subPlans = fork.subPlans();
-                for (var subPlan : subPlans) {
-                    checkUnresolvedAttributes(subPlan, failures);
-                }
             }
 
             else {
@@ -298,9 +291,6 @@ public class Verifier {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);
-        if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
-            allowed.add(DataType.SEMANTIC_TEXT);
-        }
         allowed.add(DataType.IP);
         allowed.add(DataType.DATETIME);
         allowed.add(DataType.DATE_NANOS);

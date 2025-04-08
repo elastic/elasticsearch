@@ -110,8 +110,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return matchesRegex(
-            "LuceneTopNSourceOperator\\[shards = \\[test], "
-                + "maxPageSize = \\d+, limit = 100, scoreMode = TOP_DOCS_WITH_SCORES, sorts = \\[\\{.+}]]"
+            "LuceneTopNSourceOperator\\[shards = \\[test], " + "maxPageSize = \\d+, limit = 100, needsScore = true, sorts = \\[\\{.+}]]"
         );
     }
 
@@ -119,7 +118,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
     protected Matcher<String> expectedDescriptionOfSimple() {
         return matchesRegex(
             "LuceneTopNSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), "
-                + "maxPageSize = \\d+, limit = 100, scoreMode = TOP_DOCS_WITH_SCORES, sorts = \\[\\{.+}]]"
+                + "maxPageSize = \\d+, limit = 100, needsScore = true, sorts = \\[\\{.+}]]"
         );
     }
 

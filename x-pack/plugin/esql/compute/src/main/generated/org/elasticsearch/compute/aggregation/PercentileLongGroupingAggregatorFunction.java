@@ -195,8 +195,8 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = PercentileLongAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = PercentileLongAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

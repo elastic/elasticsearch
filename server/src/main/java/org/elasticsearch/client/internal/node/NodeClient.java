@@ -36,7 +36,7 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
-    private Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions;
+    private Map<ActionType<?>, TransportAction<?, ?>> actions;
 
     private TaskManager taskManager;
 
@@ -53,7 +53,7 @@ public class NodeClient extends AbstractClient {
     }
 
     public void initialize(
-        Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions,
+        Map<ActionType<?>, TransportAction<?, ?>> actions,
         TaskManager taskManager,
         Supplier<String> localNodeId,
         Transport.Connection localConnection,

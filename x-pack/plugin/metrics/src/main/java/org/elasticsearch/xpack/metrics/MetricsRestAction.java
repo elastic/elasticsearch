@@ -11,6 +11,7 @@ import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 
 import com.google.protobuf.CodedOutputStream;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -45,13 +46,17 @@ public class MetricsRestAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (request.hasContent()) {
-            var transportRequest = new MetricsTransportAction.MetricsRequest(request.param("index"), request.content());
-            return channel -> client.execute(MetricsTransportAction.TYPE, transportRequest, new RestResponseListener<>(channel) {
-                @Override
-                public RestResponse buildResponse(MetricsTransportAction.MetricsResponse r) throws Exception {
-                    return successResponse();
-                }
-            });
+            var transportRequest = new MetricsTransportAction.MetricsRequest(request.param("index"), request.content().retain());
+            return channel -> client.execute(
+                MetricsTransportAction.TYPE,
+                transportRequest,
+                ActionListener.releaseBefore(request.content(), new RestResponseListener<>(channel) {
+                    @Override
+                    public RestResponse buildResponse(MetricsTransportAction.MetricsResponse r) throws Exception {
+                        return successResponse();
+                    }
+                })
+            );
         }
 
         // according to spec empty requests are successful

@@ -28,7 +28,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -62,11 +62,12 @@ public class MetricsTransportAction extends HandledTransportAction<
     public MetricsTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        ThreadPool threadPool,
         ClusterService clusterService,
         ProjectResolver projectResolver,
         IndicesService indicesService
     ) {
-        super(NAME, transportService, actionFilters, MetricsRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(NAME, transportService, actionFilters, MetricsRequest::new, threadPool.executor(ThreadPool.Names.WRITE));
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.indicesService = indicesService;
@@ -95,7 +96,9 @@ public class MetricsTransportAction extends HandledTransportAction<
             // We receive a batch so there will be multiple documents as a result of processing it.
             var documents = createLuceneDocuments(metricsServiceRequest);
 
-            // TODO thread pool for writing
+            // This loop is similar to TransportShardBulkAction, we fork the processing of the entire request
+            // to ThreadPool.Names.WRITE but we perform all writes on the same thread.
+            // We expect concurrency to come from a client submitting concurrent requests.
             for (var luceneDocument : documents) {
                 var id = UUIDs.randomBase64UUID();
 

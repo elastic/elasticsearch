@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -20,14 +21,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromCartesianPointEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator wkb;
+
+  public ToStringFromCartesianPointEvaluator(Source source, EvalOperator.ExpressionEvaluator wkb,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.wkb = wkb;
   }
 
   @Override
-  public String name() {
-    return "ToStringFromCartesianPoint";
+  public EvalOperator.ExpressionEvaluator next() {
+    return wkb;
   }
 
   @Override
@@ -46,7 +50,7 @@ public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFu
     }
   }
 
-  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToString.fromCartesianPoint(value);
   }
@@ -82,29 +86,39 @@ public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFu
     }
   }
 
-  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToString.fromCartesianPoint(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToStringFromCartesianPointEvaluator[" + "wkb=" + wkb + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(wkb);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory wkb;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkb) {
       this.source = source;
+      this.wkb = wkb;
     }
 
     @Override
     public ToStringFromCartesianPointEvaluator get(DriverContext context) {
-      return new ToStringFromCartesianPointEvaluator(field.get(context), source, context);
+      return new ToStringFromCartesianPointEvaluator(source, wkb.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromCartesianPointEvaluator[field=" + field + "]";
+      return "ToStringFromCartesianPointEvaluator[" + "wkb=" + wkb + "]";
     }
   }
 }

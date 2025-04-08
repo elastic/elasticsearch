@@ -31,7 +31,6 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -114,6 +113,7 @@ public final class OutboundHandler {
         assert assertValidTransportVersion(transportVersion);
         sendMessage(
             channel,
+            MessageDirection.REQUEST,
             action,
             request,
             requestId,
@@ -146,7 +146,8 @@ public final class OutboundHandler {
         try {
             sendMessage(
                 channel,
-                null,
+                MessageDirection.RESPONSE,
+                action,
                 response,
                 requestId,
                 isHandshake,
@@ -188,7 +189,8 @@ public final class OutboundHandler {
         try {
             sendMessage(
                 channel,
-                null,
+                MessageDirection.RESPONSE_ERROR,
+                action,
                 msg,
                 requestId,
                 false,
@@ -204,29 +206,36 @@ public final class OutboundHandler {
         }
     }
 
+    public enum MessageDirection {
+        REQUEST,
+        RESPONSE,
+        RESPONSE_ERROR
+    }
+
     private void sendMessage(
         TcpChannel channel,
-        @Nullable String requestAction,
+        MessageDirection messageDirection,
+        String action,
         Writeable writeable,
         long requestId,
         boolean isHandshake,
-        Compression.Scheme compressionScheme,
+        Compression.Scheme possibleCompressionScheme,
         TransportVersion version,
         ResponseStatsConsumer responseStatsConsumer,
         Releasable onAfter
     ) throws IOException {
-        compressionScheme = writeable instanceof BytesTransportRequest ? null : compressionScheme;
+        assert action != null;
+        final var compressionScheme = writeable instanceof BytesTransportRequest ? null : possibleCompressionScheme;
         final BytesReference message;
         boolean serializeSuccess = false;
-        final boolean isError = writeable instanceof RemoteTransportException;
         final RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
         try {
             message = serialize(
-                requestAction,
+                messageDirection,
+                action,
                 requestId,
                 isHandshake,
                 version,
-                isError,
                 compressionScheme,
                 writeable,
                 threadPool.getThreadContext(),
@@ -242,14 +251,23 @@ public final class OutboundHandler {
             }
         }
         responseStatsConsumer.addResponseStats(message.length());
-        final var responseType = writeable.getClass();
-        final boolean compress = compressionScheme != null;
+        final var messageType = writeable.getClass();
         internalSend(
             channel,
             message,
-            requestAction == null
-                ? () -> "Response{" + requestId + "}{" + isError + "}{" + compress + "}{" + isHandshake + "}{" + responseType + "}"
-                : () -> "Request{" + requestAction + "}{" + requestId + "}{" + isError + "}{" + compress + "}{" + isHandshake + "}",
+            () -> (messageDirection == MessageDirection.REQUEST ? "Request{" : "Response{")
+                + action
+                + "}{id="
+                + requestId
+                + "}{err="
+                + (messageDirection == MessageDirection.RESPONSE_ERROR)
+                + "}{cs="
+                + compressionScheme
+                + "}{hs="
+                + isHandshake
+                + "}{t="
+                + messageType
+                + "}",
             ActionListener.releasing(
                 message instanceof ReleasableBytesReference r
                     ? Releasables.wrap(byteStreamOutput, onAfter, r)
@@ -260,11 +278,11 @@ public final class OutboundHandler {
 
     // public for tests
     public static BytesReference serialize(
-        @Nullable String requestAction,
+        MessageDirection messageDirection,
+        String action,
         long requestId,
         boolean isHandshake,
         TransportVersion version,
-        boolean isError,
         Compression.Scheme compressionScheme,
         Writeable writeable,
         ThreadContext threadContext,
@@ -273,6 +291,7 @@ public final class OutboundHandler {
         compressionScheme = compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.Scheme.LZ4_VERSION)
             ? null
             : compressionScheme;
+        assert action != null;
         assert byteStreamOutput.position() == 0;
         byteStreamOutput.setTransportVersion(version);
         final int headerSize = TcpHeader.headerSize(version);
@@ -280,34 +299,35 @@ public final class OutboundHandler {
         final int variableHeaderLength;
         if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
             threadContext.writeTo(byteStreamOutput);
-            if (requestAction != null) {
+            if (messageDirection == MessageDirection.REQUEST) {
                 if (version.before(TransportVersions.V_8_0_0)) {
                     // empty features array
                     byteStreamOutput.writeStringArray(Strings.EMPTY_ARRAY);
                 }
-                byteStreamOutput.writeString(requestAction);
+                byteStreamOutput.writeString(action);
             }
             variableHeaderLength = Math.toIntExact(byteStreamOutput.position() - headerSize);
         } else {
             variableHeaderLength = -1;
         }
         BytesReference message = serializeMessageBody(
+            messageDirection,
             writeable,
             compressionScheme,
             version,
             byteStreamOutput,
             variableHeaderLength,
             threadContext,
-            requestAction
+            action
         );
         byte status = 0;
-        if (requestAction == null) {
+        if (messageDirection != MessageDirection.REQUEST) {
             status = TransportStatus.setResponse(status);
         }
         if (isHandshake) {
             status = TransportStatus.setHandshake(status);
         }
-        if (isError) {
+        if (messageDirection == MessageDirection.RESPONSE_ERROR) {
             status = TransportStatus.setError(status);
         }
         if (compressionScheme != null) {
@@ -319,6 +339,7 @@ public final class OutboundHandler {
     }
 
     private static BytesReference serializeMessageBody(
+        MessageDirection messageDirection,
         Writeable writeable,
         Compression.Scheme compressionScheme,
         TransportVersion version,
@@ -334,12 +355,14 @@ public final class OutboundHandler {
             stream.setTransportVersion(version);
             if (variableHeaderLength == -1) {
                 threadContext.writeTo(stream);
-                if (requestAction != null) {
+                if (messageDirection == MessageDirection.REQUEST) {
                     stream.writeStringArray(Strings.EMPTY_ARRAY);
                     stream.writeString(requestAction);
                 }
             }
             if (writeable instanceof BytesTransportRequest bRequest) {
+                assert stream == byteStreamOutput;
+                assert compressionScheme == null;
                 bRequest.writeThin(stream);
                 zeroCopyBuffer = bRequest.bytes;
             } else if (writeable instanceof RemoteTransportException remoteTransportException) {

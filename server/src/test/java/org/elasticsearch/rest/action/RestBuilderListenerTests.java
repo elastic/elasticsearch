@@ -9,14 +9,14 @@
 
 package org.elasticsearch.rest.action;
 
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,7 +25,7 @@ public class RestBuilderListenerTests extends ESTestCase {
 
     public void testXContentBuilderClosedInBuildResponse() throws Exception {
         AtomicReference<XContentBuilder> builderAtomicReference = new AtomicReference<>();
-        RestBuilderListener<TransportResponse.Empty> builderListener = new RestBuilderListener<Empty>(
+        RestBuilderListener<ActionResponse.Empty> builderListener = new RestBuilderListener<Empty>(
             new FakeRestChannel(new FakeRestRequest(), true, 1)
         ) {
             @Override
@@ -43,7 +43,7 @@ public class RestBuilderListenerTests extends ESTestCase {
 
     public void testXContentBuilderNotClosedInBuildResponseAssertionsDisabled() throws Exception {
         AtomicReference<XContentBuilder> builderAtomicReference = new AtomicReference<>();
-        RestBuilderListener<TransportResponse.Empty> builderListener = new RestBuilderListener<Empty>(
+        RestBuilderListener<ActionResponse.Empty> builderListener = new RestBuilderListener<Empty>(
             new FakeRestChannel(new FakeRestRequest(), true, 1)
         ) {
             @Override
@@ -67,7 +67,7 @@ public class RestBuilderListenerTests extends ESTestCase {
     public void testXContentBuilderNotClosedInBuildResponseAssertionsEnabled() throws Exception {
         assumeTrue("tests are not being run with assertions", RestBuilderListener.class.desiredAssertionStatus());
 
-        RestBuilderListener<TransportResponse.Empty> builderListener = new RestBuilderListener<Empty>(
+        RestBuilderListener<ActionResponse.Empty> builderListener = new RestBuilderListener<Empty>(
             new FakeRestChannel(new FakeRestRequest(), true, 1)
         ) {
             @Override

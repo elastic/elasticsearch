@@ -371,7 +371,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast(new FlowControlHandler());
             if (Assertions.ENABLED) {
                 // missing reads are hard to catch, but we can detect absence of reads within interval
-                long missingReadIntervalMs = 30_000;
+                long missingReadIntervalMs = 10_000;
                 ch.pipeline().addLast(new MissingReadDetector(transport.threadPool, missingReadIntervalMs));
             }
             // disable auto-read and issue first read, following reads must come from handlers

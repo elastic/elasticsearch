@@ -509,6 +509,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         } else {
             serverTransport.onException(channel, (Exception) cause);
         }
+        ctx.read();
     }
 
     @Override

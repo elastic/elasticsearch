@@ -13,6 +13,8 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.concurrent.ScheduledFuture;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
@@ -20,16 +22,19 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * When channel auto-read is disabled handlers are responsible to read from channel.
- * But it's hard to detect when read is missing. This helper class throws assertion errors
+ * But it's hard to detect when read is missing. This helper class print warnings
  * when no reads where detected in given time interval. Normally, in tests, 30 seconds is enough
  * to avoid test hang for too long, but can be increased if needed.
  */
 class MissingReadDetector extends ChannelDuplexHandler {
-    final long interval;
-    final TimeProvider timer;
-    long reqTimeMs;
-    long respTimeMs;
-    ScheduledFuture<?> checker;
+
+    private static final Logger logger = LogManager.getLogger(MissingReadDetector.class);
+
+    private final long interval;
+    private final TimeProvider timer;
+    private long reqTimeMs;
+    private long respTimeMs;
+    private ScheduledFuture<?> checker;
 
     MissingReadDetector(TimeProvider timer, long missingReadInterval) {
         this.interval = missingReadInterval;
@@ -37,12 +42,12 @@ class MissingReadDetector extends ChannelDuplexHandler {
     }
 
     @Override
-    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+    public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
         checker = ctx.channel().eventLoop().scheduleAtFixedRate(() -> {
             if (respTimeMs >= reqTimeMs) { // stale read
                 long now = timer.absoluteTimeInMillis();
                 if (now >= respTimeMs + interval) {
-                    ctx.fireExceptionCaught(new AssertionError("stale channel, no reads for " + (now - respTimeMs) + " ms"));
+                    logger.warn("haven't read from channel for {}", (now - respTimeMs));
                 }
             }
         }, interval, interval, TimeUnit.MILLISECONDS);
@@ -50,7 +55,7 @@ class MissingReadDetector extends ChannelDuplexHandler {
     }
 
     @Override
-    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
         if (checker != null) {
             FutureUtils.cancel(checker);
         }

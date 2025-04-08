@@ -171,6 +171,45 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         assertThat(warningCount.get(), is(5L));
         assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
+
+        // Temporarily disable logging and verify we don't get incremented logging counts.
+        clusterFormationFailureHelper.setLoggingEnabled(false);
+        warningCount.set(0);
+        logLastFailedJoinAttemptWarningCount.set(0);
+        clusterFormationFailureHelper.start();
+        clusterFormationFailureHelper.stop();
+        clusterFormationFailureHelper.start();
+        final long thirdStartTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
+
+        while (deterministicTaskQueue.getCurrentTimeMillis() - thirdStartTimeMillis < 5 * expectedDelayMillis) {
+            assertTrue(clusterFormationFailureHelper.isRunning());
+            if (deterministicTaskQueue.hasRunnableTasks()) {
+                deterministicTaskQueue.runRandomTask();
+            } else {
+                deterministicTaskQueue.advanceTime();
+            }
+        }
+
+        assertThat(warningCount.get(), is(0L));
+        assertThat(logLastFailedJoinAttemptWarningCount.get(), is(0L));
+
+        // Re-enable logging and verify the logging counts again.
+        clusterFormationFailureHelper.stop();
+        clusterFormationFailureHelper.start();
+        clusterFormationFailureHelper.setLoggingEnabled(true);
+        final long fourthStartTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
+
+        while (warningCount.get() < 5) {
+            assertTrue(clusterFormationFailureHelper.isRunning());
+            if (deterministicTaskQueue.hasRunnableTasks()) {
+                deterministicTaskQueue.runRandomTask();
+            } else {
+                deterministicTaskQueue.advanceTime();
+            }
+        }
+        assertThat(deterministicTaskQueue.getCurrentTimeMillis() - fourthStartTimeMillis, equalTo(5 * expectedDelayMillis));
+        assertThat(warningCount.get(), is(5L));
+        assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
     }
 
     public void testDescriptionOnMasterIneligibleNodes() {

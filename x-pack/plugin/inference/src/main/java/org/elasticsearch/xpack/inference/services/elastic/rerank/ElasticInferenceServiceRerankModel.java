@@ -16,10 +16,10 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceExecutableActionModel;
+import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionVisitor;
 
 import java.net.URI;
 import java.net.URISyntaxException;

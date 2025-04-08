@@ -59,6 +59,8 @@ dependencies {
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:legacy-geo')
+  testImplementation project(path: ':modules:data-streams')
+  testImplementation project(path: ':modules:mapper-extras')
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
@@ -167,6 +169,13 @@ tasks.named("test").configure {
 
       List kibana = kibanaTree.files.collect { it.name }
       int countKibana = kibana.size()
+      Closure replaceLinks = line -> {
+        // The kibana docs are not deployed to the normal docs location, so need absolute paths for internal references
+        line.replaceAll(
+          /\]\(\/reference\/([^)\s]+)\.md(#\S+)?\)/,
+          '](https://www.elastic.co/docs/reference/elasticsearch/$1$2)'
+        )
+      }
       if (countKibana == 0) {
         logger.quiet("ESQL Docs: No function/operator kibana docs created. Skipping sync.")
       } else {
@@ -181,6 +190,7 @@ tasks.named("test").configure {
               include '**/*.md', '**/*.json'
             }
           }
+          filter replaceLinks
         }
       }
     }

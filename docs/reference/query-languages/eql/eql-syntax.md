@@ -681,7 +681,7 @@ file where endsWith(file.path,".exe") or endsWith(file.path,".dll")
 While this works, it can be repetitive to write and can slow search speeds. To speed up search, you can do the following instead:
 
 1. [Add a new field](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), `file.extension`, to the index. The `file.extension` field will contain only the file extension from the `file.path` field.
-2. Use an [ingest pipeline](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md) containing the [`grok`](/reference/ingestion-tools/enrich-processor/grok-processor.md) processor or another preprocessor tool to extract the file extension from the `file.path` field before indexing.
+2. Use an [ingest pipeline](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md) containing the [`grok`](/reference/enrich-processor/grok-processor.md) processor or another preprocessor tool to extract the file extension from the `file.path` field before indexing.
 3. Index the extracted file extension to the `file.extension` field.
 
 These changes may slow indexing but allow for faster searches. Users can use the `file.extension` field instead of multiple `endsWith` function calls:

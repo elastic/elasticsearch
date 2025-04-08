@@ -1,0 +1,6 @@
+pr: 124722
+summary: Add panama implementations of byte-bit and float-bit script operations
+area: Vector Search
+type: enhancement
+issues:
+ - 117096

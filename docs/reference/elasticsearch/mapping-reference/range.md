@@ -7,7 +7,7 @@ mapped_pages:
 # Range field types [range]
 
 
-Range field types represent a continuous range of values between an upper and lower bound. For example, a range can represent *any date in October* or *any integer from 0 to 9*. They are defined using the operators `gt` or `gte` for the lower bound, and `lt` or `lte` for the upper bound. They can be used for querying, and have limited support for aggregations. The only supported aggregations are [histogram](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md), [cardinality](/reference/data-analysis/aggregations/search-aggregations-metrics-cardinality-aggregation.md).
+Range field types represent a continuous range of values between an upper and lower bound. For example, a range can represent *any date in October* or *any integer from 0 to 9*. They are defined using the operators `gt` or `gte` for the lower bound, and `lt` or `lte` for the upper bound. They can be used for querying, and have limited support for aggregations. The only supported aggregations are [histogram](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md), [cardinality](/reference/aggregations/search-aggregations-metrics-cardinality-aggregation.md).
 
 The following range types are supported:
 

@@ -13,7 +13,7 @@ The `kuromoji` analyzer uses the following analysis chain:
 * [`kuromoji_part_of_speech`](/reference/elasticsearch-plugins/analysis-kuromoji-speech.md) token filter
 * [`ja_stop`](/reference/elasticsearch-plugins/analysis-kuromoji-stop.md) token filter
 * [`kuromoji_stemmer`](/reference/elasticsearch-plugins/analysis-kuromoji-stemmer.md) token filter
-* [`lowercase`](/reference/data-analysis/text-analysis/analysis-lowercase-tokenfilter.md) token filter
+* [`lowercase`](/reference/text-analysis/analysis-lowercase-tokenfilter.md) token filter
 
 It supports the `mode` and `user_dictionary` settings from [`kuromoji_tokenizer`](/reference/elasticsearch-plugins/analysis-kuromoji-tokenizer.md).
 

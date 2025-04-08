@@ -71,7 +71,7 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan {
 
     @Override
     public LogicalPlan surrogate() {
-        return new Aggregate(source(), child(), Aggregate.AggregateType.STANDARD, new ArrayList<>(groupings), finalAggs());
+        return new Aggregate(source(), child(), new ArrayList<>(groupings), finalAggs());
     }
 
     public List<NamedExpression> aggregates() {

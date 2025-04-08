@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.voyageai;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
@@ -23,13 +24,23 @@ public class VoyageAIRerankRequest extends VoyageAIRequest {
 
     private final String query;
     private final List<String> input;
+    private final Boolean returnDocuments;
+    private final Integer topN;
     private final VoyageAIRerankModel model;
 
-    public VoyageAIRerankRequest(String query, List<String> input, VoyageAIRerankModel model) {
+    public VoyageAIRerankRequest(
+        String query,
+        List<String> input,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
+        VoyageAIRerankModel model
+    ) {
         this.model = Objects.requireNonNull(model);
 
         this.input = Objects.requireNonNull(input);
         this.query = Objects.requireNonNull(query);
+        this.returnDocuments = returnDocuments;
+        this.topN = topN;
     }
 
     @Override
@@ -37,8 +48,16 @@ public class VoyageAIRerankRequest extends VoyageAIRequest {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new VoyageAIRerankRequestEntity(query, input, model.getTaskSettings(), model.getServiceSettings().modelId()))
-                .getBytes(StandardCharsets.UTF_8)
+            Strings.toString(
+                new VoyageAIRerankRequestEntity(
+                    query,
+                    input,
+                    returnDocuments,
+                    topN,
+                    model.getTaskSettings(),
+                    model.getServiceSettings().modelId()
+                )
+            ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

@@ -148,7 +148,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ProjectMetadata after = metadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), DataStreamLifecycle.DEFAULT);
         DataStream updatedDataStream = after.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
-        assertThat(updatedDataStream.getLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
+        assertThat(updatedDataStream.getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
         assertThat(
@@ -219,9 +219,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                         "component-template",
                         new ComponentTemplate(
                             Template.builder()
-                                .lifecycle(
-                                    DataStreamLifecycle.Template.builder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)).build()
-                                )
+                                .lifecycle(DataStreamLifecycle.builder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)))
                                 .build(),
                             null,
                             null

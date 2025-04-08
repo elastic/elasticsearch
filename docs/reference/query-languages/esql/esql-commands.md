@@ -10,7 +10,7 @@ mapped_pages:
 
 An {{esql}} source command produces a table, typically with data from {{es}}. An {{esql}} query must start with a source command.
 
-:::{image} ../../../images/source-command.svg
+:::{image} ../images/source-command.svg
 :alt: A source command producing a table from {{es}}
 :::
 
@@ -25,7 +25,7 @@ An {{esql}} source command produces a table, typically with data from {{es}}. An
 
 {{esql}} processing commands change an input table by adding, removing, or changing rows and columns.
 
-:::{image} ../../../images/processing-command.svg
+:::{image} ../images/processing-command.svg
 :alt: A processing command changing an input table
 :::
 
@@ -307,7 +307,7 @@ ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2,
 
 `ENRICH` enables you to add data from existing indices as new columns using an enrich policy. Refer to [Data enrichment](/reference/query-languages/esql/esql-enrich-data.md) for information about setting up a policy.
 
-:::{image} ../../../images/esql-enrich.png
+:::{image} ../images/esql-enrich.png
 :alt: esql enrich
 :::
 
@@ -673,15 +673,9 @@ This functionality is in technical preview and may be changed or removed in a fu
 
 **Syntax**
 
-```
+```esql
 FROM <source_index>
 | LOOKUP JOIN <lookup_index> ON <field_name>
-```
-
-```esql
-FROM firewall_logs
-| LOOKUP JOIN threat_list ON source.IP
-| WHERE threat_level IS NOT NULL
 ```
 
 **Parameters**
@@ -713,6 +707,14 @@ FROM firewall_logs
 | LOOKUP JOIN threat_list ON source.IP
 ```
 
+To filter only for those rows that have a matching `threat_list` entry, use `WHERE ... IS NOT NULL` with a field from the lookup index:
+
+```esql
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+| WHERE threat_level IS NOT NULL
+```
+
 **Host metadata correlation**: This query pulls in environment or ownership details for each host to correlate with your metrics data.
 
 ```esql
@@ -741,7 +743,7 @@ FROM Left
 ```esql
 FROM Left
 | LOOKUP JOIN Right ON Key
-| WHERE Language IS NOT NULL 
+| WHERE Language IS NOT NULL
 ```
 
 ## `MV_EXPAND` [esql-mv_expand]

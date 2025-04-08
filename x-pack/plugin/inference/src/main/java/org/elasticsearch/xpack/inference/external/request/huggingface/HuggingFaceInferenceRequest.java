@@ -13,9 +13,9 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 
 import java.net.URI;

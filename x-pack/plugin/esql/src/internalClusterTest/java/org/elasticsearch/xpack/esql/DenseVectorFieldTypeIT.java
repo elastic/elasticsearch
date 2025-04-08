@@ -51,7 +51,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         for (String indexType : DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { indexType, true });
         }
-        params.add(new Object[] {null, false});
+        params.add(new Object[] { null, false });
         return params;
     }
 
@@ -76,10 +76,10 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testRetrieveTopNDenseVectorFieldData() {
         var query = """
-            FROM test
-            | KEEP id, vector
-            | SORT id ASC
-        """;
+                FROM test
+                | KEEP id, vector
+                | SORT id ASC
+            """;
 
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
@@ -99,14 +99,15 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testRetrieveDenseVectorFieldData() {
         var query = """
-        FROM test
-        | KEEP id, vector
-        """;
+            FROM test
+            | KEEP id, vector
+            """;
 
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(valuesList.size(), indexedVectors.size());
-            valuesList.forEach(value -> {;
+            valuesList.forEach(value -> {
+                ;
                 assertEquals(2, value.size());
                 Integer id = (Integer) value.get(0);
                 List<Double> vector = (List<Double>) value.get(1);

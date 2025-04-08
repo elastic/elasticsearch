@@ -1,0 +1,32 @@
+{
+  "esql.get_query": {
+    "documentation": {
+      "url": null,
+      "description": "Executes a get ESQL query request"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/queries/{id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The query ID"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

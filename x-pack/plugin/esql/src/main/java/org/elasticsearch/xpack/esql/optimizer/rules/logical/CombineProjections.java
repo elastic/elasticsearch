@@ -117,7 +117,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         // collect named expressions declaration in the lower list
         AttributeMap.Builder<NamedExpression> namedExpressionsBuilder = AttributeMap.builder();
         // while also collecting the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
-        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder(lower.size());
         for (NamedExpression ne : lower) {
             // record the alias
             aliasesBuilder.put(ne.toAttribute(), Alias.unwrap(ne));
@@ -128,7 +128,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                 namedExpressionsBuilder.put(ne.toAttribute(), as.replaceChild(aliasesBuilder.build().resolve(child, child)));
             }
         }
-        List<NamedExpression> replaced = new ArrayList<>();
+        List<NamedExpression> replaced = new ArrayList<>(upper.size());
         var namedExpressions = namedExpressionsBuilder.build();
 
         // replace any matching attribute with a lower alias (if there's a match)

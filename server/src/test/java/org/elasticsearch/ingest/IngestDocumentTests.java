@@ -860,8 +860,14 @@ public class IngestDocumentTests extends ESTestCase {
 
         // if ignoreMissing is false, we throw an exception for values that aren't found
         IllegalArgumentException e;
-        e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
-        assertThat(e.getMessage(), is("field [some] not present as part of path [fizz.some.nonsense]"));
+        if (randomBoolean()) {
+            document.setFieldValue("fizz.some", (Object) null);
+            e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
+            assertThat(e.getMessage(), is("cannot remove [nonsense] from null as part of path [fizz.some.nonsense]"));
+        } else {
+            e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
+            assertThat(e.getMessage(), is("field [some] not present as part of path [fizz.some.nonsense]"));
+        }
 
         // but no exception is thrown if ignoreMissing is true
         document.removeField("fizz.some.nonsense", true);

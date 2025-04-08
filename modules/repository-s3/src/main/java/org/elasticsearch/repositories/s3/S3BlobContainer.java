@@ -65,12 +65,14 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
@@ -350,27 +352,35 @@ class S3BlobContainer extends AbstractBlobContainer {
 
         final var s3SourceBlobContainer = (S3BlobContainer) sourceBlobContainer;
 
-        if (blobSize > MAX_FILE_SIZE.getBytes()) {
-            executeMultipartCopy(purpose, s3SourceBlobContainer, sourceBlobName, blobName, blobSize);
-        } else {
-            // metadata is inherited from source, but not canned ACL or storage class
-            final CopyObjectRequest copyRequest = new CopyObjectRequest(
-                s3SourceBlobContainer.blobStore.bucket(),
-                s3SourceBlobContainer.buildKey(sourceBlobName),
-                blobStore.bucket(),
-                buildKey(blobName)
-            ).withCannedAccessControlList(blobStore.getCannedACL()).withStorageClass(blobStore.getStorageClass());
+        try {
+            if (blobSize > MAX_FILE_SIZE.getBytes()) {
+                executeMultipartCopy(purpose, s3SourceBlobContainer, sourceBlobName, blobName, blobSize);
+            } else {
+                // metadata is inherited from source, but not canned ACL or storage class
+                final var blobKey = buildKey(blobName);
+                final CopyObjectRequest copyRequest = new CopyObjectRequest(
+                    s3SourceBlobContainer.blobStore.bucket(),
+                    s3SourceBlobContainer.buildKey(sourceBlobName),
+                    blobStore.bucket(),
+                    blobKey
+                ).withCannedAccessControlList(blobStore.getCannedACL()).withStorageClass(blobStore.getStorageClass());
 
-            S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);
+                S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);
 
-            try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
-            } catch (final AmazonClientException e) {
-                throw new IOException(
-                    "Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]",
-                    e
-                );
+                try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                    SocketAccess.doPrivilegedVoid(() -> {
+                        clientReference.client().copyObject(copyRequest);
+                    });
+                }
             }
+        } catch (final AmazonClientException e) {
+            if (e instanceof AmazonS3Exception amazonS3Exception) {
+                if (amazonS3Exception.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                    final var sourceKey = s3SourceBlobContainer.buildKey(sourceBlobName);
+                    throw new NoSuchFileException("Copy source [" + sourceKey + "] not found: " + amazonS3Exception.getMessage());
+                }
+            }
+            throw new IOException("Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]", e);
         }
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -779,8 +780,11 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
             abortWrite = in.readBoolean();
-            // BWC
-            doCopy = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)) {
+                doCopy = in.readBoolean();
+            } else {
+                doCopy = false;
+            }
         }
 
         @Override
@@ -797,8 +801,14 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
             out.writeBoolean(abortWrite);
-            // BWC
-            out.writeBoolean(doCopy);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)) {
+                out.writeBoolean(doCopy);
+            } else if (doCopy) {
+                assert false : out.getTransportVersion();
+                throw new IllegalStateException(
+                    "cannot serialize " + this + "] using transport version [" + out.getTransportVersion() + "]"
+                );
+            }
         }
 
         @Override
@@ -824,6 +834,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                 + writeAndOverwrite
                 + ", abortWrite="
                 + abortWrite
+                + ", doCopy="
+                + doCopy
                 + "]";
         }
 

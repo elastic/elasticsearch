@@ -5157,6 +5157,9 @@ public class IndexShardTests extends IndexShardTestCase {
             assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
             expectThrows(AlreadyClosedException.class, () -> primary.getEngine());
             assertThat(primary.getEngineOrNull(), nullValue());
+            expectThrows(AlreadyClosedException.class, () -> primary.withEngine(engine -> {
+                throw new AssertionError("should have thrown");
+            }));
             primary.withEngineOrNull(engine -> {
                 assertThat(engine, nullValue());
                 return null;

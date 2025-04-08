@@ -1203,7 +1203,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.addIgnoredField(fullPath());
             if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it
-                context.doc().add(new StoredField(originalName(), value.bytesValue));
+                context.doc().add(new StoredField(originalName(), value.bytesValue()));
             }
             return false;
         }

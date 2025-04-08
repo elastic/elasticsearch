@@ -46,8 +46,8 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
      */
     public ESBytesRef getValueAsByteRef() throws IOException {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
-            if(stringEnd > 0) {
-                return new ESBytesRef(_inputBuffer, _inputPtr, stringEnd-1);
+            if (stringEnd > 0) {
+                return new ESBytesRef(_inputBuffer, _inputPtr, stringEnd - 1);
             }
             return _finishAndReturnByteRef();
         }

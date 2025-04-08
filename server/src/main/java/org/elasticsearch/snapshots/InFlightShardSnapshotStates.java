@@ -12,6 +12,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryOperation.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -46,7 +47,7 @@ public final class InFlightShardSnapshotStates {
         }
         final Map<String, Map<Integer, ShardGeneration>> generations = new HashMap<>();
         final Map<String, Set<Integer>> busyIds = new HashMap<>();
-        assert snapshots.stream().map(SnapshotsInProgress.Entry::repository).distinct().count() == 1
+        assert snapshots.stream().map(entry -> new ProjectRepo(entry.projectId(), entry.repository())).distinct().count() == 1
             : "snapshots must either be an empty list or all belong to the same repository but saw " + snapshots;
         for (SnapshotsInProgress.Entry runningSnapshot : snapshots) {
             for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot

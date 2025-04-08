@@ -10,7 +10,7 @@ If the number of arguments is odd, the last argument is the default value which
 is returned when no condition matches. If the number of arguments is even, and
 no condition matches, the function returns `null`.
 
-```
+```esql
 FROM employees
 | EVAL type = CASE(
     languages <= 1, "monolingual",

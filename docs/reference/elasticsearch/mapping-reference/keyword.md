@@ -13,7 +13,7 @@ The keyword family includes the following field types:
 * [`constant_keyword`](#constant-keyword-field-type) for keyword fields that always contain the same value.
 * [`wildcard`](#wildcard-field-type) for unstructured machine-generated content. The `wildcard` type is optimized for fields with large values or high cardinality.
 
-Keyword fields are often used in [sorting](/reference/elasticsearch/rest-apis/sort-search-results.md), [aggregations](/reference/data-analysis/aggregations/index.md), and [term-level queries](/reference/query-languages/query-dsl/term-level-queries.md), such as [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md).
+Keyword fields are often used in [sorting](/reference/elasticsearch/rest-apis/sort-search-results.md), [aggregations](/reference/aggregations/index.md), and [term-level queries](/reference/query-languages/query-dsl/term-level-queries.md), such as [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md).
 
 ::::{tip}
 Avoid using keyword fields for full-text search. Use the [`text`](/reference/elasticsearch/mapping-reference/text.md) field type instead.

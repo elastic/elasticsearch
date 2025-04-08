@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -29,10 +30,22 @@ public class GoogleVertexAiRerankRequest implements GoogleVertexAiRequest {
 
     private final List<String> input;
 
-    public GoogleVertexAiRerankRequest(String query, List<String> input, GoogleVertexAiRerankModel model) {
+    private final Boolean returnDocuments;
+
+    private final Integer topN;
+
+    public GoogleVertexAiRerankRequest(
+        String query,
+        List<String> input,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
+        GoogleVertexAiRerankModel model
+    ) {
         this.model = Objects.requireNonNull(model);
         this.query = Objects.requireNonNull(query);
         this.input = Objects.requireNonNull(input);
+        this.returnDocuments = returnDocuments;
+        this.topN = topN;
     }
 
     @Override
@@ -41,7 +54,13 @@ public class GoogleVertexAiRerankRequest implements GoogleVertexAiRequest {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new GoogleVertexAiRerankRequestEntity(query, input, model.getServiceSettings().modelId(), model.getTaskSettings().topN())
+                new GoogleVertexAiRerankRequestEntity(
+                    query,
+                    input,
+                    returnDocuments,
+                    topN != null ? topN : model.getTaskSettings().topN(),
+                    model.getServiceSettings().modelId()
+                )
             ).getBytes(StandardCharsets.UTF_8)
         );
 

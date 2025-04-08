@@ -279,7 +279,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                 out.writeOptionalTimeValue(dataRetention);
             } else {
                 writeLegacyOptionalValue(dataRetention, out, StreamOutput::writeTimeValue);
@@ -287,7 +288,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
         }
         if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                 out.writeOptionalCollection(downsampling);
             } else {
                 writeLegacyOptionalValue(downsampling, out, StreamOutput::writeCollection);
@@ -298,7 +300,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                 dataRetention = in.readOptionalTimeValue();
             } else {
                 dataRetention = readLegacyOptionalValue(in, StreamInput::readTimeValue);
@@ -307,7 +310,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             dataRetention = null;
         }
         if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                 downsampling = in.readOptionalCollectionAsList(DownsamplingRound::read);
             } else {
                 downsampling = readLegacyOptionalValue(in, is -> is.readCollectionAsList(DownsamplingRound::read));
@@ -428,57 +432,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      */
     public static ToXContent.Params addEffectiveRetentionParams(ToXContent.Params params) {
         return new DelegatingMapParams(INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
-    }
-
-    public static Builder builder(DataStreamLifecycle lifecycle) {
-        return new Builder(lifecycle);
-    }
-
-    public static Builder builder() {
-        return new Builder(null);
-    }
-
-    /**
-     * This builder helps during the composition of the data stream lifecycle templates.
-     */
-    public static class Builder {
-        private boolean enabled = true;
-        @Nullable
-        private TimeValue dataRetention = null;
-        @Nullable
-        private List<DownsamplingRound> downsampling = null;
-
-        private Builder(@Nullable DataStreamLifecycle lifecycle) {
-            if (lifecycle != null) {
-                enabled = lifecycle.enabled;
-                dataRetention = lifecycle.dataRetention;
-                downsampling = lifecycle.downsampling;
-            }
-        }
-
-        public Builder enabled(boolean value) {
-            enabled = value;
-            return this;
-        }
-
-        public Builder dataRetention(@Nullable TimeValue value) {
-            dataRetention = value;
-            return this;
-        }
-
-        public Builder dataRetention(long value) {
-            dataRetention = TimeValue.timeValueMillis(value);
-            return this;
-        }
-
-        public Builder downsampling(@Nullable List<DownsamplingRound> rounds) {
-            downsampling = rounds;
-            return this;
-        }
-
-        public DataStreamLifecycle build() {
-            return new DataStreamLifecycle(enabled, dataRetention, downsampling);
-        }
     }
 
     /**
@@ -603,6 +556,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
     ) implements ToXContentObject, Writeable {
 
+        public Template(boolean enabled, TimeValue dataRetention, List<DataStreamLifecycle.DownsamplingRound> downsampling) {
+            this(enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
+        }
+
         public Template {
             if (downsampling.isDefined() && downsampling.get() != null) {
                 DownsamplingRound.validateRounds(downsampling.get());
@@ -647,14 +604,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         public void writeTo(StreamOutput out) throws IOException {
             // The order of the fields is like this for bwc reasons
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                    || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                     ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
                 } else {
                     writeLegacyValue(out, dataRetention, StreamOutput::writeTimeValue);
                 }
             }
             if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                    || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                     ResettableValue.write(out, downsampling, StreamOutput::writeCollection);
                 } else {
                     writeLegacyValue(out, downsampling, StreamOutput::writeCollection);
@@ -704,14 +663,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
             // The order of the fields is like this for bwc reasons
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                     dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
                 } else {
                     dataRetention = readLegacyValues(in, StreamInput::readTimeValue);
                 }
             }
             if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                     downsampling = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
                 } else {
                     downsampling = readLegacyValues(in, i -> i.readCollectionAsList(DownsamplingRound::read));
@@ -761,57 +722,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return builder;
         }
 
-        public static Builder builder(DataStreamLifecycle.Template template) {
-            return new Builder(template);
-        }
-
-        public static Builder builder() {
-            return new Builder(null);
-        }
-
-        public static class Builder {
-            private boolean enabled = true;
-            private ResettableValue<TimeValue> dataRetention = ResettableValue.undefined();
-            private ResettableValue<List<DownsamplingRound>> downsampling = ResettableValue.undefined();
-
-            private Builder(Template template) {
-                if (template != null) {
-                    enabled = template.enabled();
-                    dataRetention = template.dataRetention();
-                    downsampling = template.downsampling();
-                }
-            }
-
-            public Builder enabled(boolean enabled) {
-                this.enabled = enabled;
-                return this;
-            }
-
-            public Builder dataRetention(ResettableValue<TimeValue> dataRetention) {
-                this.dataRetention = dataRetention;
-                return this;
-            }
-
-            public Builder dataRetention(@Nullable TimeValue dataRetention) {
-                this.dataRetention = ResettableValue.create(dataRetention);
-                return this;
-            }
-
-            public Builder downsampling(ResettableValue<List<DownsamplingRound>> downsampling) {
-                this.downsampling = downsampling;
-                return this;
-            }
-
-            public Builder downsampling(@Nullable List<DownsamplingRound> downsampling) {
-                this.downsampling = ResettableValue.create(downsampling);
-                return this;
-            }
-
-            public Template build() {
-                return new Template(enabled, dataRetention, downsampling);
-            }
-        }
-
         public DataStreamLifecycle toDataStreamLifecycle() {
             return new DataStreamLifecycle(enabled, dataRetention.get(), downsampling.get());
         }
@@ -819,6 +729,89 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         @Override
         public String toString() {
             return Strings.toString(this, true, true);
+        }
+    }
+
+    public static Builder builder(DataStreamLifecycle lifecycle) {
+        return new Builder(lifecycle);
+    }
+
+    public static Builder builder(Template template) {
+        return new Builder(template);
+    }
+
+    public static Builder builder() {
+        return new Builder((DataStreamLifecycle) null);
+    }
+
+    /**
+     * Builds and composes the data stream lifecycle or the respective template.
+     */
+    public static class Builder {
+        private boolean enabled = true;
+        @Nullable
+        private TimeValue dataRetention = null;
+        @Nullable
+        private List<DownsamplingRound> downsampling = null;
+
+        private Builder(DataStreamLifecycle.Template template) {
+            if (template != null) {
+                enabled = template.enabled();
+                dataRetention = template.dataRetention().get();
+                downsampling = template.downsampling().get();
+            }
+        }
+
+        private Builder(DataStreamLifecycle lifecycle) {
+            if (lifecycle != null) {
+                enabled = lifecycle.enabled();
+                dataRetention = lifecycle.dataRetention();
+                downsampling = lifecycle.downsampling();
+            }
+        }
+
+        public Builder composeTemplate(DataStreamLifecycle.Template template) {
+            enabled(template.enabled());
+            dataRetention(template.dataRetention());
+            downsampling(template.downsampling());
+            return this;
+        }
+
+        public Builder enabled(boolean enabled) {
+            this.enabled = enabled;
+            return this;
+        }
+
+        public Builder dataRetention(ResettableValue<TimeValue> dataRetention) {
+            if (dataRetention.isDefined()) {
+                this.dataRetention = dataRetention.get();
+            }
+            return this;
+        }
+
+        public Builder dataRetention(@Nullable TimeValue dataRetention) {
+            this.dataRetention = dataRetention;
+            return this;
+        }
+
+        public Builder downsampling(ResettableValue<List<DownsamplingRound>> downsampling) {
+            if (downsampling.isDefined()) {
+                this.downsampling = downsampling.get();
+            }
+            return this;
+        }
+
+        public Builder downsampling(@Nullable List<DownsamplingRound> downsampling) {
+            this.downsampling = downsampling;
+            return this;
+        }
+
+        public DataStreamLifecycle build() {
+            return new DataStreamLifecycle(enabled, dataRetention, downsampling);
+        }
+
+        public Template buildTemplate() {
+            return new Template(enabled, dataRetention, downsampling);
         }
     }
 }

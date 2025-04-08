@@ -7,7 +7,7 @@ Returns a subset of the multivalued field using the start and end index values.
 This is most useful when reading from a function that emits multivalued columns
 in a known order like [`SPLIT`](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/esql-functions-operators#esql-split) or [`MV_SORT`](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/esql-functions-operators#esql-mv_sort).
 
-```
+```esql
 row a = [1, 2, 2, 3]
 | eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3)
 ```

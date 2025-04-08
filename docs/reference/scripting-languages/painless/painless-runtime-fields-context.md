@@ -51,7 +51,7 @@ $$$runtime-emit-method$$$
 
 
 `grok`
-:   Defines a [grok pattern](/reference/ingestion-tools/enrich-processor/grok-processor.md) to extract structured fields out of a single text field within a document. A grok pattern is like a regular expression that supports aliased expressions that can be reused. See [Define a runtime field with a grok pattern](docs-content://manage-data/data-store/mapping/explore-data-with-runtime-fields.md#runtime-examples-grok).
+:   Defines a [grok pattern](/reference/enrich-processor/grok-processor.md) to extract structured fields out of a single text field within a document. A grok pattern is like a regular expression that supports aliased expressions that can be reused. See [Define a runtime field with a grok pattern](docs-content://manage-data/data-store/mapping/explore-data-with-runtime-fields.md#runtime-examples-grok).
 
     ::::{dropdown} Properties of `grok`
     `extract`
@@ -61,7 +61,7 @@ $$$runtime-emit-method$$$
 
 
 `dissect`
-:   Defines a [dissect pattern](/reference/ingestion-tools/enrich-processor/dissect-processor.md). Dissect operates much like grok, but does not accept regular expressions. See [Define a runtime field with a dissect pattern](docs-content://manage-data/data-store/mapping/explore-data-with-runtime-fields.md#runtime-examples-dissect).
+:   Defines a [dissect pattern](/reference/enrich-processor/dissect-processor.md). Dissect operates much like grok, but does not accept regular expressions. See [Define a runtime field with a dissect pattern](docs-content://manage-data/data-store/mapping/explore-data-with-runtime-fields.md#runtime-examples-dissect).
 
     ::::{dropdown} Properties of `dissect`
     `extract`

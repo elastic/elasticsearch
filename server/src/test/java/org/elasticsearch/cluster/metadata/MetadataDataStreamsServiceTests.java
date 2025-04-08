@@ -415,7 +415,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testUpdateLifecycle() {
         String dataStream = randomAlphaOfLength(5);
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.builder().dataRetention(randomMillisUpToYear9999()).build();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build();
         final var projectId = randomProjectIdOrDefault();
         ProjectMetadata before = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
@@ -432,7 +432,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             ProjectMetadata after = service.updateDataLifecycle(before, List.of(dataStream), null);
             DataStream updatedDataStream = after.dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
-            assertThat(updatedDataStream.getLifecycle(), nullValue());
+            assertThat(updatedDataStream.getDataLifecycle(), nullValue());
             before = after;
         }
 
@@ -441,18 +441,23 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             ProjectMetadata after = service.updateDataLifecycle(before, List.of(dataStream), lifecycle);
             DataStream updatedDataStream = after.dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
-            assertThat(updatedDataStream.getLifecycle(), equalTo(lifecycle));
+            assertThat(updatedDataStream.getDataLifecycle(), equalTo(lifecycle));
         }
     }
 
     public void testUpdateDataStreamOptions() {
+        final var projectId = randomProjectIdOrDefault();
         String dataStream = randomAlphaOfLength(5);
         // we want the data stream options to be non-empty, so we can see the removal in action
         DataStreamOptions dataStreamOptions = randomValueOtherThan(
             DataStreamOptions.EMPTY,
             DataStreamOptionsTests::randomDataStreamOptions
         );
-        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
+        ProjectMetadata before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            projectId,
+            List.of(new Tuple<>(dataStream, 2)),
+            List.of()
+        ).metadata().getProject(projectId);
         MetadataDataStreamsService service = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
@@ -460,20 +465,20 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         );
 
         // Ensure no data stream options are stored
-        DataStream updatedDataStream = before.metadata().getProject().dataStreams().get(dataStream);
+        DataStream updatedDataStream = before.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(DataStreamOptions.EMPTY));
 
         // Set non-empty data stream options
-        ClusterState after = service.updateDataStreamOptions(before, List.of(dataStream), dataStreamOptions);
-        updatedDataStream = after.metadata().getProject().dataStreams().get(dataStream);
+        ProjectMetadata after = service.updateDataStreamOptions(before, List.of(dataStream), dataStreamOptions);
+        updatedDataStream = after.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(dataStreamOptions));
         before = after;
 
         // Remove data stream options
         after = service.updateDataStreamOptions(before, List.of(dataStream), null);
-        updatedDataStream = after.metadata().getProject().dataStreams().get(dataStream);
+        updatedDataStream = after.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(DataStreamOptions.EMPTY));
     }

@@ -735,6 +735,8 @@ public final class ServiceUtils {
         service.infer(
             model,
             null,
+            null,
+            null,
             List.of(TEST_EMBEDDING_INPUT),
             false,
             Map.of(),

@@ -250,7 +250,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            new DataStreamLifecycle(),
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
             now
         );
         builder.put(dataStream);
@@ -500,7 +500,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
-            new DataStreamLifecycle(),
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
             now
         );
         builder.put(dataStream);
@@ -1486,7 +1486,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             numFailureIndices,
             settings(IndexVersion.current()),
-            new DataStreamLifecycle(),
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
             null,
             now
         ).copy().setDataStreamOptions(dataStreamOptions).build(); // failure store is managed even when disabled

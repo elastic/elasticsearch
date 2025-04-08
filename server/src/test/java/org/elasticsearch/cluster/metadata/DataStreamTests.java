@@ -1399,7 +1399,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.DEFAULT
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
         );
         Metadata metadata = builder.build();
         Supplier<List<Index>> indicesSupplier = () -> failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
@@ -1492,7 +1492,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.DEFAULT
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
         );
         Metadata metadata = metadataBuilder.build();
         Supplier<List<Index>> indicesSupplier = () -> failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
@@ -1752,7 +1752,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 Settings.builder()
                     .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             );
             Metadata metadataIlm = builderWithIlm.build();
             for (Index index : ds.getIndices()) {
@@ -1773,7 +1773,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                         .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexSettings.PREFER_ILM, false),
-                    new DataStreamLifecycle()
+                    DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
                 );
                 Metadata metadataIlm = builderWithIlm.build();
                 for (Index index : ds.getIndices()) {
@@ -1794,7 +1794,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         DataStream noFailureStoreDs = DataStream.builder("no-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID()))).build();
         assertThat(noFailureStoreDs.getFailuresLifecycle(), nullValue());
 
-        assertThat(noFailureStoreDs.getFailuresLifecycle(true), equalTo(DataStreamLifecycle.DEFAULT));
+        assertThat(noFailureStoreDs.getFailuresLifecycle(true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         assertThat(noFailureStoreDs.getFailuresLifecycle(randomBoolean() ? false : null), nullValue());
 
         DataStream withFailureIndices = DataStream.builder("with-fs-indices", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
@@ -1802,7 +1802,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 DataStream.DataStreamIndices.failureIndicesBuilder(List.of(new Index(randomAlphaOfLength(10), randomUUID()))).build()
             )
             .build();
-        assertThat(withFailureIndices.getFailuresLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
+        assertThat(withFailureIndices.getFailuresLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
 
         DataStreamLifecycle lifecycle = DataStreamLifecycleTests.randomFailuresLifecycle();
         DataStream withFailuresLifecycle = DataStream.builder("with-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
@@ -1906,7 +1906,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
         var failuresLifecycle = randomBoolean() ? null : DataStreamLifecycleTests.randomFailuresLifecycle();
 
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         boolean isSystem = randomBoolean();
         DataStream dataStream = new DataStream(
             dataStreamName,

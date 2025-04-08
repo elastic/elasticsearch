@@ -135,7 +135,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             var parsed = DataStreamLifecycle.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
-            assertThat(parsed, equalTo(DataStreamLifecycle.DEFAULT));
+            assertThat(parsed, equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         }
     }
 

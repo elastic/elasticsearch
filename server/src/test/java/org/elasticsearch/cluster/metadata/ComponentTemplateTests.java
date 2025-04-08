@@ -287,7 +287,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             // Do not set random lifecycle to avoid having data_retention and effective_retention in the response.
             dataStreamOptions = new DataStreamOptions.Template(new DataStreamFailureStore.Template(randomBoolean(), null));
         }
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         ComponentTemplate template = new ComponentTemplate(
             new Template(settings, mappings, aliases, lifecycle, dataStreamOptions),
             randomNonNegativeLong(),

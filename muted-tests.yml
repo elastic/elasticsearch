@@ -450,6 +450,9 @@ tests:
 - class: org.elasticsearch.xpack.security.cli.HttpCertificateCommandTests
   method: testGenerateMultipleCertificateWithNewCA
   issue: https://github.com/elastic/elasticsearch/issues/126471
+- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
+  method: testILMDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/126495
 
 # Examples:
 #

@@ -179,7 +179,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        if (requiresInferenceTestService(testCase)) {
+        if (Stream.of("semantic_text_field_caps", RERANK.capabilityName()).anyMatch(testCase.requiredCapabilities::contains)) {
             assumeTrue("Inference test service needs to be supported", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
@@ -248,10 +248,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsInferenceTestService() {
         return true;
-    }
-
-    protected boolean requiresInferenceTestService(CsvTestCase testCase) {
-        return Stream.of("semantic_text_field_caps", RERANK.capabilityName()).anyMatch(testCase.requiredCapabilities::contains);
     }
 
     protected boolean supportsIndexModeLookup() throws IOException {

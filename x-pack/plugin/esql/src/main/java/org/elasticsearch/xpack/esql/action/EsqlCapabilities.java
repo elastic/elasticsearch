@@ -782,7 +782,14 @@ public class EsqlCapabilities {
         /**
          * Support for sorting when aggregate_metric_doubles are present
          */
-        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
+        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
+         * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
+         * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
+         */
+        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER;
 
         private final boolean enabled;
 

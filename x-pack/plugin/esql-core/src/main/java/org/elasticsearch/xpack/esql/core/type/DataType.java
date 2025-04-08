@@ -309,7 +309,6 @@ public enum DataType {
      */
     DENSE_VECTOR(builder().esType("dense_vector").unknownSize());
 
-
     /**
      * Types that are actively being built. These types are not returned
      * from Elasticsearch if their associated {@link FeatureFlag} is disabled.

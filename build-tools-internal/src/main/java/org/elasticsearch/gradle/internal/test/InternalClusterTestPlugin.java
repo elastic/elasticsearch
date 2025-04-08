@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.dsl.DependencyCollector;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JvmTestSuitePlugin;
 import org.gradle.api.plugins.jvm.JvmTestSuite;
@@ -32,7 +33,8 @@ public class InternalClusterTestPlugin implements Plugin<Project> {
 
         testing.getSuites().register(SOURCE_SET_NAME, JvmTestSuite.class, suite -> {
             suite.useJUnit();
-            suite.getDependencies().getImplementation().add(suite.getDependencies().project());
+            DependencyCollector implementation = suite.getDependencies().getImplementation();
+            implementation.add(suite.getDependencies().project());
             suite.getTargets().configureEach(target -> { target.getTestTask().configure(test -> { test.jvmArgs("-XX:+UseG1GC"); }); });
         });
 

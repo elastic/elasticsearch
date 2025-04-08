@@ -78,11 +78,11 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
 
     private void configureJavadocForConfiguration(Project project, boolean shadow, Configuration configuration) {
         configuration.getAllDependencies()
-            .stream()
-            .sorted(Comparator.comparing(Dependency::getGroup))
-            .filter(d -> d instanceof ProjectDependency)
-            .map(d -> (ProjectDependency) d)
-            .forEach(projectDependency -> configureDependency(project, shadow, projectDependency));
+            .configureEach(dependency -> {
+                if(dependency instanceof ProjectDependency) {
+                    configureDependency(project, shadow, (ProjectDependency) dependency);
+                }
+            });
     }
 
     private void configureDependency(Project project, boolean shadowed, ProjectDependency dep) {

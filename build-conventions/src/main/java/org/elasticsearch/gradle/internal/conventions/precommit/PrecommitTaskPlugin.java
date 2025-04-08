@@ -34,7 +34,7 @@ public class PrecommitTaskPlugin implements Plugin<Project> {
                 );
         project.getPluginManager().withPlugin("java-base", p -> {
             // run compilation as part of precommit
-            project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().all(sourceSet ->
+            project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().configureEach(sourceSet ->
                     precommit.configure(t -> t.dependsOn(sourceSet.getClassesTaskName()))
             );
             // make sure tests run after all precommit tasks

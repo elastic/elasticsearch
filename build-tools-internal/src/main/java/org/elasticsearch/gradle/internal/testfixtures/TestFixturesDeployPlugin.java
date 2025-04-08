@@ -42,7 +42,7 @@ public class TestFixturesDeployPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<TestFixtureDeployment> fixtures,
         boolean isCi
     ) {
-        fixtures.all(
+        fixtures.configureEach(
             fixture -> project.getTasks()
                 .register("deploy" + StringUtils.capitalize(fixture.getName()) + "DockerImage", DockerBuildTask.class, task -> {
                     task.getDockerContext().fileValue(fixture.getDockerContext().get());

@@ -47,6 +47,13 @@ tasks.named('check') {
 
 testing {
   suites {
+    configureEach {
+      dependencies {
+        implementation project(':test:framework')
+        implementation project(':test:fixtures:s3-fixture')
+        runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+      }
+    }
     internalClusterTest {
       dependencies {
         implementation project(':test:fixtures:minio-fixture')
@@ -72,13 +79,7 @@ testing {
         implementation project(':test:fixtures:testcontainer-utils')
       }
     }
-    configureEach {
-      dependencies {
-        implementation project(':test:framework')
-        implementation project(':test:fixtures:s3-fixture')
-        runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
-      }
-    }
+
   }
 }
 

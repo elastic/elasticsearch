@@ -33,7 +33,7 @@ public class LoggerUsagePrecommitPlugin extends PrecommitPlugin {
         sourceSets.matching(
             sourceSet -> sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME)
                 || sourceSet.getName().equals(SourceSet.TEST_SOURCE_SET_NAME)
-        ).all(sourceSet -> loggerUsage.configure(t -> t.addSourceSet(sourceSet)));
+        ).configureEach(sourceSet -> loggerUsage.configure(t -> t.addSourceSet(sourceSet)));
 
         loggerUsage.configure(
             t -> t.setClasspath(loggerUsageConfig)

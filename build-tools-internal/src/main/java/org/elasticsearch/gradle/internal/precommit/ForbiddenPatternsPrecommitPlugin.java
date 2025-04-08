@@ -33,17 +33,11 @@ public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         return project.getTasks().register(FORBIDDEN_PATTERNS_TASK_NAME, ForbiddenPatternsTask.class, forbiddenPatternsTask -> {
-            forbiddenPatternsTask.getSourceFolders()
-                .addAll(
-                    providerFactory.provider(
-                        () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
-                    )
-                );
-            forbiddenPatternsTask.dependsOn(
-                GradleUtils.getJavaSourceSets(project)
-                    .stream()
-                    .map(sourceSet -> sourceSet.getProcessResourcesTaskName())
-                    .collect(Collectors.toList())
+            GradleUtils.getJavaSourceSets(project).configureEach(
+                sourceSet -> {
+                    forbiddenPatternsTask.getSourceFolders().add(sourceSet.getAllSource());
+                    forbiddenPatternsTask.dependsOn(sourceSet.getProcessResourcesTaskName());
+                }
             );
             forbiddenPatternsTask.getRootDir().set(project.getRootDir());
         });

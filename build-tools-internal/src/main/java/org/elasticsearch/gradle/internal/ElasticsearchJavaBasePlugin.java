@@ -99,7 +99,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             return;
         }
         // fail on any conflicting dependency versions
-        project.getConfigurations().all(configuration -> {
+        project.getConfigurations().configureEach(configuration -> {
             if (configuration.getName().endsWith("Fixture")) {
                 // just a self contained test-fixture configuration, likely transitive and hellacious
                 return;
@@ -109,17 +109,17 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
         // disable transitive dependency management
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        sourceSets.all(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
+        sourceSets.configureEach(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
     }
 
     private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
+
         List<String> sourceSetConfigurationNames = List.of(
             sourceSet.getApiConfigurationName(),
             sourceSet.getImplementationConfigurationName(),
             sourceSet.getCompileOnlyConfigurationName(),
             sourceSet.getRuntimeOnlyConfigurationName()
         );
-
         project.getConfigurations()
             .matching(c -> sourceSetConfigurationNames.contains(c.getName()))
             .configureEach(GradleUtils::disableTransitiveDependencies);

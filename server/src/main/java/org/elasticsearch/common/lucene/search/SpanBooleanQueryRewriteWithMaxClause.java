@@ -101,7 +101,7 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
                                         + query.toString()
                                         + " ] "
                                         + "exceeds maxClauseCount [ Boolean maxClauseCount is set to "
-                                        + IndexSearcher.getMaxClauseCount()
+                                        + BooleanQuery.getMaxClauseCount()
                                         + "]",
                                     RestStatus.BAD_REQUEST
                                 );

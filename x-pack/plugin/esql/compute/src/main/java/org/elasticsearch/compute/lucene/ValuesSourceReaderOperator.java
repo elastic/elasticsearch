@@ -220,9 +220,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         positionFieldWork(shard, segment, firstDoc);
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
         List<RowStrideReaderWork> rowStrideReaders = new ArrayList<>(fields.length);
-        ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.count());
         LeafReaderContext ctx = ctx(shard, segment);
-        try {
+        try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.count())) {
             for (int f = 0; f < fields.length; f++) {
                 FieldWork field = fields[f];
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
@@ -345,27 +344,28 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 builders[f] = new Block.Builder[shardContexts.size()];
                 converters[f] = new BlockLoader[shardContexts.size()];
             }
-            ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.getPositionCount());
-            int p = forwards[0];
-            int shard = shards.getInt(p);
-            int segment = segments.getInt(p);
-            int firstDoc = docs.getInt(p);
-            positionFieldWork(shard, segment, firstDoc);
-            LeafReaderContext ctx = ctx(shard, segment);
-            fieldsMoved(ctx, shard);
-            verifyBuilders(loaderBlockFactory, shard);
-            read(firstDoc, shard);
-            for (int i = 1; i < forwards.length; i++) {
-                p = forwards[i];
-                shard = shards.getInt(p);
-                segment = segments.getInt(p);
-                boolean changedSegment = positionFieldWorkDocGuarteedAscending(shard, segment);
-                if (changedSegment) {
-                    ctx = ctx(shard, segment);
-                    fieldsMoved(ctx, shard);
-                }
+            try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.getPositionCount())) {
+                int p = forwards[0];
+                int shard = shards.getInt(p);
+                int segment = segments.getInt(p);
+                int firstDoc = docs.getInt(p);
+                positionFieldWork(shard, segment, firstDoc);
+                LeafReaderContext ctx = ctx(shard, segment);
+                fieldsMoved(ctx, shard);
                 verifyBuilders(loaderBlockFactory, shard);
-                read(docs.getInt(p), shard);
+                read(firstDoc, shard);
+                for (int i = 1; i < forwards.length; i++) {
+                    p = forwards[i];
+                    shard = shards.getInt(p);
+                    segment = segments.getInt(p);
+                    boolean changedSegment = positionFieldWorkDocGuarteedAscending(shard, segment);
+                    if (changedSegment) {
+                        ctx = ctx(shard, segment);
+                        fieldsMoved(ctx, shard);
+                    }
+                    verifyBuilders(loaderBlockFactory, shard);
+                    read(docs.getInt(p), shard);
+                }
             }
             for (int f = 0; f < target.length; f++) {
                 for (int s = 0; s < shardContexts.size(); s++) {
@@ -614,7 +614,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private static class ComputeBlockLoaderFactory implements BlockLoader.BlockFactory {
+    private static class ComputeBlockLoaderFactory implements BlockLoader.BlockFactory, Releasable {
         private final BlockFactory factory;
         private final int pageSize;
         private Block nullBlock;
@@ -681,17 +681,18 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public Block constantNulls() {
-            // Avoid creating a new null block if we already have one.
-            // However, downstream operators take ownership of the null block we hand to them and may close it, forcing us to create a new
-            // one.
-            // This could be avoided altogether if this factory itself kept a reference to the null block, but we'd have to also ensure
-            // to release this block once the factory is not used anymore.
-            if (nullBlock == null || nullBlock.isReleased()) {
+            if (nullBlock == null) {
                 nullBlock = factory.newConstantNullBlock(pageSize);
-            } else {
-                nullBlock.incRef();
             }
+            nullBlock.incRef();
             return nullBlock;
+        }
+
+        @Override
+        public void close() {
+            if (nullBlock != null) {
+                nullBlock.close();
+            }
         }
 
         @Override

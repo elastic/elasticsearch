@@ -637,3 +637,36 @@ foo:keyword
 ;
 
 
+evalAfterAvgUsingSameName
+from employees 
+| stats avg = avg(salary) 
+| eval avg = 12
+;
+
+avg:integer
+12
+;
+
+evalAfterStatsUsingSameName
+from employees 
+| stats count = count(emp_no), median = median(salary), top_salaries = TOP(salary, 3, "desc")
+| keep median, top_salaries
+| rename top_salaries as median
+| eval median = 12
+;
+
+median:integer
+12
+;
+
+evalAfterStatsUsingSameName2
+ROW foo = [10, 11, 12]
+| mv_expand foo
+| stats sum = sum(foo), max = max(foo)
+| rename sum as max
+| eval max = 13
+;
+
+max:integer
+13
+;

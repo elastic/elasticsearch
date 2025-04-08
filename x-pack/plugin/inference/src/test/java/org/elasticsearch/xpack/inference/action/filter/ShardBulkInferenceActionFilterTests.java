@@ -115,6 +115,7 @@ import static org.mockito.Mockito.when;
 
 public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     private static final Object EXPLICIT_NULL = new Object();
+    private static final IndexingPressure NOOP_INDEXING_PRESSURE = new NoopIndexingPressure();
 
     private final boolean useLegacyFormat;
     private ThreadPool threadPool;
@@ -140,7 +141,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testFilterNoop() throws Exception {
-        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), useLegacyFormat, true);
+        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), NOOP_INDEXING_PRESSURE, useLegacyFormat, true);
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -166,7 +167,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testLicenseInvalidForInference() throws InterruptedException {
         StaticModel model = StaticModel.createRandomInstance();
-        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), useLegacyFormat, false);
+        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), NOOP_INDEXING_PRESSURE, useLegacyFormat, false);
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -207,6 +208,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
+            NOOP_INDEXING_PRESSURE,
             useLegacyFormat,
             true
         );
@@ -253,6 +255,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
+            NOOP_INDEXING_PRESSURE,
             useLegacyFormat,
             true
         );
@@ -323,6 +326,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
+            NOOP_INDEXING_PRESSURE,
             useLegacyFormat,
             true
         );
@@ -393,6 +397,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
+            NOOP_INDEXING_PRESSURE,
             useLegacyFormat,
             true
         );
@@ -465,7 +470,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             modifiedRequests[id] = res[1];
         }
 
-        ShardBulkInferenceActionFilter filter = createFilter(threadPool, inferenceModelMap, useLegacyFormat, true);
+        ShardBulkInferenceActionFilter filter = createFilter(threadPool, inferenceModelMap, NOOP_INDEXING_PRESSURE, useLegacyFormat, true);
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -504,10 +509,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         final ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel, denseModel.getInferenceEntityId(), denseModel),
+            indexingPressure,
             useLegacyFormat,
             true
         );
-        filter.setIndexingPressure(indexingPressure);
 
         XContentBuilder doc0Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "a test value");
         XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "dense_field", "another test value");
@@ -621,10 +626,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         final ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel),
+            indexingPressure,
             useLegacyFormat,
             true
         );
-        filter.setIndexingPressure(indexingPressure);
 
         XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
 
@@ -703,10 +708,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         final ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel),
+            indexingPressure,
             useLegacyFormat,
             true
         );
-        filter.setIndexingPressure(indexingPressure);
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
@@ -775,6 +780,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     private static ShardBulkInferenceActionFilter createFilter(
         ThreadPool threadPool,
         Map<String, StaticModel> modelMap,
+        IndexingPressure indexingPressure,
         boolean useLegacyFormat,
         boolean isLicenseValidForInference
     ) {
@@ -852,7 +858,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             createClusterService(useLegacyFormat),
             inferenceServiceRegistry,
             modelRegistry,
-            licenseState
+            licenseState,
+            indexingPressure
         );
     }
 
@@ -1035,11 +1042,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     private static class InstrumentedIndexingPressure extends IndexingPressure {
         private Coordinating coordinating = null;
 
-        InstrumentedIndexingPressure(Settings settings) {
+        private InstrumentedIndexingPressure(Settings settings) {
             super(settings);
         }
 
-        public Coordinating getCoordinating() {
+        private Coordinating getCoordinating() {
             return coordinating;
         }
 
@@ -1047,6 +1054,26 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         public Coordinating createCoordinatingOperation(boolean forceExecution) {
             coordinating = spy(super.createCoordinatingOperation(forceExecution));
             return coordinating;
+        }
+    }
+
+    private static class NoopIndexingPressure extends IndexingPressure {
+        private NoopIndexingPressure() {
+            super(Settings.EMPTY);
+        }
+
+        @Override
+        public Coordinating createCoordinatingOperation(boolean forceExecution) {
+            return new NoopCoordinating(forceExecution);
+        }
+
+        private class NoopCoordinating extends Coordinating {
+            private NoopCoordinating(boolean forceExecution) {
+                super(forceExecution);
+            }
+
+            @Override
+            public void increment(int operations, long bytes) {}
         }
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -112,30 +111,27 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final InferenceServiceRegistry inferenceServiceRegistry;
     private final ModelRegistry modelRegistry;
     private final XPackLicenseState licenseState;
+    private final IndexingPressure indexingPressure;
     private volatile long batchSizeInBytes;
-
-    private final SetOnce<IndexingPressure> indexingPressure = new SetOnce<>();
 
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
         InferenceServiceRegistry inferenceServiceRegistry,
         ModelRegistry modelRegistry,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        IndexingPressure indexingPressure
     ) {
         this.clusterService = clusterService;
         this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelRegistry = modelRegistry;
         this.licenseState = licenseState;
+        this.indexingPressure = indexingPressure;
         this.batchSizeInBytes = INDICES_INFERENCE_BATCH_SIZE.get(clusterService.getSettings()).getBytes();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_BATCH_SIZE, this::setBatchSize);
     }
 
     private void setBatchSize(ByteSizeValue newBatchSize) {
         batchSizeInBytes = newBatchSize.getBytes();
-    }
-
-    public void setIndexingPressure(IndexingPressure indexingPressure) {
-        this.indexingPressure.set(indexingPressure);
     }
 
     @Override
@@ -156,14 +152,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             var fieldInferenceMetadata = bulkShardRequest.consumeInferenceFieldMap();
             if (fieldInferenceMetadata != null && fieldInferenceMetadata.isEmpty() == false) {
                 // Maintain coordinating indexing pressure from inference until the indexing operations are complete
-                CoordinatingIndexingPressureWrapper coordinatingWrapper = startCoordinatingOperations();
+                IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.createCoordinatingOperation(false);
                 Runnable onInferenceCompletion = () -> chain.proceed(
                     task,
                     action,
                     request,
-                    ActionListener.releaseAfter(listener, coordinatingWrapper)
+                    ActionListener.releaseAfter(listener, coordinatingIndexingPressure)
                 );
-                processBulkShardRequest(fieldInferenceMetadata, bulkShardRequest, onInferenceCompletion, coordinatingWrapper);
+                processBulkShardRequest(fieldInferenceMetadata, bulkShardRequest, onInferenceCompletion, coordinatingIndexingPressure);
                 return;
             }
         }
@@ -174,22 +170,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         Map<String, InferenceFieldMetadata> fieldInferenceMap,
         BulkShardRequest bulkShardRequest,
         Runnable onCompletion,
-        CoordinatingIndexingPressureWrapper coordinatingWrapper
+        IndexingPressure.Coordinating coordinatingIndexingPressure
     ) {
         final ProjectMetadata project = clusterService.state().getMetadata().getProject();
         var index = project.index(bulkShardRequest.index());
         boolean useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(index.getSettings()) == false;
-        new AsyncBulkShardInferenceAction(useLegacyFormat, fieldInferenceMap, bulkShardRequest, onCompletion, coordinatingWrapper).run();
-    }
-
-    private CoordinatingIndexingPressureWrapper startCoordinatingOperations() {
-        IndexingPressure.Coordinating coordinating = null;
-        IndexingPressure localIndexingPressure = indexingPressure.get();
-        if (localIndexingPressure != null) {
-            coordinating = localIndexingPressure.createCoordinatingOperation(false);
-        }
-
-        return new CoordinatingIndexingPressureWrapper(coordinating);
+        new AsyncBulkShardInferenceAction(useLegacyFormat, fieldInferenceMap, bulkShardRequest, onCompletion, coordinatingIndexingPressure)
+            .run();
     }
 
     private record InferenceProvider(InferenceService service, Model model) {}
@@ -259,21 +246,21 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final BulkShardRequest bulkShardRequest;
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
-        private final CoordinatingIndexingPressureWrapper coordinatingWrapper;
+        private final IndexingPressure.Coordinating coordinatingIndexingPressure;
 
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
             BulkShardRequest bulkShardRequest,
             Runnable onCompletion,
-            CoordinatingIndexingPressureWrapper coordinatingWrapper
+            IndexingPressure.Coordinating coordinatingIndexingPressure
         ) {
             this.useLegacyFormat = useLegacyFormat;
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
             this.onCompletion = onCompletion;
-            this.coordinatingWrapper = coordinatingWrapper;
+            this.coordinatingIndexingPressure = coordinatingIndexingPressure;
         }
 
         @Override
@@ -612,8 +599,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
         private boolean incrementIndexingPressure(IndexRequestWithIndexingPressure indexRequest, int itemIndex) {
             boolean success = true;
-            IndexingPressure.Coordinating coordinatingIndexingPressure = coordinatingWrapper.coordinating();
-            if (coordinatingIndexingPressure != null && indexRequest.isIndexingPressureIncremented() == false) {
+            if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
                     coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().ramBytesUsed());
@@ -724,23 +710,20 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
             long modifiedSourceSize = indexRequest.source().ramBytesUsed();
 
-            IndexingPressure.Coordinating coordinatingIndexingPressure = coordinatingWrapper.coordinating();
-            if (coordinatingIndexingPressure != null) {
-                // Add the indexing pressure from the source modifications.
-                // Don't increment operation count because we count one source update as one operation, and we already accounted for those
-                // in addFieldInferenceRequests.
-                try {
-                    coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.ramBytesUsed());
-                } catch (EsRejectedExecutionException e) {
-                    indexRequest.source(originalSource, indexRequest.getContentType());
-                    item.abort(
-                        item.index(),
-                        new InferenceException(
-                            "Insufficient memory available to insert inference results into document [" + indexRequest.id() + "]",
-                            e
-                        )
-                    );
-                }
+            // Add the indexing pressure from the source modifications.
+            // Don't increment operation count because we count one source update as one operation, and we already accounted for those
+            // in addFieldInferenceRequests.
+            try {
+                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.ramBytesUsed());
+            } catch (EsRejectedExecutionException e) {
+                indexRequest.source(originalSource, indexRequest.getContentType());
+                item.abort(
+                    item.index(),
+                    new InferenceException(
+                        "Insufficient memory available to insert inference results into document [" + indexRequest.id() + "]",
+                        e
+                    )
+                );
             }
         }
     }
@@ -789,15 +772,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         @Override
         public Iterator<Chunk> chunksAsByteReference(XContent xcontent) {
             return Collections.emptyIterator();
-        }
-    }
-
-    private record CoordinatingIndexingPressureWrapper(@Nullable IndexingPressure.Coordinating coordinating) implements Releasable {
-        @Override
-        public void close() {
-            if (coordinating != null) {
-                coordinating.close();
-            }
         }
     }
 }

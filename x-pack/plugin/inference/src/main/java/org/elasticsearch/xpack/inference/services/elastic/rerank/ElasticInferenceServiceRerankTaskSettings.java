@@ -55,7 +55,8 @@ public class ElasticInferenceServiceRerankTaskSettings implements TaskSettings {
     }
 
     /**
-     * Creates a new {@link ElasticInferenceServiceRerankTaskSettings} by preferring non-null fields from the request settings over the original settings.
+     * Creates a new {@link ElasticInferenceServiceRerankTaskSettings} by preferring non-null fields from the request settings
+     * over the original settings.
      *
      * @param originalSettings      the settings stored as part of the inference entity configuration
      * @param requestTaskSettings   the settings passed within the task_settings field of the request

@@ -1463,6 +1463,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testFullTextFunctionsDisjunctions() {
         checkWithFullTextFunctionsDisjunctions("match(last_name, \"Smith\")");
+        checkWithFullTextFunctionsDisjunctions("multi_match(\"Smith\", first_name, last_name)");
         checkWithFullTextFunctionsDisjunctions("last_name : \"Smith\"");
         checkWithFullTextFunctionsDisjunctions("qstr(\"last_name: Smith\")");
         checkWithFullTextFunctionsDisjunctions("kql(\"last_name: Smith\")");
@@ -2401,6 +2402,82 @@ public class VerifierTests extends ESTestCase {
                 "1:19: Invalid option [unknown_option] in [MULTI_MATCH(\"Jean\", first_name, last_name, "
                     + "{\"unknown_option\": true})], expected one of "
             )
+        );
+    }
+
+    public void testMultiMatchFunctionIsNotNullable() {
+        assertEquals(
+            "1:62: [MultiMatch] function cannot operate on [text::keyword], which is not a field from an index mapping",
+            error("row n = null | eval text = n + 5 | where multi_match(\"Anna\", text::keyword)")
+        );
+    }
+
+    public void testMultiMatchWithNonIndexedColumnCurrentlyUnsupported() {
+        assertEquals(
+            "1:78: [MultiMatch] function cannot operate on [initial], which is not a field from an index mapping",
+            error("from test | eval initial = substring(first_name, 1) | where multi_match(\"A\", initial)")
+        );
+        assertEquals(
+            "1:80: [MultiMatch] function cannot operate on [text], which is not a field from an index mapping",
+            error("from test | eval text=concat(first_name, last_name) | where multi_match(\"cat\", text)")
+        );
+    }
+
+    public void testMultiMatchFunctionNotAllowedAfterCommands() throws Exception {
+        assertEquals(
+            "1:24: [MultiMatch] function cannot be used after LIMIT",
+            error("from test | limit 10 | where multi_match(\"Anna\", first_name)")
+        );
+        assertEquals(
+            "1:47: [MultiMatch] function cannot be used after STATS",
+            error("from test | STATS c = AVG(salary) BY gender | where multi_match(\"F\", gender)")
+        );
+    }
+
+    public void testMultiMatchFunctionWithDisjunctions() {
+        checkWithDisjunctions("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
+    }
+
+    public void testMultiMatchFunctionWithNonBooleanFunctions() {
+        checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
+    }
+
+
+    public void testMultiMatchFunctionArgNotConstant() throws Exception {
+        assertEquals(
+            "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
+            error("from test | where match(first_name, first_name)")
+        );
+        assertEquals(
+            "1:59: second argument of [match(first_name, query)] must be a constant, received [query]",
+            error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
+        );
+        // Other value types are tested in QueryStringFunctionTests
+    }
+
+    // Should pass eventually once we lift some restrictions on the multi-match function.
+    public void testMultiMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+        assertEquals(
+            "1:82: Unknown column [first_name]\nline 1:94: Unknown column [last_name]",
+            error("from test | stats max_salary = max(salary) by emp_no | where multi_match(\"Anna\", first_name, last_name)")
+        );
+    }
+
+    public void testMultiMatchFunctionNullArgs() throws Exception {
+        assertEquals(
+            "1:19: first argument of [multi_match(\"query\", null)] cannot be null, received [null]",
+            error("from test | where multi_match(\"query\", null)")
+        );
+        assertEquals(
+            "1:19: first argument of [multi_match(null, first_name)] cannot be null, received [null]",
+            error("from test | where multi_match(null, first_name)")
+        );
+    }
+
+    public void testMultiMatchTargetsExistingField() throws Exception {
+        assertEquals(
+            "1:53: Unknown column [first_name]\nline 1:65: Unknown column [last_name]",
+            error("from test | keep emp_no | where multi_match(\"Anna\", first_name, last_name)")
         );
     }
 

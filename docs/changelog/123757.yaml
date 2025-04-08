@@ -1,5 +1,0 @@
-pr: 123757
-summary: Fix concurrency issue in `ScriptSortBuilder`
-area: Search
-type: bug
-issues: []

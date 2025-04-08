@@ -79,7 +79,7 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0).foldable()) {
-            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(qstr).asBuilder();
+            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(qstr).toQueryBuilder();
             qstr.replaceQueryBuilder(queryBuilder);
         }
         return qstr;

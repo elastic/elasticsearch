@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -949,7 +951,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("a", "bb"),
+            List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1021,7 +1023,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("a", "bb"),
+            List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1093,7 +1095,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("a", "bb"),
+            List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1138,7 +1140,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         expectedWindowSize.set(null);
         service.chunkedInfer(
             model,
-            List.of("foo", "bar"),
+            null,
+            List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1149,7 +1152,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         expectedWindowSize.set(256);
         service.chunkedInfer(
             model,
-            List.of("foo", "bar"),
+            null,
+            List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1201,7 +1205,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("foo", "bar", "baz"),
+            List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar"), new ChunkInferenceInput("baz")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1227,7 +1231,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         // build a doc with enough words to make numChunks of chunks
         int wordsPerChunk = 10;
         int numWords = numChunks * wordsPerChunk;
-        var input = "word ".repeat(numWords);
+        var input = new ChunkInferenceInput("word ".repeat(numWords), null);
 
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -1423,7 +1427,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     public void testBuildInferenceRequest() {
         var id = randomAlphaOfLength(5);
         var inputs = randomList(1, 3, () -> randomAlphaOfLength(4));
-        var inputType = randomFrom(InputType.SEARCH, InputType.INGEST);
+        var inputType = InputTypeTests.randomWithoutUnspecified();
         var timeout = randomTimeValue();
         var request = ElasticsearchInternalService.buildInferenceRequest(
             id,
@@ -1435,10 +1439,14 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         assertEquals(id, request.getId());
         assertEquals(inputs, request.getTextInput());
-        assertEquals(
-            inputType == InputType.INGEST ? TrainedModelPrefixStrings.PrefixType.INGEST : TrainedModelPrefixStrings.PrefixType.SEARCH,
-            request.getPrefixType()
-        );
+        if (inputType == InputType.INTERNAL_INGEST || inputType == InputType.INGEST) {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
+        } else if (inputType == InputType.INTERNAL_SEARCH || inputType == InputType.SEARCH) {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
+        } else {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.NONE, request.getPrefixType());
+        }
+
         assertEquals(timeout, request.getInferenceTimeout());
         assertEquals(false, request.isChunked());
     }

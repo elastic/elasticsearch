@@ -1529,6 +1529,19 @@ public class SettingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> Setting.boolSetting("a.bool.setting", true, Property.DeprecatedWarning, Property.IndexSettingDeprecatedInV8AndRemovedInV9)
         );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting("a.bool.setting", true, Property.Deprecated, Property.IndexSettingDeprecatedInV9AndRemovedInV10)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting(
+                "a.bool.setting",
+                true,
+                Property.DeprecatedWarning,
+                Property.IndexSettingDeprecatedInV9AndRemovedInV10
+            )
+        );
     }
 
     public void testIntSettingBounds() {

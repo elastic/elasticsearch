@@ -17,7 +17,13 @@ import java.net.http.HttpResponse;
 import java.net.spi.InetAddressResolver;
 import java.net.spi.InetAddressResolverProvider;
 
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
+
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class VersionSpecificNetworkChecks {
+
+    @EntitlementTest(expectedAccess = SERVER_ONLY, fromJavaVersion = 18)
     static void createInetAddressResolverProvider() {
         new InetAddressResolverProvider() {
             @Override
@@ -32,6 +38,7 @@ class VersionSpecificNetworkChecks {
         };
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void httpClientSend() throws InterruptedException {
         try (HttpClient httpClient = HttpClient.newBuilder().build()) {
             // Shutdown the client, so the send action will shortcut before actually executing any network operation
@@ -45,6 +52,7 @@ class VersionSpecificNetworkChecks {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void httpClientSendAsync() {
         try (HttpClient httpClient = HttpClient.newBuilder().build()) {
             // Shutdown the client, so the send action will return before actually executing any network operation

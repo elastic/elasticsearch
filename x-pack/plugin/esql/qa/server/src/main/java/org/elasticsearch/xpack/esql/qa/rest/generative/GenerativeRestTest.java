@@ -29,8 +29,8 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
 
-    public static final int ITERATIONS = 50;
-    public static final int MAX_DEPTH = 10;
+    public static final int ITERATIONS = 100;
+    public static final int MAX_DEPTH = 20;
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
         "Reference \\[.*\\] is ambiguous",
@@ -38,14 +38,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "cannot sort on .*",
         "argument of \\[count_distinct\\(.*\\)\\] must",
         "Cannot use field \\[.*\\] with unsupported type \\[.*_range\\]",
+        "Unbounded sort not supported yet",
+        "The field names are too complex to process", // field_caps problem
+        "must be \\[any type except counter types\\]", // TODO refine the generation of count()
+        "mismatched input .* expecting", // identifier generator needs to be refined, this happens when an identifier is a reserved keyword
+
         // warnings
         "Field '.*' shadowed by field at line .*",
         "evaluation of \\[.*\\] failed, treating result as null", // TODO investigate?
+
         // Awaiting fixes
-        "estimated row size \\[0\\] wasn't set", // https://github.com/elastic/elasticsearch/issues/121739
-        "unknown physical plan node \\[OrderExec\\]", // https://github.com/elastic/elasticsearch/issues/120817
-        "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741
-        //
+        "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
+        "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
+        "only supports KEYWORD or TEXT values, found expression", // https://github.com/elastic/elasticsearch/issues/126017
+        "token recognition error at: '``", // https://github.com/elastic/elasticsearch/issues/125870
+        "Unknown column \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126026
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
+        "No matches found for pattern", // https://github.com/elastic/elasticsearch/issues/126418
+        "JOIN left field .* is incompatible with right field", // https://github.com/elastic/elasticsearch/issues/126419
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 
@@ -57,9 +67,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     @Before
     public void setup() throws IOException {
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client(), true, true);
+            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping());
         }
     }
+
+    protected abstract boolean supportsSourceFieldMapping();
 
     @AfterClass
     public static void wipeTestData() throws IOException {

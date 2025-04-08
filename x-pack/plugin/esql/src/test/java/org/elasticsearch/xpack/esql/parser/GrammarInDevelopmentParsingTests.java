@@ -23,11 +23,15 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentMetrics() throws Exception {
-        parse("metrics foo", "metrics");
+        parse("TS foo", "TS");
     }
 
     public void testDevelopmentMatch() throws Exception {
         parse("row a = 1 | match foo", "match");
+    }
+
+    public void testDevelopmentRerank() {
+        parse("row a = 1 | rerank \"foo\" ON title WITH reranker", "rerank");
     }
 
     void parse(String query, String errorMessage) {

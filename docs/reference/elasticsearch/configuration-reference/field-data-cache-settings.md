@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-fielddata.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Field data cache settings [modules-fielddata]

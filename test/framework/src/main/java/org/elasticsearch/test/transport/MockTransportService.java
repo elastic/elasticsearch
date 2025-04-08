@@ -60,7 +60,6 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
@@ -314,7 +313,7 @@ public class MockTransportService extends TransportService {
         this.original = transport.getDelegate();
         this.testExecutor = EsExecutors.newScaling(
             "mock-transport",
-            0,
+            1,
             4,
             30,
             TimeUnit.SECONDS,
@@ -845,9 +844,9 @@ public class MockTransportService extends TransportService {
     }
 
     @Override
-    public void onResponseSent(long requestId, String action, TransportResponse response) {
-        super.onResponseSent(requestId, action, response);
-        messageListener.onResponseSent(requestId, action, response);
+    public void onResponseSent(long requestId, String action) {
+        super.onResponseSent(requestId, action);
+        messageListener.onResponseSent(requestId, action);
     }
 
     @Override
@@ -876,9 +875,9 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public void onResponseSent(long requestId, String action, TransportResponse response) {
+        public void onResponseSent(long requestId, String action) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, response);
+                listener.onResponseSent(requestId, action);
             }
         }
 

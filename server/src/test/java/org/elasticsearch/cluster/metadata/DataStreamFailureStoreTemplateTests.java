@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.metadata.DataStreamFailureStore.Template.merge;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -42,7 +41,7 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
     }
 
     static DataStreamFailureStore.Template randomFailureStoreTemplate() {
-        return new DataStreamFailureStore.Template(ResettableValue.create(randomBoolean()));
+        return new DataStreamFailureStore.Template(randomBoolean());
     }
 
     public void testInvalidEmptyConfiguration() {
@@ -53,13 +52,15 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
         assertThat(exception.getMessage(), containsString("at least one non-null configuration value"));
     }
 
-    public void testMerging() {
-        DataStreamFailureStore.Template template = randomFailureStoreTemplate();
-        DataStreamFailureStore.Template result = merge(template, template);
+    public void testTemplateComposition() {
+        boolean enabled = randomBoolean();
+        DataStreamFailureStore.Template template = new DataStreamFailureStore.Template(enabled);
+        DataStreamFailureStore.Template result = DataStreamFailureStore.builder(template).composeTemplate(template).buildTemplate();
         assertThat(result, equalTo(template));
 
-        DataStreamFailureStore.Template negatedTemplate = mutateInstance(template);
-        result = merge(template, negatedTemplate);
+        DataStreamFailureStore.Template negatedTemplate = new DataStreamFailureStore.Template(enabled == false);
+        result = DataStreamFailureStore.builder(template).composeTemplate(negatedTemplate).buildTemplate();
+        ;
         assertThat(result, equalTo(negatedTemplate));
     }
 }

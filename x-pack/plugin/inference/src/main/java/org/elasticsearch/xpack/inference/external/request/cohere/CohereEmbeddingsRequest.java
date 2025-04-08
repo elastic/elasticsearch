@@ -11,9 +11,10 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
@@ -28,16 +29,18 @@ public class CohereEmbeddingsRequest extends CohereRequest {
 
     private final CohereAccount account;
     private final List<String> input;
+    private final InputType inputType;
     private final CohereEmbeddingsTaskSettings taskSettings;
     private final String model;
     private final CohereEmbeddingType embeddingType;
     private final String inferenceEntityId;
 
-    public CohereEmbeddingsRequest(List<String> input, CohereEmbeddingsModel embeddingsModel) {
+    public CohereEmbeddingsRequest(List<String> input, InputType inputType, CohereEmbeddingsModel embeddingsModel) {
         Objects.requireNonNull(embeddingsModel);
 
         account = CohereAccount.of(embeddingsModel, CohereEmbeddingsRequest::buildDefaultUri);
         this.input = Objects.requireNonNull(input);
+        this.inputType = inputType;
         taskSettings = embeddingsModel.getTaskSettings();
         model = embeddingsModel.getServiceSettings().getCommonSettings().modelId();
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
@@ -49,7 +52,8 @@ public class CohereEmbeddingsRequest extends CohereRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new CohereEmbeddingsRequestEntity(input, taskSettings, model, embeddingType)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new CohereEmbeddingsRequestEntity(input, inputType, taskSettings, model, embeddingType))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

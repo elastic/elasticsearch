@@ -33,7 +33,6 @@ public class GetTaskResponse extends ActionResponse implements ToXContentObject 
     }
 
     public GetTaskResponse(StreamInput in) throws IOException {
-        super(in);
         task = in.readOptionalWriteable(TaskResult::new);
     }
 

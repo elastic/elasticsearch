@@ -81,7 +81,6 @@ public class RemoteClusterNodesAction {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.nodes = in.readCollectionAsList(DiscoveryNode::new);
         }
 

@@ -213,7 +213,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
+        public SlowLogFields create() {
             return new SlowLogFields() {
                 @Override
                 public Map<String, String> indexFields() {
@@ -226,6 +226,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 }
             };
         }
+
+        @Override
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return create();
+        }
+
     }
 
     public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
@@ -237,7 +243,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
+        public SlowLogFields create() {
             return new SlowLogFields() {
                 @Override
                 public Map<String, String> indexFields() {
@@ -249,6 +255,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                     return fields;
                 }
             };
+        }
+
+        @Override
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return create();
         }
     }
 

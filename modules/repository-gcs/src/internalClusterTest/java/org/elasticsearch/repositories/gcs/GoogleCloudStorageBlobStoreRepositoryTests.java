@@ -364,7 +364,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     private static class GoogleCloudStorageStatsCollectorHttpHandler extends HttpStatsCollectorHandler {
 
         GoogleCloudStorageStatsCollectorHttpHandler(final HttpHandler delegate) {
-            super(delegate, Arrays.stream(Operation.values()).map(Operation::key).toArray(String[]::new));
+            super(delegate, Arrays.stream(StorageOperation.values()).map(StorageOperation::key).toArray(String[]::new));
         }
 
         @Override

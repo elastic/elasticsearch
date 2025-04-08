@@ -504,6 +504,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         @Nullable Integer maxRetries,
         @Nullable TimeValue readTimeout,
         @Nullable Boolean disableChunkedEncoding,
+        @Nullable Integer maxConnections,
         @Nullable ByteSizeValue bufferSize,
         @Nullable Integer maxBulkDeletes,
         @Nullable BlobPath blobContainerPath
@@ -516,6 +517,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         private TimeValue readTimeout;
         @Nullable
         private Boolean disableChunkedEncoding;
+        @Nullable
+        private Integer maxConnections;
         @Nullable
         private ByteSizeValue bufferSize;
         @Nullable
@@ -538,8 +541,13 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             return this;
         }
 
-        public TestBlobContainerBuilder bufferSize(@Nullable ByteSizeValue bufferSize) {
-            this.bufferSize = bufferSize;
+        public TestBlobContainerBuilder disableChunkedEncoding(@Nullable Boolean disableChunkedEncoding) {
+            this.disableChunkedEncoding = disableChunkedEncoding;
+            return this;
+        }
+
+        public TestBlobContainerBuilder maxConnections(@Nullable Integer maxConnections) {
+            this.maxConnections = maxConnections;
             return this;
         }
 

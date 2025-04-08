@@ -62,7 +62,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.admin.cluster.coordination;
     exports org.elasticsearch.action.admin.cluster.desirednodes;
     exports org.elasticsearch.action.admin.cluster.health;
-    exports org.elasticsearch.action.admin.cluster.migration;
     exports org.elasticsearch.action.admin.cluster.node.capabilities;
     exports org.elasticsearch.action.admin.cluster.node.hotthreads;
     exports org.elasticsearch.action.admin.cluster.node.info;
@@ -144,7 +143,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support.broadcast.node;
     exports org.elasticsearch.action.support.broadcast.unpromotable;
     exports org.elasticsearch.action.support.master;
-    exports org.elasticsearch.action.support.master.info;
     exports org.elasticsearch.action.support.nodes;
     exports org.elasticsearch.action.support.local;
     exports org.elasticsearch.action.support.replication;
@@ -383,7 +381,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
     exports org.elasticsearch.transport;
-    exports org.elasticsearch.upgrades;
     exports org.elasticsearch.usage;
     exports org.elasticsearch.watcher;
 

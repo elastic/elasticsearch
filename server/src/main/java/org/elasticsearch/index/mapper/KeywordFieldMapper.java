@@ -1104,36 +1104,22 @@ public final class KeywordFieldMapper extends FieldMapper {
         return offsetsFieldName;
     }
 
+    /**
+     * Class that holds either a UTF-16 String or a UTF-8 BytesRef, and lazily converts between the two.
+     */
     private static class RawString {
         private BytesRef bytesValue;
         private String stringValue;
-        private boolean isNull;
 
         RawString(BytesRef bytesValue) {
-            if (bytesValue == null) {
-                throw new IllegalArgumentException();
-            }
-            this.bytesValue = bytesValue;
-            this.isNull = false;
+            this.bytesValue = Objects.requireNonNull(bytesValue);
         }
 
         RawString(String stringValue) {
-            if (stringValue == null) {
-                throw new IllegalArgumentException();
-            }
-            this.stringValue = stringValue;
-            this.isNull = false;
-        }
-
-        RawString() {
-            this.isNull = true;
+            this.stringValue = Objects.requireNonNull(stringValue);
         }
 
         BytesRef bytesValue() {
-            if (isNull) {
-                return null;
-            }
-
             if (bytesValue != null) {
                 return bytesValue;
             }
@@ -1143,10 +1129,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         String stringValue() {
-            if (isNull) {
-                return null;
-            }
-
             if (stringValue != null) {
                 return stringValue;
             }
@@ -1155,18 +1137,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             return stringValue;
         }
 
-        boolean isNull() {
-            return isNull;
-        }
-
         int length() {
-            if (isNull) {
-                throw new UnsupportedOperationException();
-            }
-
             if (stringValue != null) {
                 return stringValue.length();
             } else {
+                // This works because we currently use raw utf-8 encoding only for ascii-only strings.
                 return bytesValue.length;
             }
         }
@@ -1182,11 +1157,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (stringValue != null) {
                 value = new RawString(stringValue);
             } else {
-                value = new RawString();
+                value = null;
             }
         }
 
-        if (value.isNull() && fieldType().nullValue != null) {
+        if (value == null && fieldType().nullValue != null) {
             value = new RawString(fieldType().nullValue);
         }
 
@@ -1194,7 +1169,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.stringValue());
-            } else if (value.isNull()) {
+            } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
         }
@@ -1219,7 +1194,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean indexValue(DocumentParserContext context, RawString value) throws IOException {
-        if (value.isNull()) {
+        if (value == null) {
             return false;
         }
 

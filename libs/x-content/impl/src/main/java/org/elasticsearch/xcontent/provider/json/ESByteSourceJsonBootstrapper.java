@@ -17,6 +17,10 @@ import java.io.*;
  * defined in JSON specification (RFC-4627 or newer), except
  * for BOM handling, which is a property of underlying
  * streams.
+ *
+ * This class is copied from {@link com.fasterxml.jackson.core.json.ByteSourceJsonBootstrapper},
+ * just modified so that {@code constructParser()} returns an
+ * instance of {@link ESUTF8StreamJsonParser}.
  */
 @SuppressWarnings("all")
 public final class ESByteSourceJsonBootstrapper {

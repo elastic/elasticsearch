@@ -36,6 +36,11 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         super(ctxt, features, in, codec, sym, inputBuffer, start, end, bytesPreProcessed, bufferRecyclable);
     }
 
+    /**
+     * Method that will try to get underlying UTF-8 encoded bytes of the current string token.
+     * This is only a best-effort attempt; if there is some reason the bytes cannot be retrieved, this method will return null.
+     * Currently, this is only implemented for ascii-only strings that do not contain escaped characters.
+     */
     public ESBytesRef getValueAsByteRef() throws IOException {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
             var value = _finishAndReturnByteRef();

@@ -114,7 +114,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
     public void testRolloverAndRetentionAuthorized() throws Exception {
         String dataStreamName = randomDataStreamName();
-        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).buildTemplate());
+        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).buildTemplate());
 
         assertBusy(() -> {
             assertNoAuthzErrors();
@@ -269,7 +269,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                     SystemDataStreamDescriptor.Type.EXTERNAL,
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
-                        .template(Template.builder().lifecycle(DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO)))
+                        .template(Template.builder().lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO)))
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build(),
                     Map.of(),

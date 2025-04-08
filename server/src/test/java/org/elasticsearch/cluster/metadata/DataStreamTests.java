@@ -139,7 +139,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 : randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 9 -> lifecycle = randomBoolean() && lifecycle != null
                 ? null
-                : DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build();
+                : DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
             case 10 -> failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
             case 11 -> dataStreamOptions = dataStreamOptions.isEmpty()
                 ? new DataStreamOptions(DataStreamFailureStoreTests.randomFailureStore())
@@ -1375,13 +1375,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             {
                 // No lifecycle or disabled for data and only disabled lifecycle for failures should result in empty list.
                 Metadata.Builder builder = Metadata.builder();
-                var disabledLifecycle = DataStreamLifecycle.builder().enabled(false).build();
+                var disabledLifecycle = DataStreamLifecycle.failuresLifecycleBuilder().enabled(false).build();
                 DataStream dataStream = createDataStream(
                     builder,
                     dataStreamName,
                     creationAndRolloverTimes,
                     settings(IndexVersion.current()),
-                    randomBoolean() ? disabledLifecycle : null,
+                    randomBoolean() ? DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build() : null,
                     new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), disabledLifecycle))
                 );
                 Metadata metadata = builder.build();
@@ -1547,7 +1547,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "@timestamp"),
-                DataStreamLifecycle.builder()
+                DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -1607,7 +1607,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 // no TSDB settings
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.builder()
+                DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -1673,7 +1673,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "@timestamp"),
-                DataStreamLifecycle.builder().build()
+                DataStreamLifecycle.dataLifecycleBuilder().build()
             );
             Metadata metadata = builder.build();
 
@@ -1705,7 +1705,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build()
         );
         Metadata metadata = builder.build();
 

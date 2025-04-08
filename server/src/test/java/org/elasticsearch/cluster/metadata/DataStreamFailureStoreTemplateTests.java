@@ -80,7 +80,9 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
             () -> new DataStreamFailureStore.Template(
                 randomBoolean() ? ResettableValue.create(randomBoolean()) : randomEmptyResettableValue(),
                 ResettableValue.create(
-                    DataStreamLifecycle.builder().downsampling(DataStreamLifecycleTests.randomDownsampling()).buildTemplate()
+                    DataStreamLifecycle.failuresLifecycleBuilder()
+                        .downsampling(DataStreamLifecycleTests.randomDownsampling())
+                        .buildTemplate()
                 )
             )
         );
@@ -112,10 +114,10 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
         enabled = false; // Ensure it's not the default to ensure that it will not be overwritten
         TimeValue retention = randomPositiveTimeValue();
         DataStreamFailureStore.Template template1 = DataStreamFailureStore.builder()
-            .lifecycle(DataStreamLifecycle.builder().dataRetention(retention).build())
+            .lifecycle(DataStreamLifecycle.failuresLifecycleBuilder().dataRetention(retention).build())
             .buildTemplate();
         DataStreamFailureStore.Template template2 = DataStreamFailureStore.builder()
-            .lifecycle(DataStreamLifecycle.builder().enabled(enabled).build())
+            .lifecycle(DataStreamLifecycle.failuresLifecycleBuilder().enabled(enabled).build())
             .buildTemplate();
         result = DataStreamFailureStore.builder(template1).composeTemplate(template2).buildTemplate();
         assertThat(result.lifecycle().get().enabled(), equalTo(enabled));

@@ -1186,14 +1186,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean indexValue(DocumentParserContext context, String value) {
-        try {
-            return indexValue(context, new RawString(value));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return indexValue(context, new RawString(value));
     }
 
-    private boolean indexValue(DocumentParserContext context, RawString value) throws IOException {
+    private boolean indexValue(DocumentParserContext context, RawString value) {
         if (value == null) {
             return false;
         }

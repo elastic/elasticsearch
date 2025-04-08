@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
@@ -23,14 +24,17 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class StYMaxFromWKBGeoEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public StYMaxFromWKBGeoEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator wkb;
+
+  public StYMaxFromWKBGeoEvaluator(Source source, EvalOperator.ExpressionEvaluator wkb,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.wkb = wkb;
   }
 
   @Override
-  public String name() {
-    return "StYMaxFromWKBGeo";
+  public EvalOperator.ExpressionEvaluator next() {
+    return wkb;
   }
 
   @Override
@@ -59,7 +63,7 @@ public final class StYMaxFromWKBGeoEvaluator extends AbstractConvertFunction.Abs
     }
   }
 
-  private static double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return StYMax.fromWellKnownBinaryGeo(value);
   }
@@ -99,29 +103,39 @@ public final class StYMaxFromWKBGeoEvaluator extends AbstractConvertFunction.Abs
     }
   }
 
-  private static double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return StYMax.fromWellKnownBinaryGeo(value);
+  }
+
+  @Override
+  public String toString() {
+    return "StYMaxFromWKBGeoEvaluator[" + "wkb=" + wkb + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(wkb);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory wkb;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkb) {
       this.source = source;
+      this.wkb = wkb;
     }
 
     @Override
     public StYMaxFromWKBGeoEvaluator get(DriverContext context) {
-      return new StYMaxFromWKBGeoEvaluator(field.get(context), source, context);
+      return new StYMaxFromWKBGeoEvaluator(source, wkb.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StYMaxFromWKBGeoEvaluator[field=" + field + "]";
+      return "StYMaxFromWKBGeoEvaluator[" + "wkb=" + wkb + "]";
     }
   }
 }

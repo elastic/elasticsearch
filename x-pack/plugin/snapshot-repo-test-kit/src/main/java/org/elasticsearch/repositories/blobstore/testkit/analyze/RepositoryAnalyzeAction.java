@@ -521,6 +521,13 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 final long targetLength = blobSizes.get(i);
                 final boolean smallBlob = targetLength <= MAX_ATOMIC_WRITE_SIZE; // avoid the atomic API for larger blobs
                 final boolean abortWrite = smallBlob && request.isAbortWritePermitted() && rarely(random);
+                final boolean doCopy = random.nextBoolean();
+                if (doCopy) {
+                    i++;
+                    if (i >= request.getBlobCount()) {
+                        break;
+                    }
+                }
                 final BlobAnalyzeAction.Request blobAnalyzeRequest = new BlobAnalyzeAction.Request(
                     request.getRepositoryName(),
                     blobPath,
@@ -532,7 +539,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     request.getEarlyReadNodeCount(),
                     smallBlob && rarely(random),
                     repository.supportURLRepo() && repository.hasAtomicOverwrites() && smallBlob && rarely(random) && abortWrite == false,
-                    abortWrite
+                    abortWrite,
+                    doCopy
                 );
                 final DiscoveryNode node = nodes.get(random.nextInt(nodes.size()));
                 queue.add(ref -> runBlobAnalysis(ref, blobAnalyzeRequest, node));

@@ -93,12 +93,8 @@ public final class RemoveProcessor extends AbstractProcessor {
         }
 
         @Override
-        public RemoveProcessor create(
-            Map<String, Processor.Factory> registry,
-            String tag,
-            String description,
-            Map<String, Object> config
-        ) throws Exception {
+        public RemoveProcessor create(Map<String, Processor.Factory> registry, String tag, String description, Map<String, Object> config)
+            throws Exception {
             final List<TemplateScript.Factory> compiledTemplatesToRemove = getTemplates(tag, config, "field");
             final List<TemplateScript.Factory> compiledTemplatesToKeep = getTemplates(tag, config, "keep");
 

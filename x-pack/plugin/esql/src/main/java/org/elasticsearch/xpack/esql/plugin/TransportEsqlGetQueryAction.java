@@ -26,6 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryRequest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 
@@ -49,6 +50,10 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
                 @Override
                 public void onResponse(GetTaskResponse response) {
                     TaskInfo task = response.getTask().getTask();
+                    if (task.action().startsWith(EsqlQueryAction.NAME) == false) {
+                        listener.onFailure(new IllegalArgumentException("Task [" + request.id() + "] is not an ESQL query task"));
+                        return;
+                    }
                     ClientHelper.executeAsyncWithOrigin(
                         nodeClient,
                         ESQL_ORIGIN,

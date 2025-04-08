@@ -196,7 +196,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         markAsFailed(
                             new IllegalStateException(
                                 format(
-                                    "failed to resume system index migration from resource [%s], that is not present in the cluster",
+                                    "failed to resume system resource migration from resource [%s], that is not present in the cluster",
                                     stateIndexName
                                 )
                             )
@@ -204,7 +204,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                     }
                     logger.warn(
                         () -> format(
-                            "resuming system index migration with resource [%s],"
+                            "resuming system resource migration with resource [%s],"
                                 + " which does not match resource given in last task state [%s]",
                             nextMigrationInfo.getCurrentResourceName(),
                             stateIndexName

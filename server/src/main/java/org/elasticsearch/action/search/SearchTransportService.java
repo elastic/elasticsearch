@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
@@ -161,7 +162,7 @@ public class SearchTransportService {
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             new ClearScrollContextsRequest(),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
+            new ActionListenerResponseHandler<>(listener, in -> ActionResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 
@@ -418,14 +419,14 @@ public class SearchTransportService {
             ClearScrollContextsRequest::new,
             (request, channel, task) -> {
                 searchService.freeAllScrollContexts();
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         );
         TransportActionProxy.registerProxyAction(
             transportService,
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             false,
-            (in) -> TransportResponse.Empty.INSTANCE
+            (in) -> ActionResponse.Empty.INSTANCE
         );
 
         transportService.registerRequestHandler(

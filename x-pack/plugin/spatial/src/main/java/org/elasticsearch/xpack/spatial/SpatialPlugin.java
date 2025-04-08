@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.spatial;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.Mapper;
@@ -126,11 +124,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     private final SetOnce<GeoFormatterFactory<Geometry>> geoFormatterFactory = new SetOnce<>();
 
     @Override
-    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionPlugin.ActionHandler> getActions() {
         return List.of(
-            new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.SPATIAL, SpatialUsageTransportAction.class),
-            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.SPATIAL, SpatialInfoTransportAction.class),
-            new ActionPlugin.ActionHandler<>(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class)
+            new ActionPlugin.ActionHandler(XPackUsageFeatureAction.SPATIAL, SpatialUsageTransportAction.class),
+            new ActionPlugin.ActionHandler(XPackInfoFeatureAction.SPATIAL, SpatialInfoTransportAction.class),
+            new ActionPlugin.ActionHandler(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class)
         );
     }
 

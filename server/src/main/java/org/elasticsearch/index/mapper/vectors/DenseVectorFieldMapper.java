@@ -2332,6 +2332,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
+            if (elementType != ElementType.FLOAT) {
+                throw new UnsupportedOperationException("Only float dense vectors are supported for now");
+            }
+
             if (indexed) {
                 return new BlockDocValuesReader.DenseVectorBlockLoader(name());
             }

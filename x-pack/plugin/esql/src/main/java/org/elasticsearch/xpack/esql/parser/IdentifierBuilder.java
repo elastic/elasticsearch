@@ -275,16 +275,20 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         var inDateMathExpr = false;
         for (int i = 0; i < pattern.length(); i++) {
             char c = pattern.charAt(i);
+            sb.append(c);
             if (c == '<') {
                 inDateMathExpr = true;
-                sb.append(c);
             } else if (c == '>') {
                 inDateMathExpr = false;
-                sb.append(c);
             } else if (c == '|' && inDateMathExpr == false) {
+                sb.deleteCharAt(sb.length() - 1);
                 indices.add(sb.toString());
                 sb.setLength(0);
             }
+        }
+
+        if (sb.isEmpty() == false) {
+            indices.add(sb.toString());
         }
 
         return indices.toArray(new String[0]);

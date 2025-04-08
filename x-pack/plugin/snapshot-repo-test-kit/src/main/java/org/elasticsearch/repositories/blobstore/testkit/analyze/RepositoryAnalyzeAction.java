@@ -523,7 +523,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 final boolean smallBlob = targetLength <= MAX_ATOMIC_WRITE_SIZE; // avoid the atomic API for larger blobs
                 final boolean abortWrite = smallBlob && request.isAbortWritePermitted() && rarely(random);
                 final boolean doCopy = minClusterTransportVersion.onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)
-                    && rarely(random) && i > 0;
+                    && rarely(random)
+                    && i > 0;
                 final String blobName = "test-blob-" + i + "-" + UUIDs.randomBase64UUID(random);
                 String copyBlobName = null;
                 if (doCopy) {

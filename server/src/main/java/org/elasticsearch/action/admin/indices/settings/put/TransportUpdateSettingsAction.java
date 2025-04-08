@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -57,7 +55,6 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
-    private final MetadataDataStreamsService metadataDataStreamsService;
 
     @Inject
     public TransportUpdateSettingsAction(
@@ -68,8 +65,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices,
-        MetadataDataStreamsService metadataDataStreamsService
+        SystemIndices systemIndices
     ) {
         super(
             TYPE.name(),
@@ -84,7 +80,6 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
-        this.metadataDataStreamsService = metadataDataStreamsService;
     }
 
     @Override
@@ -105,7 +100,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             .indicesBlockedException(
                 projectMetadata.id(),
                 ClusterBlockLevel.METADATA_WRITE,
-                indexNameExpressionResolver.concreteIndexNames(projectMetadata, request) // TODO does not work with data streams
+                indexNameExpressionResolver.concreteIndexNames(projectMetadata, request)
             );
     }
 
@@ -139,45 +134,26 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             listener.onFailure(new IllegalStateException(message));
             return;
         }
-        List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
-            state,
-            IndicesOptions.lenientExpandOpenHidden(),
-            request.indices()
+
+        updateSettingsService.updateSettings(
+            new UpdateSettingsClusterStateUpdateRequest(
+                projectResolver.getProjectId(),
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                requestSettings,
+                request.isPreserveExisting()
+                    ? UpdateSettingsClusterStateUpdateRequest.OnExisting.PRESERVE
+                    : UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                request.reopen()
+                    ? UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES
+                    : UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                concreteIndices
+            ),
+            listener.delegateResponse((l, e) -> {
+                logger.debug(() -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]", e);
+                l.onFailure(e);
+            })
         );
-        metadataDataStreamsService.updateSettings(projectResolver, request, dataStreamNames, requestSettings, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                updateSettingsService.updateSettings(
-                    new UpdateSettingsClusterStateUpdateRequest(
-                        projectResolver.getProjectId(),
-                        request.masterNodeTimeout(),
-                        request.ackTimeout(),
-                        requestSettings,
-                        request.isPreserveExisting()
-                            ? UpdateSettingsClusterStateUpdateRequest.OnExisting.PRESERVE
-                            : UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
-                        request.reopen()
-                            ? UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES
-                            : UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
-                        concreteIndices
-                    ),
-                    listener.delegateResponse((l, e) -> {
-                        logger.debug(() -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]", e);
-                        if (dataStreamNames.isEmpty() == false && e instanceof IllegalArgumentException) {
-                            l.onResponse(AcknowledgedResponse.TRUE); // TODO provide info about failures within successful response
-                        } else {
-                            l.onFailure(e);
-                        }
-                    })
-                );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
-
     }
 
     /**

@@ -51,13 +51,11 @@ import org.elasticsearch.cluster.coordination.JoinReason;
 import org.elasticsearch.cluster.coordination.JoinTask;
 import org.elasticsearch.cluster.coordination.NodeJoinExecutor;
 import org.elasticsearch.cluster.coordination.NodeLeftExecutor;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateServiceUtils;
@@ -335,11 +333,6 @@ public class ClusterStateChanges {
             indexNameExpressionResolver,
             destructiveOperations
         );
-        MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(
-            clusterService,
-            indicesService,
-            DataStreamGlobalRetentionSettings.create(clusterSettings)
-        );
         transportUpdateSettingsAction = new TransportUpdateSettingsAction(
             transportService,
             clusterService,
@@ -348,8 +341,7 @@ public class ClusterStateChanges {
             actionFilters,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             indexNameExpressionResolver,
-            EmptySystemIndices.INSTANCE,
-            metadataDataStreamsService
+            EmptySystemIndices.INSTANCE
         );
         transportClusterRerouteAction = new TransportClusterRerouteAction(
             transportService,

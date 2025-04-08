@@ -368,9 +368,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);
 
                 try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                    SocketAccess.doPrivilegedVoid(() -> {
-                        clientReference.client().copyObject(copyRequest);
-                    });
+                    SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
                 }
             }
         } catch (final AmazonClientException e) {

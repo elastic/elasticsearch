@@ -29,7 +29,6 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
     private final ThreadContext threadContext;
     private boolean droppingContent;
     private boolean validatingRequest;
-    private boolean readRequested;
 
     public Netty4HttpHeaderValidator(HttpValidator validator, ThreadContext threadContext) {
         this.validator = validator;
@@ -62,11 +61,15 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
     public void read(ChannelHandlerContext ctx) throws Exception {
         // until validation is completed we can ignore read calls,
         // once validation is finished HttpRequest will be fired and downstream can read from there
-        if (validatingRequest) {
-            readRequested = true;
-        } else {
-            readRequested = false;
+        if (validatingRequest == false) {
             ctx.read();
+        }
+    }
+
+    @Override
+    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+        if (validatingRequest == false) {
+            ctx.fireChannelReadComplete();
         }
     }
 
@@ -113,10 +116,7 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
             }
             validatingRequest = false;
             ctx.fireChannelRead(request);
-            if (readRequested) {
-                readRequested = false;
-                ctx.channel().eventLoop().execute(ctx::read);
-            }
+            ctx.fireChannelReadComplete();
         });
     }
 

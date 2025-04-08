@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -501,6 +503,80 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.Doubles";
+        }
+    }
+
+    public static class DenseVectorBlockLoader extends DocValuesBlockLoader {
+        private final String fieldName;
+
+        public DenseVectorBlockLoader(String fieldName) {
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
+            if (floatVectorValues != null) {
+                return new FloatVectorValuesBlockReader(floatVectorValues);
+            }
+            return new ConstantNullsReader();
+        }
+    }
+
+    private static class FloatVectorValuesBlockReader extends BlockDocValuesReader {
+        private final FloatVectorValues floatVectorValues;
+        private final KnnVectorValues.DocIndexIterator iterator;
+
+        FloatVectorValuesBlockReader(FloatVectorValues floatVectorValues) {
+            this.floatVectorValues = floatVectorValues;
+            iterator = floatVectorValues.iterator();
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doubles(docs.count())) {
+                for (int i = 0; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (doc < iterator.docID()) {
+                        throw new IllegalStateException("docs within same block must be in order");
+                    }
+                    read(doc, builder);
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            read(docId, (DoubleBuilder) builder);
+        }
+
+        private void read(int doc, DoubleBuilder builder) throws IOException {
+            if (iterator.advance(doc) == doc) {
+                builder.beginPositionEntry();
+                float[] floats = floatVectorValues.vectorValue(iterator.index());
+                for (float aFloat : floats) {
+                    builder.appendDouble(aFloat);
+                }
+                builder.endPositionEntry();
+            } else {
+                builder.appendNull();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return iterator.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.FloatVectorValuesBlockReader";
         }
     }
 

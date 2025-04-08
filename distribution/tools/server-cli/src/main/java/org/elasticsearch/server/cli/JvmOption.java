@@ -130,7 +130,8 @@ class JvmOption {
 
     @SuppressForbidden(reason = "ProcessBuilder takes File")
     private static void setWorkingDir(ProcessBuilder builder) throws IOException {
-        // set temp dir as working dir so it is writeable
+        // The real ES process uses the logs dir as the working directory. Since we don't
+        // have the logs dir yet, here we use a temp directory for calculating jvm options.
         final Path tmpDir = Files.createTempDirectory("final-flags");
         builder.directory(tmpDir.toFile());
     }

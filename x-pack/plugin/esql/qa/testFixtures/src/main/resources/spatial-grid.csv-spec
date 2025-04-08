@@ -2,6 +2,50 @@
 # Tests for geo_grid function: ST_GEOHASH
 ###############################################
 
+geohashStringToLong
+required_capability: spatial_grid
+
+ROW geohash = "u3bu"
+| EVAL geohashLong = ST_GEOHASH_TO_LONG(geohash)
+;
+
+geohash:keyword | geohashLong:long
+u3bu            | 13686180
+;
+
+geohashLongToString
+required_capability: spatial_grid
+
+ROW geohash = TO_LONG(13686180)
+| EVAL geohashString = ST_GEOHASH_TO_STRING(geohash)
+;
+
+geohash:long | geohashString:keyword
+13686180     | u3bu
+;
+
+geohashStringToGeoShape
+required_capability: spatial_grid
+
+ROW geohash = "u3bu"
+| EVAL boundary = ST_GEOHASH_TO_GEOSHAPE(geohash)
+;
+
+geohash:keyword | boundary:geo_shape
+u3bu            | BBOX (12.3046875, 12.65625, 55.72265625, 55.546875)
+;
+
+geohashLongToGeoShape
+required_capability: spatial_grid
+
+ROW geohash = TO_LONG(13686180)
+| EVAL boundary = ST_GEOHASH_TO_GEOSHAPE(geohash)
+;
+
+geohash:long | boundary:geo_shape
+13686180     | BBOX (12.3046875, 12.65625, 55.72265625, 55.546875)
+;
+
 geohashLiteral
 required_capability: spatial_grid
 
@@ -190,6 +234,19 @@ count:long | centroid:geo_point
 # Tests for geo_grid function: ST_GEOTILE
 ###############################################
 
+geotileStringToLong
+required_capability: spatial_grid
+
+ROW geotile = "4/8/5"
+| EVAL geotileLong = ST_GEOTILE_TO_LONG(geotile)
+| EVAL geotileString = ST_GEOTILE_TO_STRING(geotileLong)
+| EVAL boundary = ST_GEOTILE_TO_GEOSHAPE(geotile)
+;
+
+geotile:keyword | geotileLong:long    | geotileString:keyword | boundary:geo_shape
+4/8/5           | 1152921508901814277 | 4/8/5                 | BBOX (0.0, 22.5, 55.77657301866769, 40.979898069620134)
+;
+
 geotileLiteral
 required_capability: spatial_grid
 
@@ -360,6 +417,19 @@ count:long | centroid:geo_point
 ###############################################
 # Tests for geo_grid function: ST_GEOHEX
 ###############################################
+
+geohexStringToLong
+required_capability: spatial_grid
+
+ROW geohex = "841f059ffffffff"
+| EVAL geohexLong = ST_GEOHEX_TO_LONG(geohex)
+| EVAL geohexString = ST_GEOHEX_TO_STRING(geohexLong)
+| EVAL boundary = ST_GEOHEX_TO_GEOSHAPE(geohex)
+;
+
+geohex:keyword  | geohexLong:long    | geohexString:keyword | boundary:geo_shape
+841f059ffffffff | 595020895127339007 | 841f059ffffffff      | POLYGON ((12.353546327258265 55.80335405461356, 12.2434612967008 55.60502874054935, 12.51733872608954 55.470800201545316, 12.901880149865134 55.53443156197633, 13.014270156228921 55.73262985778208, 12.739822958959069 55.8673267391136, 12.353546327258265 55.80335405461356))
+;
 
 geohexLiteral
 required_capability: spatial_grid

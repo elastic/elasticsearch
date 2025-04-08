@@ -17,11 +17,15 @@ Balancing the number and size of your shards is important for the performance an
 
 To avoid either of these states, implement the following guidelines:
 
+[discrete]
+[[general-sizing-guidelines]]
 ==== General sizing guidelines
 
 * Aim for shard sizes between 10GB and 50GB
 * Keep the number of documents on each shard below 200 million
 
+[discrete]
+[[shard-distribution-guidelines]]
 ==== Shard distribution guidelines
 
 To ensure that each node is working optimally, distribute shards evenly across nodes. Uneven distribution can cause some nodes to work harder than others, leading to performance degradation and instability. 

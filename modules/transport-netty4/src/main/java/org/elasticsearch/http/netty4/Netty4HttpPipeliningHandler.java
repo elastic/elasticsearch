@@ -146,9 +146,6 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     }
                 }
                 handlePipelinedRequest(ctx, netty4HttpRequest);
-                if (request instanceof FullHttpRequest) {
-                    ctx.read();
-                }
             } else {
                 assert msg instanceof HttpContent : "expect HttpContent got " + msg;
                 assert currentRequestStream != null : "current stream must exists before handling http content";
@@ -158,6 +155,11 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                 }
             }
         } finally {
+            if (msg instanceof HttpRequest httpRequest) {
+                if (httpRequest instanceof FullHttpRequest || httpRequest.decoderResult().isFailure()) {
+                    ctx.channel().eventLoop().execute(ctx::read);
+                }
+            }
             activityTracker.stopActivity();
         }
     }

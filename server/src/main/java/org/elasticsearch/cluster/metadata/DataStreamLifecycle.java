@@ -562,7 +562,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
         }
 
-        public static final DataStreamLifecycle.Template DEFAULT = new DataStreamLifecycle.Template(
+        public static final DataStreamLifecycle.Template DATA_DEFAULT = new DataStreamLifecycle.Template(
             true,
             ResettableValue.undefined(),
             ResettableValue.undefined()

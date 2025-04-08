@@ -105,6 +105,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -828,8 +829,7 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
-            // TODO Need to get the dimensions
-            case DENSE_VECTOR -> randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat);
+            case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Double[10], ESTestCase::randomDouble));
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );

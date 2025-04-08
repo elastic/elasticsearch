@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.HasSampleCorre
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -25,7 +26,7 @@ public class ApplySampleCorrections extends Rule<LogicalPlan, LogicalPlan> {
             if (plan instanceof Sample sample) {
                 sampleProbability.set(sample.probability());
             }
-            if (plan instanceof Limit) {
+            if (plan instanceof Limit || plan instanceof MvExpand) {
                 sampleProbability.set(null);
             }
             if (plan instanceof Aggregate && sampleProbability.get() != null) {

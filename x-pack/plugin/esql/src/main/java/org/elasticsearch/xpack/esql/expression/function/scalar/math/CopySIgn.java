@@ -123,7 +123,6 @@ public class CopySign extends EsqlScalarFunction {
         return DataType.DOUBLE;
     }
 
-
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var magnitudeEval = Cast.cast(source(), magnitude.dataType(), DataType.DOUBLE, toEvaluator.apply(magnitude));

@@ -81,6 +81,7 @@ public class RemoveProcessorTests extends ESTestCase {
 
         Processor processor = new RemoveProcessor(null, null, List.of(), templates("name", "address.street"), false);
         processor.execute(document);
+
         assertTrue(document.hasField("name"));
         assertTrue(document.hasField("address"));
         assertTrue(document.hasField("address.street"));
@@ -104,21 +105,13 @@ public class RemoveProcessorTests extends ESTestCase {
         IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
 
         assertTrue(shouldKeep("name", templates("name"), document));
-
         assertTrue(shouldKeep("age", templates("age"), document));
-
         assertFalse(shouldKeep("name", templates("age"), document));
-
         assertTrue(shouldKeep("address", templates("address.street"), document));
-
         assertTrue(shouldKeep("address", templates("address.number"), document));
-
         assertTrue(shouldKeep("address.street", templates("address"), document));
-
         assertTrue(shouldKeep("address.number", templates("address"), document));
-
         assertTrue(shouldKeep("address", templates("address"), document));
-
         assertFalse(shouldKeep("address.street", templates("address.number"), document));
     }
 

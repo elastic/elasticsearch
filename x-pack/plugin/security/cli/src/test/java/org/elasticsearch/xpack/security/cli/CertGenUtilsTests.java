@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -231,7 +230,7 @@ public class CertGenUtilsTests extends ESTestCase {
         assertThat(buildKeyUsage(List.of()), is(nullValue()));
 
         // invalid names should throw IAE
-        var e = expectThrows(IllegalArgumentException.class, () -> buildKeyUsage(List.of(randomAlphanumericOfLength(5))));
+        var e = expectThrows(IllegalArgumentException.class, () -> buildKeyUsage(List.of(randomAlphaOfLengthBetween(3, 5))));
         assertThat(e.getMessage(), containsString("Unknown keyUsage"));
 
         {
@@ -274,7 +273,7 @@ public class CertGenUtilsTests extends ESTestCase {
 
     public void testIsValidKeyUsage() {
         assertThat(isValidKeyUsage(randomFrom(KEY_USAGE_MAPPINGS.keySet())), is(true));
-        assertThat(isValidKeyUsage(randomAlphanumericOfLength(5)), is(false));
+        assertThat(isValidKeyUsage(randomAlphaOfLengthBetween(3, 5)), is(false));
 
         // keyUsage names are case-sensitive
         assertThat(isValidKeyUsage("DigitalSignature"), is(false));

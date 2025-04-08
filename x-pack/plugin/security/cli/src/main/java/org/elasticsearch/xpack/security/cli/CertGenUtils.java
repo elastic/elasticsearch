@@ -83,25 +83,16 @@ public class CertGenUtils {
      */
     public static final Map<String, Integer> KEY_USAGE_MAPPINGS = Collections.unmodifiableMap(
         new TreeMap<>(
-            Map.of(
-                "digitalSignature",
-                KeyUsage.digitalSignature,
-                "nonRepudiation",
-                KeyUsage.nonRepudiation,
-                "keyEncipherment",
-                KeyUsage.keyEncipherment,
-                "dataEncipherment",
-                KeyUsage.dataEncipherment,
-                "keyAgreement",
-                KeyUsage.keyAgreement,
-                "keyCertSign",
-                KeyUsage.keyCertSign,
-                "cRLSign",
-                KeyUsage.cRLSign,
-                "encipherOnly",
-                KeyUsage.encipherOnly,
-                "decipherOnly",
-                KeyUsage.decipherOnly
+            Map.ofEntries(
+                Map.entry("digitalSignature", KeyUsage.digitalSignature),
+                Map.entry("nonRepudiation", KeyUsage.nonRepudiation),
+                Map.entry("keyEncipherment", KeyUsage.keyEncipherment),
+                Map.entry("dataEncipherment", KeyUsage.dataEncipherment),
+                Map.entry("keyAgreement", KeyUsage.keyAgreement),
+                Map.entry("keyCertSign", KeyUsage.keyCertSign),
+                Map.entry("cRLSign", KeyUsage.cRLSign),
+                Map.entry("encipherOnly", KeyUsage.encipherOnly),
+                Map.entry("decipherOnly", KeyUsage.decipherOnly)
             )
         )
     );

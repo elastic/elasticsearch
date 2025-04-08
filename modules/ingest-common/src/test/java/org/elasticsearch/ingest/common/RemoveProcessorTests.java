@@ -139,7 +139,7 @@ public class RemoveProcessorTests extends ESTestCase {
         assertTrue(document.hasField("_version_type"));
     }
 
-    public void testShouldKeep(String a, String b) {
+    public void testShouldKeep() {
         Map<String, Object> address = new HashMap<>();
         address.put("street", "Ipiranga Street");
         address.put("number", 123);

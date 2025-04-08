@@ -41,6 +41,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Unbounded sort not supported yet",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
+        "mismatched input .* expecting", // identifier generator needs to be refined, this happens when an identifier is a reserved keyword
 
         // warnings
         "Field '.*' shadowed by field at line .*",
@@ -52,10 +53,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "only supports KEYWORD or TEXT values, found expression", // https://github.com/elastic/elasticsearch/issues/126017
         "token recognition error at: '``", // https://github.com/elastic/elasticsearch/issues/125870
         "Unknown column \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126026
-        "Expected \\[.*\\] but was \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/126030
-        "trying to encode an unsupported data type value for TopN", // still https://github.com/elastic/elasticsearch/issues/126030 probably
-        "Block cannot be cast to", // https://github.com/elastic/elasticsearch/issues/126036
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
+        "No matches found for pattern", // https://github.com/elastic/elasticsearch/issues/126418
+        "JOIN left field .* is incompatible with right field", // https://github.com/elastic/elasticsearch/issues/126419
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 

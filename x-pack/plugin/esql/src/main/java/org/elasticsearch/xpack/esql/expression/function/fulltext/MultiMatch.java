@@ -318,7 +318,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.getLast() instanceof MapExpression) {
+        if (newChildren.getLast() instanceof MapExpression || newChildren.size() == children().size()) {
             // if the last child is a MapExpression, it is the options map
             return new MultiMatch(
                 source(),

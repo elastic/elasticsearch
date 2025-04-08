@@ -16,11 +16,11 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.amazonbedrock.AmazonBedrockActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.action.AmazonBedrockActionVisitor;
 
 import java.util.Map;
 
@@ -54,7 +54,7 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
             AmazonBedrockEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             new EmptyTaskSettings(),
             chunkingSettings,
-            AmazonBedrockSecretSettings.fromMap(secretSettings)
+            AwsSecretSettings.fromMap(secretSettings)
         );
     }
 
@@ -65,7 +65,7 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
         AmazonBedrockEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        AmazonBedrockSecretSettings secrets
+        AwsSecretSettings secrets
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings(), chunkingSettings),

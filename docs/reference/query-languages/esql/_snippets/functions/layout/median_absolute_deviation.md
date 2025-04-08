@@ -21,3 +21,6 @@
 
 :::{include} ../examples/median_absolute_deviation.md
 :::
+
+:::{include} ../appendix/median_absolute_deviation.md
+:::

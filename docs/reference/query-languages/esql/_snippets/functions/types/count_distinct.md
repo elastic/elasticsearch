@@ -7,41 +7,41 @@
 | boolean | integer | long |
 | boolean | long | long |
 | boolean | unsigned_long | long |
-| boolean |  | long |
+| boolean | | long |
 | date | integer | long |
 | date | long | long |
 | date | unsigned_long | long |
-| date |  | long |
+| date | | long |
 | date_nanos | integer | long |
 | date_nanos | long | long |
 | date_nanos | unsigned_long | long |
-| date_nanos |  | long |
+| date_nanos | | long |
 | double | integer | long |
 | double | long | long |
 | double | unsigned_long | long |
-| double |  | long |
+| double | | long |
 | integer | integer | long |
 | integer | long | long |
 | integer | unsigned_long | long |
-| integer |  | long |
+| integer | | long |
 | ip | integer | long |
 | ip | long | long |
 | ip | unsigned_long | long |
-| ip |  | long |
+| ip | | long |
 | keyword | integer | long |
 | keyword | long | long |
 | keyword | unsigned_long | long |
-| keyword |  | long |
+| keyword | | long |
 | long | integer | long |
 | long | long | long |
 | long | unsigned_long | long |
-| long |  | long |
+| long | | long |
 | text | integer | long |
 | text | long | long |
 | text | unsigned_long | long |
-| text |  | long |
+| text | | long |
 | version | integer | long |
 | version | long | long |
 | version | unsigned_long | long |
-| version |  | long |
+| version | | long |
 

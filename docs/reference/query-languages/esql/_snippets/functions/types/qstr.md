@@ -2,8 +2,8 @@
 
 **Supported types**
 
-| query | result |
-| --- | --- |
-| keyword | boolean |
-| text | boolean |
+| query | options | result |
+| --- | --- | --- |
+| keyword | named parameters | boolean |
+| text | named parameters | boolean |
 

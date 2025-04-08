@@ -24,3 +24,8 @@ See [full text search limitations](/reference/query-languages/esql/limitations.m
 :::{include} functions/layout/qstr.md
 :::
 
+% TERM is currently a hidden feature
+% To make it visible again, uncomment this and the line in lists/search-functions.md
+% :::{include} functions/layout/term.md
+% :::
+

@@ -121,15 +121,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         size = in.readVInt();
         fetchSize = in.readVInt();
         query = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
-            this.ccsMinimizeRoundtrips = in.readBoolean();
-        }
+        this.ccsMinimizeRoundtrips = in.readBoolean();
         this.waitForCompletionTimeout = in.readOptionalTimeValue();
         this.keepAlive = in.readOptionalTimeValue();
         this.keepOnCompletion = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_8)) {
-            resultPosition = in.readString();
-        }
+        resultPosition = in.readString();
         if (in.readBoolean()) {
             fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
@@ -482,15 +478,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeVInt(size);
         out.writeVInt(fetchSize);
         out.writeString(query);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
-            out.writeBoolean(ccsMinimizeRoundtrips);
-        }
+        out.writeBoolean(ccsMinimizeRoundtrips);
         out.writeOptionalTimeValue(waitForCompletionTimeout);
         out.writeOptionalTimeValue(keepAlive);
         out.writeBoolean(keepOnCompletion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_8)) {
-            out.writeString(resultPosition);
-        }
+        out.writeString(resultPosition);
         out.writeBoolean(fetchFields != null);
         if (fetchFields != null) {
             out.writeCollection(fetchFields);

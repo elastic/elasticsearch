@@ -220,11 +220,11 @@ public class DataGenerationSnapshotTests extends ESTestCase {
             return new DataSourceResponse.FieldTypeGenerator(() -> {
                 if (fieldType == FieldType.KEYWORD) {
                     fieldType = FieldType.LONG;
-                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.KEYWORD);
+                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.KEYWORD.toString());
                 }
 
                 fieldType = FieldType.KEYWORD;
-                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG);
+                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG.toString());
             });
         }
 
@@ -235,11 +235,11 @@ public class DataGenerationSnapshotTests extends ESTestCase {
 
         @Override
         public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
-            if (request.fieldType() == FieldType.KEYWORD) {
+            if (request.fieldType().equals(FieldType.KEYWORD.toString())) {
                 return new DataSourceResponse.LeafMappingParametersGenerator(() -> Map.of("store", "true"));
             }
 
-            if (request.fieldType() == FieldType.LONG) {
+            if (request.fieldType().equals(FieldType.LONG.toString())) {
                 return new DataSourceResponse.LeafMappingParametersGenerator(() -> Map.of("index", "false"));
             }
 

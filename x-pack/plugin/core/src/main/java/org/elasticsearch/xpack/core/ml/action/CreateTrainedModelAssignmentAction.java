@@ -114,7 +114,6 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.trainedModelAssignment = new TrainedModelAssignment(in);
         }
 

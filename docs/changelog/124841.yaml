@@ -1,0 +1,5 @@
+pr: 124841
+summary: Pass `IndexReshardingMetadata` over the wire
+area: Distributed
+type: bug
+issues: []

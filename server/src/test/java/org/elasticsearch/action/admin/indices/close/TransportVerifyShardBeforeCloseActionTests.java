@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -44,7 +45,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -319,7 +319,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
                 assertThat(capturedRequest.request(), instanceOf(ShardStateAction.FailedShardEntry.class));
                 String allocationId = ((ShardStateAction.FailedShardEntry) capturedRequest.request()).getAllocationId();
                 assertTrue(unavailableShards.stream().anyMatch(shardRouting -> shardRouting.allocationId().getId().equals(allocationId)));
-                transport.handleResponse(capturedRequest.requestId(), TransportResponse.Empty.INSTANCE);
+                transport.handleResponse(capturedRequest.requestId(), ActionResponse.Empty.INSTANCE);
 
             } else if (actionName.startsWith(TransportVerifyShardBeforeCloseAction.NAME)) {
                 assertThat(capturedRequest.request(), instanceOf(ConcreteShardRequest.class));

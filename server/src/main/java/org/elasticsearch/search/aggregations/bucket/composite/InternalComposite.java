@@ -270,12 +270,16 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        final List<InternalBucket> buckets = new ArrayList<>(this.buckets.size());
+        for (InternalBucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
         return new InternalComposite(
             name,
             size,
             sourceNames,
             buckets.isEmpty() ? formats : buckets.get(buckets.size() - 1).formats,
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            buckets,
             buckets.isEmpty() ? afterKey : buckets.get(buckets.size() - 1).getRawKey(),
             reverseMuls,
             missingOrders,

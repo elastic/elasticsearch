@@ -1,0 +1,5 @@
+pr: 122891
+summary: Pragma to load from stored fields
+area: ES|QL
+type: enhancement
+issues: []

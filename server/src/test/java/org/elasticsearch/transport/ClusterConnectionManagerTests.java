@@ -192,7 +192,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     "transport connection to ["
                         + remoteClose.descriptionWithoutAttributes()
                         + "] closed by remote; "
-                        + "if unexpected, see [https://www.elastic.co/guide/en/elasticsearch/reference/*] for troubleshooting guidance"
+                        + "if unexpected, see [https://www.elastic.co/docs/*] for troubleshooting guidance"
                 )
             );
             mockLog.addExpectation(

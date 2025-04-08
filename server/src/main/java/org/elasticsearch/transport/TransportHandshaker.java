@@ -406,7 +406,6 @@ final class TransportHandshaker {
         }
 
         HandshakeResponse(StreamInput in) throws IOException {
-            super(in);
             transportVersion = TransportVersion.readVersion(in);
             if (in.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
                 releaseVersion = in.readString();

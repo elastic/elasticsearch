@@ -83,21 +83,22 @@ public class DataStreamLifecycleHealthInfoPublisher {
      * {@link org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService#DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING}
      */
     public void publishDslErrorEntries(ActionListener<AcknowledgedResponse> actionListener) {
-        // fetching the entries that persist in the error store for more than the signalling retry interval
-        // note that we're reporting this view into the error store on every publishing iteration
-        List<DslErrorInfo> errorEntriesToSignal = errorStore.getErrorsInfo(
-            entry -> entry.retryCount() >= signallingErrorRetryInterval,
-            maxNumberOfErrorsToPublish
-        );
         DiscoveryNode currentHealthNode = HealthNode.findHealthNode(clusterService.state());
         if (currentHealthNode != null) {
             String healthNodeId = currentHealthNode.getId();
+            // fetching the entries that persist in the error store for more than the signalling retry interval
+            // note that we're reporting this view into the error store on every publishing iteration
+            List<DslErrorInfo> errorEntriesToSignal = errorStore.getErrorsInfo(
+                entry -> entry.retryCount() >= signallingErrorRetryInterval,
+                maxNumberOfErrorsToPublish
+            );
+
             logger.trace("reporting [{}] DSL error entries to to health node [{}]", errorEntriesToSignal.size(), healthNodeId);
             client.execute(
                 UpdateHealthInfoCacheAction.INSTANCE,
                 new UpdateHealthInfoCacheAction.Request(
                     healthNodeId,
-                    new DataStreamLifecycleHealthInfo(errorEntriesToSignal, errorStore.getAllIndices().size())
+                    new DataStreamLifecycleHealthInfo(errorEntriesToSignal, errorStore.getTotalErrorEntries())
                 ),
                 actionListener
             );

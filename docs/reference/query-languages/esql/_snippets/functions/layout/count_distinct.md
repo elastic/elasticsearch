@@ -21,3 +21,6 @@
 
 :::{include} ../examples/count_distinct.md
 :::
+
+:::{include} ../appendix/count_distinct.md
+:::

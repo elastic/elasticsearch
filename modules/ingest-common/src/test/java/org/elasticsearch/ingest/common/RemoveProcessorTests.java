@@ -16,11 +16,12 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.common.RemoveProcessor.shouldKeep;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -76,27 +77,23 @@ public class RemoveProcessorTests extends ESTestCase {
         source.put("age", 55);
         source.put("address", address);
 
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
 
-        List<TemplateScript.Factory> fieldsToKeep = List.of(
-            new TestTemplateService.MockTemplateScript.Factory("name"),
-            new TestTemplateService.MockTemplateScript.Factory("address.street")
-        );
+        Processor processor = new RemoveProcessor(null, null, List.of(), templates("name", "address.street"), false);
+        processor.execute(document);
 
-        Processor processor = new RemoveProcessor(randomAlphaOfLength(10), null, new ArrayList<>(), fieldsToKeep, false);
-        processor.execute(ingestDocument);
-        assertTrue(ingestDocument.hasField("name"));
-        assertTrue(ingestDocument.hasField("address"));
-        assertTrue(ingestDocument.hasField("address.street"));
-        assertFalse(ingestDocument.hasField("age"));
-        assertFalse(ingestDocument.hasField("address.number"));
-        assertTrue(ingestDocument.hasField("_index"));
-        assertTrue(ingestDocument.hasField("_version"));
-        assertTrue(ingestDocument.hasField("_id"));
-        assertTrue(ingestDocument.hasField("_version_type"));
+        assertTrue(document.hasField("name"));
+        assertTrue(document.hasField("address"));
+        assertTrue(document.hasField("address.street"));
+        assertFalse(document.hasField("age"));
+        assertFalse(document.hasField("address.number"));
+        assertTrue(document.hasField("_index"));
+        assertTrue(document.hasField("_version"));
+        assertTrue(document.hasField("_id"));
+        assertTrue(document.hasField("_version_type"));
     }
 
-    public void testShouldKeep(String a, String b) {
+    public void testShouldKeep() {
         Map<String, Object> address = new HashMap<>();
         address.put("street", "Ipiranga Street");
         address.put("number", 123);
@@ -105,57 +102,20 @@ public class RemoveProcessorTests extends ESTestCase {
         source.put("name", "eric clapton");
         source.put("address", address);
 
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
 
-        assertTrue(RemoveProcessor.shouldKeep("name", List.of(new TestTemplateService.MockTemplateScript.Factory("name")), ingestDocument));
-
-        assertTrue(RemoveProcessor.shouldKeep("age", List.of(new TestTemplateService.MockTemplateScript.Factory("age")), ingestDocument));
-
-        assertFalse(RemoveProcessor.shouldKeep("name", List.of(new TestTemplateService.MockTemplateScript.Factory("age")), ingestDocument));
-
-        assertTrue(
-            RemoveProcessor.shouldKeep(
-                "address",
-                List.of(new TestTemplateService.MockTemplateScript.Factory("address.street")),
-                ingestDocument
-            )
-        );
-
-        assertTrue(
-            RemoveProcessor.shouldKeep(
-                "address",
-                List.of(new TestTemplateService.MockTemplateScript.Factory("address.number")),
-                ingestDocument
-            )
-        );
-
-        assertTrue(
-            RemoveProcessor.shouldKeep(
-                "address.street",
-                List.of(new TestTemplateService.MockTemplateScript.Factory("address")),
-                ingestDocument
-            )
-        );
-
-        assertTrue(
-            RemoveProcessor.shouldKeep(
-                "address.number",
-                List.of(new TestTemplateService.MockTemplateScript.Factory("address")),
-                ingestDocument
-            )
-        );
-
-        assertTrue(
-            RemoveProcessor.shouldKeep("address", List.of(new TestTemplateService.MockTemplateScript.Factory("address")), ingestDocument)
-        );
-
-        assertFalse(
-            RemoveProcessor.shouldKeep(
-                "address.street",
-                List.of(new TestTemplateService.MockTemplateScript.Factory("address.number")),
-                ingestDocument
-            )
-        );
+        assertTrue(shouldKeep("name", templates("name"), document));
+        assertTrue(shouldKeep("age", templates("age"), document));
+        assertFalse(shouldKeep("name", templates("age"), document));
+        assertTrue(shouldKeep("address", templates("address.street"), document));
+        assertTrue(shouldKeep("address", templates("address.number"), document));
+        assertTrue(shouldKeep("address.street", templates("address"), document));
+        assertTrue(shouldKeep("address.number", templates("address"), document));
+        assertTrue(shouldKeep("address", templates("address"), document));
+        assertFalse(shouldKeep("address.street", templates("address.number"), document));
     }
 
+    private static List<TemplateScript.Factory> templates(String... fields) {
+        return Arrays.stream(fields).map(f -> (TemplateScript.Factory) new TestTemplateService.MockTemplateScript.Factory(f)).toList();
+    }
 }

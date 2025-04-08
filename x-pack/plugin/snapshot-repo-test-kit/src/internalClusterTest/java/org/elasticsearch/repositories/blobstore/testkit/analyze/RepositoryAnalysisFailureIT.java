@@ -178,14 +178,24 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
+        final AtomicBoolean failedCopy = new AtomicBoolean();
         blobStore.setDisruption(new Disruption() {
             @Override
             public void onCopy() throws IOException {
+                failedCopy.set(true);
                 throw new IOException("simulated");
             }
         });
 
-        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+        safeAwait((ActionListener<RepositoryAnalyzeAction.Response> l) -> analyseRepository(request, l.delegateResponse((ll, e) -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof RepositoryVerificationException repositoryVerificationException) {
+                assertAnalysisFailureMessage(repositoryVerificationException.getMessage());
+                assertTrue("did not fail a copy operation, so why did the verification fail?", failedCopy.get());
+                ll.onResponse(null);
+            } else {
+                ll.onFailure(e);
+            }
+        })));
     }
 
     public void testFailsOnChecksumMismatch() {

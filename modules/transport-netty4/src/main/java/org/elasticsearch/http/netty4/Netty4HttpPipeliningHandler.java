@@ -139,14 +139,16 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     } else {
                         var contentStream = new Netty4HttpRequestBodyStream(
                             ctx.channel(),
-                            serverTransport.getThreadPool().getThreadContext(),
-                            activityTracker
+                            serverTransport.getThreadPool().getThreadContext()
                         );
                         currentRequestStream = contentStream;
                         netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
                     }
                 }
                 handlePipelinedRequest(ctx, netty4HttpRequest);
+                if (request instanceof FullHttpRequest) {
+                    ctx.read();
+                }
             } else {
                 assert msg instanceof HttpContent : "expect HttpContent got " + msg;
                 assert currentRequestStream != null : "current stream must exists before handling http content";

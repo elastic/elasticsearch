@@ -12,6 +12,7 @@ package org.elasticsearch.http.netty4;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.DefaultEventLoop;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -21,7 +22,6 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.flow.FlowControlHandler;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpBody;
@@ -44,14 +44,14 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private EmbeddedChannel channel;
     private Netty4HttpRequestBodyStream stream;
-    private ThreadWatchdog.ActivityTracker activityTracker;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         channel = new EmbeddedChannel();
-        activityTracker = new ThreadWatchdog.ActivityTracker();
-        stream = new Netty4HttpRequestBodyStream(channel, threadContext, activityTracker);
+        channel.pipeline().addLast("flow", new FlowControlHandler());
+        channel.config().setAutoRead(false);
+        stream = new Netty4HttpRequestBodyStream(channel, threadContext);
         stream.setHandler(discardHandler); // set default handler, each test might override one
         channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
             @Override
@@ -65,15 +65,6 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         stream.close();
-    }
-
-    // ensures that no chunks are sent downstream without request
-    public void testEnqueueChunksBeforeRequest() {
-        var totalChunks = randomIntBetween(1, 100);
-        for (int i = 0; i < totalChunks; i++) {
-            channel.writeInbound(randomContent(1024));
-        }
-        assertEquals(totalChunks * 1024, stream.bufSize());
     }
 
     // ensures all received chunks can be flushed downstream
@@ -90,47 +81,27 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         var totalChunks = randomIntBetween(1, 100);
         for (int i = 0; i < totalChunks; i++) {
             channel.writeInbound(randomContent(chunkSize));
+            stream.next();
+            channel.runPendingTasks();
+            assertEquals("should receive all chunks as single composite", i + 1, chunks.size());
         }
-        stream.next();
-        channel.runPendingTasks();
-        assertEquals("should receive all chunks as single composite", 1, chunks.size());
         assertEquals(chunkSize * totalChunks, totalBytes.get());
     }
 
-    // ensures that channel.setAutoRead(true) only when we flush last chunk
-    public void testSetAutoReadOnLastFlush() {
+    // ensures that we read from channel after last chunk
+    public void testChannelReadAfterLastContent() {
+        var readCounter = new AtomicInteger();
+        channel.pipeline().addAfter("flow", "read-counter", new ChannelOutboundHandlerAdapter() {
+            @Override
+            public void read(ChannelHandlerContext ctx) throws Exception {
+                readCounter.incrementAndGet();
+                super.read(ctx);
+            }
+        });
         channel.writeInbound(randomLastContent(10));
-        assertFalse("should not auto-read on last content reception", channel.config().isAutoRead());
         stream.next();
         channel.runPendingTasks();
-        assertTrue("should set auto-read once last content is flushed", channel.config().isAutoRead());
-    }
-
-    // ensures that we read from channel when no current chunks available
-    // and pass next chunk downstream without holding
-    public void testReadFromChannel() {
-        var gotChunks = new ArrayList<ReleasableBytesReference>();
-        var gotLast = new AtomicBoolean(false);
-        stream.setHandler((chunk, isLast) -> {
-            gotChunks.add(chunk);
-            gotLast.set(isLast);
-            chunk.close();
-        });
-        channel.pipeline().addFirst(new FlowControlHandler()); // block all incoming messages, need explicit channel.read()
-        var chunkSize = 1024;
-        var totalChunks = randomIntBetween(1, 32);
-        for (int i = 0; i < totalChunks - 1; i++) {
-            channel.writeInbound(randomContent(chunkSize));
-        }
-        channel.writeInbound(randomLastContent(chunkSize));
-
-        for (int i = 0; i < totalChunks; i++) {
-            assertEquals("should not enqueue chunks", 0, stream.bufSize());
-            stream.next();
-            channel.runPendingTasks();
-            assertEquals("each next() should produce single chunk", i + 1, gotChunks.size());
-        }
-        assertTrue("should receive last content", gotLast.get());
+        assertEquals("should have at least 2 reads, one for last content, and one after last", 2, readCounter.get());
     }
 
     public void testReadFromHasCorrectThreadContext() throws InterruptedException {
@@ -142,8 +113,9 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         try {
             // activity tracker requires stream execution in the same thread, setting up stream inside event-loop
             eventLoop.submit(() -> {
-                channel = new EmbeddedChannel();
-                stream = new Netty4HttpRequestBodyStream(channel, threadContext, new ThreadWatchdog.ActivityTracker());
+                channel = new EmbeddedChannel(new FlowControlHandler());
+                channel.config().setAutoRead(false);
+                stream = new Netty4HttpRequestBodyStream(channel, threadContext);
                 channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
                     @Override
                     protected void channelRead0(ChannelHandlerContext ctx, HttpContent msg) {
@@ -196,18 +168,6 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         } finally {
             eventLoop.shutdownGracefully(0, 0, TimeUnit.SECONDS);
         }
-    }
-
-    public void testStreamNextActivityTracker() {
-        var t0 = activityTracker.get();
-        var N = between(1, 10);
-        for (int i = 0; i < N; i++) {
-            channel.writeInbound(randomContent(1024));
-            stream.next();
-            channel.runPendingTasks();
-        }
-        var t1 = activityTracker.get();
-        assertEquals("stream#next() must trigger activity tracker: N*step=" + N + "*2=" + N * 2L + " times", t1, t0 + N * 2L);
     }
 
     // ensure that we catch all exceptions and throw them into channel pipeline

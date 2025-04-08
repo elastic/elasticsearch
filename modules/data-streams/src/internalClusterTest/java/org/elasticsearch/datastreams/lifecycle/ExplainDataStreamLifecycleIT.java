@@ -501,7 +501,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             List.of("metrics-foo*"),
             null,
             null,
-            DataStreamLifecycle.builder().enabled(false).buildTemplate()
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(false).buildTemplate()
         );
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
             TEST_REQUEST_TIMEOUT,

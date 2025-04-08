@@ -69,7 +69,7 @@ public class CertGenUtilsTests extends ESTestCase {
      * <li>decipherOnly            (8)</li>
      * </ul>
      */
-    public static final Map<String, Integer> KEY_USAGE_BITS = Map.ofEntries(
+    private static final Map<String, Integer> KEY_USAGE_BITS = Map.ofEntries(
         Map.entry("digitalSignature", 0),
         Map.entry("nonRepudiation", 1),
         Map.entry("keyEncipherment", 2),

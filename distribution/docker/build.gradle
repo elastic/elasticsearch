@@ -204,7 +204,7 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
     from(projectDir.resolve("src/docker/${base.dockerfile}")) {
       expand(varExpansions)
       filter SquashNewlinesFilter
-      rename ~/Dockerfile\..+$/, 'Dockerfile'
+      rename base.dockerfile, "Dockerfile"
     }
   }
 }

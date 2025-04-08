@@ -48,6 +48,7 @@ public class Netty4HttpAggregator extends HttpObjectAggregator {
         }
         if (aggregating || msg instanceof FullHttpRequest) {
             super.channelRead(ctx, msg);
+            ctx.read();
         } else {
             streamContentSizeHandler.channelRead(ctx, msg);
         }

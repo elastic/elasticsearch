@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.AbstractHttpServerTransport;
@@ -365,9 +366,18 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             }
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder); // parses the HTTP bytes request into HTTP message pieces
+
+            // from this point in pipeline every handler must call ctx or channel #read() when ready to process next HTTP part
             ch.pipeline().addLast(new FlowControlHandler());
+            if (Assertions.ENABLED) {
+                // missing reads are hard to catch, but we can detect absence of reads within interval
+                long missingReadIntervalMs = 30_000;
+                ch.pipeline().addLast(new MissingReadDetector(transport.threadPool, missingReadIntervalMs));
+            }
+            // disable auto-read and issue first read, following reads must come from handlers
             ch.config().setAutoRead(false);
             ch.read();
+
             if (httpValidator != null) {
                 // runs a validation function on the first HTTP message piece which contains all the headers
                 // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded

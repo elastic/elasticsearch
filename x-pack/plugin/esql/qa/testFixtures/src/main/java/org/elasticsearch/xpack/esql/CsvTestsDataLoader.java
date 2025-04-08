@@ -217,6 +217,7 @@ public class CsvTestsDataLoader {
         CITY_BOUNDARIES_ENRICH,
         CITY_AIRPORTS_ENRICH
     );
+    public static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
 
     /**
      * <p>
@@ -639,7 +640,8 @@ public class CsvTestsDataLoader {
 
     private static String quoteIfNecessary(String value) {
         boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
-        return isQuoted ? value : "\"" + value + "\"";
+        boolean isNumeric = value.matches(NUMERIC_REGEX);
+        return isQuoted || isNumeric ? value : "\"" + value + "\"";
     }
 
     private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)

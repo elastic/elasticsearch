@@ -30,6 +30,7 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
       new IntermediateStateDesc("values", ElementType.FLOAT),
+      new IntermediateStateDesc("sampleCounts", ElementType.INT),
       new IntermediateStateDesc("resets", ElementType.DOUBLE)  );
 
   private final RateFloatAggregator.FloatRateGroupingState state;
@@ -191,15 +192,20 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
       return;
     }
     FloatBlock values = (FloatBlock) valuesUncast;
-    Block resetsUncast = page.getBlock(channels.get(2));
+    Block sampleCountsUncast = page.getBlock(channels.get(2));
+    if (sampleCountsUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector sampleCounts = ((IntBlock) sampleCountsUncast).asVector();
+    Block resetsUncast = page.getBlock(channels.get(3));
     if (resetsUncast.areAllValuesNull()) {
       return;
     }
     DoubleVector resets = ((DoubleBlock) resetsUncast).asVector();
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
+    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == sampleCounts.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      RateFloatAggregator.combineIntermediate(state, groupId, timestamps, values, resets.getDouble(groupPosition + positionOffset), groupPosition + positionOffset);
+      RateFloatAggregator.combineIntermediate(state, groupId, timestamps, values, sampleCounts.getInt(groupPosition + positionOffset), resets.getDouble(groupPosition + positionOffset), groupPosition + positionOffset);
     }
   }
 
@@ -220,8 +226,8 @@ public final class RateFloatGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = RateFloatAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = RateFloatAggregator.evaluateFinal(state, selected, evaluatorContext);
   }
 
   @Override

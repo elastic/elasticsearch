@@ -94,7 +94,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     public void testRolloverLifecycleAndForceMergeAuthorized() throws Exception {
         String dataStreamName = randomDataStreamName();
         // empty lifecycle contains the default rollover
-        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.Template.DEFAULT);
+        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.Template.DATA_DEFAULT);
 
         assertBusy(() -> {
             assertNoAuthzErrors();
@@ -133,7 +133,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     public void testUnauthorized() throws Exception {
         // this is an example index pattern for a system index that the data stream lifecycle does not have access for. Data stream
         // lifecycle will therefore fail at runtime with an authz exception
-        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, DataStreamLifecycle.Template.DEFAULT);
+        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, DataStreamLifecycle.Template.DATA_DEFAULT);
 
         assertBusy(() -> {
             Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();

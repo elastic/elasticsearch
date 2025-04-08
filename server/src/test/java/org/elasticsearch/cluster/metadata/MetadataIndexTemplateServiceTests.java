@@ -1473,7 +1473,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        DataStreamLifecycle.Template emptyLifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template emptyLifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         DataStreamLifecycle.Template lifecycle30d = DataStreamLifecycle.builder()
             .dataRetention(TimeValue.timeValueDays(30))
@@ -1550,7 +1550,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Composable Z: -
         // Result: "lifecycle": {"enabled": true}, here the result of the composition is with retention explicitly
         // nullified, but effectively this is equivalent to infinite retention.
-        assertLifecycleResolution(service, state, List.of(ct30d, ctNullRetention), null, DataStreamLifecycle.Template.DEFAULT);
+        assertLifecycleResolution(service, state, List.of(ct30d, ctNullRetention), null, DataStreamLifecycle.Template.DATA_DEFAULT);
 
         // Component A: "lifecycle": {"enabled": true}
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}

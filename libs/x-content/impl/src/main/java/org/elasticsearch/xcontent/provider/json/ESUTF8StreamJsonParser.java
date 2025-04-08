@@ -15,7 +15,7 @@ import com.fasterxml.jackson.core.io.IOContext;
 import com.fasterxml.jackson.core.json.UTF8StreamJsonParser;
 import com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer;
 
-import org.elasticsearch.xcontent.ProtoBytesRef;
+import org.elasticsearch.xcontent.ESBytesRef;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,7 +25,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         super(ctxt, features, in, codec, sym, inputBuffer, start, end, bytesPreProcessed, bufferRecyclable);
     }
 
-    public ProtoBytesRef getValueAsByteRef() throws IOException  {
+    public ESBytesRef getValueAsByteRef() throws IOException  {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
             var value = _finishAndReturnByteRef();
             if(value != null) {
@@ -36,7 +36,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         return null;
     }
 
-    protected ProtoBytesRef _finishAndReturnByteRef() throws IOException {
+    protected ESBytesRef _finishAndReturnByteRef() throws IOException {
         int ptr = _inputPtr;
         if(ptr >= _inputEnd) {
             _loadMoreGuaranteed();
@@ -52,7 +52,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
             if(codes[c] != 0) {
                 if(c == INT_QUOTE) {
                     _inputPtr = ptr + 1;
-                    return new ProtoBytesRef(inputBuffer, startPtr, ptr);
+                    return new ESBytesRef(inputBuffer, startPtr, ptr);
                 }
                 return null;
             }

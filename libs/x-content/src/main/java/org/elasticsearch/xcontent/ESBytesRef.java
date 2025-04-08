@@ -9,7 +9,7 @@
 
 package org.elasticsearch.xcontent;
 
-public record ProtoBytesRef(
+public record ESBytesRef(
     byte[] bytes,
     int start,
     int end

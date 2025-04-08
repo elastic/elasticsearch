@@ -1110,7 +1110,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private boolean isNull;
 
         RawString(BytesRef bytesValue) {
-            if(bytesValue == null) {
+            if (bytesValue == null) {
                 throw new IllegalArgumentException();
             }
             this.bytesValue = bytesValue;
@@ -1118,7 +1118,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         RawString(String stringValue) {
-            if(stringValue == null) {
+            if (stringValue == null) {
                 throw new IllegalArgumentException();
             }
             this.stringValue = stringValue;
@@ -1130,11 +1130,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         BytesRef bytesValue() {
-            if(isNull) {
+            if (isNull) {
                 return null;
             }
 
-            if(bytesValue != null) {
+            if (bytesValue != null) {
                 return bytesValue;
             }
 
@@ -1143,11 +1143,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         String stringValue() {
-            if(isNull) {
+            if (isNull) {
                 return null;
             }
 
-            if(stringValue != null) {
+            if (stringValue != null) {
                 return stringValue;
             }
 
@@ -1160,11 +1160,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         int length() {
-            if(isNull) {
+            if (isNull) {
                 throw new UnsupportedOperationException();
             }
 
-            if(stringValue != null) {
+            if (stringValue != null) {
                 return stringValue.length();
             } else {
                 return bytesValue.length;
@@ -1175,18 +1175,18 @@ public final class KeywordFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         RawString value;
         var bytesValue = context.parser().textRefOrNull();
-        if(bytesValue != null) {
+        if (bytesValue != null) {
             value = new RawString(new BytesRef(bytesValue.bytes(), bytesValue.start(), bytesValue.end() - bytesValue.start()));
         } else {
             var stringValue = context.parser().textOrNull();
-            if(stringValue != null) {
+            if (stringValue != null) {
                 value = new RawString(stringValue);
             } else {
                 value = new RawString();
             }
         }
 
-        if(value.isNull() && fieldType().nullValue != null) {
+        if (value.isNull() && fieldType().nullValue != null) {
             value = new RawString(fieldType().nullValue);
         }
 
@@ -1219,7 +1219,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean indexValue(DocumentParserContext context, RawString value) throws IOException {
-        if(value.isNull()) {
+        if (value.isNull()) {
             return false;
         }
 
@@ -1237,7 +1237,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return false;
         }
 
-        if(fieldType().normalizer() != Lucene.KEYWORD_ANALYZER) {
+        if (fieldType().normalizer() != Lucene.KEYWORD_ANALYZER) {
             String normalizedString = normalizeValue(fieldType().normalizer(), fullPath(), value.stringValue());
             value = new RawString(normalizedString);
         }

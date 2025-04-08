@@ -13,7 +13,6 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.io.IOContext;
-import com.fasterxml.jackson.core.json.ByteSourceJsonBootstrapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,8 +25,13 @@ public class ESJsonFactory extends JsonFactory {
     @Override
     protected JsonParser _createParser(InputStream in, IOContext ctxt) throws IOException {
         try {
-            return new ESByteSourceJsonBootstrapper(ctxt, in).constructParser(_parserFeatures,
-                _objectCodec, _byteSymbolCanonicalizer, _rootCharSymbols, _factoryFeatures);
+            return new ESByteSourceJsonBootstrapper(ctxt, in).constructParser(
+                _parserFeatures,
+                _objectCodec,
+                _byteSymbolCanonicalizer,
+                _rootCharSymbols,
+                _factoryFeatures
+            );
         } catch (IOException | RuntimeException e) {
             // 10-Jun-2022, tatu: For [core#763] may need to close InputStream here
             if (ctxt.isResourceManaged()) {
@@ -43,9 +47,13 @@ public class ESJsonFactory extends JsonFactory {
     }
 
     @Override
-    protected JsonParser _createParser(byte[] data, int offset, int len, IOContext ctxt) throws IOException
-    {
-        return new ESByteSourceJsonBootstrapper(ctxt, data, offset, len).constructParser(_parserFeatures,
-            _objectCodec, _byteSymbolCanonicalizer, _rootCharSymbols, _factoryFeatures);
+    protected JsonParser _createParser(byte[] data, int offset, int len, IOContext ctxt) throws IOException {
+        return new ESByteSourceJsonBootstrapper(ctxt, data, offset, len).constructParser(
+            _parserFeatures,
+            _objectCodec,
+            _byteSymbolCanonicalizer,
+            _rootCharSymbols,
+            _factoryFeatures
+        );
     }
 }

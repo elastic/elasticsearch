@@ -21,14 +21,25 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
-    public ESUTF8StreamJsonParser(IOContext ctxt, int features, InputStream in, ObjectCodec codec, ByteQuadsCanonicalizer sym, byte[] inputBuffer, int start, int end, int bytesPreProcessed, boolean bufferRecyclable) {
+    public ESUTF8StreamJsonParser(
+        IOContext ctxt,
+        int features,
+        InputStream in,
+        ObjectCodec codec,
+        ByteQuadsCanonicalizer sym,
+        byte[] inputBuffer,
+        int start,
+        int end,
+        int bytesPreProcessed,
+        boolean bufferRecyclable
+    ) {
         super(ctxt, features, in, codec, sym, inputBuffer, start, end, bytesPreProcessed, bufferRecyclable);
     }
 
-    public ESBytesRef getValueAsByteRef() throws IOException  {
+    public ESBytesRef getValueAsByteRef() throws IOException {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
             var value = _finishAndReturnByteRef();
-            if(value != null) {
+            if (value != null) {
                 _tokenIncomplete = false;
             }
             return value;
@@ -38,7 +49,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
 
     protected ESBytesRef _finishAndReturnByteRef() throws IOException {
         int ptr = _inputPtr;
-        if(ptr >= _inputEnd) {
+        if (ptr >= _inputEnd) {
             _loadMoreGuaranteed();
             ptr = _inputPtr;
         }
@@ -47,10 +58,10 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         final int[] codes = INPUT_CODES_UTF8;
         final int max = _inputEnd;
         final byte[] inputBuffer = _inputBuffer;
-        while(ptr < max) {
+        while (ptr < max) {
             int c = inputBuffer[ptr] & 0xFF;
-            if(codes[c] != 0) {
-                if(c == INT_QUOTE) {
+            if (codes[c] != 0) {
+                if (c == INT_QUOTE) {
                     _inputPtr = ptr + 1;
                     return new ESBytesRef(inputBuffer, startPtr, ptr);
                 }

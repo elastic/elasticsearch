@@ -121,7 +121,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (currentToken().isValue() == false) {
             return null;
         }
-        if(parser instanceof ESUTF8StreamJsonParser esParser) {
+        if (parser instanceof ESUTF8StreamJsonParser esParser) {
             return esParser.getValueAsByteRef();
         }
         return null;

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -27,6 +25,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -320,9 +319,9 @@ public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
      */
     public static final class TestDataStreamUsagePlugin extends XPackClientPlugin {
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-            actions.add(new ActionHandler<>(DATA_STREAMS, DataStreamUsageTransportAction.class));
+        public List<ActionHandler> getActions() {
+            List<ActionHandler> actions = new ArrayList<>();
+            actions.add(new ActionPlugin.ActionHandler(DATA_STREAMS, DataStreamUsageTransportAction.class));
             return actions;
         }
     }

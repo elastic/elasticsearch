@@ -1510,7 +1510,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         String ct45d = "ct_45d";
         project = addComponentTemplate(service, project, ct45d, lifecycle45d);
 
-        DataStreamLifecycle.Template lifecycleNullRetention = new DataStreamLifecycle.Template(
+        DataStreamLifecycle.Template lifecycleNullRetention = DataStreamLifecycle.createDataLifecycleTemplate(
             true,
             ResettableValue.reset(),
             ResettableValue.undefined()

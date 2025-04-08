@@ -166,7 +166,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
     }
 
     public static DataStreamLifecycle.Template randomLifecycleTemplate() {
-        return new DataStreamLifecycle.Template(randomBoolean(), randomRetention(), randomDownsampling());
+        return DataStreamLifecycle.createDataLifecycleTemplate(randomBoolean(), randomRetention(), randomDownsampling());
     }
 
     /**

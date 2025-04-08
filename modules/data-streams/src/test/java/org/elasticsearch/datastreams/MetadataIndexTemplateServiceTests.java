@@ -144,7 +144,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         // One lifecycle results to this lifecycle as the final
         {
-            DataStreamLifecycle.Template lifecycle = new DataStreamLifecycle.Template(true, randomRetention(), randomDownsampling());
+            DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.createDataLifecycleTemplate(
+                true,
+                randomRetention(),
+                randomDownsampling()
+            );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             // Defaults to true

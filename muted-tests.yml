@@ -453,6 +453,9 @@ tests:
 - class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
   method: testILMDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/126495
+- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
+  method: testDataNodeLogsStackTraceWhenErrorTraceFalseOrEmpty
+  issue: https://github.com/elastic/elasticsearch/issues/126357
 
 # Examples:
 #

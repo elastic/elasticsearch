@@ -2779,6 +2779,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         return topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList();
     }
 
+    /**
+     * Expects
+     * Eval[[2[INTEGER] AS x]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_LocalRelation[[{e}#9],[ConstantNullBlock[positions=1]]]
+     */
+    public void testEvalAfterStats() {
+        var plan = optimizedPlan("""
+            ROW foo = 1
+            | STATS x = max(foo)
+            | EVAL x = 2
+            """);
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var localRelation = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(eval.output()), contains("x"));
+    }
+
     public void testCombineLimitWithOrderByThroughFilterAndEval() {
         LogicalPlan plan = optimizedPlan("""
             from test

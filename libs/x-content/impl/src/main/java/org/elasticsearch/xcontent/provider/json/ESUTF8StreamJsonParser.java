@@ -11,6 +11,7 @@ package org.elasticsearch.xcontent.provider.json;
 
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.ObjectCodec;
+import com.fasterxml.jackson.core.SerializableString;
 import com.fasterxml.jackson.core.io.IOContext;
 import com.fasterxml.jackson.core.json.UTF8StreamJsonParser;
 import com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer;
@@ -21,6 +22,8 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
+    protected int stringEnd = -1;
+
     public ESUTF8StreamJsonParser(
         IOContext ctxt,
         int features,
@@ -43,11 +46,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
      */
     public ESBytesRef getValueAsByteRef() throws IOException {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
-            var value = _finishAndReturnByteRef();
-            if (value != null) {
-                _tokenIncomplete = false;
-            }
-            return value;
+            return _finishAndReturnByteRef();
         }
         return null;
     }
@@ -67,7 +66,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
             int c = inputBuffer[ptr] & 0xFF;
             if (codes[c] != 0) {
                 if (c == INT_QUOTE) {
-                    _inputPtr = ptr + 1;
+                    stringEnd = ptr + 1;
                     return new ESBytesRef(inputBuffer, startPtr, ptr);
                 }
                 return null;
@@ -75,5 +74,35 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
             ++ptr;
         }
         return null;
+    }
+
+    @Override
+    public JsonToken nextToken() throws IOException {
+        if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete && stringEnd > 0) {
+            _inputPtr = stringEnd;
+            _tokenIncomplete = false;
+        }
+        stringEnd = -1;
+        return super.nextToken();
+    }
+
+    @Override
+    public boolean nextFieldName(SerializableString str) throws IOException {
+        if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete && stringEnd > 0) {
+            _inputPtr = stringEnd;
+            _tokenIncomplete = false;
+        }
+        stringEnd = -1;
+        return super.nextFieldName(str);
+    }
+
+    @Override
+    public String nextFieldName() throws IOException {
+        if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete && stringEnd > 0) {
+            _inputPtr = stringEnd;
+            _tokenIncomplete = false;
+        }
+        stringEnd = -1;
+        return super.nextFieldName();
     }
 }

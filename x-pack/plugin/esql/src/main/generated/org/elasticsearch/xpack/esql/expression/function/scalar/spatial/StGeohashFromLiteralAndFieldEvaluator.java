@@ -9,9 +9,9 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -53,8 +53,8 @@ public final class StGeohashFromLiteralAndFieldEvaluator implements EvalOperator
     }
   }
 
-  public BytesRefBlock eval(int positionCount, IntBlock precisionBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, IntBlock precisionBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (precisionBlock.isNull(p)) {
           result.appendNull();
@@ -68,7 +68,7 @@ public final class StGeohashFromLiteralAndFieldEvaluator implements EvalOperator
           continue position;
         }
         try {
-          result.appendBytesRef(StGeohash.fromLiteralAndField(this.in, precisionBlock.getInt(precisionBlock.getFirstValueIndex(p))));
+          result.appendLong(StGeohash.fromLiteralAndField(this.in, precisionBlock.getInt(precisionBlock.getFirstValueIndex(p))));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,11 +78,11 @@ public final class StGeohashFromLiteralAndFieldEvaluator implements EvalOperator
     }
   }
 
-  public BytesRefBlock eval(int positionCount, IntVector precisionVector) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, IntVector precisionVector) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(StGeohash.fromLiteralAndField(this.in, precisionVector.getInt(p)));
+          result.appendLong(StGeohash.fromLiteralAndField(this.in, precisionVector.getInt(p)));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

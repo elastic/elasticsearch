@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.ArrayList;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
@@ -41,8 +41,11 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StGeohex", StGeohex::new);
 
     @FunctionInfo(
-        returnType = "keyword",
-        description = "Calculates the `geohex` of the supplied geo_point at the specified precision.",
+        returnType = "long",
+        description = """
+            Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
+            The result is long encoded. Use ST_GEOHEX_TO_STRING to convert the result to a string.
+            Or use ST_GEOHEX_TO_GEOSHAPE to convert either the long or string geohex to a POLYGON geo_shape.""",
         examples = @Example(file = "spatial-grid", tag = "st_geohex-grid")
     )
     public StGeohex(
@@ -89,7 +92,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        return KEYWORD;
+        return LONG;
     }
 
     @Override
@@ -181,37 +184,37 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteral(BytesRefBlock.Builder results, int p, BytesRefBlock wkbBlock, @Fixed int precision) {
+    static void fromFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock wkbBlock, @Fixed int precision) {
         fromWKB(results, p, wkbBlock, precision);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldDocValuesAndLiteral(BytesRefBlock.Builder results, int p, LongBlock encoded, @Fixed int precision) {
+    static void fromFieldDocValuesAndLiteral(LongBlock.Builder results, int p, LongBlock encoded, @Fixed int precision) {
         fromEncodedLong(results, p, encoded, precision);
     }
 
     @Evaluator(extraName = "FromFieldAndField", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndField(BytesRefBlock.Builder results, int p, BytesRefBlock in, int precision) {
+    static void fromFieldAndField(LongBlock.Builder results, int p, BytesRefBlock in, int precision) {
         fromWKB(results, p, in, precision);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndField", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldDocValuesAndField(BytesRefBlock.Builder results, int p, LongBlock encoded, int precision) {
+    static void fromFieldDocValuesAndField(LongBlock.Builder results, int p, LongBlock encoded, int precision) {
         fromEncodedLong(results, p, encoded, precision);
     }
 
     @Evaluator(extraName = "FromLiteralAndField", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromLiteralAndField(@Fixed BytesRef in, int precision) {
+    static long fromLiteralAndField(@Fixed BytesRef in, int precision) {
         return calculateGeohex(GEO.wkbAsPoint(in), precision);
     }
 
-    protected static BytesRef calculateGeohex(Point point, int precision) {
-        return new BytesRef(H3.geoToH3Address(point.getLat(), point.getLon(), precision));
+    protected static long calculateGeohex(Point point, int precision) {
+        return H3.geoToH3(point.getLat(), point.getLon(), precision);
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndLiteralAndLiteral(
-        BytesRefBlock.Builder results,
+        LongBlock.Builder results,
         int p,
         BytesRefBlock in,
         @Fixed int precision,
@@ -222,7 +225,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndLiteralAndLiteral(
-        BytesRefBlock.Builder results,
+        LongBlock.Builder results,
         int p,
         LongBlock encoded,
         @Fixed int precision,
@@ -232,19 +235,13 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "FromFieldAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndFieldAndLiteral(
-        BytesRefBlock.Builder results,
-        int p,
-        BytesRefBlock in,
-        int precision,
-        @Fixed Rectangle bounds
-    ) {
+    static void fromFieldAndFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, int precision, @Fixed Rectangle bounds) {
         fromWKB(results, p, in, precision, bounds);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndFieldAndLiteral(
-        BytesRefBlock.Builder results,
+        LongBlock.Builder results,
         int p,
         LongBlock encoded,
         int precision,
@@ -254,11 +251,11 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "FromLiteralAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed Rectangle bounds) {
+    static long fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed Rectangle bounds) {
         return calculateGeohex(GEO.wkbAsPoint(in), precision, bounds);
     }
 
-    private static void fromWKB(BytesRefBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision) {
+    private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision) {
         int valueCount = wkbBlock.getValueCount(position);
         if (valueCount < 1) {
             results.appendNull();
@@ -266,44 +263,44 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             final BytesRef scratch = new BytesRef();
             final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
             if (valueCount == 1) {
-                results.appendBytesRef(calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision));
+                results.appendLong(calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision));
             } else {
                 results.beginPositionEntry();
                 for (int i = 0; i < valueCount; i++) {
-                    results.appendBytesRef(calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision));
+                    results.appendLong(calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision));
                 }
                 results.endPositionEntry();
             }
         }
     }
 
-    private static void fromEncodedLong(BytesRefBlock.Builder results, int position, LongBlock encoded, int precision) {
+    private static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, int precision) {
         int valueCount = encoded.getValueCount(position);
         if (valueCount < 1) {
             results.appendNull();
         } else {
             final int firstValueIndex = encoded.getFirstValueIndex(position);
             if (valueCount == 1) {
-                results.appendBytesRef(calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision));
+                results.appendLong(calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision));
             } else {
                 results.beginPositionEntry();
                 for (int i = 0; i < valueCount; i++) {
-                    results.appendBytesRef(calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision));
+                    results.appendLong(calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision));
                 }
                 results.endPositionEntry();
             }
         }
     }
 
-    protected static BytesRef calculateGeohex(Point point, int precision, Rectangle bounds) {
+    protected static long calculateGeohex(Point point, int precision, Rectangle bounds) {
         // For points, filtering the point is as good as filtering the tile
         if (inBounds(point, bounds)) {
-            return new BytesRef(H3.geoToH3Address(point.getLat(), point.getLon(), precision));
+            return H3.geoToH3(point.getLat(), point.getLon(), precision);
         }
-        return null;
+        return -1L;
     }
 
-    private static void fromWKB(BytesRefBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision, Rectangle bounds) {
+    private static void fromWKB(LongBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision, Rectangle bounds) {
         int valueCount = wkbBlock.getValueCount(position);
         if (valueCount < 1) {
             results.appendNull();
@@ -311,17 +308,17 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             final BytesRef scratch = new BytesRef();
             final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
             if (valueCount == 1) {
-                BytesRef grid = calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision, bounds);
-                if (grid == null) {
+                long grid = calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision, bounds);
+                if (grid < 0) {
                     results.appendNull();
                 } else {
-                    results.appendBytesRef(grid);
+                    results.appendLong(grid);
                 }
             } else {
-                var gridIds = new ArrayList<BytesRef>(valueCount);
+                var gridIds = new ArrayList<Long>(valueCount);
                 for (int i = 0; i < valueCount; i++) {
                     var grid = calculateGeohex(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision, bounds);
-                    if (grid != null) {
+                    if (grid >= 0) {
                         gridIds.add(grid);
                     }
                 }
@@ -330,24 +327,24 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         }
     }
 
-    private static void fromEncodedLong(BytesRefBlock.Builder results, int position, LongBlock encoded, int precision, Rectangle bounds) {
+    private static void fromEncodedLong(LongBlock.Builder results, int position, LongBlock encoded, int precision, Rectangle bounds) {
         int valueCount = encoded.getValueCount(position);
         if (valueCount < 1) {
             results.appendNull();
         } else {
             final int firstValueIndex = encoded.getFirstValueIndex(position);
             if (valueCount == 1) {
-                BytesRef grid = calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision, bounds);
-                if (grid == null) {
+                long grid = calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision, bounds);
+                if (grid < 0) {
                     results.appendNull();
                 } else {
-                    results.appendBytesRef(grid);
+                    results.appendLong(grid);
                 }
             } else {
-                var gridIds = new ArrayList<BytesRef>(valueCount);
+                var gridIds = new ArrayList<Long>(valueCount);
                 for (int i = 0; i < valueCount; i++) {
                     var grid = calculateGeohex(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision, bounds);
-                    if (grid != null) {
+                    if (grid >= 0) {
                         gridIds.add(grid);
                     }
                 }

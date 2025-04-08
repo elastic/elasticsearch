@@ -11,6 +11,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -54,8 +55,8 @@ public final class StGeotileFromFieldAndFieldAndLiteralEvaluator implements Eval
     }
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock inBlock, IntBlock precisionBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, BytesRefBlock inBlock, IntBlock precisionBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!inBlock.isNull(p)) {

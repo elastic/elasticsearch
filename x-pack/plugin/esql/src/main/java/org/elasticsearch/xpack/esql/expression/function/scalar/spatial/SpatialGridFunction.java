@@ -12,7 +12,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
@@ -201,15 +201,15 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
         return spatialField.foldable() && parameter.foldable() && (bounds == null || bounds.foldable());
     }
 
-    protected static void addGrids(BytesRefBlock.Builder results, List<BytesRef> gridIds) {
+    protected static void addGrids(LongBlock.Builder results, List<Long> gridIds) {
         if (gridIds.isEmpty()) {
             results.appendNull();
         } else if (gridIds.size() == 1) {
-            results.appendBytesRef(gridIds.getFirst());
+            results.appendLong(gridIds.getFirst());
         } else {
             results.beginPositionEntry();
-            for (BytesRef gridId : gridIds) {
-                results.appendBytesRef(gridId);
+            for (long gridId : gridIds) {
+                results.appendLong(gridId);
             }
             results.endPositionEntry();
         }

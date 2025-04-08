@@ -59,8 +59,17 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWi
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToGeoShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToGeoShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToGeoShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -222,8 +231,17 @@ public class ExpressionWritables {
             SpatialWithin.ENTRY,
             StDistance.ENTRY,
             StGeohash.ENTRY,
+            StGeohashToString.ENTRY,
+            StGeohashToLong.ENTRY,
+            StGeohashToGeoShape.ENTRY,
             StGeotile.ENTRY,
-            StGeohex.ENTRY
+            StGeotileToString.ENTRY,
+            StGeotileToLong.ENTRY,
+            StGeotileToGeoShape.ENTRY,
+            StGeohex.ENTRY,
+            StGeohexToString.ENTRY,
+            StGeohexToLong.ENTRY,
+            StGeohexToGeoShape.ENTRY
         );
     }
 

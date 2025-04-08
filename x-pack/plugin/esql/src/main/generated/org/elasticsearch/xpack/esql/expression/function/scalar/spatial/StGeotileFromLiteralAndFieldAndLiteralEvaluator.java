@@ -10,9 +10,9 @@ import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -58,8 +58,8 @@ public final class StGeotileFromLiteralAndFieldAndLiteralEvaluator implements Ev
     }
   }
 
-  public BytesRefBlock eval(int positionCount, IntBlock precisionBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, IntBlock precisionBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (precisionBlock.isNull(p)) {
           result.appendNull();
@@ -73,7 +73,7 @@ public final class StGeotileFromLiteralAndFieldAndLiteralEvaluator implements Ev
           continue position;
         }
         try {
-          result.appendBytesRef(StGeotile.fromLiteralAndFieldAndLiteral(this.in, precisionBlock.getInt(precisionBlock.getFirstValueIndex(p)), this.bbox));
+          result.appendLong(StGeotile.fromLiteralAndFieldAndLiteral(this.in, precisionBlock.getInt(precisionBlock.getFirstValueIndex(p)), this.bbox));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -83,11 +83,11 @@ public final class StGeotileFromLiteralAndFieldAndLiteralEvaluator implements Ev
     }
   }
 
-  public BytesRefBlock eval(int positionCount, IntVector precisionVector) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, IntVector precisionVector) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(StGeotile.fromLiteralAndFieldAndLiteral(this.in, precisionVector.getInt(p), this.bbox));
+          result.appendLong(StGeotile.fromLiteralAndFieldAndLiteral(this.in, precisionVector.getInt(p), this.bbox));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

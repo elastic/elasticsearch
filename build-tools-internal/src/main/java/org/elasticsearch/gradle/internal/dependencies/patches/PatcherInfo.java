@@ -29,9 +29,6 @@ public record PatcherInfo(String jarEntryName, byte[] classSha256, Function<Clas
     }
 
     boolean matches(byte[] otherClassSha256) {
-        if (this.classSha256 == null) {
-            return true;
-        }
         return Arrays.equals(this.classSha256, otherClassSha256);
     }
 }

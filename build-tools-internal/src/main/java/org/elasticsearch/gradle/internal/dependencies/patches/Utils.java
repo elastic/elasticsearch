@@ -71,10 +71,11 @@ public class Utils {
                         throw new IllegalArgumentException(
                             String.format(
                                 Locale.ROOT,
-                                "error patching JAR [%s]: SHA256 digest mismatch for class [%s] (expected: [%s], found: [%s]). "
-                                    + "This JAR was updated to a version that contains a different class, for which this patcher was not "
-                                    + "designed for. Please check if the patcher still applies correctly to this class, and update its "
-                                    + "SHA256 digest.",
+                                """
+                                    Error patching JAR [%s]: SHA256 digest mismatch for class [%s] (expected: [%s], \
+                                    found: [%s]). This JAR was updated to a version that contains a different class, \
+                                    for which this patcher was not designed for. Please check if the patcher still \
+                                    applies correctly to this class, and update its SHA256 digest.""",
                                 inputFile.getName(),
                                 classPatcher.jarEntryName(),
                                 HexFormat.of().formatHex(classPatcher.classSha256()),

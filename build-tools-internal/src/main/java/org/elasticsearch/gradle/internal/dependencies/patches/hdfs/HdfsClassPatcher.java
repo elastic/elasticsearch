@@ -36,22 +36,43 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
 
     static final List<JarPatchers> allPatchers = List.of(
         new JarPatchers(
-            "hadoop-common",
-            Pattern.compile("hadoop-common-(?!.*tests)"),
+            "hadoop2-common",
+            Pattern.compile("hadoop-common-2(?!.*tests)"),
             List.of(
                 classPatcher(
                     "org/apache/hadoop/util/ShutdownHookManager.class",
-                    "90641e0726fc9372479728ef9b7ae2be20fb7ab4cddd4938e55ffecadddd4d94",
+                    "3912451f02da9199dae7dba3f1420e0d951067addabbb235e7551de52234a0ef",
                     ShutdownHookManagerPatcher::new
                 ),
                 classPatcher(
                     "org/apache/hadoop/util/Shell.class",
-                    "8837c7f3eeda3f658fc3d6595f18e77a4558220ff0becdf3e175fa4397a6fd0c",
+                    "60400dc800e7c3e1a5fc499793033d877f5319bbd7633fee05d5a1d96b947bbd",
                     ShellPatcher::new
                 ),
                 classPatcher(
                     "org/apache/hadoop/security/UserGroupInformation.class",
-                    "3c34bbc2716a6c8f4e356e78550599b0a4f01882712b4f7787d032fb10527212",
+                    "218078b8c77838f93d015c843775985a71f3c7a8128e2a9394410f0cd1da5f53",
+                    SubjectGetSubjectPatcher::new
+                )
+            )
+        ),
+        new JarPatchers(
+            "hadoop3-common",
+            Pattern.compile("hadoop-common-3(?!.*tests)"),
+            List.of(
+                classPatcher(
+                    "org/apache/hadoop/util/ShutdownHookManager.class",
+                    "7720e8545a02de6fd03f4170f0e471d1301ef73d7d6a09097bad361f9e31f819",
+                    ShutdownHookManagerPatcher::new
+                ),
+                classPatcher(
+                    "org/apache/hadoop/util/Shell.class",
+                    "856d0b829cf550df826387af15fa1c772bc7d26d6461535b17b9d5114d308dc4",
+                    ShellPatcher::new
+                ),
+                classPatcher(
+                    "org/apache/hadoop/security/UserGroupInformation.class",
+                    "52f5973f35a282908d48a573a03c04f240a22c9f6007d7c5e7852aff1c641420",
                     SubjectGetSubjectPatcher::new
                 )
             )

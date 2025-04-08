@@ -23,7 +23,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -363,7 +362,7 @@ public class EsqlSession {
         initializeClusterData(indices, executionInfo);
 
         var listener = SubscribableListener.<EnrichResolution>newForked(
-            l -> enrichPolicyResolver.resolvePolicies(getEnrichTargets(executionInfo), unresolvedPolicies, executionInfo, l)
+            l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
         )
             .<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l))
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
@@ -389,12 +388,6 @@ public class EsqlSession {
         }).<PreAnalysisResult>andThen((l, result) -> {
             assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
 
-            // "reset" execution information for all ccs or non-ccs (local) clusters, since we are performing the indices
-            // resolving one more time (the first attempt failed and the query had a filter)
-            for (String clusterAlias : executionInfo.clusterAliases()) {
-                executionInfo.swapCluster(clusterAlias, (k, v) -> null);
-            }
-
             // here the requestFilter is set to null, performing the pre-analysis after the first step failed
             preAnalyzeIndices(preAnalysis.indices, executionInfo, result, null, l);
         }).<LogicalPlan>andThen((l, result) -> {
@@ -410,15 +403,6 @@ public class EsqlSession {
             LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
             l.onResponse(plan);
         }).addListener(logicalPlanListener);
-    }
-
-    private static Set<String> getEnrichTargets(EsqlExecutionInfo executionInfo) {
-        Set<String> targetClusters = executionInfo.getClusters().keySet();
-        if (targetClusters.isEmpty()) {
-            // Always include local cluster for enrich resolution
-            return Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        }
-        return targetClusters;
     }
 
     private void preAnalyzeLookupIndex(IndexPattern table, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {

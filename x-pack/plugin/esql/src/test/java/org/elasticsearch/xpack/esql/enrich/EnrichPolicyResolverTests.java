@@ -431,6 +431,9 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         EnrichResolution resolvePolicies(Collection<String> clusters, Collection<UnresolvedPolicy> unresolvedPolicies) {
             PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
             EsqlExecutionInfo esqlExecutionInfo = new EsqlExecutionInfo(true);
+            for (String cluster : clusters) {
+                esqlExecutionInfo.swapCluster(cluster, (k, v) -> new EsqlExecutionInfo.Cluster(cluster, "*"));
+            }
             if (randomBoolean()) {
                 unresolvedPolicies = new ArrayList<>(unresolvedPolicies);
                 for (Enrich.Mode mode : Enrich.Mode.values()) {
@@ -444,7 +447,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     unresolvedPolicies.add(new UnresolvedPolicy("legacy-policy-1", randomFrom(Enrich.Mode.values())));
                 }
             }
-            super.resolvePolicies(clusters, unresolvedPolicies, esqlExecutionInfo, future);
+            super.resolvePolicies(unresolvedPolicies, esqlExecutionInfo, future);
             return future.actionGet(30, TimeUnit.SECONDS);
         }
 

@@ -11,7 +11,9 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRerankRequestManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
@@ -40,6 +42,15 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
         var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents, traceContext);
         var errorMessage = constructFailedToSendRequestMessage(
             String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
+        );
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
+    }
+
+    @Override
+    public ExecutableAction create(ElasticInferenceServiceRerankModel model) {
+        var requestManager = new ElasticInferenceServiceRerankRequestManager(model, serviceComponents, traceContext);
+        var errorMessage = constructFailedToSendRequestMessage(
+            String.format(Locale.ROOT, "%s rerank", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }

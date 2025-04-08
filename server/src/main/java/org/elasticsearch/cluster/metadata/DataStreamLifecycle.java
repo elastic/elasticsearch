@@ -560,6 +560,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
     }
 
+    public static Template createDataLifecycleTemplate(
+        boolean enabled,
+        TimeValue dataRetention,
+        List<DataStreamLifecycle.DownsamplingRound> downsampling
+    ) {
+        return new Template(enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
+    }
+
     /**
      * Represents the template configuration of a lifecycle. It supports explicitly resettable values
      * to allow value reset during template composition.
@@ -570,7 +578,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
     ) implements ToXContentObject, Writeable {
 
-        public Template(boolean enabled, TimeValue dataRetention, List<DataStreamLifecycle.DownsamplingRound> downsampling) {
+        Template(boolean enabled, TimeValue dataRetention, List<DataStreamLifecycle.DownsamplingRound> downsampling) {
             this(enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
         }
 

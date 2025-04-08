@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -1523,10 +1525,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
             // See if the eval function has an unresolved MultiTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
-            plan = plan.transformExpressionsOnly(
-                AbstractConvertFunction.class,
-                convert -> resolveConvertFunction(convert, unionFieldAttributes)
-            );
+            plan = plan.transformExpressionsOnly(e -> {
+                if (e instanceof ConvertFunction convert) {
+                    return resolveConvertFunction(convert, unionFieldAttributes);
+                }
+                return e;
+            });
             // If no union fields were generated, return the plan as is
             if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
                 return plan;
@@ -1557,7 +1561,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+        private Expression resolveConvertFunction(ConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
@@ -1586,7 +1590,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                 return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
             }
-            return convert;
+            return (Expression) convert;
         }
 
         private Expression createIfDoesNotAlreadyExist(
@@ -1622,7 +1626,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
         }
 
-        private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
+        private Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
@@ -1634,7 +1638,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 originalFieldAttr.id(),
                 true
             );
-            return convert.replaceChildren(Collections.singletonList(resolvedAttr));
+            Expression e = convert.replaceChildren(Collections.singletonList(resolvedAttr));
+            /*
+             * Resolve surrogates immediately because these type specific conversions are serialized
+             * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,
+             * TO_IP is expected to be resolved there.
+             */
+            if (e instanceof SurrogateExpression s) {
+                Expression surrogate = s.surrogate();
+                if (surrogate != null) {
+                    return surrogate;
+                }
+            }
+            return e;
         }
     }
 

@@ -58,9 +58,9 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMapp
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredExpression;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSpatialSurrogates;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateAggregations;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -137,7 +137,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // then extract nested aggs top-level
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
-            new SubstituteSurrogates(),
+            new SubstituteSurrogateAggregations(),
             // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
             new TranslateTimeSeriesAggregate(),
             new PruneUnusedIndexMode(),
@@ -149,7 +149,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
-            new SubstituteSpatialSurrogates(),
+            new SubstituteSurrogateExpressions(),
             new ReplaceOrderByExpressionWithEval()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );

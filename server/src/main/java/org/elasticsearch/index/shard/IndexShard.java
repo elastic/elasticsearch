@@ -1901,7 +1901,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         recoveryState.setStage(RecoveryState.Stage.INDEX);
-        assert getEngineOrNull() == null;
+        assert currentEngine.get() == null;
     }
 
     /**
@@ -2214,7 +2214,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + "] but got "
                 + getRetentionLeases();
         synchronized (engineMutex) {
-            assert getEngineOrNull() == null : "engine is running";
+            assert currentEngine.get() == null : "engine is running";
             verifyNotClosed();
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = createEngine(config);
@@ -2311,7 +2311,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetRecoveryStage() {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
-        assert getEngineOrNull() == null;
+        assert currentEngine.get() == null;
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }

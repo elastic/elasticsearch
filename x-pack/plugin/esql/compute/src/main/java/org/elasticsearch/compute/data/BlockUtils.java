@@ -15,12 +15,14 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
+import static org.elasticsearch.compute.data.ElementType.NULL;
 import static org.elasticsearch.compute.data.ElementType.fromJava;
 
 public final class BlockUtils {
@@ -221,6 +223,13 @@ public final class BlockUtils {
     public static Block constantBlock(BlockFactory blockFactory, Object val, int size) {
         if (val == null) {
             return blockFactory.newConstantNullBlock(size);
+        }
+        if (val instanceof Collection<?> collection) {
+            if (collection.isEmpty()) {
+                return constantBlock(blockFactory, NULL, val, size);
+            }
+            Object colVal = collection.iterator().next();
+            return constantBlock(blockFactory, fromJava(colVal.getClass()), colVal, size);
         }
         return constantBlock(blockFactory, fromJava(val.getClass()), val, size);
     }

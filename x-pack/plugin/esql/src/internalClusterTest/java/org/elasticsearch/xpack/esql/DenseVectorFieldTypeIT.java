@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING;
+import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
@@ -42,22 +44,26 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     private final String indexType;
     private final boolean index;
-    private int numDims;
-    private int numDocs;
+    private final boolean synthetic;
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
+        // Indexed field types
         for (String indexType : DENSE_VECTOR_INDEX_TYPES) {
-            params.add(new Object[] { indexType, true });
+            params.add(new Object[] { indexType, true, false });
         }
-        params.add(new Object[] { null, false });
+        // No indexing
+        params.add(new Object[] { null, false, false });
+        // No indexing, synthetic source
+        params.add(new Object[] { null, false, true });
         return params;
     }
 
-    public DenseVectorFieldTypeIT(@Name("indexType") String indexType, @Name("index") boolean index) {
+    public DenseVectorFieldTypeIT(@Name("indexType") String indexType, @Name("index") boolean index, @Name("synthetic") boolean synthetic) {
         this.indexType = indexType;
         this.index = index;
+        this.synthetic = synthetic;
     }
 
     private final Map<Integer, List<Float>> indexedVectors = new HashMap<>();
@@ -141,18 +147,21 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             mapping.startObject("index_options").field("type", indexType).endObject();
         }
         mapping.endObject().endObject().endObject();
-        Settings settings = Settings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
-            .build();
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5));
+        if (synthetic) {
+            settingsBuilder.put(INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SYNTHETIC);
+        }
+
         var CreateRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .setMapping(mapping)
-            .setSettings(settings);
+            .setSettings(settingsBuilder.build());
         assertAcked(CreateRequest);
 
-        numDims = randomIntBetween(32, 64) * 2; // min 64, even number
-        numDocs = randomIntBetween(10, 100);
+        int numDims = randomIntBetween(32, 64) * 2; // min 64, even number
+        int numDocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             List<Float> vector = new ArrayList<>(numDims);

@@ -399,17 +399,16 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
 
         private void onLastReadForInitialWrite() {
             var readBlobName = request.blobName;
-            if (request.doCopy && doEarlyCopy) {
+            if (request.copyBlobName != null && doEarlyCopy) {
                 try {
-                    final var copyName = request.blobName + "_copy";
                     blobContainer.copyBlob(
                         OperationPurpose.REPOSITORY_ANALYSIS,
                         blobContainer,
                         request.blobName,
-                        copyName,
+                        request.copyBlobName,
                         request.targetLength
                     );
-                    readBlobName = copyName;
+                    readBlobName = request.copyBlobName;
                 } catch (UnsupportedOperationException uoe) {
                     // not all repositories support copy
                 } catch (NoSuchFileException | FileNotFoundException ignored) {
@@ -441,17 +440,16 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                 logger.trace("sending read request to [{}] for [{}] after write complete", readNodes, request.getDescription());
             }
             var readBlobName = request.blobName;
-            if (request.doCopy && (doEarlyCopy == false) && (request.getAbortWrite() == false)) {
+            if (request.copyBlobName != null && doEarlyCopy == false && request.getAbortWrite() == false) {
                 try {
-                    final var copyName = request.blobName + "_copy";
                     blobContainer.copyBlob(
                         OperationPurpose.REPOSITORY_ANALYSIS,
                         blobContainer,
                         request.blobName,
-                        copyName,
+                        request.copyBlobName,
                         request.targetLength
                     );
-                    readBlobName = copyName;
+                    readBlobName = request.copyBlobName;
                 } catch (UnsupportedOperationException uoe) {
                     // not all repositories support copy
                 } catch (IOException e) {
@@ -734,7 +732,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         private final boolean readEarly;
         private final boolean writeAndOverwrite;
         private final boolean abortWrite;
-        private final boolean doCopy;
+        @Nullable
+        private final String copyBlobName;
 
         Request(
             String repositoryName,
@@ -748,7 +747,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             boolean readEarly,
             boolean writeAndOverwrite,
             boolean abortWrite,
-            boolean doCopy
+            @Nullable String copyBlobName
         ) {
             assert 0 < targetLength;
             assert targetLength <= MAX_ATOMIC_WRITE_SIZE || (readEarly == false && writeAndOverwrite == false) : "oversized atomic write";
@@ -764,7 +763,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             this.readEarly = readEarly;
             this.writeAndOverwrite = writeAndOverwrite;
             this.abortWrite = abortWrite;
-            this.doCopy = doCopy;
+            this.copyBlobName = copyBlobName;
         }
 
         Request(StreamInput in) throws IOException {
@@ -781,9 +780,9 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             writeAndOverwrite = in.readBoolean();
             abortWrite = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)) {
-                doCopy = in.readBoolean();
+                copyBlobName = in.readOptionalString();
             } else {
-                doCopy = false;
+                copyBlobName = null;
             }
         }
 
@@ -802,8 +801,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             out.writeBoolean(writeAndOverwrite);
             out.writeBoolean(abortWrite);
             if (out.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)) {
-                out.writeBoolean(doCopy);
-            } else if (doCopy) {
+                out.writeOptionalString(copyBlobName);
+            } else if (copyBlobName != null) {
                 assert false : out.getTransportVersion();
                 throw new IllegalStateException(
                     "cannot serialize " + this + "] using transport version [" + out.getTransportVersion() + "]"
@@ -834,8 +833,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                 + writeAndOverwrite
                 + ", abortWrite="
                 + abortWrite
-                + ", doCopy="
-                + doCopy
+                + ", copyBlobName="
+                + copyBlobName
                 + "]";
         }
 

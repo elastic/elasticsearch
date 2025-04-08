@@ -560,6 +560,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         return new Template(enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
     }
 
+    public static Template createDataLifecycleTemplate(
+        boolean enabled,
+        ResettableValue<TimeValue> dataRetention,
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
+    ) {
+        return new Template(enabled, dataRetention, downsampling);
+    }
+
     /**
      * Represents the template configuration of a lifecycle. It supports explicitly resettable values
      * to allow value reset during template composition.

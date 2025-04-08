@@ -129,7 +129,7 @@ public class DataStreamLifecycleFixtures {
     }
 
     static DataStreamLifecycle.Template randomLifecycleTemplate() {
-        return new DataStreamLifecycle.Template(
+        return DataStreamLifecycle.createDataLifecycleTemplate(
             frequently(),
             randomResettable(ESTestCase::randomTimeValue),
             randomResettable(DataStreamLifecycleFixtures::randomDownsamplingRounds)

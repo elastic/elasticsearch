@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.Locale;
 
 import static org.elasticsearch.core.Strings.format;
@@ -50,5 +52,9 @@ public enum InputType {
 
     public static boolean isSpecified(InputType inputType) {
         return inputType != null && inputType != InputType.UNSPECIFIED;
+    }
+
+    public static String invalidInputTypeMessage(InputType inputType) {
+        return Strings.format("received invalid input type value [%s]", inputType.toString());
     }
 }

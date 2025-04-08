@@ -9,11 +9,11 @@ mapped_pages:
 
 Your data may contain unstructured strings that you want to structure. This makes it easier to analyze the data. For example, log messages may contain IP addresses that you want to extract so you can find the most active IP addresses.
 
-:::{image} ../../../images/unstructured-data.png
+:::{image} ../images/unstructured-data.png
 :alt: unstructured data
 :::
 
-{{es}} can structure your data at index time or query time. At index time, you can use the [Dissect](/reference/ingestion-tools/enrich-processor/dissect-processor.md) and [Grok](/reference/ingestion-tools/enrich-processor/grok-processor.md) ingest processors, or the {{ls}} [Dissect](logstash://reference/plugins-filters-dissect.md) and [Grok](logstash://reference/plugins-filters-grok.md) filters. At query time, you can use the {{esql}} [`DISSECT`](/reference/query-languages/esql/esql-commands.md#esql-dissect) and [`GROK`](/reference/query-languages/esql/esql-commands.md#esql-grok) commands.
+{{es}} can structure your data at index time or query time. At index time, you can use the [Dissect](/reference/enrich-processor/dissect-processor.md) and [Grok](/reference/enrich-processor/grok-processor.md) ingest processors, or the {{ls}} [Dissect](logstash-docs-md://lsr//plugins-filters-dissect.md) and [Grok](logstash-docs-md://lsr//plugins-filters-grok.md) filters. At query time, you can use the {{esql}} [`DISSECT`](/reference/query-languages/esql/esql-commands.md#esql-dissect) and [`GROK`](/reference/query-languages/esql/esql-commands.md#esql-grok) commands.
 
 ## `DISSECT` or `GROK`? Or both? [esql-grok-or-dissect]
 
@@ -267,7 +267,7 @@ The `SEMANTIC` is the identifier you give to the piece of text being matched. Fo
 
 By default, matched values are output as keyword string data types. To convert a semantic’s data type, suffix it with the target data type. For example `%{NUMBER:num:int}`, which converts the `num` semantic from a string to an integer. Currently the only supported conversions are `int` and `float`. For other types, use the [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions).
 
-For an overview of the available patterns, refer to [GitHub](https://github.com/elastic/elasticsearch//blob/master/libs/grok/src/main/resources/patterns). You can also retrieve a list of all patterns using a [REST API](/reference/ingestion-tools/enrich-processor/grok-processor.md#grok-processor-rest-get).
+For an overview of the available patterns, refer to [GitHub](https://github.com/elastic/elasticsearch//blob/master/libs/grok/src/main/resources/patterns). You can also retrieve a list of all patterns using a [REST API](/reference/enrich-processor/grok-processor.md#grok-processor-rest-get).
 
 
 ### Regular expressions [esql-grok-regex]
@@ -351,7 +351,7 @@ To write and debug grok patterns, you can use the [Grok Debugger](docs-content:/
 
 ### Limitations [esql-grok-limitations]
 
-The `GROK` command does not support configuring [custom patterns](/reference/ingestion-tools/enrich-processor/grok-processor.md#custom-patterns), or [multiple patterns](/reference/ingestion-tools/enrich-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/reference/ingestion-tools/enrich-processor/grok-processor.md#grok-watchdog).
+The `GROK` command does not support configuring [custom patterns](/reference/enrich-processor/grok-processor.md#custom-patterns), or [multiple patterns](/reference/enrich-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/reference/enrich-processor/grok-processor.md#grok-watchdog).
 
 
 

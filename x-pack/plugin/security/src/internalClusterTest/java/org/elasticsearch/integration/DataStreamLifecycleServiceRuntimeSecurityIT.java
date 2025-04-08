@@ -20,6 +20,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -94,30 +95,26 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     public void testRolloverLifecycleAndForceMergeAuthorized() throws Exception {
         String dataStreamName = randomDataStreamName();
         // empty lifecycle contains the default rollover
-        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.Template.DEFAULT);
+        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.Template.DATA_DEFAULT);
 
-        assertBusy(() -> {
-            assertNoAuthzErrors();
-            List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
-            assertThat(backingIndices.size(), equalTo(2));
-            String backingIndex = backingIndices.get(0).getName();
-            assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-            String writeIndex = backingIndices.get(1).getName();
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-        });
+        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String backingIndex = backingIndices.get(0);
+        assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
+        String writeIndex = backingIndices.get(1);
+        assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+
+        assertNoAuthzErrors();
         // Index another doc to force another rollover and trigger an attempted force-merge. The force-merge may be a noop under
         // the hood but for authz purposes this doesn't matter, it only matters that the force-merge API was called
         indexDoc(dataStreamName);
-        assertBusy(() -> {
-            assertNoAuthzErrors();
-            List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
-            assertThat(backingIndices.size(), equalTo(3));
-        });
+
+        waitForDataStreamBackingIndices(dataStreamName, 3);
+        assertNoAuthzErrors();
     }
 
     public void testRolloverAndRetentionAuthorized() throws Exception {
         String dataStreamName = randomDataStreamName();
-        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.Template.builder().dataRetention(TimeValue.ZERO).build());
+        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).buildTemplate());
 
         assertBusy(() -> {
             assertNoAuthzErrors();
@@ -133,7 +130,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     public void testUnauthorized() throws Exception {
         // this is an example index pattern for a system index that the data stream lifecycle does not have access for. Data stream
         // lifecycle will therefore fail at runtime with an authz exception
-        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, DataStreamLifecycle.Template.DEFAULT);
+        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, DataStreamLifecycle.Template.DATA_DEFAULT);
 
         assertBusy(() -> {
             Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();
@@ -170,9 +167,9 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         Map<String, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            Set<String> allIndices = errorStore.getAllIndices();
+            Set<String> allIndices = errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID);
             for (var index : allIndices) {
-                ErrorEntry error = errorStore.getError(index);
+                ErrorEntry error = errorStore.getError(Metadata.DEFAULT_PROJECT_ID, index);
                 if (error != null) {
                     indicesAndErrors.put(index, error.error());
                 }
@@ -272,7 +269,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                     SystemDataStreamDescriptor.Type.EXTERNAL,
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
-                        .template(Template.builder().lifecycle(DataStreamLifecycle.Template.builder().dataRetention(TimeValue.ZERO)))
+                        .template(Template.builder().lifecycle(DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO)))
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build(),
                     Map.of(),

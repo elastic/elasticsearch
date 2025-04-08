@@ -17,8 +17,23 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
  */
 public interface NamedDiff<T extends Diffable<T>> extends Diff<T>, NamedWriteable {
     /**
-     * The minimal version of the recipient this custom object can be sent to
+     * The minimal version of the recipient this object can be sent to.
+     * See {@link #supportsVersion(TransportVersion)} for the default serialization check.
      */
     TransportVersion getMinimalSupportedVersion();
+
+    /**
+     * Determines whether this instance should be serialized based on the provided transport version.
+     *
+     * The default implementation returns {@code true} if the given transport version is
+     * equal to or newer than {@link #getMinimalSupportedVersion()}.
+     * Subclasses may override this method to define custom serialization logic.
+     *
+     * @param version the transport version of the receiving node
+     * @return {@code true} if the instance should be serialized, {@code false} otherwise
+     */
+    default boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(getMinimalSupportedVersion());
+    }
 
 }

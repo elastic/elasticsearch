@@ -92,3 +92,23 @@ fork1         | 10052
 fork2         | 10099
 fork2         | 10100
 ;
+
+forkWithSemanticSearchAndScore
+required_capability: fork
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM semantic_text METADATA _id, _score
+| FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
+       ( WHERE semantic_text_field:"something else" | SORT _score DESC | LIMIT 2)
+| EVAL _score = round(_score, 4)
+| SORT _fork, _score, _id
+| KEEP _fork, _score, _id, semantic_text_field
+;
+
+_fork:keyword | _score:double         | _id:keyword | semantic_text_field:text
+fork1         | 2.156063961865257E18  | 3           | be excellent to each other
+fork1         | 5.603396578413904E18  | 2           | all we have to decide is what to do with the time that is given to us
+fork2         | 2.3447541759648727E18 | 3           | be excellent to each other
+fork2         | 6.093784261960139E18  | 2           | all we have to decide is what to do with the time that is given to us
+;

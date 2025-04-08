@@ -1484,7 +1484,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 indexShard.failShard("simulated", new ElasticsearchException("simulated"));
                 safeAwait(
                     ClusterServiceUtils.addTemporaryStateListener(
-                        internalCluster().getInstance(ClusterService.class),
                         cs -> cs.metadata().getProject().index(indexName).primaryTerm(0) > primaryTerm
                     )
                 );

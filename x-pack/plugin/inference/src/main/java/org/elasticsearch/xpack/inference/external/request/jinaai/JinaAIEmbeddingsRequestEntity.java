@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings.invalidInputTypeMessage;
+import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
 public record JinaAIEmbeddingsRequestEntity(
     List<String> input,

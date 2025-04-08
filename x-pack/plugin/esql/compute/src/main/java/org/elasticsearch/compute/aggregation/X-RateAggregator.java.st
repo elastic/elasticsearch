@@ -36,10 +36,11 @@ import java.util.Arrays;
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    includeTimestamps = true,
+    timeseries = true,
     value = {
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
         @IntermediateState(name = "values", type = "$TYPE$_BLOCK"),
+        @IntermediateState(name = "sampleCounts", type = "INT"),
         @IntermediateState(name = "resets", type = "DOUBLE") }
 )
 public class Rate$Type$Aggregator {
@@ -57,10 +58,11 @@ public class Rate$Type$Aggregator {
         int groupId,
         LongBlock timestamps,
         $Type$Block values,
+        int sampleCount,
         double reset,
         int otherPosition
     ) {
-        current.combine(groupId, timestamps, values, reset, otherPosition);
+        current.combine(groupId, timestamps, values, sampleCount, reset, otherPosition);
     }
 
     public static void combineStates(
@@ -72,14 +74,16 @@ public class Rate$Type$Aggregator {
         current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
-    public static Block evaluateFinal($Type$RateGroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.evaluateFinal(selected, driverContext.blockFactory());
+    public static Block evaluateFinal($Type$RateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+        return state.evaluateFinal(selected, evalContext);
     }
 
     private static class $Type$RateState {
         static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject($Type$RateState.class);
         final long[] timestamps; // descending order
         final $type$[] values;
+        // the timestamps and values arrays might have collapsed to fewer values than the actual sample count
+        int sampleCount = 0;
         double reset = 0;
 
         $Type$RateState(int initialSize) {
@@ -90,6 +94,7 @@ public class Rate$Type$Aggregator {
         $Type$RateState(long[] ts, $type$[] vs) {
             this.timestamps = ts;
             this.values = vs;
+            this.sampleCount = values.length;
         }
 
         private $type$ dv($type$ v0, $type$ v1) {
@@ -103,6 +108,7 @@ public class Rate$Type$Aggregator {
             reset += dv(v, values[1]) + dv(values[1], values[0]) - dv(v, values[0]);
             timestamps[1] = t;
             values[1] = v;
+            sampleCount++;
         }
 
         int entries() {
@@ -159,7 +165,7 @@ public class Rate$Type$Aggregator {
             }
         }
 
-        void combine(int groupId, LongBlock timestamps, $Type$Block values, double reset, int otherPosition) {
+        void combine(int groupId, LongBlock timestamps, $Type$Block values, int sampleCount, double reset, int otherPosition) {
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
                 return;
@@ -171,6 +177,7 @@ public class Rate$Type$Aggregator {
                 adjustBreaker($Type$RateState.bytesUsed(valueCount));
                 state = new $Type$RateState(valueCount);
                 state.reset = reset;
+                state.sampleCount = sampleCount;
                 states.set(groupId, state);
                 // TODO: add bulk_copy to Block
                 for (int i = 0; i < valueCount; i++) {
@@ -181,6 +188,7 @@ public class Rate$Type$Aggregator {
                 adjustBreaker($Type$RateState.bytesUsed(state.entries() + valueCount));
                 var newState = new $Type$RateState(state.entries() + valueCount);
                 newState.reset = state.reset + reset;
+                newState.sampleCount = state.sampleCount + sampleCount;
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
                 adjustBreaker(-$Type$RateState.bytesUsed(state.entries())); // old state
@@ -228,6 +236,7 @@ public class Rate$Type$Aggregator {
                 adjustBreaker($Type$RateState.bytesUsed(len));
                 curr = new $Type$RateState(Arrays.copyOf(other.timestamps, len), Arrays.copyOf(other.values, len));
                 curr.reset = other.reset;
+                curr.sampleCount = other.sampleCount;
                 states.set(groupId, curr);
             } else {
                 states.set(groupId, mergeState(curr, other));
@@ -239,6 +248,7 @@ public class Rate$Type$Aggregator {
             adjustBreaker($Type$RateState.bytesUsed(newLen));
             var dst = new $Type$RateState(newLen);
             dst.reset = s1.reset + s2.reset;
+            dst.sampleCount = s1.sampleCount + s2.sampleCount;
             int i = 0, j = 0, k = 0;
             while (i < s1.entries() && j < s2.entries()) {
                 if (s1.timestamps[i] > s2.timestamps[j]) {
@@ -277,6 +287,7 @@ public class Rate$Type$Aggregator {
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
                 $Type$Block.Builder values = blockFactory.new$Type$BlockBuilder(positionCount * 2);
+                IntVector.FixedBuilder sampleCounts = blockFactory.newIntVectorFixedBuilder(positionCount);
                 DoubleVector.FixedBuilder resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
             ) {
                 for (int i = 0; i < positionCount; i++) {
@@ -294,45 +305,103 @@ public class Rate$Type$Aggregator {
                             values.append$Type$(v);
                         }
                         values.endPositionEntry();
-
+                        sampleCounts.appendInt(i, state.sampleCount);
                         resets.appendDouble(i, state.reset);
                     } else {
                         timestamps.appendNull();
                         values.appendNull();
+                        sampleCounts.appendInt(i, 0);
                         resets.appendDouble(i, 0);
                     }
                 }
                 blocks[offset] = timestamps.build();
                 blocks[offset + 1] = values.build();
-                blocks[offset + 2] = resets.build().asBlock();
+                blocks[offset + 2] = sampleCounts.build().asBlock();
+                blocks[offset + 3] = resets.build().asBlock();
             }
         }
 
-        Block evaluateFinal(IntVector selected, BlockFactory blockFactory) {
+        private static double computeRateWithoutExtrapolate($Type$RateState state, long unitInMillis) {
+            final int len = state.entries();
+            assert len >= 2 : "rate requires at least two samples; got " + len;
+            final long firstTS = state.timestamps[state.timestamps.length - 1];
+            final long lastTS = state.timestamps[0];
+            double reset = state.reset;
+            for (int i = 1; i < len; i++) {
+                if (state.values[i - 1] < state.values[i]) {
+                    reset += state.values[i];
+                }
+            }
+            final double firstValue = state.values[len - 1];
+            final double lastValue = state.values[0] + reset;
+            return (lastValue - firstValue) * unitInMillis / (lastTS - firstTS);
+        }
+
+        /**
+         * Credit to PromQL for this extrapolation algorithm:
+         * If samples are close enough to the rangeStart and rangeEnd, we extrapolate the rate all the way to the boundary in question.
+         * "Close enough" is defined as "up to 10% more than the average duration between samples within the range".
+         * Essentially, we assume a more or less regular spacing between samples. If we don't see a sample where we would expect one,
+         * we assume the series does not cover the whole range but starts and/or ends within the range.
+         * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
+         * samples (which is our guess for where the series actually starts or ends).
+         */
+        private static double extrapolateRate($Type$RateState state, long rangeStart, long rangeEnd, long unitInMillis) {
+            final int len = state.entries();
+            assert len >= 2 : "rate requires at least two samples; got " + len;
+            final long firstTS = state.timestamps[state.timestamps.length - 1];
+            final long lastTS = state.timestamps[0];
+            double reset = state.reset;
+            for (int i = 1; i < len; i++) {
+                if (state.values[i - 1] < state.values[i]) {
+                    reset += state.values[i];
+                }
+            }
+            double firstValue = state.values[len - 1];
+            double lastValue = state.values[0] + reset;
+            final double sampleTS = lastTS - firstTS;
+            final double averageSampleInterval = sampleTS / state.sampleCount;
+            final double slope = (lastValue - firstValue) / sampleTS;
+            double startGap = firstTS - rangeStart;
+            if (startGap > 0) {
+                if (startGap > averageSampleInterval * 1.1) {
+                    startGap = averageSampleInterval / 2.0;
+                }
+                firstValue = Math.max(0.0, firstValue - startGap * slope);
+            }
+            double endGap = rangeEnd - lastTS;
+            if (endGap > 0) {
+                if (endGap > averageSampleInterval * 1.1) {
+                    endGap = averageSampleInterval / 2.0;
+                }
+                lastValue = lastValue + endGap * slope;
+            }
+            return (lastValue - firstValue) * unitInMillis / (rangeEnd - rangeStart);
+        }
+
+        Block evaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
             int positionCount = selected.getPositionCount();
-            try (DoubleBlock.Builder rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
+            try (DoubleBlock.Builder rates = evalContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     final var groupId = selected.getInt(p);
                     final var state = groupId < states.size() ? states.get(groupId) : null;
-                    if (state == null) {
+                    if (state == null || state.sampleCount < 2) {
                         rates.appendNull();
                         continue;
                     }
                     int len = state.entries();
-                    long dt = state.timestamps[0] - state.timestamps[len - 1];
-                    if (dt == 0) {
-                        // TODO: maybe issue warning when we don't have enough sample?
-                        rates.appendNull();
+                    final double rate;
+                    if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+                        rate = extrapolateRate(
+                            state,
+                            tsContext.rangeStartInMillis(groupId),
+                            tsContext.rangeEndInMillis(groupId),
+                            unitInMillis
+                        );
                     } else {
-                        double reset = state.reset;
-                        for (int i = 1; i < len; i++) {
-                            if (state.values[i - 1] < state.values[i]) {
-                                reset += state.values[i];
-                            }
-                        }
-                        double dv = state.values[0] - state.values[len - 1] + reset;
-                        rates.appendDouble(dv * unitInMillis / dt);
+                        rate = computeRateWithoutExtrapolate(state, unitInMillis);
                     }
+                    rates.appendDouble(rate);
                 }
                 return rates.build();
             }

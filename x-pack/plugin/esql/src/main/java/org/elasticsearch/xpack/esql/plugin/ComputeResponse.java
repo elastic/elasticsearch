@@ -77,7 +77,8 @@ final class ComputeResponse extends TransportResponse {
             this.skippedShards = 0;
             this.failedShards = 0;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
             this.failures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
         } else {
             this.failures = List.of();
@@ -101,7 +102,8 @@ final class ComputeResponse extends TransportResponse {
             out.writeVInt(skippedShards);
             out.writeVInt(failedShards);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
             out.writeCollection(failures, (o, v) -> v.writeTo(o));
         }
     }

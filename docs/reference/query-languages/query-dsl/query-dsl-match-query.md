@@ -199,7 +199,7 @@ GET /_search
 
 ### Synonyms [query-dsl-match-query-synonyms]
 
-The `match` query supports multi-terms synonym expansion with the [synonym_graph](/reference/data-analysis/text-analysis/analysis-synonym-graph-tokenfilter.md) token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms. For example, the following synonym: `"ny, new york"` would produce:
+The `match` query supports multi-terms synonym expansion with the [synonym_graph](/reference/text-analysis/analysis-synonym-graph-tokenfilter.md) token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms. For example, the following synonym: `"ny, new york"` would produce:
 
 `(ny OR ("new york"))`
 

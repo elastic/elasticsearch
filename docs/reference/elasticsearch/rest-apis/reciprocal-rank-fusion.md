@@ -103,12 +103,12 @@ Note that if `k` from a knn search is larger than `rank_window_size`, the result
 
 The `rrf` retriever supports:
 
-* [aggregations](/reference/data-analysis/aggregations/index.md)
+* [aggregations](/reference/aggregations/index.md)
 * [from](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-from-param)
 * [suggesters](/reference/elasticsearch/rest-apis/search-suggesters.md)
 * [highlighting](/reference/elasticsearch/rest-apis/highlighting.md)
 * [collapse](/reference/elasticsearch/rest-apis/collapse-search-results.md)
-* [profiling](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-profile.html#profiling-queries)
+* [profiling](/reference/elasticsearch/rest-apis/search-profile.md)
 
 The `rrf` retriever does not currently support:
 

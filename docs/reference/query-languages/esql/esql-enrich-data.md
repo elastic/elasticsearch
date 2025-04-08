@@ -19,16 +19,16 @@ For example, you can use `ENRICH` to:
 
 * Enrichment data doesn't change frequently
 * You can accept index-time overhead
-* You are working with structured enrichment patterns
 * You can accept having multiple matches combined into multi-values
 * You can accept being limited to predefined match fields
-* `ENRICH` has a simplified security model. There are no restirctions to specific enrich policies or document and field level security.
+* You do not need fine-grained security: There are no restrictions to specific enrich policies or document and field level security.
+* You want to match using ranges or spatial relations
 
 ### How the `ENRICH` command works [esql-how-enrich-works]
 
 The `ENRICH` command adds new columns to a table, with data from {{es}} indices. It requires a few special components:
 
-:::{image} ../../../images/esql-enrich.png
+:::{image} ../images/esql-enrich.png
 :alt: esql enrich
 :::
 
@@ -119,14 +119,14 @@ Once created, you can’t update or change an enrich policy. See [Update an enri
 
 Once the enrich policy is created, you need to execute it using the [execute enrich policy API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-execute-policy) or [Index Management in {{kib}}](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-mgmt.html#manage-enrich-policies) to create an [enrich index](docs-content://manage-data/ingest/transform-enrich/data-enrichment.md#enrich-index).
 
-:::{image} ../../../images/esql-enrich-policy.png
+:::{image} ../images/esql-enrich-policy.png
 :alt: esql enrich policy
 :::
 
 The *enrich index* contains documents from the policy’s source indices. Enrich indices always begin with `.enrich-*`, are read-only, and are [force merged](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge).
 
 ::::{warning}
-Enrich indices should only be used by the [enrich processor](/reference/ingestion-tools/enrich-processor/enrich-processor.md) or the [{{esql}} `ENRICH` command](/reference/query-languages/esql/esql-commands.md#esql-enrich). Avoid using enrich indices for other purposes.
+Enrich indices should only be used by the [enrich processor](/reference/enrich-processor/enrich-processor.md) or the [{{esql}} `ENRICH` command](/reference/query-languages/esql/esql-commands.md#esql-enrich). Avoid using enrich indices for other purposes.
 
 ::::
 
@@ -136,7 +136,7 @@ Enrich indices should only be used by the [enrich processor](/reference/ingestio
 
 After the policy has been executed, you can use the [`ENRICH` command](/reference/query-languages/esql/esql-commands.md#esql-enrich) to enrich your data.
 
-:::{image} ../../../images/esql-enrich-command.png
+:::{image} ../images/esql-enrich-command.png
 :alt: esql enrich command
 :::
 

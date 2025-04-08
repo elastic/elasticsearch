@@ -13,7 +13,7 @@ There are two main types of network communication used in Elasticsearch:
 > [!NOTE]
 > Cross-cluster [replication](https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-ccr.html) and [search](https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cross-cluster-search.html) use binary/TCP messaging for inter-cluster communication but this is out of scope for this section
 
-The node that a REST request arrives at is called the "coordinating" node. Its job is to coordinate the execution of the request with the other nodes in the cluster and when the requested action is completed, return the possibly aggregated response the REST client via HTTP.
+The node that a REST request arrives at is called the "coordinating" node. Its job is to coordinate the execution of the request with the other nodes in the cluster and when the requested action is completed, return the possibly aggregated response to the REST client via HTTP.
 
 By default, all nodes will act as coordinating nodes, but by specifying `node.roles` to be empty you can create a [coordinating-only node](https://www.elastic.co/guide/en/elasticsearch/reference/current/node-roles-overview.html#coordinating-only-node-role).
 

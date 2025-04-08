@@ -304,6 +304,11 @@ class S3BlobContainer extends AbstractBlobContainer {
         return blobStore.bufferSizeInBytes();
     }
 
+    // package private for testing
+    long getLargeCopyThresholdInBytes() {
+        return MAX_FILE_SIZE.getBytes();
+    }
+
     @Override
     public void writeBlobAtomic(
         OperationPurpose purpose,
@@ -353,7 +358,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final var s3SourceBlobContainer = (S3BlobContainer) sourceBlobContainer;
 
         try {
-            if (blobSize > MAX_FILE_SIZE.getBytes()) {
+            if (blobSize > getLargeCopyThresholdInBytes()) {
                 executeMultipartCopy(purpose, s3SourceBlobContainer, sourceBlobName, blobName, blobSize);
             } else {
                 // metadata is inherited from source, but not canned ACL or storage class

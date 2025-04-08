@@ -623,6 +623,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                                 }
 
                                 @Override
+                                long getLargeCopyThresholdInBytes() {
+                                    // on my laptop 10K exercises this better but larger values should be fine for nightlies
+                                    return ByteSizeUnit.MB.toBytes(1L);
+                                }
+
+                                @Override
                                 void ensureMultiPartUploadSize(long blobSize) {}
                             };
                         }

@@ -253,6 +253,9 @@ tests:
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/126124
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIpTests
+  method: testLeadingZerosAreOctal {TestCase[str=v4, validLeadingZerosRejected=true, validLeadingZerosAreDecimal=true, validLeadingZerosAreOctal=true]}
+  issue: https://github.com/elastic/elasticsearch/issues/126496
 
 # Examples:
 #

@@ -199,8 +199,8 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = state.toValuesBlock(selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = state.toValuesBlock(selected, evaluatorContext.driverContext());
   }
 
   @Override

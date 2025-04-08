@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.ElasticInferenceServiceUnifiedCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -435,7 +434,7 @@ public class ElasticInferenceService extends SenderService {
 
     private static List<ChunkedInference> translateToChunkedResults(InferenceInputs inputs, InferenceServiceResults inferenceResults) {
         if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            var inputsAsList = EmbeddingsInput.of(inputs).getInputs();
+            var inputsAsList = EmbeddingsInput.of(inputs).getStringInputs();
             return ChunkedInferenceEmbedding.listOf(inputsAsList, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ChunkedInferenceError(error.getException()));

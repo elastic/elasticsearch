@@ -15,6 +15,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -83,7 +84,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         @Nullable TimeValue readTimeout,
         @Nullable Boolean disableChunkedEncoding,
         @Nullable ByteSizeValue bufferSize,
-        @Nullable Integer maxBulkDeletes
+        @Nullable Integer maxBulkDeletes,
+        @Nullable BlobPath blobContainerPath
     );
 
     protected org.hamcrest.Matcher<Object> readTimeoutExceptionMatcher() {
@@ -92,7 +94,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
-        final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null, null, null);
         final long position = randomLongBetween(0, MAX_RANGE_VAL);
         final int length = randomIntBetween(1, Math.toIntExact(Math.min(Integer.MAX_VALUE, MAX_RANGE_VAL - position)));
         final Exception exception = expectThrows(NoSuchFileException.class, () -> {
@@ -119,7 +121,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         final byte[] bytes = randomBlobContent();
         final TimeValue readTimeout = TimeValue.timeValueSeconds(between(1, 3));
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null, null, null);
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_max_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             if (countDown.countDown()) {
@@ -176,7 +178,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final CountDown countDown = new CountDown(maxRetries + 1);
 
         final TimeValue readTimeout = TimeValue.timeValueSeconds(between(5, 10));
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null, null, null);
         final byte[] bytes = randomBlobContent();
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_range_blob_max_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
@@ -248,7 +250,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     public void testReadBlobWithReadTimeouts() {
         final int maxRetries = randomInt(5);
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null, null, null);
 
         // HTTP server does not send a response
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_unresponsive"), exchange -> {});
@@ -305,7 +307,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
     public void testReadBlobWithNoHttpResponse() {
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
-        final BlobContainer blobContainer = createBlobContainer(randomInt(5), readTimeout, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(randomInt(5), readTimeout, null, null, null, null);
 
         // HTTP server closes connection immediately
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_no_response"), HttpExchange::close);
@@ -325,7 +327,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
     public void testReadBlobWithPrematureConnectionClose() {
         final int maxRetries = randomInt(20);
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null, null);
 
         final boolean alwaysFlushBody = randomBoolean();
 

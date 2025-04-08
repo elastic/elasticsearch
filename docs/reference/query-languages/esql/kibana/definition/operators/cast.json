@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "::",
   "name" : "cast",
-  "description" : "The `::` operator provides a convenient alternative syntax to the TO_<type> [conversion functions](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/esql-functions-operators#esql-type-conversion-functions).",
+  "description" : "The `::` operator provides a convenient alternative syntax to the TO_<type> conversion functions.",
   "signatures" : [ ],
   "examples" : [
     "ROW ver = CONCAT((\"0\"::INT + 1)::STRING, \".2.3\")::VERSION"

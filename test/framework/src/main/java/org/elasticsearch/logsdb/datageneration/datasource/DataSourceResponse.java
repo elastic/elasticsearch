@@ -46,6 +46,10 @@ public interface DataSourceResponse {
 
     record ShapeGenerator(Supplier<Geometry> generator) implements DataSourceResponse {}
 
+    record PointGenerator(Supplier<Object> generator) implements DataSourceResponse {}
+
+    record GeoPointGenerator(Supplier<Object> generator) implements DataSourceResponse {}
+
     record NullWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     record ArrayWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
@@ -55,6 +59,8 @@ public interface DataSourceResponse {
     record MalformedWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     record TransformWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
+
+    record TransformWeightedWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     interface ChildFieldGenerator extends DataSourceResponse {
         int generateChildFieldCount();

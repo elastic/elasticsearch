@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -29,6 +30,8 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
+import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
@@ -71,7 +74,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(newInstance.originalValues(), equalTo(expectedInstance.originalValues()));
         assertThat(newInstance.inference().modelSettings(), equalTo(expectedInstance.inference().modelSettings()));
         assertThat(newInstance.inference().chunks().size(), equalTo(expectedInstance.inference().chunks().size()));
-
+        assertThat(newInstance.inference().chunkingSettings(), equalTo(expectedInstance.inference().chunkingSettings()));
         MinimalServiceSettings modelSettings = newInstance.inference().modelSettings();
         for (var entry : newInstance.inference().chunks().entrySet()) {
             var expectedChunks = expectedInstance.inference().chunks().get(entry.getKey());
@@ -119,6 +122,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 useLegacyFormat,
                 NAME,
                 TestModel.createRandomInstance(),
+                generateRandomChunkingSettings(),
                 rawValues,
                 randomFrom(XContentType.values())
             );
@@ -248,6 +252,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         boolean useLegacyFormat,
         String fieldName,
         Model model,
+        ChunkingSettings chunkingSettings,
         List<String> inputs,
         XContentType contentType
     ) throws IOException {
@@ -259,13 +264,22 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
-        return semanticTextFieldFromChunkedInferenceResults(useLegacyFormat, fieldName, model, inputs, results, contentType);
+        return semanticTextFieldFromChunkedInferenceResults(
+            useLegacyFormat,
+            fieldName,
+            model,
+            chunkingSettings,
+            inputs,
+            results,
+            contentType
+        );
     }
 
     public static SemanticTextField semanticTextFieldFromChunkedInferenceResults(
         boolean useLegacyFormat,
         String fieldName,
         Model model,
+        ChunkingSettings chunkingSettings,
         List<String> inputs,
         ChunkedInference results,
         XContentType contentType
@@ -300,10 +314,28 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
                 new MinimalServiceSettings(model),
+                chunkingSettings,
                 Map.of(fieldName, chunks)
             ),
             contentType
         );
+    }
+
+    public static ChunkingSettings generateRandomChunkingSettings() {
+        return generateRandomChunkingSettings(true);
+    }
+
+    public static ChunkingSettings generateRandomChunkingSettings(boolean allowNull) {
+        if (allowNull && randomBoolean()) {
+            return null; // Use model defaults
+        }
+        return randomBoolean()
+            ? new WordBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(1, 10))
+            : new SentenceBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(0, 1));
+    }
+
+    public static ChunkingSettings generateRandomChunkingSettingsOtherThan(ChunkingSettings chunkingSettings) {
+        return randomValueOtherThan(chunkingSettings, () -> generateRandomChunkingSettings(false));
     }
 
     /**

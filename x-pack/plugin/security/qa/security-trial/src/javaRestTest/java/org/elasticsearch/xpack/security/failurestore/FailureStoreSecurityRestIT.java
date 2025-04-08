@@ -33,6 +33,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -92,6 +93,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private static final String WRITE_ACCESS = "write_access";
     private static final String MANAGE_ACCESS = "manage_access";
     private static final String MANAGE_FAILURE_STORE_ACCESS = "manage_failure_store_access";
+    private static final String MANAGE_DATA_STREAM_LIFECYCLE = "manage_data_stream_lifecycle";
     private static final SecureString PASSWORD = new SecureString("admin-password");
 
     @Before
@@ -125,14 +127,10 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "global": [],
               "indices": [{
                   "names": ["*"],
-                  "privileges": ["read"],
+                  "privileges": ["read", "read_failure_store"],
                   "allow_restricted_indices": false
-                },
-                {
-                  "names": ["*"],
-                  "privileges": ["read_failure_store"],
-                  "allow_restricted_indices": false
-                }],
+                }
+              ],
               "applications": [],
               "run_as": []
             }""");
@@ -209,14 +207,57 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "indices": [
                 {
                   "names": ["*"],
-                  "privileges": ["read", "write"],
+                  "privileges": ["manage_failure_store", "read", "read_failure_store", "write"],
+                  "allow_restricted_indices": false
+                }
+              ],
+              "applications": [],
+              "run_as": []
+            }""");
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["read", "manage"],
                   "allow_restricted_indices": false
                 },
                 {
-                  "names": ["*"],
-                  "privileges": ["manage_failure_store", "read_failure_store"],
+                  "names": ["idx", "*"],
+                  "privileges": ["manage_data_stream_lifecycle"],
                   "allow_restricted_indices": false
-                }],
+                },
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["write"],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": ["idx", "*"],
+                  "privileges": ["manage"],
+                  "allow_restricted_indices": true
+                }
+              ]
+            }
+            """, "role");
+        expectUserPrivilegesResponse("""
+            {
+              "cluster": ["all"],
+              "global": [],
+              "indices": [
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["manage", "manage_data_stream_lifecycle", "read"],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": ["*", "idx"],
+                  "privileges": ["manage", "write"],
+                  "allow_restricted_indices": true
+                }
+              ],
               "applications": [],
               "run_as": []
             }""");
@@ -1092,6 +1133,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
                         expectThrows(user, request, 403);
+                        // also check authz message
+                        expectThrowsUnauthorized(
+                            user,
+                            request,
+                            containsString("this action is granted by the index privileges [read,all]")
+                        );
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1277,6 +1324,15 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectThrows(user, request, 403);
+                        // also check authz message
+                        expectThrowsUnauthorized(
+                            user,
+                            request,
+                            containsString(
+                                "this action is granted by the index privileges [read,all] for data access, "
+                                    + "or by [read_failure_store] for access with the [::failures] selector"
+                            )
+                        );
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
@@ -1756,7 +1812,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
     }
 
-    public void testWriteOperations() throws IOException {
+    public void testWriteAndManageOperations() throws IOException {
         setupDataStream();
         Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
         String dataIndexName = backingIndices.v1();
@@ -1792,16 +1848,53 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """);
 
-        // user with manage access to data stream does NOT get direct access to failure index
-        expectThrows(() -> deleteIndex(MANAGE_ACCESS, failureIndexName), 403);
+        createUser(MANAGE_DATA_STREAM_LIFECYCLE, PASSWORD, MANAGE_DATA_STREAM_LIFECYCLE);
+        upsertRole(Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["manage_data_stream_lifecycle"]}]
+            }"""), MANAGE_DATA_STREAM_LIFECYCLE);
+        createAndStoreApiKey(MANAGE_DATA_STREAM_LIFECYCLE, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*"], "privileges": ["manage_data_stream_lifecycle"]}]
+              }
+            }
+            """);
+
+        // explain lifecycle API with and without failures selector is granted by manage
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", "test1/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", "test1::failures/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", failureIndexName + "/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_ACCESS, new Request("GET", dataIndexName + "/_lifecycle/explain")));
+
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", "test1/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", "test1::failures/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", failureIndexName + "/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_DATA_STREAM_LIFECYCLE, new Request("GET", dataIndexName + "/_lifecycle/explain")));
+
+        // explain lifecycle API is granted by manage_failure_store only for failures selector
+        expectThrows(() -> performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", "test1/_lifecycle/explain")), 403);
+        assertOK(performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", "test1::failures/_lifecycle/explain")));
+        assertOK(performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", failureIndexName + "/_lifecycle/explain")));
+        expectThrows(() -> performRequest(MANAGE_FAILURE_STORE_ACCESS, new Request("GET", dataIndexName + "/_lifecycle/explain")), 403);
+
+        // user with manage access to data stream can delete failure index because manage grants access to both data and failures
+        expectThrows(() -> deleteIndex(MANAGE_ACCESS, failureIndexName), 400);
         expectThrows(() -> deleteIndex(MANAGE_ACCESS, dataIndexName), 400);
-        // manage_failure_store user COULD delete failure index (not valid because it's a write index, but allow security-wise)
-        expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
+
+        // manage_failure_store user COULD delete failure index (not valid because it's a write index, but allowed security-wise)
         expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, failureIndexName), 400);
+        expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
 
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1"), 403);
-        expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"), 403);
+        // selectors aren't supported for deletes so we get a 403
+        expectThrowsBadRequest(
+            () -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"),
+            containsString("Index component selectors are not supported in this context but found selector in expression [test1::failures]")
+        );
 
         // manage user can delete data stream
         deleteDataStream(MANAGE_ACCESS, "test1");
@@ -2253,6 +2346,18 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private static void expectThrows(ThrowingRunnable runnable, int statusCode) {
         var ex = expectThrows(ResponseException.class, runnable);
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
+    }
+
+    private void expectThrowsBadRequest(ThrowingRunnable runnable, Matcher<String> errorMatcher) {
+        ResponseException ex = expectThrows(ResponseException.class, runnable);
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(ex.getMessage(), errorMatcher);
+    }
+
+    private void expectThrowsUnauthorized(String user, Search search, Matcher<String> errorMatcher) {
+        ResponseException ex = expectThrows(ResponseException.class, () -> performRequestMaybeUsingApiKey(user, search.toSearchRequest()));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(ex.getMessage(), errorMatcher);
     }
 
     private void expectThrows(String user, Search search, int statusCode) {

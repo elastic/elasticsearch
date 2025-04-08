@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeTo
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
-abstract class PositionToXContent {
+public abstract class PositionToXContent {
     protected final Block block;
 
     PositionToXContent(Block block) {
@@ -91,7 +91,7 @@ abstract class PositionToXContent {
                     return builder.value(unsignedLongAsNumber(l));
                 }
             };
-            case KEYWORD, SEMANTIC_TEXT, TEXT -> new PositionToXContent(block) {
+            case KEYWORD, TEXT -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {

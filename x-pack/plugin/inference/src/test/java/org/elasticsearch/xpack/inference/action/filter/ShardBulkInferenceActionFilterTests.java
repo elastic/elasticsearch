@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -79,11 +80,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
@@ -505,7 +506,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(Settings.EMPTY);
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final StaticModel denseModel = StaticModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
-        final Function<XContentBuilder, Long> bytesUsed = b -> BytesReference.bytes(b).ramBytesUsed();
         final ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel, denseModel.getInferenceEntityId(), denseModel),
@@ -558,14 +558,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc0Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc1Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc2Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc3Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc4Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc0UpdateSource));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc0Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc1Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc2Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc3Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc4Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc0UpdateSource));
                 if (useLegacyFormat == false) {
-                    verify(coordinatingIndexingPressure).increment(1, bytesUsed.apply(doc1UpdateSource));
+                    verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc1UpdateSource));
                 }
 
                 verify(coordinatingIndexingPressure, times(useLegacyFormat ? 6 : 7)).increment(eq(0), longThat(l -> l > 0));
@@ -660,7 +660,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure).increment(1, BytesReference.bytes(doc1Source).ramBytesUsed());
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc1Source));
                 verify(coordinatingIndexingPressure, times(1)).increment(anyInt(), anyLong());
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
@@ -699,7 +699,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     public void testIndexingPressureTripsOnInferenceResponseHandling() throws Exception {
         final XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
-            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), (BytesReference.bytes(doc1Source).ramBytesUsed() + 1) + "b").build()
+            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), (bytesUsed(doc1Source) + 1) + "b").build()
         );
 
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
@@ -740,7 +740,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure).increment(1, BytesReference.bytes(doc1Source).ramBytesUsed());
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc1Source));
                 verify(coordinatingIndexingPressure).increment(eq(0), longThat(l -> l > 0));
                 verify(coordinatingIndexingPressure, times(2)).increment(anyInt(), anyLong());
 
@@ -765,6 +765,117 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         items[0] = new BulkItemRequest(0, new IndexRequest("index").id("doc_0").source("non_inference_field", "foo"));
         items[1] = new BulkItemRequest(1, new IndexRequest("index").id("doc_1").source(doc1Source));
         items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source("non_inference_field", "baz"));
+
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(inferenceFieldMap);
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+
+        IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+        assertThat(coordinatingIndexingPressure, notNullValue());
+        verify(coordinatingIndexingPressure).close();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIndexingPressurePartialFailure() throws Exception {
+        // Use different length strings so that doc 1 and doc 2 sources are different sizes
+        final XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
+        final XContentBuilder doc2Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bazzz");
+
+        final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        final ChunkedInferenceEmbedding barEmbedding = randomChunkedInferenceEmbedding(sparseModel, List.of("bar"));
+        final ChunkedInferenceEmbedding bazzzEmbedding = randomChunkedInferenceEmbedding(sparseModel, List.of("bazzz"));
+        sparseModel.putResult("bar", barEmbedding);
+        sparseModel.putResult("bazzz", bazzzEmbedding);
+
+        CheckedBiFunction<List<String>, ChunkedInference, Long, IOException> estimateInferenceResultsBytes = (inputs, inference) -> {
+            SemanticTextField semanticTextField = semanticTextFieldFromChunkedInferenceResults(
+                useLegacyFormat,
+                "sparse_field",
+                sparseModel,
+                null,
+                inputs,
+                inference,
+                XContentType.JSON
+            );
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            semanticTextField.toXContent(builder, EMPTY_PARAMS);
+            return bytesUsed(builder);
+        };
+
+        final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
+            Settings.builder()
+                .put(
+                    MAX_COORDINATING_BYTES.getKey(),
+                    (bytesUsed(doc1Source) + bytesUsed(doc2Source) + estimateInferenceResultsBytes.apply(List.of("bar"), barEmbedding)
+                        + (estimateInferenceResultsBytes.apply(List.of("bazzz"), bazzzEmbedding) / 2)) + "b"
+                )
+                .build()
+        );
+
+        final ShardBulkInferenceActionFilter filter = createFilter(
+            threadPool,
+            Map.of(sparseModel.getInferenceEntityId(), sparseModel),
+            indexingPressure,
+            useLegacyFormat,
+            true
+        );
+
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
+            try {
+                assertNull(request.getInferenceFieldMap());
+                assertThat(request.items().length, equalTo(4));
+
+                assertNull(request.items()[0].getPrimaryResponse());
+                assertNull(request.items()[1].getPrimaryResponse());
+                assertNull(request.items()[3].getPrimaryResponse());
+
+                BulkItemRequest doc2Request = request.items()[2];
+                BulkItemResponse doc2Response = doc2Request.getPrimaryResponse();
+                assertNotNull(doc2Response);
+                assertTrue(doc2Response.isFailed());
+                BulkItemResponse.Failure doc2Failure = doc2Response.getFailure();
+                assertThat(
+                    doc2Failure.getCause().getMessage(),
+                    containsString("Insufficient memory available to insert inference results into document [doc_2]")
+                );
+                assertThat(doc2Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+                assertThat(doc2Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));
+
+                IndexRequest doc2IndexRequest = getIndexRequestOrNull(doc2Request.request());
+                assertThat(doc2IndexRequest, notNullValue());
+                assertThat(doc2IndexRequest.source(), equalTo(BytesReference.bytes(doc2Source)));
+
+                IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+                assertThat(coordinatingIndexingPressure, notNullValue());
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc1Source));
+                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc2Source));
+                verify(coordinatingIndexingPressure, times(2)).increment(eq(0), longThat(l -> l > 0));
+                verify(coordinatingIndexingPressure, times(4)).increment(anyInt(), anyLong());
+
+                // Verify that the coordinating indexing pressure is maintained through downstream action filters
+                verify(coordinatingIndexingPressure, never()).close();
+
+                // Call the listener once the request is successfully processed, like is done in the production code path
+                listener.onResponse(null);
+            } finally {
+                chainExecuted.countDown();
+            }
+        };
+        ActionListener<BulkShardResponse> actionListener = (ActionListener<BulkShardResponse>) mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            "sparse_field",
+            new InferenceFieldMetadata("sparse_field", sparseModel.getInferenceEntityId(), new String[] { "sparse_field" }, null)
+        );
+
+        BulkItemRequest[] items = new BulkItemRequest[4];
+        items[0] = new BulkItemRequest(0, new IndexRequest("index").id("doc_0").source("non_inference_field", "foo"));
+        items[1] = new BulkItemRequest(1, new IndexRequest("index").id("doc_1").source(doc1Source));
+        items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source(doc2Source));
+        items[3] = new BulkItemRequest(3, new IndexRequest("index").id("doc_3").source("non_inference_field", "baz"));
 
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);
@@ -945,6 +1056,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         return new BulkItemRequest[] {
             new BulkItemRequest(requestId, new IndexRequest("index").source(docMap, requestContentType)),
             new BulkItemRequest(requestId, new IndexRequest("index").source(expectedDocMap, requestContentType)) };
+    }
+
+    private static long bytesUsed(XContentBuilder builder) {
+        return BytesReference.bytes(builder).ramBytesUsed();
     }
 
     @SuppressWarnings({ "unchecked" })

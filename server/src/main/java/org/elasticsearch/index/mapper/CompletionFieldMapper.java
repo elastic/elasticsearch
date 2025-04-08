@@ -30,6 +30,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ESBytesRef;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -705,6 +706,14 @@ public class CompletionFieldMapper extends FieldMapper {
                 return Token.START_OBJECT;
             }
             return super.currentToken();
+        }
+
+        @Override
+        public ESBytesRef textRefOrNull() throws IOException {
+            if (parsingObject == false) {
+                return null;
+            }
+            return super.textRefOrNull();
         }
 
         @Override

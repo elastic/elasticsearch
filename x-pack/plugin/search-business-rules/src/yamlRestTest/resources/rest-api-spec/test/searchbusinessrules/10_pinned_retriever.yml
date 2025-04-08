@@ -53,6 +53,9 @@ setup:
 
 ---
 "pinned retriever parameter variations":
+  - requires:
+      cluster_features: ["gte_v7.15.0"]
+      reason: "docs parameter support was added in 7.15"
 
   - do:
       search:
@@ -108,6 +111,9 @@ setup:
 
 ---
 "pinned retriever with combined parameters":
+  - requires:
+      cluster_features: ["gte_v7.15.0"]
+      reason: "combined parameters support was added in 7.15"
 
   - do:
       search:
@@ -265,7 +271,6 @@ setup:
 
   - do:
       headers:
-        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
         Content-Type: application/json
       search:
         index: test-index1
@@ -286,7 +291,6 @@ setup:
 
   - do:
       headers:
-        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
         Content-Type: application/json
       search:
         index: test-index1
@@ -315,7 +319,6 @@ setup:
 
   - do:
       headers:
-        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
         Content-Type: application/json
       search:
         index: test-index1

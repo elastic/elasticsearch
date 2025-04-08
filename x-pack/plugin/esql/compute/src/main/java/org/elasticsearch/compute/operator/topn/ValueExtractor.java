@@ -27,7 +27,10 @@ interface ValueExtractor {
 
     static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean inKey, Block block) {
         if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
-            throw new IllegalArgumentException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
+            // While this maybe should be an IllegalArgumentException, it's important to throw an exception that causes a 500 response.
+            // If we reach here, that's a bug. Arguably, the operators are in an illegal state because the layout doesn't match the
+            // actual pages.
+            throw new IllegalStateException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
         }
         return switch (block.elementType()) {
             case BOOLEAN -> ValueExtractorForBoolean.extractorFor(encoder, inKey, (BooleanBlock) block);

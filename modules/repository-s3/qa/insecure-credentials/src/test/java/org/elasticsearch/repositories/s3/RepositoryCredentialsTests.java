@@ -259,9 +259,13 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             return new ProxyS3Service(environment, nodeSettings, resourceWatcherService);
         }
 
+        /**
+         * This wrapper exposes a copy of the AWS credentials that the S3Client uses.
+         */
         public static final class ClientAndCredentials extends AmazonS3Wrapper {
             final AwsCredentialsProvider credentials;
-            final SdkHttpClient httpClient;
+            // The httpClient must be explicitly closed. Closure of the S3Client, which uses the httpClient, will not do so.
+            private final SdkHttpClient httpClient;
 
             ClientAndCredentials(S3Client delegate, SdkHttpClient httpClient, AwsCredentialsProvider credentials) {
                 super(delegate);

@@ -254,7 +254,7 @@ public class AmazonS3Wrapper implements S3Client {
 
     @Override
     public String serviceName() {
-        return null;
+        return "AmazonS3Wrapper";
     }
 
     @Override

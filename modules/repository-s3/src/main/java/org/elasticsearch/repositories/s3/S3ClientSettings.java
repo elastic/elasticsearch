@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,7 +77,8 @@ final class S3ClientSettings {
         key -> new Setting<>(key, "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope)
     );
 
-    /** Formerly the protocol to use to connect to s3, now unused */
+    /** Formerly the protocol to use to connect to s3, now unused. V2 AWS SDK can infer the protocol from {@link #endpoint}. */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
     static final Setting.AffixSetting<HttpScheme> UNUSED_PROTOCOL_SETTING = Setting.affixKeySetting(
         PREFIX,
         "protocol",
@@ -139,7 +141,8 @@ final class S3ClientSettings {
         key -> Setting.intSetting(key, Defaults.RETRY_COUNT, 0, Property.NodeScope)
     );
 
-    /** Formerly whether retries should be throttled (ie use backoff), now unused. */
+    /** Formerly whether retries should be throttled (ie use backoff), now unused. V2 AWS SDK always uses throttling. */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
     static final Setting.AffixSetting<Boolean> UNUSED_USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
@@ -167,7 +170,8 @@ final class S3ClientSettings {
         key -> Setting.simpleString(key, Property.NodeScope)
     );
 
-    /** Formerly an override for the signer to use, now unused. */
+    /** Formerly an override for the signer to use, now unused. V2 AWS SDK only supports AWS v4 signatures. */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
     static final Setting.AffixSetting<String> UNUSED_SIGNER_OVERRIDE = Setting.affixKeySetting(
         PREFIX,
         "signer_override",
@@ -354,6 +358,7 @@ final class S3ClientSettings {
     }
 
     // backcompat for reading keys out of repository settings (clusterState)
+    // TODO NOMERGE: delete this comment? Doesn't give me any context to understand. Can we delete deprecated code?
     private static AwsCredentials loadDeprecatedCredentials(Settings repositorySettings) {
         assert checkDeprecatedCredentials(repositorySettings);
         try (
@@ -474,6 +479,6 @@ final class S3ClientSettings {
         static final TimeValue READ_TIMEOUT = TimeValue.timeValueSeconds(50);
         static final int MAX_CONNECTIONS = 50;
         static final int RETRY_COUNT = 3;
-        static final boolean THROTTLE_RETRIES = true;
+        static final boolean THROTTLE_RETRIES = true; // NOMERGE: delete this and hardcode for one (deprecated) use?
     }
 }

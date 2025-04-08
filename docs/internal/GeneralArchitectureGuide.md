@@ -51,12 +51,20 @@ The sub-classes of [BaseRestHandler], usually named `Rest{action-name}Action`, a
 [TransportSingleShardAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/single/shard/TransportSingleShardAction.java
 [getActions]:https://github.com/elastic/elasticsearch/blob/0b09506b543231862570c7c1ee623c1af139bd5a/server/src/main/java/org/elasticsearch/plugins/ActionPlugin.java#L55
 [ActionType]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionType.java
+[ActionModule#setupActions]:https://github.com/elastic/elasticsearch/blob/997a7b8fab6c0bcaacf963c28fe98024492960c5/server/src/main/java/org/elasticsearch/action/ActionModule.java#L612
+[NodeClient#executeLocally]:https://github.com/elastic/elasticsearch/blob/997a7b8fab6c0bcaacf963c28fe98024492960c5/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java#L101
+[TransportService#sendRequest]:https://github.com/elastic/elasticsearch/blob/997a7b8fab6c0bcaacf963c28fe98024492960c5/server/src/main/java/org/elasticsearch/transport/TransportService.java#L767
+[TransportService#registerRequestHandler]:https://github.com/elastic/elasticsearch/blob/997a7b8fab6c0bcaacf963c28fe98024492960c5/server/src/main/java/org/elasticsearch/transport/TransportService.java#L1197
+[HandledTransportAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/HandledTransportAction.java
+[TransportService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/TransportService.java
 
 When `Rest{action-name}Action` handlers receive a request, they typically translate the request into a [ActionRequest] and dispatch it via the provided [NodeClient]. The [NodeClient] is the entrypoint into the "transport layer" over which internal cluster actions are coordinated.
 
-Elasticsearch contains many built-in [TransportAction]s, configured statically in [ActionModule], additional actions can be contributed by [ActionPlugin]s via the [getActions] method. [TransportAction]s define the request and response types used to invoke the action and the logic for performing the action. [TransportAction]s are registered against an [ActionType] which uniquely identifies the action.
+Elasticsearch contains many built-in [TransportAction]s, configured statically in [ActionModule], additional actions can be contributed by [ActionPlugin]s via the [getActions] method. [TransportAction]s define the request and response types used to invoke the action and the logic for performing the action.
 
-The [NodeClient] executes all actions locally on the invoking node, the actions themselves contain logic for dispatching downstream actions to other nodes in the cluster via the transport layer.
+[TransportAction]s that are registered in [ActionModule#setupActions] (including those supplied by plugins) are locally bound to their [ActionType]. This map of `type -> action` bindings is what [NodeClient] instances use to locate actions in [NodeClient#executeLocally].
+
+The [NodeClient] executes all actions locally on the invoking node, the actions themselves sometimes dispatch downstream actions to other nodes in the cluster via the transport layer (see [TransportService#sendRequest]). To be callable in this way, actions must register themselves with the [TransportService] by calling [TransportService#registerRequestHandler]. [HandledTransportAction] is a common parent class which registers an action with the [TransportService].
 
 There are a few common patterns for [TransportAction] execution which are present in the codebase. Some prominent examples include...
 

@@ -106,42 +106,6 @@ public class CertGenUtils {
         )
     );
 
-    /**
-     * The mapping of key usage names to their corresponding bit index as defined in {@code KeyUsage} class:
-     *
-     * <ul>
-     * <li>digitalSignature        (0)</li>
-     * <li>nonRepudiation          (1)</li>
-     * <li>keyEncipherment         (2)</li>
-     * <li>dataEncipherment        (3)</li>
-     * <li>keyAgreement            (4)</li>
-     * <li>keyCertSign             (5)</li>
-     * <li>cRLSign                 (6)</li>
-     * <li>encipherOnly            (7)</li>
-     * <li>decipherOnly            (8)</li>
-     * </ul>
-     */
-    public static final Map<String, Integer> KEY_USAGE_BITS = Map.of(
-        "digitalSignature",
-        0,
-        "nonRepudiation",
-        1,
-        "keyEncipherment",
-        2,
-        "dataEncipherment",
-        3,
-        "keyAgreement",
-        4,
-        "keyCertSign",
-        5,
-        "cRLSign",
-        6,
-        "encipherOnly",
-        7,
-        "decipherOnly",
-        8
-    );
-
     private CertGenUtils() {}
 
     /**

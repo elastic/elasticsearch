@@ -30,6 +30,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -38,7 +39,6 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.KEY_USAGE_BITS;
 import static org.elasticsearch.xpack.security.cli.CertGenUtils.KEY_USAGE_MAPPINGS;
 import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
 import static org.elasticsearch.xpack.security.cli.CertGenUtils.isValidKeyUsage;
@@ -53,6 +53,33 @@ import static org.hamcrest.Matchers.nullValue;
  * Unit tests for cert utils
  */
 public class CertGenUtilsTests extends ESTestCase {
+
+    /**
+     * The mapping of key usage names to their corresponding bit index as defined in {@code KeyUsage} class:
+     *
+     * <ul>
+     * <li>digitalSignature        (0)</li>
+     * <li>nonRepudiation          (1)</li>
+     * <li>keyEncipherment         (2)</li>
+     * <li>dataEncipherment        (3)</li>
+     * <li>keyAgreement            (4)</li>
+     * <li>keyCertSign             (5)</li>
+     * <li>cRLSign                 (6)</li>
+     * <li>encipherOnly            (7)</li>
+     * <li>decipherOnly            (8)</li>
+     * </ul>
+     */
+    public static final Map<String, Integer> KEY_USAGE_BITS = Map.ofEntries(
+        Map.entry("digitalSignature", 0),
+        Map.entry("nonRepudiation", 1),
+        Map.entry("keyEncipherment", 2),
+        Map.entry("dataEncipherment", 3),
+        Map.entry("keyAgreement", 4),
+        Map.entry("keyCertSign", 5),
+        Map.entry("cRLSign", 6),
+        Map.entry("encipherOnly", 7),
+        Map.entry("decipherOnly", 8)
+    );
 
     @BeforeClass
     public static void muteInFips() {
@@ -261,9 +288,7 @@ public class CertGenUtilsTests extends ESTestCase {
     public static void assertExpectedKeyUsage(X509Certificate certificate, List<String> expectedKeyUsage) {
         final boolean[] keyUsage = certificate.getKeyUsage();
         assertThat("Expected " + KEY_USAGE_BITS.size() + " bits for key usage", keyUsage.length, equalTo(KEY_USAGE_BITS.size()));
-        final Set<Integer> expectedBitsToBeSet = expectedKeyUsage.stream()
-            .map(CertGenUtils.KEY_USAGE_BITS::get)
-            .collect(Collectors.toSet());
+        final Set<Integer> expectedBitsToBeSet = expectedKeyUsage.stream().map(KEY_USAGE_BITS::get).collect(Collectors.toSet());
 
         for (int i = 0; i < keyUsage.length; i++) {
             if (expectedBitsToBeSet.contains(i)) {

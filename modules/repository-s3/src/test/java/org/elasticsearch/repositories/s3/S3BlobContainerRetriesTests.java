@@ -1477,9 +1477,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         + ']',
                     s3Stream.isEof() || s3Stream.isAborted()
                 );
-            } else
-
-            {
+            } else {
                 assertThat(in, instanceOf(ByteArrayInputStream.class));
                 assertThat(((ByteArrayInputStream) in).available(), equalTo(0));
             }

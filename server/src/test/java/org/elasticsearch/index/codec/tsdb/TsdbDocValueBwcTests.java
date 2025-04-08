@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.Elasticsearch816Codec;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
-import org.elasticsearch.index.codec.XPerFieldDocValuesFormat;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;

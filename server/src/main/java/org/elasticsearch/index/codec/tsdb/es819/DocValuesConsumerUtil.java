@@ -12,7 +12,7 @@ package org.elasticsearch.index.codec.tsdb.es819;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
-import org.elasticsearch.index.codec.XPerFieldDocValuesFormat;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 
 /**
  * Contains logic to determine whether optimized merge can occur.

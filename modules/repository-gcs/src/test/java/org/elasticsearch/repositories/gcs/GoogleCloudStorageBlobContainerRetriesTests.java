@@ -129,7 +129,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final @Nullable Integer maxConnections,
         final @Nullable ByteSizeValue bufferSize,
         final @Nullable Integer maxBulkDeletes,
-        BlobPath blobContainerPath
+        final @Nullable BlobPath blobContainerPath
     ) {
         final Settings.Builder clientSettings = Settings.builder();
         final String client = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
@@ -209,7 +209,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             new GcsRepositoryStatsCollector()
         );
 
-        return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);
+        return new GoogleCloudStorageBlobContainer(
+            Objects.requireNonNullElse(blobContainerPath, randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo")),
+            blobStore
+        );
     }
 
     public void testShouldRetryOnConnectionRefused() {

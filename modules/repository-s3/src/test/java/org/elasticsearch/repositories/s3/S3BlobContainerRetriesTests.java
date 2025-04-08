@@ -187,7 +187,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final @Nullable Integer maxConnections,
         final @Nullable ByteSizeValue bufferSize,
         final @Nullable Integer maxBulkDeletes,
-        BlobPath blobContainerPath
+        final @Nullable BlobPath blobContainerPath
     ) {
         final Settings.Builder clientSettings = Settings.builder();
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);

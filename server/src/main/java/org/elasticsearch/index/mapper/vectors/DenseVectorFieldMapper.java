@@ -53,6 +53,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -60,8 +61,10 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -91,6 +94,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -2079,6 +2083,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             };
         }
 
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, null) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    if (value.equals("")) {
+                        return null;
+                    }
+                    return NumberFieldMapper.NumberType.FLOAT.parse(value, false);
+                }
+            };
+        }
+
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             return DocValueFormat.DENSE_VECTOR;
@@ -2316,7 +2332,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
-            return new BlockDocValuesReader.DenseVectorBlockLoader(name());
+            if (indexed) {
+                return new BlockDocValuesReader.DenseVectorBlockLoader(name());
+            }
+
+            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }
     }
 

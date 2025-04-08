@@ -207,7 +207,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
                 new String[] { dataStreamName },
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             )
         ).actionGet();
 
@@ -541,7 +541,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
                 new String[] { dataStreamName },
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             )
         ).actionGet();
 

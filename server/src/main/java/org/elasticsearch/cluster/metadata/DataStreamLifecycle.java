@@ -86,7 +86,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Setting.Property.NodeScope
     );
 
-    public static final DataStreamLifecycle DEFAULT = new DataStreamLifecycle();
+    public static final DataStreamLifecycle DEFAULT_DATA_LIFECYCLE = new DataStreamLifecycle(null, null, null);
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
@@ -131,10 +131,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     private final TimeValue dataRetention;
     @Nullable
     private final List<DownsamplingRound> downsampling;
-
-    public DataStreamLifecycle() {
-        this(null, null, null);
-    }
 
     public DataStreamLifecycle(
         @Nullable Boolean enabled,

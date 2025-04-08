@@ -145,10 +145,14 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention))
         );
 
-        ProjectMetadata after = metadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), DataStreamLifecycle.DEFAULT);
+        ProjectMetadata after = metadataDataStreamsService.updateDataLifecycle(
+            before,
+            List.of(dataStream),
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
+        );
         DataStream updatedDataStream = after.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
-        assertThat(updatedDataStream.getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
+        assertThat(updatedDataStream.getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
         assertThat(

@@ -619,7 +619,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().ramBytesUsed());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
-                    // TODO: Safe to assume ID is set/generated at this point?
                     addInferenceResponseFailure(
                         itemIndex,
                         new InferenceException(
@@ -733,7 +732,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 try {
                     coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.ramBytesUsed());
                 } catch (EsRejectedExecutionException e) {
-                    // TODO: Safe to assume ID is set/generated at this point?
                     indexRequest.source(originalSource, indexRequest.getContentType());
                     item.abort(
                         item.index(),

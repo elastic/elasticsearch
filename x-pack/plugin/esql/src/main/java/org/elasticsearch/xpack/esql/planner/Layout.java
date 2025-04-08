@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -14,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,7 +65,7 @@ public interface Layout {
         private final List<ChannelSet> channels;
 
         public Builder() {
-            channels = new ArrayList<>();
+            this(new ArrayList<>());
         }
 
         Builder(List<ChannelSet> channels) {
@@ -76,7 +76,7 @@ public interface Layout {
          * Appends a new channel to the layout. The channel is mapped to one or more attribute ids.
          */
         public Builder append(ChannelSet set) {
-            if (set.nameIds.size() < 1) {
+            if (set.nameIds.isEmpty()) {
                 throw new IllegalArgumentException("Channel must be mapped to at least one id.");
             }
             channels.add(set);
@@ -104,7 +104,11 @@ public interface Layout {
          * Build a new {@link Layout}.
          */
         public Layout build() {
-            Map<NameId, ChannelAndType> layout = new HashMap<>();
+            int size = 0;
+            for (ChannelSet channel : channels) {
+                size += channel.nameIds.size();
+            }
+            Map<NameId, ChannelAndType> layout = Maps.newHashMapWithExpectedSize(size);
             int numberOfChannels = 0;
             for (ChannelSet set : channels) {
                 int channel = numberOfChannels++;

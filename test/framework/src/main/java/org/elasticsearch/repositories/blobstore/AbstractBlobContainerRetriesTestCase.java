@@ -541,13 +541,13 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             return this;
         }
 
-        public TestBlobContainerBuilder disableChunkedEncoding(@Nullable Boolean disableChunkedEncoding) {
-            this.disableChunkedEncoding = disableChunkedEncoding;
+        public TestBlobContainerBuilder maxConnections(@Nullable Integer maxConnections) {
+            this.maxConnections = maxConnections;
             return this;
         }
 
-        public TestBlobContainerBuilder maxConnections(@Nullable Integer maxConnections) {
-            this.maxConnections = maxConnections;
+        public TestBlobContainerBuilder bufferSize(@Nullable ByteSizeValue bufferSize) {
+            this.bufferSize = bufferSize;
             return this;
         }
 
@@ -562,7 +562,15 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         }
 
         public BlobContainer build() {
-            return createBlobContainer(maxRetries, readTimeout, disableChunkedEncoding, bufferSize, maxBulkDeletes, blobContainerPath);
+            return createBlobContainer(
+                maxRetries,
+                readTimeout,
+                disableChunkedEncoding,
+                maxConnections,
+                bufferSize,
+                maxBulkDeletes,
+                blobContainerPath
+            );
         }
     }
 

@@ -16,14 +16,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockRequestExecutorService;
-import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockRequestExecutorService;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockRequestManager;
 
 import java.io.IOException;
 import java.time.Clock;

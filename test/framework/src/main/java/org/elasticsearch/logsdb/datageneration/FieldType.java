@@ -23,6 +23,7 @@ import org.elasticsearch.logsdb.datageneration.fields.leaf.KeywordFieldDataGener
 import org.elasticsearch.logsdb.datageneration.fields.leaf.LongFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ShortFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.TextFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
 
 /**
@@ -42,7 +43,8 @@ public enum FieldType {
     COUNTED_KEYWORD("counted_keyword"),
     BOOLEAN("boolean"),
     DATE("date"),
-    GEO_POINT("geo_point");
+    GEO_POINT("geo_point"),
+    TEXT("text");
 
     private final String name;
 
@@ -66,6 +68,7 @@ public enum FieldType {
             case BOOLEAN -> new BooleanFieldDataGenerator(dataSource);
             case DATE -> new DateFieldDataGenerator(dataSource);
             case GEO_POINT -> new GeoPointFieldDataGenerator(dataSource);
+            case TEXT -> new TextFieldDataGenerator(dataSource);
         };
     }
 
@@ -85,6 +88,7 @@ public enum FieldType {
             case "boolean" -> FieldType.BOOLEAN;
             case "date" -> FieldType.DATE;
             case "geo_point" -> FieldType.GEO_POINT;
+            case "text" -> FieldType.TEXT;
             default -> null;
         };
     }

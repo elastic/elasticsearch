@@ -1813,9 +1813,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private boolean assertGenerationIsUploadedOrPending(long generation) {
             var errorMessage = isUploadedOrPending(generation);
-            if (errorMessage != null) {
-                assert false : errorMessage;
-            }
+            assert errorMessage == null : errorMessage;
             return true;
         }
 
@@ -2458,25 +2456,26 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private boolean registerForUnpromotableRecovery(Set<PrimaryTermAndGeneration> primaryTermAndGenerations, Set<String> nodeIds) {
             assert nodeIds != null && nodeIds.size() == 1;
-            int registered = 0;
-            for (var primaryTermAndGeneration : primaryTermAndGenerations) {
-                var blobReference = primaryTermAndGenToBlobReference.get(primaryTermAndGeneration);
-                if (blobReference != null && registerUnpromoteableCommitRefs(nodeIds, blobReference)) {
+            Set<PrimaryTermAndGeneration> registeredBlobs = Sets.newHashSetWithExpectedSize(primaryTermAndGenToBlobReference.size());
+            // Pessimistically register all the available blobs as used by the joining node.
+            // This helps to transfer open PITs between search nodes and once the unpromotable shard is started and responds to the
+            // first new commit notification, the unused BCCs would be released and potentially deleted.
+            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
+                if (registerUnpromoteableCommitRefs(nodeIds, blobReference)) {
                     // it is ok to register a search shard against the BlobReference here even if it fails afterward for the other
                     // references: the next new commit notification will register all search shards and remove stale references.
                     assert blobReference.isExternalReadersClosed() == false;
-                    registered++;
+                    registeredBlobs.add(blobReference.getPrimaryTermAndGeneration());
                 } else {
                     logger.info(
                         "unable to lock down {} out of {} for blob {}",
-                        primaryTermAndGeneration,
+                        blobReference.getPrimaryTermAndGeneration(),
                         primaryTermAndGenerations,
                         blobReference
                     );
-                    break;
                 }
             }
-            return registered == primaryTermAndGenerations.size();
+            return registeredBlobs.containsAll(primaryTermAndGenerations);
         }
 
         /**

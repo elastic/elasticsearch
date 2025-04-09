@@ -261,9 +261,6 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testIndexCompatibilityChecks
   issue: https://github.com/elastic/elasticsearch/issues/124388
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testWatcherWithApiKey {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/124159
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
   issue: https://github.com/elastic/elasticsearch/issues/124518
@@ -357,9 +354,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
-- class: org.elasticsearch.snapshots.SharedClusterSnapshotRestoreIT
-  method: testDeletionOfFailingToRecoverIndexShouldStopRestore
-  issue: https://github.com/elastic/elasticsearch/issues/126204
 - class: org.elasticsearch.xpack.esql.inference.RerankOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/124337
@@ -450,6 +444,15 @@ tests:
 - class: org.elasticsearch.xpack.security.cli.HttpCertificateCommandTests
   method: testGenerateMultipleCertificateWithNewCA
   issue: https://github.com/elastic/elasticsearch/issues/126471
+- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
+  method: testILMDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/126495
+- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
+  method: testDataNodeLogsStackTraceWhenErrorTraceFalseOrEmpty
+  issue: https://github.com/elastic/elasticsearch/issues/126357
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/get_trained_model_stats/Test get stats given trained models}
+  issue: https://github.com/elastic/elasticsearch/issues/126510
 
 # Examples:
 #

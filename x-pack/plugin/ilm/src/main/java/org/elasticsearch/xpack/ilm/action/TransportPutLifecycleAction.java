@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -16,8 +17,9 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.SimpleBatchedExecutor;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -343,16 +345,17 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         return Set.of(request.getPolicy().getName());
     }
 
-    private static class IlmLifecycleExecutor extends SimpleBatchedExecutor<UpdateLifecyclePolicyTask, Void> {
-        @Override
-        public Tuple<ClusterState, Void> executeTask(UpdateLifecyclePolicyTask task, ClusterState clusterState) throws Exception {
-            return Tuple.tuple(task.execute(clusterState), null);
-        }
+    private static class IlmLifecycleExecutor extends SimpleBatchedAckListenerTaskExecutor<UpdateLifecyclePolicyTask> {
 
         @Override
-        public void taskSucceeded(UpdateLifecyclePolicyTask task, Void unused) {
-            logger.trace("Executed lifecycle policy update:\n{}", task.request.getPolicy().toString());
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateLifecyclePolicyTask task, ClusterState clusterState) {
+            try {
+                return Tuple.tuple(task.execute(clusterState), task);
+            } catch (Exception e) {
+                throw new ElasticsearchException("failed to execute task", e);
+            }
         }
+
     }
 
 }

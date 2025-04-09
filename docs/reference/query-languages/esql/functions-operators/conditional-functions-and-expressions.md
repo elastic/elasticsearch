@@ -1,7 +1,7 @@
 ---
 navigation_title: "Conditional functions and expressions"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/conditional-functions-and-expressions.md
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-conditional-functions-and-expressions
 ---
 
 # {{esql}} conditional functions and expressions [esql-conditional-functions-and-expressions]

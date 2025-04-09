@@ -1702,3 +1702,84 @@ emp_no:integer | l1:double | l2:double
 10002          | -7.23     | null     
 10003          | 4.0       | null     
 ;
+
+copySignOfPositiveToPositive
+ROW magnitude = 50.0, sign = 3.3
+| EVAL result = COPY_SIGN(magnitude, sign)
+;
+
+magnitude:double | sign:double | result:double
+50.0             | 3.3         | 50.0
+;
+
+copySignOfPositiveToNegative
+ROW magnitude = 5.2, sign = -9.0
+| EVAL result = COPY_SIGN(magnitude, sign)
+;
+
+magnitude:double | sign:double | result:double
+5.2              | -9.0        | -5.2
+;
+
+copySignOfNegativeToPositive
+ROW magnitude = -5.12, sign = 3.0
+| EVAL result = COPY_SIGN(magnitude, sign)
+;
+
+magnitude:double | sign:double | result:double
+-5.12            | 3.0         | 5.12
+;
+
+copySignOfNegativeToNegative
+ROW magnitude = -12.0, sign = -800.0
+| EVAL result = COPY_SIGN(magnitude, sign)
+;
+
+magnitude:double | sign:double | result:double
+-12.0            | -800.0      | -12.0
+;
+
+copySignOfZeroToPositive
+ROW magnitude = 0.0, sign = 3.0
+| EVAL result = COPY_SIGN(magnitude, sign)
+;
+
+magnitude:double | sign:double | result:double
+0.0              | 3.0         | 0
+;
+
+copySignOfZeroToNegative
+ROW magnitude = 0.0, sign = -1.0
+| EVAL result = COPY_SIGN(magnitude, sign)
+;
+
+magnitude:double | sign:double | result:double
+0.0              | -1.0        | -0.0
+;
+
+copySignOfIntegerDouble
+ROW magnitude = 11, sign = -7.111
+| EVAL result = COPY_SIGN(magnitude, sign)
+;
+
+magnitude:integer | sign:double | result:double
+11                | -7.111      | -11.0
+;
+
+copySignOfDoubleInteger
+ROW magnitude = 23.1234, sign = 11
+| EVAL result = COPY_SIGN(magnitude, sign)
+;
+
+magnitude:double | sign:integer | result:double
+23.1234           | 11          | 23.1234
+;
+
+copySignOfULDouble
+ROW magnitude = 9223372036854775808, sign = -11.2
+| EVAL result = COPY_SIGN(magnitude, sign)
+;
+
+magnitude:unsigned_long | sign:double | result:double
+9223372036854775808     | -11.2       | -9223372036854775808
+;

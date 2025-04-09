@@ -1741,9 +1741,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .cluster()
                 .prepareHealth(SAFE_AWAIT_TIMEOUT, index)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
-                .execute(),
-            SAFE_AWAIT_TIMEOUT.seconds(),
-            TimeUnit.SECONDS
+                .execute()
         );
     }
 

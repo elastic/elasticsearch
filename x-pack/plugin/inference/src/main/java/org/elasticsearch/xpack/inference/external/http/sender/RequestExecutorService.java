@@ -55,7 +55,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
-class RequestExecutorService implements RequestExecutor {
+public class RequestExecutorService implements RequestExecutor {
 
     /**
      * Provides dependency injection mainly for testing
@@ -123,7 +123,7 @@ class RequestExecutorService implements RequestExecutor {
     private final AtomicReference<Scheduler.Cancellable> cancellableCleanupTask = new AtomicReference<>();
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    RequestExecutorService(
+    public RequestExecutorService(
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
@@ -141,7 +141,7 @@ class RequestExecutorService implements RequestExecutor {
         );
     }
 
-    RequestExecutorService(
+    public RequestExecutorService(
         ThreadPool threadPool,
         AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> queueCreator,
         @Nullable CountDownLatch startupLatch,

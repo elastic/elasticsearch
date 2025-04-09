@@ -1680,6 +1680,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .fuzzyRewrite("constant_score")
             .fuzzyTranspositions(false)
             .lenient(false)
+            .type("best_fields")
             .maxExpansions(10)
             .minimumShouldMatch("3")
             .prefixLength(20)

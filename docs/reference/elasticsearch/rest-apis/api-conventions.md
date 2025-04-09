@@ -1,8 +1,10 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/api-conventions.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html#cluster-nodes
 applies_to:
   stack: all
+  serverless: all
 navigation_title: API conventions
 ---
 
@@ -50,7 +52,6 @@ For example, the following `traceparent` value would produce the following `trac
 `traceparent`: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
 `trace.id`: 0af7651916cd43dd8448eb211c80319c
 ```
-
 
 ## GET and POST requests [get-requests]
 
@@ -369,7 +370,6 @@ Global index templates that match all indices are not applied to hidden indices.
 Direct access to system indices is deprecated and will no longer be allowed in a future major version.
 ::::
 
-
 To view system indices within cluster:
 
 ```console
@@ -380,7 +380,32 @@ GET _cluster/state/metadata?filter_path=metadata.indices.*.system
 When overwriting current cluster state, system indices should be restored as part of their [feature state](docs-content://deploy-manage/tools/snapshot-and-restore.md#feature-state).
 ::::
 
+### Node specifications [cluster-nodes]
 
+Some cluster-level APIs may operate on a subset of the nodes which can be specified with node filters.
+For example, task management, node stats, and node info APIs can all report results from a filtered set of nodes rather than from all nodes.
+
+Node filters are written as a comma-separated list of individual filters, each of which adds or removes nodes from the chosen subset.
+Each filter can be one of the following:
+
+* `_all`, to add all nodes to the subset.
+* `_local`, to add the local node to the subset.
+* `_master`, to add the currently-elected master node to the subset.
+* a node ID or name, to add this node to the subset.
+* an IP address or hostname, to add all matching nodes to the subset.
+* a pattern, using `*` wildcards, which adds all nodes to the subset whose name, address, or hostname matches the pattern.
+* `master:true`, `data:true`, `ingest:true`, `voting_only:true`, `ml:true`, or `coordinating_only:true`, which respectively add to the subset all master-eligible nodes, all data nodes, all ingest nodes, all voting-only nodes, all machine learning nodes, and all coordinating-only nodes.
+* `master:false`, `data:false`, `ingest:false`, `voting_only:false`, `ml:false`, or `coordinating_only:false`, which respectively remove from the subset all master-eligible nodes, all data nodes, all ingest nodes, all voting-only nodes, all machine learning nodes, and all coordinating-only nodes.
+* a pair of patterns, using `*` wildcards, of the form `attrname:attrvalue`, which adds to the subset all nodes with a custom node attribute whose name and value match the respective patterns. Custom node attributes are configured by setting properties in the configuration file of the form `node.attr.attrname: attrvalue`.
+
+Node filters run in the order in which they are given, which is important if using filters that remove nodes from the set.
+For example, `_all,master:false` means all the nodes except the master-eligible ones.
+`master:false,_all` means the same as `_all` because the `_all` filter runs after the `master:false` filter.
+
+If no filters are given, the default is to select all nodes.
+If any filters are specified, they run starting with an empty chosen subset.
+This means that filters such as `master:false` which remove nodes from the chosen subset are only useful if they come after some other filters.
+When used on its own, `master:false` selects no nodes.
 
 ## Parameters [api-conventions-parameters]
 

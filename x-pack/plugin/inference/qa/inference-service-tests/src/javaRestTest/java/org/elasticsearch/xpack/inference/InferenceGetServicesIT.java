@@ -88,6 +88,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 "jinaai",
                 "mistral",
                 "openai",
+                "test_service",
                 "text_embedding_test_service",
                 "voyageai",
                 "watsonxai"
@@ -177,7 +178,15 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
         }
 
         assertArrayEquals(
-            List.of("alibabacloud-ai-search", "custom", "elastic", "elasticsearch", "hugging_face", "test_service").toArray(),
+            List.of(
+                "alibabacloud-ai-search",
+                "custom",
+                "elastic",
+                "elasticsearch",
+                "hugging_face",
+                "streaming_completion_test_service",
+                "test_service"
+            ).toArray(),
             providers
         );
     }

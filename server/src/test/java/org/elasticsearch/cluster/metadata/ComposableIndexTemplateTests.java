@@ -74,7 +74,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                 builder.aliases(randomAliases());
             }
             if (dataStreamTemplate != null && randomBoolean()) {
-                builder.lifecycle(DataStreamLifecycleTemplateTests.randomLifecycleTemplate());
+                builder.lifecycle(DataStreamLifecycleTemplateTests.randomDataLifecycleTemplate());
             }
             template = builder.build();
         }
@@ -174,7 +174,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                                 .mappings(randomMappings(orig.getDataStreamTemplate()))
                                 .aliases(randomAliases())
                                 .lifecycle(
-                                    orig.getDataStreamTemplate() == null ? null : DataStreamLifecycleTemplateTests.randomLifecycleTemplate()
+                                    orig.getDataStreamTemplate() == null
+                                        ? null
+                                        : DataStreamLifecycleTemplateTests.randomDataLifecycleTemplate()
                                 )
                                 .build()
                         )

@@ -90,7 +90,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             templateBuilder.aliases(randomAliases());
         }
         if (randomBoolean() && supportsDataStreams) {
-            templateBuilder.lifecycle(DataStreamLifecycleTemplateTests.randomLifecycleTemplate());
+            templateBuilder.lifecycle(DataStreamLifecycleTemplateTests.randomDataLifecycleTemplate());
         }
         if (randomBoolean() && supportsDataStreams) {
             templateBuilder.dataStreamOptions(randomDataStreamOptionsTemplate());
@@ -182,7 +182,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                     );
                     case 3 -> new ComponentTemplate(
                         Template.builder(ot)
-                            .lifecycle(randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTemplateTests::randomLifecycleTemplate))
+                            .lifecycle(randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTemplateTests::randomDataLifecycleTemplate))
                             .build(),
                         orig.version(),
                         orig.metadata(),

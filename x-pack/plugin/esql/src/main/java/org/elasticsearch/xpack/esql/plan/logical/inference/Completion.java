@@ -61,7 +61,6 @@ public class Completion extends InferencePlan<Completion> implements GeneratingP
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeNamedWriteable(prompt);
-        ;
         out.writeNamedWriteable(targetField);
     }
 

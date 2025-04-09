@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager;
-import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceRequestMetadata;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestMetadata;
 
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext;
+import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext;
 
 public abstract class ElasticInferenceServiceRequestManager extends BaseRequestManager {
 

@@ -240,6 +240,15 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         throw new UncheckedIOException(e);
                     }
                 }
+                case DENSE_VECTOR -> {
+                    BlockLoader.DoubleBuilder doubleBuilder = (BlockLoader.DoubleBuilder) builder;
+                    int dims = randomIntBetween(32, 64) * 2; // min 64 dims, always even
+                    doubleBuilder.beginPositionEntry();
+                    for (int i = 0; i < dims; i++) {
+                        doubleBuilder.appendDouble(randomDouble());
+                    }
+                    doubleBuilder.endPositionEntry();
+                }
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
             return builder.build();

@@ -129,11 +129,16 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             return;
         }
 
-        taskQueue.submitTask(
-            "put-lifecycle-" + request.getPolicy().getName(),
-            new UpdateLifecyclePolicyTask(projectMetadata.id(), request, listener, licenseState, filteredHeaders, xContentRegistry, client),
-            null
+        UpdateLifecyclePolicyTask putTask = new UpdateLifecyclePolicyTask(
+            projectMetadata.id(),
+            request,
+            listener,
+            licenseState,
+            filteredHeaders,
+            xContentRegistry,
+            client
         );
+        taskQueue.submitTask("put-lifecycle-" + request.getPolicy().getName(), putTask, putTask.timeout());
     }
 
     public static class UpdateLifecyclePolicyTask extends AckedClusterStateUpdateTask {

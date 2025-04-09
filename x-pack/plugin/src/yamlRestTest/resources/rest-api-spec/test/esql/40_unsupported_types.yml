@@ -116,7 +116,7 @@ unsupported:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [REPORT_ORIGINAL_TYPES]
+          capabilities: [dense_vector_field_type]
       reason: "uses original_type"
 
   - do:
@@ -141,7 +141,7 @@ unsupported:
   - match: { columns.4.name: date_range }
   - match: { columns.4.type: unsupported }
   - match: { columns.5.name: dense_vector }
-  - match: { columns.5.type: unsupported }
+  - match: { columns.5.type: dense_vector }
   - match: { columns.6.name: double_range }
   - match: { columns.6.type: unsupported }
   - match: { columns.7.name: float_range }
@@ -311,8 +311,8 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_sorting ]
-      reason: "support for sorting when aggregate_metric_double present"
+          capabilities: [ dense_vector_field_type ]
+      reason: "support for sorting when dense_vector_field_type present"
 
   - do:
       allowed_warnings_regex:

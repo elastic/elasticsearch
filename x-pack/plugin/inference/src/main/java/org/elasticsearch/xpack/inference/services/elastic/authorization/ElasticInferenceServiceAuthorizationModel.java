@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 
 import java.util.EnumSet;
 import java.util.HashMap;

@@ -57,10 +57,14 @@ if (useDra == false) {
             patternLayout {
               if (VersionProperties.isElasticsearchSnapshot()) {
                 artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
+                artifact '/[organization]/[revision]/downloads/[organization]/filebeat/[module]-[revision]-[classifier].[ext]'
+                artifact '/[organization]/[revision]/downloads/[organization]/metricbeat/[module]-[revision]-[classifier].[ext]'
               } else {
                 // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
                 // Release builds are always done with a local repo.
                 artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/[module]/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+                artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/filebeat/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+                artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/metricbeat/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
               }
             }
           }
@@ -93,9 +97,13 @@ configurations {
   tini
   allPlugins
   filebeat_aarch64
+  filebeat_fips_aarch64
   filebeat_x86_64
+  filebeat_fips_x86_64
   metricbeat_aarch64
+  metricbeat_fips_aarch64
   metricbeat_x86_64
+  metricbeat_fips_x86_64
   fips
 }
 
@@ -111,8 +119,15 @@ dependencies {
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
   filebeat_aarch64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  filebeat_fips_aarch64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
+  filebeat_fips_x86_64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+
+  metricbeat_fips_aarch64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
+  metricbeat_fips_x86_64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+
   fips "org.bouncycastle:bc-fips:1.0.2.5"
   fips "org.bouncycastle:bctls-fips:1.0.19"
 }
@@ -301,8 +316,8 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null || useDra
 
         if (includeBeats) {
-          from configurations.getByName("filebeat_${architecture.classifier}")
-          from configurations.getByName("metricbeat_${architecture.classifier}")
+          from configurations.getByName("filebeat_fips_${architecture.classifier}")
+          from configurations.getByName("metricbeat_fips_${architecture.classifier}")
           // For some reason, the artifact name can differ depending on what repository we used.
           rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
         }

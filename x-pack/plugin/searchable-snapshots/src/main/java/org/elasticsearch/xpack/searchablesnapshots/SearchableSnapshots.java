@@ -10,8 +10,6 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
@@ -482,17 +480,17 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
-            new ActionHandler<>(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
-            new ActionHandler<>(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsInfoTransportAction.class),
-            new ActionHandler<>(TransportSearchableSnapshotCacheStoresAction.TYPE, TransportSearchableSnapshotCacheStoresAction.class),
-            new ActionHandler<>(FrozenCacheInfoAction.INSTANCE, FrozenCacheInfoAction.TransportAction.class),
-            new ActionHandler<>(FrozenCacheInfoNodeAction.INSTANCE, FrozenCacheInfoNodeAction.TransportAction.class),
-            new ActionHandler<>(
+            new ActionHandler(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
+            new ActionHandler(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
+            new ActionHandler(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class),
+            new ActionHandler(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsInfoTransportAction.class),
+            new ActionHandler(TransportSearchableSnapshotCacheStoresAction.TYPE, TransportSearchableSnapshotCacheStoresAction.class),
+            new ActionHandler(FrozenCacheInfoAction.INSTANCE, FrozenCacheInfoAction.TransportAction.class),
+            new ActionHandler(FrozenCacheInfoNodeAction.INSTANCE, FrozenCacheInfoNodeAction.TransportAction.class),
+            new ActionHandler(
                 TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
                 TransportSearchableSnapshotsNodeCachesStatsAction.class
             )

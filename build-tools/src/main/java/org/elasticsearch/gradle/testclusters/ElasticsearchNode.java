@@ -1461,7 +1461,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         ReplacementKey heapDumpPathSub;
         if (version.before("8.19.0") && version.onOrAfter("6.3.0")) {
-            heapDumpPathSub = new ReplacementKey("-XX:HeapDumpPath=data", "");
+            heapDumpPathSub = new ReplacementKey("-XX:HeapDumpPath=data", null);
         } else {
             // temporarily fall back to the old substitution so both old and new work during backport
             heapDumpPathSub = new ReplacementKey("# -XX:HeapDumpPath=/heap/dump/path", "-XX:HeapDumpPath=data");
@@ -1470,7 +1470,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         ReplacementKey gcLogSub;
         if (version.before("8.19.0") && version.onOrAfter("6.2.0")) {
-            gcLogSub = new ReplacementKey("logs/gc.log", "");
+            gcLogSub = new ReplacementKey("logs/gc.log", null);
         } else {
             // temporarily check the old substitution first so both old and new work during backport
             gcLogSub = new ReplacementKey("logs/gc.log", "gc.log");
@@ -1479,7 +1479,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         ReplacementKey errorFileSub;
         if (version.before("8.19.0") && version.getMajor() >= 7) {
-            errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", "");
+            errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", null);
         } else {
             // temporarily check the old substitution first so both old and new work during backport
             errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=hs_err_pid%p.log");

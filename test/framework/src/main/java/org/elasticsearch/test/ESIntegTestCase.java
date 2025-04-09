@@ -1731,17 +1731,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return getIndexResponse.getIndices().length > 0;
     }
 
-    public static void ensureIndexExists(String index) {
-        ensureIndexExists(index, SAFE_AWAIT_TIMEOUT.seconds(), SAFE_AWAIT_TIMEOUT.timeUnit());
+    public static void awaitIndexExists(String index) {
+        awaitIndexExists(index, client(), SAFE_AWAIT_TIMEOUT);
     }
 
-    public static void ensureIndexExists(String index, long timeout, TimeUnit unit) {
+    public static void awaitIndexExists(String index, Client client, TimeValue timeout) {
         safeGet(
-            clusterAdmin().prepareHealth(new TimeValue(timeout, unit), index)
-                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
-                .execute(),
-            timeout,
-            unit
+            client.admin().cluster().prepareHealth(timeout, index).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED).execute(),
+            timeout.seconds(),
+            TimeUnit.SECONDS
         );
     }
 

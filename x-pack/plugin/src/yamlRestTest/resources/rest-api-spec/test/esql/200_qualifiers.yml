@@ -133,4 +133,4 @@ shadowing in rename is not allowed:
       catch: /qualified attribute \[qualified y\] already exists/
       esql.query:
         body:
-          query: 'row x = 0, qualified y | rename x as qualified y'
+          query: 'row x = 0, qualified y = 1 | rename x as qualified y'

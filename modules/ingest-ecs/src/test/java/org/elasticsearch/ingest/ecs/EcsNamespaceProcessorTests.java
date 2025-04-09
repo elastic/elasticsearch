@@ -16,7 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@SuppressWarnings("unchecked")
 public class EcsNamespaceProcessorTests extends ESTestCase {
 
     private final EcsNamespaceProcessor processor = new EcsNamespaceProcessor("test", "test processor");
@@ -138,15 +137,16 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         assertTrue(result.containsKey("attributes"));
         assertTrue(result.containsKey("resource"));
 
-        Map<String, Object> attributes = (Map<String, Object>) result.get("attributes");
+        Map<String, Object> attributes = get(result, "attributes");
         assertEquals("value1", attributes.get("key1"));
         assertEquals("value2", attributes.get("key2"));
         assertFalse(source.containsKey("key1"));
         assertFalse(source.containsKey("key2"));
 
-        Map<String, Object> resource = (Map<String, Object>) result.get("resource");
+        Map<String, Object> resource = get(result, "resource");
         assertTrue(resource.containsKey("attributes"));
-        assertTrue(((Map<String, Object>) resource.get("attributes")).isEmpty());
+        Map<String, Object> resourceAttributes = get(resource, "attributes");
+        assertTrue(resourceAttributes.isEmpty());
     }
 
     public void testExecute_nonOTelDocument_withExistingAttributes() {
@@ -163,13 +163,14 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         assertTrue(result.containsKey("attributes"));
         assertTrue(result.containsKey("resource"));
 
-        Map<String, Object> attributes = (Map<String, Object>) result.get("attributes");
+        Map<String, Object> attributes = get(result, "attributes");
         assertEquals("existingValue", attributes.get("attributes.existingKey"));
         assertEquals("value1", attributes.get("key1"));
 
-        Map<String, Object> resource = (Map<String, Object>) result.get("resource");
+        Map<String, Object> resource = get(result, "resource");
         assertTrue(resource.containsKey("attributes"));
-        assertTrue(((Map<String, Object>) resource.get("attributes")).isEmpty());
+        Map<String, Object> resourceAttributes = get(resource, "attributes");
+        assertTrue(resourceAttributes.isEmpty());
     }
 
     public void testExecute_nonOTelDocument_withExistingResource() {
@@ -187,14 +188,15 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         assertTrue(result.containsKey("attributes"));
         assertTrue(result.containsKey("resource"));
 
-        Map<String, Object> attributes = (Map<String, Object>) result.get("attributes");
+        Map<String, Object> attributes = get(result, "attributes");
         assertEquals("value1", attributes.get("key1"));
         assertEquals("existingValue", attributes.get("resource.existingKey"));
         assertEquals("invalid scope", attributes.get("scope"));
 
-        Map<String, Object> resource = (Map<String, Object>) result.get("resource");
+        Map<String, Object> resource = get(result, "resource");
         assertTrue(resource.containsKey("attributes"));
-        assertTrue(((Map<String, Object>) resource.get("attributes")).isEmpty());
+        Map<String, Object> resourceAttributes = get(resource, "attributes");
+        assertTrue(resourceAttributes.isEmpty());
     }
 
     public void testRenameSpecialKeys_nestedForm() {
@@ -235,9 +237,9 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         assertEquals("spanIdValue", result.get("span_id"));
         assertEquals("logLevelValue", result.get("severity_text"));
         assertEquals("traceIdValue", result.get("trace_id"));
-        Object body = result.get("body");
-        assertTrue(body instanceof Map);
-        assertEquals("this is a message", ((Map<String, Object>) body).get("text"));
+        Map<String, Object> body = get(result, "body");
+        String text = get(body, "text");
+        assertEquals("this is a message", text);
         assertFalse(source.containsKey("span.id"));
         assertFalse(source.containsKey("log.level"));
         assertFalse(source.containsKey("trace.id"));
@@ -300,8 +302,8 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         );
 
         assertTrue(result.containsKey("resource"));
-        Map<String, Object> resource = (Map<String, Object>) result.get("resource");
-        Map<String, Object> resourceAttributes = (Map<String, Object>) resource.get("attributes");
+        Map<String, Object> resource = get(result, "resource");
+        Map<String, Object> resourceAttributes = get(resource, "attributes");
         assertEquals(expectedResourceAttributes, resourceAttributes);
         assertNull(resourceAttributes.get("agent"));
         assertNull(resourceAttributes.get("cloud"));
@@ -316,7 +318,7 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         Map<String, Object> expectedAttributes = Map.of("service.name", "serviceNameValue", "service.type", "serviceTypeValue");
 
         assertTrue(result.containsKey("attributes"));
-        Map<String, Object> attributes = (Map<String, Object>) result.get("attributes");
+        Map<String, Object> attributes = get(result, "attributes");
         assertEquals(expectedAttributes, attributes);
         assertNull(attributes.get("service"));
         assertFalse(source.containsKey("service.name"));
@@ -348,15 +350,15 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         Map<String, Object> expectedResourceAttributes = Map.of("agent.name", "agentNameValue", "agent.details.type", "agentTypeValue");
 
         assertTrue(result.containsKey("resource"));
-        Map<String, Object> resource = (Map<String, Object>) result.get("resource");
-        Map<String, Object> resourceAttributes = (Map<String, Object>) resource.get("attributes");
+        Map<String, Object> resource = get(result, "resource");
+        Map<String, Object> resourceAttributes = get(resource, "attributes");
         assertEquals(expectedResourceAttributes, resourceAttributes);
         assertNull(resource.get("agent"));
 
         Map<String, Object> expectedAttributes = Map.of("service.name", "serviceNameValue", "service.details.type", "serviceTypeValue");
 
         assertTrue(result.containsKey("attributes"));
-        Map<String, Object> attributes = (Map<String, Object>) result.get("attributes");
+        Map<String, Object> attributes = get(result, "attributes");
         assertEquals(expectedAttributes, attributes);
         assertNull(attributes.get("service"));
     }
@@ -384,16 +386,24 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         Map<String, Object> expectedResourceAttributes = Map.of("agent.name", "agentNameValue", "agent.array", agentArray);
 
         assertTrue(result.containsKey("resource"));
-        Map<String, Object> resource = (Map<String, Object>) result.get("resource");
-        Map<String, Object> resourceAttributes = (Map<String, Object>) resource.get("attributes");
+        Map<String, Object> resource = get(result, "resource");
+        Map<String, Object> resourceAttributes = get(resource, "attributes");
         assertEquals(expectedResourceAttributes, resourceAttributes);
         assertNull(resource.get("agent"));
 
         Map<String, Object> expectedAttributes = Map.of("service.name", "serviceNameValue", "service.array", serviceArray);
 
         assertTrue(result.containsKey("attributes"));
-        Map<String, Object> attributes = (Map<String, Object>) result.get("attributes");
+        Map<String, Object> attributes = get(result, "attributes");
         assertEquals(expectedAttributes, attributes);
         assertNull(attributes.get("service"));
+    }
+
+    /**
+     * A utility function for getting a key from a map and casting the result.
+     */
+    @SuppressWarnings("unchecked")
+    private static <T> T get(Map<String, Object> context, String key) {
+        return (T) context.get(key);
     }
 }

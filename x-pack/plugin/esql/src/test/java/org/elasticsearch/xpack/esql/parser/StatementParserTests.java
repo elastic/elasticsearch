@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -3423,7 +3422,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
-        assertThat(plan.targetField(), equalTo(referenceAttribute("targetField", DataType.TEXT)));
+        assertThat(plan.targetField(), equalTo(attribute("targetField")));
     }
 
     public void testCompletionUsingFunctionAsPrompt() {
@@ -3433,7 +3432,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(plan.prompt(), equalTo(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
-        assertThat(plan.targetField(), equalTo(referenceAttribute("targetField", DataType.TEXT)));
+        assertThat(plan.targetField(), equalTo(attribute("targetField")));
     }
 
     public void testCompletionDefaultFieldName() {
@@ -3443,7 +3442,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
-        assertThat(plan.targetField(), equalTo(referenceAttribute("completion", DataType.TEXT)));
+        assertThat(plan.targetField(), equalTo(attribute("completion")));
     }
 
     public void testCompletionWithPositionalParameters() {
@@ -3454,7 +3453,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceId")));
-        assertThat(plan.targetField(), equalTo(referenceAttribute("completion", DataType.TEXT)));
+        assertThat(plan.targetField(), equalTo(attribute("completion")));
     }
 
     public void testCompletionWithNamedParameters() {
@@ -3465,7 +3464,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("myInference")));
-        assertThat(plan.targetField(), equalTo(referenceAttribute("completion", DataType.TEXT)));
+        assertThat(plan.targetField(), equalTo(attribute("completion")));
     }
 
     public void testInvalidCompletion() {

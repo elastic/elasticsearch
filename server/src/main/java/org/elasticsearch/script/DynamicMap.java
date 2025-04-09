@@ -96,8 +96,6 @@ public final class DynamicMap implements Map<String, Object> {
         return delegate.entrySet();
     }
 
-
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("{");

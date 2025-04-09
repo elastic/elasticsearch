@@ -71,7 +71,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -354,7 +353,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static boolean isRegistered(Class<? extends Throwable> exception, TransportVersion version) {
         ElasticsearchExceptionHandle elasticsearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
         if (elasticsearchExceptionHandle != null) {
-            return elasticsearchExceptionHandle.supportedTransportVersion.test(version);
+            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded) ||
+                Arrays.stream(elasticsearchExceptionHandle.patchVersions).anyMatch(version::isPatchFrom);
         }
         return false;
     }
@@ -1070,7 +1070,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * in id order below. If you want to remove an exception leave a tombstone comment and mark the id as null in
      * ExceptionSerializationTests.testIds.ids.
      */
-    private enum ElasticsearchExceptionHandle {
+    enum ElasticsearchExceptionHandle {
         INDEX_SHARD_SNAPSHOT_FAILED_EXCEPTION(
             org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException.class,
             org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException::new,
@@ -1988,38 +1988,29 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             RemoteException.class,
             RemoteException::new,
             184,
-            version -> version.onOrAfter(TransportVersions.REMOTE_EXCEPTION) || version.isPatchFrom(TransportVersions.REMOTE_EXCEPTION_8_19)
+            TransportVersions.REMOTE_EXCEPTION, TransportVersions.REMOTE_EXCEPTION_8_19
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;
         final int id;
-        final Predicate<TransportVersion> supportedTransportVersion;
+        private final TransportVersion versionAdded;
+        private final TransportVersion[] patchVersions;
 
         <E extends ElasticsearchException> ElasticsearchExceptionHandle(
             Class<E> exceptionClass,
             CheckedFunction<StreamInput, E, IOException> constructor,
             int id,
-            TransportVersion versionAdded
+            TransportVersion versionAdded,
+            TransportVersion... patchVersions
         ) {
             // We need the exceptionClass because you can't dig it out of the constructor reliably.
             this.exceptionClass = exceptionClass;
             this.constructor = constructor;
-            this.supportedTransportVersion = version -> version.onOrAfter(versionAdded);
-            this.id = id;
-        }
 
-        <E extends ElasticsearchException> ElasticsearchExceptionHandle(
-            Class<E> exceptionClass,
-            CheckedFunction<StreamInput, E, IOException> constructor,
-            int id,
-            Predicate<TransportVersion> supportedTransportVersion
-        ) {
-            // We need the exceptionClass because you can't dig it out of the constructor reliably.
-            this.exceptionClass = exceptionClass;
-            this.constructor = constructor;
-            this.supportedTransportVersion = supportedTransportVersion;
             this.id = id;
+            this.versionAdded = versionAdded;
+            this.patchVersions = patchVersions;
         }
     }
 

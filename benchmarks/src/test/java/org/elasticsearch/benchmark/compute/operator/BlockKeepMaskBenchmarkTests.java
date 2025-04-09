@@ -11,8 +11,8 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class EvalBenchmarkTests extends ESTestCase {
+public class BlockKeepMaskBenchmarkTests extends ESTestCase {
     public void test() {
-        EvalBenchmark.selfTest();
+        BlockKeepMaskBenchmark.selfTest();
     }
 }

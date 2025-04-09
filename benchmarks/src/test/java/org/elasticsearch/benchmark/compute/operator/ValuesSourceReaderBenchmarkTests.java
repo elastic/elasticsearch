@@ -11,8 +11,8 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class EvalBenchmarkTests extends ESTestCase {
+public class ValuesSourceReaderBenchmarkTests extends ESTestCase {
     public void test() {
-        EvalBenchmark.selfTest();
+        ValuesSourceReaderBenchmark.selfTest();
     }
 }

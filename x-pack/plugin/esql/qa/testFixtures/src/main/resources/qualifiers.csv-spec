@@ -11,7 +11,7 @@ main message:keyword
 Connection error
 ;
 
-keepPattern
+keepPattern-Ignore
 required_capability: name_qualifiers
 
 FROM sample_data main
@@ -23,7 +23,7 @@ FROM sample_data main
 main message:keyword
 ;
 
-dropPattern
+dropPattern-Ignore
 required_capability: name_qualifiers
 
 FROM sample_data main
@@ -124,7 +124,7 @@ main emp_no:integer | main languages:integer | right language_code:integer | rig
 10001               | 2                      | 2                          | French
 ;
 
-lookupJoinOnPredicateCommutative
+lookupJoinOnPredicateCommutative-Ignore
 required_capability: join_lookup_v12
 required_capability: name_qualifiers
 

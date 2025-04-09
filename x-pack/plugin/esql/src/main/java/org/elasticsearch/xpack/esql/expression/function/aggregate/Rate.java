@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.planner.ToTimeSeriesAggregator;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.nullSafeList;
 
-public class Rate extends AggregateFunction implements OptionalArgument, ToTimeSeriesAggregator {
+public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
     private static final TimeValue DEFAULT_UNIT = TimeValue.timeValueSeconds(1);
 
@@ -178,6 +178,11 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToTimeS
             case COUNTER_DOUBLE -> new RateDoubleAggregatorFunctionSupplier(unitInMillis);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
+    }
+
+    @Override
+    public Rate perTimeSeriesAggregation() {
+        return this;
     }
 
     @Override

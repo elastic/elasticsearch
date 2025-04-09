@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Rate aggregation is special because it must be computed per time series, regardless of the grouping keys.
+ * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
  * The keys must be `_tsid` or a pair of `_tsid` and `time_bucket`. To support user-defined grouping keys,
  * we first execute the rate aggregation using the time-series keys, then perform another aggregation with
  * the resulting rate using the user-specific keys.
@@ -113,6 +113,17 @@ import java.util.Map;
  * | STATS rate(request), $p1=to_partial(min(memory_used)), VALUES(pod) BY _tsid, `bucket(@timestamp, 5m)`
  * | STATS sum(`rate(request)`), `min(memory_used)` = from_partial($p1, min($)) BY pod=`VALUES(pod)`, `bucket(@timestamp, 5m)`
  * | KEEP `min(memory_used)`, `sum(rate(request))`, pod, `bucket(@timestamp, 5m)`
+ *
+ * _over_time time-series aggregation will be rewritten in the similar way
+ *
+ * TS k8s | STATS sum(max_over_time(memory_usage)) BY host, bucket(@timestamp, 1minute)
+ *
+ * becomes
+ *
+ * TS k8s
+ * | STATS max(memory_usage), VALUES(host) BY _tsid, bucket(@timestamp, 1minute)
+ * | STATS sum(`max(memory_usage)`) BY host=`VALUES(host)`, `bucket(@timestamp, 1minute)`
+ *
  * </pre>
  */
 public final class TranslateTimeSeriesAggregate extends OptimizerRules.OptimizerRule<Aggregate> {
@@ -131,20 +142,21 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
     }
 
     LogicalPlan translate(TimeSeriesAggregate aggregate) {
-        Map<Rate, Alias> rateAggs = new HashMap<>();
+        Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
                 Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
-                Expression outerAgg = af.transformDown(Rate.class, rate -> {
+                Expression outerAgg = af.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
                     changed.set(Boolean.TRUE);
-                    Alias rateAgg = rateAggs.computeIfAbsent(rate, k -> {
-                        Alias newRateAgg = new Alias(rate.source(), agg.name(), rate);
-                        firstPassAggs.add(newRateAgg);
-                        return newRateAgg;
+                    AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
+                    Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
+                        Alias firstStageAlias = new Alias(tsAgg.source(), agg.name(), firstStageFn);
+                        firstPassAggs.add(firstStageAlias);
+                        return firstStageAlias;
                     });
-                    return rateAgg.toAttribute();
+                    return newAgg.toAttribute();
                 });
                 if (changed.get()) {
                     secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
@@ -156,7 +168,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 }
             }
         }
-        if (rateAggs.isEmpty()) {
+        if (timeSeriesAggs.isEmpty()) {
             // no time-series aggregations, run a regular aggregation instead.
             return new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), aggregate.aggregates());
         }

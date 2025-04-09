@@ -26,6 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -763,45 +764,59 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testIndexMode() {
-        createIndex("events");
+        createIndex("hosts-old");
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            index("events", Integer.toString(i), Map.of("v", i));
+            index("hosts-old", Integer.toString(i), Map.of("v", i));
         }
-        refresh("events");
+        refresh("hosts-old");
         List<ColumnInfoImpl> columns = List.of(
             new ColumnInfoImpl("_index", DataType.KEYWORD, null),
             new ColumnInfoImpl("_index_mode", DataType.KEYWORD, null)
         );
-        try (EsqlQueryResponse resp = run("""
-            FROM events,hosts METADATA _index_mode, _index
+        for (String q : List.of("""
+            FROM hosts* METADATA _index_mode, _index
             | WHERE _index_mode == "time_series"
             | STATS BY _index, _index_mode
-            """)) {
-            assertThat(resp.columns(), equalTo(columns));
-            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
-            assertThat(values, hasSize(1));
-            assertThat(values, equalTo(List.of(List.of("hosts", "time_series"))));
+            """, "TS hosts* METADATA _index_mode, _index | STATS BY _index, _index_mode")) {
+            try (EsqlQueryResponse resp = run(q)) {
+                assertThat(resp.columns(), equalTo(columns));
+                List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+                assertThat(values, hasSize(1));
+                assertThat(values, equalTo(List.of(List.of("hosts", "time_series"))));
+            }
         }
         try (EsqlQueryResponse resp = run("""
-            FROM events,hosts METADATA _index_mode, _index
+            FROM hosts* METADATA _index_mode, _index
             | WHERE _index_mode == "standard"
             | STATS BY _index, _index_mode
             """)) {
             assertThat(resp.columns(), equalTo(columns));
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
-            assertThat(values, equalTo(List.of(List.of("events", "standard"))));
+            assertThat(values, equalTo(List.of(List.of("hosts-old", "standard"))));
         }
         try (EsqlQueryResponse resp = run("""
-            FROM events,hosts METADATA _index_mode, _index
+            FROM hosts* METADATA _index_mode, _index
             | STATS BY _index, _index_mode
             | SORT _index
             """)) {
             assertThat(resp.columns(), equalTo(columns));
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(2));
-            assertThat(values, equalTo(List.of(List.of("events", "standard"), List.of("hosts", "time_series"))));
+            assertThat(values, equalTo(List.of(List.of("hosts", "time_series"), List.of("hosts-old", "standard"))));
         }
+
+        Exception failure = expectThrows(Exception.class, () -> {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("""
+                TS hosts-old METADATA _index_mode, _index
+                | STATS BY _index, _index_mode
+                | SORT _index
+                """);
+            request.allowPartialResults(false);
+            run(request).close();
+        });
+        assertThat(failure.getMessage(), containsString("Unknown index [hosts-old]"));
     }
 }

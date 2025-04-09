@@ -65,7 +65,6 @@ public class ServerProcessTests extends ESTestCase {
     protected final Map<String, String> sysprops = new HashMap<>();
     protected final Map<String, String> envVars = new HashMap<>();
     Path esHomeDir;
-    Path workingDir;
     Settings.Builder nodeSettings;
     ProcessValidator processValidator;
     MainMethod mainCallback;
@@ -95,7 +94,6 @@ public class ServerProcessTests extends ESTestCase {
         sysprops.put("java.home", "javahome");
         sysprops.put("es.path.home", esHomeDir.toString());
         envVars.clear();
-        workingDir = createTempDir();
         nodeSettings = Settings.builder();
         processValidator = null;
         mainCallback = null;
@@ -231,8 +229,7 @@ public class ServerProcessTests extends ESTestCase {
             .withProcessInfo(pinfo)
             .withServerArgs(createServerArgs(daemonize, quiet))
             .withJvmOptions(List.of())
-            .withTempDir(ServerProcessUtils.setupTempDir(pinfo))
-            .withWorkingDir(workingDir);
+            .withTempDir(ServerProcessUtils.setupTempDir(pinfo));
         return serverProcessBuilder.start(starter);
     }
 
@@ -241,7 +238,7 @@ public class ServerProcessTests extends ESTestCase {
             assertThat(pb.redirectInput(), equalTo(ProcessBuilder.Redirect.PIPE));
             assertThat(pb.redirectOutput(), equalTo(ProcessBuilder.Redirect.INHERIT));
             assertThat(pb.redirectError(), equalTo(ProcessBuilder.Redirect.PIPE));
-            assertThat(String.valueOf(pb.directory()), equalTo(workingDir.toString())); // leave default, which is working directory
+            assertThat(String.valueOf(pb.directory()), equalTo(esHomeDir.resolve("logs").toString()));
         };
         mainCallback = (args, stdin, stderr, exitCode) -> {
             try (PrintStream err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
@@ -315,8 +312,7 @@ public class ServerProcessTests extends ESTestCase {
             .withProcessInfo(createProcessInfo())
             .withServerArgs(createServerArgs(false, false))
             .withJvmOptions(List.of("-Dfoo1=bar", "-Dfoo2=baz"))
-            .withTempDir(Path.of("."))
-            .withWorkingDir(workingDir);
+            .withTempDir(Path.of("."));
         serverProcessBuilder.start(starter).waitFor();
     }
 

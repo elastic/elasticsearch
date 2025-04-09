@@ -36,6 +36,10 @@ public class CustomSecretSettings implements SecretSettings {
         ValidationException validationException = new ValidationException();
 
         Map<String, Object> requestSecretParamsMap = extractOptionalMap(map, SECRET_PARAMETERS, NAME, validationException);
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
         if (requestSecretParamsMap == null) {
             return null;
         } else {

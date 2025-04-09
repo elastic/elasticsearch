@@ -13,11 +13,9 @@ import com.jayway.jsonpath.JsonPath;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -46,16 +44,9 @@ public class CustomResponseEntity {
         CustomRequest customRequest = (CustomRequest) request;
         String serviceType = customRequest.getServiceSettings().getServiceType();
         TaskType taskType = TaskType.fromStringOrStatusException(serviceType);
-        ResponseJsonParser responseJsonParser = customRequest.getServiceSettings().getResponseJsonParser();
+        var responseJsonParser = customRequest.getServiceSettings().getResponseJsonParser();
 
-        InferenceServiceResults result = switch (taskType) {
-            case TEXT_EMBEDDING -> fromTextEmbeddingResponse(response, responseJsonParser);
-            case SPARSE_EMBEDDING -> fromSparseEmbeddingResponse(response, responseJsonParser);
-            case RERANK -> fromRerankResponse(response, responseJsonParser);
-            case COMPLETION -> fromCompletionResponse(response, responseJsonParser);
-            case CUSTOM -> fromCustomResponse(response);
-            default -> throw new ElasticsearchStatusException(unsupportedTaskTypeErrorMsg(taskType), RestStatus.BAD_REQUEST);
-        };
+        InferenceServiceResults result = responseJsonParser.parse(response);
 
         logger.debug(
             "Ai Search uri [{}] response: client cost [{}ms]",

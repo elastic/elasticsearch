@@ -478,6 +478,30 @@ public final class ServiceUtils {
         return optionalField;
     }
 
+    /**
+     * Ensures that each value in the map is a {@link String}.
+     * @param map a Map to iterate over
+     * @param settingName the setting name that his map corresponds to
+     * @param validationException aggregated validation exceptions
+     */
+    public static void validateMapValueStrings(
+        Map<String, Object> map,
+        String settingName,
+        ValidationException validationException
+    ) {
+        if (map == null) {
+            return;
+        }
+
+        for (var entry : map.entrySet()) {
+            var value = entry.getValue();
+            if (value instanceof String == false) {
+                validationException.addValidationError(ServiceUtils.invalidTypeErrorMsg(settingName, value, String.class.getSimpleName()));
+                throw validationException;
+            }
+        }
+    }
+
     public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(
         Map<String, Object> map,
         String settingName,

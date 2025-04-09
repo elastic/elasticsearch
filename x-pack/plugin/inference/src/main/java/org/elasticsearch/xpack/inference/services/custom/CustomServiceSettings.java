@@ -21,10 +21,17 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.NoopResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.ResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -37,6 +44,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapValueStrings;
 
 public class CustomServiceSettings extends FilteredXContentObject implements ServiceSettings, CustomRateLimitServiceSettings {
     public static final String NAME = "custom_service_settings";
@@ -47,25 +55,57 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String RESPONSE = "response";
     public static final String JSON_PARSER = "json_parser";
 
-    public static final String TEXT_EMBEDDING_PARSER_EMBEDDINGS = "text_embeddings";
-
-    public static final String SPARSE_EMBEDDING_RESULT = "sparse_result";
-    public static final String SPARSE_RESULT_PATH = "path";
-    public static final String SPARSE_RESULT_VALUE = "value";
-    public static final String SPARSE_EMBEDDING_PARSER_TOKEN = "sparse_token";
-    public static final String SPARSE_EMBEDDING_PARSER_WEIGHT = "sparse_weight";
-
-    public static final String RERANK_PARSER_INDEX = "reranked_index";
-    public static final String RERANK_PARSER_SCORE = "relevance_score";
-    public static final String RERANK_PARSER_DOCUMENT_TEXT = "document_text";
-
-    public static final String COMPLETION_PARSER_RESULT = "completion_result";
-
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     public static CustomServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context, TaskType taskType) {
+        return switch (context) {
+            case REQUEST -> fromRequestMap(map, taskType);
+            case PERSISTENT -> fromPersistentMap(map, taskType);
+        };
+    }
+
+    private static CustomServiceSettings fromPersistentMap(Map<String, Object> map, TaskType taskType) {
         ValidationException validationException = new ValidationException();
 
+        return CustomServiceSettings.of(from(map, ConfigurationParseContext.PERSISTENT, taskType, validationException));
+    }
+
+    private record Fields(
+        SimilarityMeasure similarity,
+        Integer dims,
+        Integer maxInputTokens,
+        String url,
+        Map<String, Object> headers,
+        Map<String, Object> requestBodyMap,
+        String requestContentString,
+        Map<String, Object> responseParserMap,
+        Map<String, Object> jsonParserMap,
+        ResponseParser responseParser,
+        RateLimitSettings rateLimitSettings
+    ) {
+        public void validate(ValidationException validationException) {
+            validateMapValueStrings(headers, HEADERS, validationException);
+
+            if (requestBodyMap == null || responseParserMap == null || jsonParserMap == null) {
+                throw validationException;
+            }
+
+            throwIfNotEmptyMap(requestBodyMap, NAME);
+            throwIfNotEmptyMap(jsonParserMap, NAME);
+            throwIfNotEmptyMap(responseParserMap, NAME);
+
+            if (validationException.validationErrors().isEmpty() == false) {
+                throw validationException;
+            }
+        }
+    }
+
+    private static Fields from(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        TaskType taskType,
+        ValidationException validationException
+    ) {
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
@@ -73,21 +113,15 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         String url = extractRequiredString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         Map<String, Object> headers = extractOptionalMap(map, HEADERS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        // TODO validate that values are only strings
 
         Map<String, Object> requestBodyMap = extractRequiredMap(map, REQUEST, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (requestBodyMap == null) {
-            throw validationException;
-        }
-
         String requestContentString = extractRequiredString(
-            requestBodyMap,
+            Objects.requireNonNullElse(requestBodyMap, new HashMap<>()),
             REQUEST_CONTENT,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        throwIfNotEmptyMap(requestBodyMap, NAME);
 
         Map<String, Object> responseParserMap = extractRequiredMap(
             map,
@@ -95,22 +129,15 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        if (responseParserMap == null) {
-            throw validationException;
-        }
 
         Map<String, Object> jsonParserMap = extractRequiredMap(
-            responseParserMap,
+            Objects.requireNonNullElse(responseParserMap, new HashMap<>()),
             JSON_PARSER,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        if (jsonParserMap == null) {
-            throw validationException;
-        }
 
         var responseJsonParser = extractResponseParser(taskType, jsonParserMap, validationException);
-        throwIfNotEmptyMap(responseParserMap, NAME);
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -120,19 +147,40 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new CustomServiceSettings(
+        return new Fields(
             similarity,
             dims,
             maxInputTokens,
             url,
             headers,
+            requestBodyMap,
             requestContentString,
+            responseParserMap,
+            jsonParserMap,
             responseJsonParser,
             rateLimitSettings
+        );
+    }
+
+    private static CustomServiceSettings fromRequestMap(Map<String, Object> map, TaskType taskType) {
+        ValidationException validationException = new ValidationException();
+
+        var serviceSettings = from(map, ConfigurationParseContext.REQUEST, taskType, validationException);
+
+        serviceSettings.validate(validationException);
+        return CustomServiceSettings.of(serviceSettings);
+    }
+
+    private static CustomServiceSettings of(Fields fields) {
+        return new CustomServiceSettings(
+            fields.similarity,
+            fields.dims,
+            fields.maxInputTokens,
+            fields.url,
+            fields.headers,
+            fields.requestContentString,
+            fields.responseParser,
+            fields.rateLimitSettings
         );
     }
 
@@ -142,7 +190,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final String url;
     private final Map<String, Object> headers;
     private final String requestContentString;
-    private final ResponseJsonParser responseJsonParser;
+    private final ResponseParser responseJsonParser;
     private final RateLimitSettings rateLimitSettings;
 
     public CustomServiceSettings(
@@ -152,7 +200,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         String url,
         Map<String, Object> headers,
         String requestContentString,
-        ResponseJsonParser responseJsonParser,
+        ResponseParser responseJsonParser,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.similarity = similarity;
@@ -170,17 +218,9 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         dimensions = in.readOptionalVInt();
         maxInputTokens = in.readOptionalVInt();
         url = in.readString();
-        if (in.readBoolean()) {
-            headers = in.readGenericMap();
-        } else {
-            headers = null;
-        }
+        headers = in.readGenericMap();
         requestContentString = in.readString();
-        if (in.readBoolean()) {
-            responseJsonParser = new ResponseJsonParser(in);
-        } else {
-            responseJsonParser = null;
-        }
+        responseJsonParser = in.readOptionalNamedWriteable(ResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
     }
 
@@ -223,7 +263,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         return requestContentString;
     }
 
-    public ResponseJsonParser getResponseJsonParser() {
+    public ResponseParser getResponseJsonParser() {
         return responseJsonParser;
     }
 
@@ -281,7 +321,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             }
             builder.endObject();
         }
-        builder.endObject();
 
         rateLimitSettings.toXContent(builder, params);
 
@@ -304,19 +343,9 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
         out.writeString(url);
-        if (headers != null) {
-            out.writeBoolean(true);
-            out.writeGenericMap(headers);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeGenericMap(headers);
         out.writeString(requestContentString);
-        if (responseJsonParser != null) {
-            out.writeBoolean(true);
-            responseJsonParser.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        responseJsonParser.writeTo(out);
         rateLimitSettings.writeTo(out);
     }
 
@@ -351,14 +380,25 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public String modelId() {
-        return CustomService.NAME; // TODO, what is required here?
+        // returning null because the model id is embedded in the url
+        return null;
     }
 
-    private static ResponseJsonParser extractResponseParser(
+    private static ResponseParser extractResponseParser(
         TaskType taskType,
         Map<String, Object> responseParserMap,
         ValidationException validationException
     ) {
-        return new ResponseJsonParser(taskType, responseParserMap, validationException);
+        if (responseParserMap == null) {
+            return NoopResponseParser.INSTANCE;
+        }
+
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> TextEmbeddingResponseParser.fromMap(responseParserMap, validationException);
+            case SPARSE_EMBEDDING -> SparseEmbeddingResponseParser.fromMap(responseParserMap, validationException);
+            case RERANK -> RerankResponseParser.fromMap(responseParserMap, validationException);
+            case COMPLETION -> CompletionResponseParser.fromMap(responseParserMap, validationException);
+            default -> throw new IllegalArgumentException("unexpected task type [" + taskType + "]");
+        };
     }
 }

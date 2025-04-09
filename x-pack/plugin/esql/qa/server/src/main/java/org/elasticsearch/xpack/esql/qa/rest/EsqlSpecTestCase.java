@@ -76,6 +76,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
 
 // This test can run very long in serverless configurations
@@ -179,7 +180,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        if (Stream.of("semantic_text_field_caps", RERANK.capabilityName()).anyMatch(testCase.requiredCapabilities::contains)) {
+        if (requiresInferenceEndpoint()) {
             assumeTrue("Inference test service needs to be supported", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
@@ -248,6 +249,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsInferenceTestService() {
         return true;
+    }
+
+    protected boolean requiresInferenceEndpoint() {
+        return Stream.of(SEMANTIC_TEXT_FIELD_CAPS.capabilityName(), RERANK.capabilityName())
+            .anyMatch(testCase.requiredCapabilities::contains);
     }
 
     protected boolean supportsIndexModeLookup() throws IOException {

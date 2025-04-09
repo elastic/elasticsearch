@@ -19,6 +19,7 @@ public class JwtTypeValidator implements JwtFieldValidator {
 
     private static final JOSEObjectTypeVerifier<SecurityContext> JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier<>(
         JOSEObjectType.JWT,
+        new JOSEObjectType("AT+JWT"),
         null
     );
 

@@ -19,12 +19,34 @@ import static org.hamcrest.Matchers.containsString;
 
 public class JwtTypeValidatorTests extends ESTestCase {
 
-    public void testValidType() throws ParseException {
-        final String algorithm = randomAlphaOfLengthBetween(3, 8);
-
+    public void testValidTypeMissing() throws ParseException {
         // typ is allowed to be missing
         final JWSHeader jwsHeader = JWSHeader.parse(
-            randomFrom(Map.of("alg", randomAlphaOfLengthBetween(3, 8)), Map.of("typ", "JWT", "alg", randomAlphaOfLengthBetween(3, 8)))
+            Map.of("alg", randomAlphaOfLengthBetween(3, 8))
+        );
+
+        try {
+            JwtTypeValidator.INSTANCE.validate(jwsHeader, JWTClaimsSet.parse(Map.of()));
+        } catch (Exception e) {
+            throw new AssertionError("validation should have passed without exception", e);
+        }
+    }
+
+    public void testValidTypeJWT() throws ParseException {
+        final JWSHeader jwsHeader = JWSHeader.parse(
+            Map.of("typ", "JWT", "alg", randomAlphaOfLengthBetween(3, 8))
+        );
+
+        try {
+            JwtTypeValidator.INSTANCE.validate(jwsHeader, JWTClaimsSet.parse(Map.of()));
+        } catch (Exception e) {
+            throw new AssertionError("validation should have passed without exception", e);
+        }
+    }
+
+    public void testValidTypeAT_JWT() throws ParseException {
+        final JWSHeader jwsHeader = JWSHeader.parse(
+            Map.of("typ", "at+jwt", "alg", randomAlphaOfLengthBetween(3, 8))
         );
 
         try {
@@ -35,7 +57,6 @@ public class JwtTypeValidatorTests extends ESTestCase {
     }
 
     public void testInvalidType() throws ParseException {
-
         final JWSHeader jwsHeader = JWSHeader.parse(
             Map.of("typ", randomAlphaOfLengthBetween(4, 8), "alg", randomAlphaOfLengthBetween(3, 8))
         );

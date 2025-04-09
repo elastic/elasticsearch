@@ -195,8 +195,8 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = CountDistinctDoubleAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = CountDistinctDoubleAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

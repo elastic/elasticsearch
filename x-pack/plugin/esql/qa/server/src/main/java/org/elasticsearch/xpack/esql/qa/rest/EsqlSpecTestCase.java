@@ -66,8 +66,11 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasRerankInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createRerankInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteRerankInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
@@ -134,6 +137,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             createInferenceEndpoint(client());
         }
 
+        if (supportsInferenceTestService() && clusterHasRerankInferenceEndpoint(client()) == false) {
+            createRerankInferenceEndpoint(client());
+        }
+
         boolean supportsLookup = supportsIndexModeLookup();
         boolean supportsSourceMapping = supportsSourceFieldMapping();
         if (indexExists(availableDatasetsForEs(client(), supportsLookup, supportsSourceMapping).iterator().next().indexName()) == false) {
@@ -153,6 +160,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
 
         deleteInferenceEndpoint(client());
+        deleteRerankInferenceEndpoint(client());
     }
 
     public boolean logResults() {
@@ -169,7 +177,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        if (testCase.requiredCapabilities.contains("semantic_text_field_caps")) {
+        if (testCase.requiredCapabilities.contains("semantic_text_field_caps") || testCase.requiredCapabilities.contains("rerank")) {
             assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);

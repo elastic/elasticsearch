@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
@@ -75,14 +76,15 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     }
 
     private Map<String, InternalAggregation> asMap() {
-        if (aggregationsAsMap == null) {
+        var res = aggregationsAsMap;
+        if (res == null) {
             Map<String, InternalAggregation> newAggregationsAsMap = Maps.newMapWithExpectedSize(aggregations.size());
             for (InternalAggregation aggregation : aggregations) {
                 newAggregationsAsMap.put(aggregation.getName(), aggregation);
             }
-            this.aggregationsAsMap = unmodifiableMap(newAggregationsAsMap);
+            res = this.aggregationsAsMap = unmodifiableMap(newAggregationsAsMap);
         }
-        return aggregationsAsMap;
+        return res;
     }
 
     /**
@@ -147,11 +149,25 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         return new InternalAggregations(aggregations);
     }
 
+    public static InternalAggregations from(InternalAggregation aggregation) {
+        return new InternalAggregations(List.of(aggregation));
+    }
+
     public static InternalAggregations from(List<InternalAggregation> aggregations) {
         if (aggregations.isEmpty()) {
             return EMPTY;
         }
+        if (aggregations.size() == 1) {
+            return from(aggregations.get(0));
+        }
         return new InternalAggregations(aggregations);
+    }
+
+    public static InternalAggregations append(InternalAggregations aggs, InternalAggregation toAppend) {
+        if (aggs.aggregations.isEmpty()) {
+            return from(toAppend);
+        }
+        return new InternalAggregations(CollectionUtils.appendToCopyNoNullElements(aggs.aggregations, toAppend));
     }
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
@@ -253,19 +269,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         }
         // handle special case when there is just one aggregation
         if (aggregationsList.size() == 1) {
-            final List<InternalAggregation> internalAggregations = aggregationsList.get(0).asList();
-            final List<InternalAggregation> reduced = new ArrayList<>(internalAggregations.size());
-            for (InternalAggregation aggregation : internalAggregations) {
-                if (aggregation.mustReduceOnSingleInternalAgg()) {
-                    try (AggregatorReducer aggregatorReducer = aggregation.getReducer(context.forAgg(aggregation.getName()), 1)) {
-                        aggregatorReducer.accept(aggregation);
-                        reduced.add(aggregatorReducer.get());
-                    }
-                } else {
-                    reduced.add(aggregation);
-                }
-            }
-            return from(reduced);
+            return reduce(aggregationsList.get(0), context);
         }
         // general case
         try (AggregatorsReducer reducer = new AggregatorsReducer(aggregationsList.get(0), context, aggregationsList.size())) {
@@ -274,6 +278,29 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             }
             return reducer.get();
         }
+    }
+
+    public static InternalAggregations reduce(InternalAggregations aggregations, AggregationReduceContext context) {
+        final List<InternalAggregation> internalAggregations = aggregations.asList();
+        int size = internalAggregations.size();
+        if (size == 0) {
+            return EMPTY;
+        }
+        boolean noneReduced = true;
+        final List<InternalAggregation> reduced = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            InternalAggregation aggregation = internalAggregations.get(i);
+            if (aggregation.mustReduceOnSingleInternalAgg()) {
+                noneReduced = false;
+                try (AggregatorReducer aggregatorReducer = aggregation.getReducer(context.forAgg(aggregation.getName()), 1)) {
+                    aggregatorReducer.accept(aggregation);
+                    reduced.add(aggregatorReducer.get());
+                }
+            } else {
+                reduced.add(aggregation);
+            }
+        }
+        return noneReduced ? aggregations : from(reduced);
     }
 
     /**

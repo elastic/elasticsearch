@@ -226,6 +226,8 @@ import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgno
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1731,12 +1733,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return getIndexResponse.getIndices().length > 0;
     }
 
-    public static void awaitIndexExists(String index) {
+    public static void awaitIndexExists(String index) throws Exception {
         awaitIndexExists(index, client());
     }
 
-    public static void awaitIndexExists(String index, Client client) {
-        safeGet(
+    public static void awaitIndexExists(String index, Client client) throws Exception {
+        if (Regex.isSimpleMatchPattern(index) || Metadata.ALL.equals(index)) {
+            assertBusy(() -> {
+                final var response = clusterHealthWithIndex(index, client);
+                assertThat(response.getIndices(), not(anEmptyMap()));
+            });
+        } else {
+            clusterHealthWithIndex(index, client);
+        }
+    }
+
+    private static ClusterHealthResponse clusterHealthWithIndex(String index, Client client) {
+        return safeGet(
             client.admin()
                 .cluster()
                 .prepareHealth(SAFE_AWAIT_TIMEOUT, index)

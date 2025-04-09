@@ -44,6 +44,8 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -89,8 +91,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -1358,6 +1362,101 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         // Until we fix ES-8335 we should do an explicit flush to release all VBCCs
         flush(indexName);
+    }
+
+    public void testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimistically() throws Exception {
+        var indexNode = startMasterAndIndexNode(
+            Settings.builder()
+                .put(SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueSeconds(2))
+                .put(SHARD_INACTIVITY_DURATION_TIME_SETTING.getKey(), TimeValue.timeValueSeconds(2))
+                .build()
+        );
+        var firstSearchNode = startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put("index.routing.allocation.include._name", String.join(",", indexNode, firstSearchNode)).build()
+        );
+        ensureGreen(indexName);
+
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
+
+        Map<PrimaryTermAndGeneration, PlainActionFuture<Void>> pendingUploadListeners = new ConcurrentHashMap<>();
+        MockTransportService.getInstance(firstSearchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                handler.messageReceived(request, channel, task);
+                var newCommitNotificationRequest = (NewCommitNotificationRequest) request;
+                if (newCommitNotificationRequest.isUploaded()) {
+                    var latestUploadedBCC = newCommitNotificationRequest.getLatestUploadedBatchedCompoundCommitTermAndGen();
+                    pendingUploadListeners.computeIfAbsent(latestUploadedBCC, unused -> new PlainActionFuture<>()).onResponse(null);
+                }
+            });
+
+        for (int i = 0; i < 10; i++) {
+            indexDocsAndFlush(indexName);
+
+            // We have to wait until the search shard has received the new commit notification
+            // for the upload to ensure that we get open the PIT against the uploaded commit.
+            // IndexShard.waitForPrimaryTermAndGeneration won't do the trick because it'll trigger
+            // as soon as the VBCC notification is received
+            var latestUploadedBCC = commitService.getLatestUploadedBcc(shardId);
+            assertThat(latestUploadedBCC, is(notNullValue()));
+            pendingUploadListeners.computeIfAbsent(latestUploadedBCC.primaryTermAndGeneration(), unused -> new PlainActionFuture<>()).get();
+
+            // Open a PIT against each commit so we have to retain all of them
+            var openPITResponse = client(firstSearchNode).execute(
+                TransportOpenPointInTimeAction.TYPE,
+                new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueHours(1)).allowPartialSearchResults(false)
+            ).actionGet();
+            assertThat(openPITResponse.getFailedShards(), is(equalTo(0)));
+            if (i % 2 == 0) {
+                forceMerge(true);
+            }
+        }
+
+        // Run a force merge so only the open PITs are retaining the previous commits
+        forceMerge(true);
+
+        var newSearchNode = startSearchNode();
+
+        var newCommitNotificationReceivedLatch = new CountDownLatch(1);
+        var newCommitNotificationsBlocked = new CountDownLatch(1);
+        MockTransportService.getInstance(newSearchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                newCommitNotificationReceivedLatch.countDown();
+                safeAwait(newCommitNotificationsBlocked);
+                handler.messageReceived(request, channel, task);
+            });
+        var retainedBlobsBeforeUnpromotableShardMoved = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.include._name", String.join(",", indexName, newSearchNode)),
+            indexName
+        );
+        ensureGreen(indexName);
+
+        // The new search node hasn't responded back to any commit notification and the previous node is still around with the open PITs
+        // hence we should retain all commits
+        assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(retainedBlobsBeforeUnpromotableShardMoved)));
+
+        safeAwait(newCommitNotificationReceivedLatch);
+
+        // firstSearchNode was retaining all the commits by the open PITs
+        internalCluster().stopNode(firstSearchNode);
+
+        // The new search node hasn't responded back to any commit notifications, hence we should retain all commits
+        assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(retainedBlobsBeforeUnpromotableShardMoved)));
+
+        newCommitNotificationsBlocked.countDown();
+
+        var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
+        assertThat(latestUploadedBcc, is(notNullValue()));
+        var latestUploadedBlob = StatelessCompoundCommit.blobNameFromGeneration(latestUploadedBcc.primaryTermAndGeneration().generation());
+
+        // TODO: This should fail once the PIT hand-off is in place
+        assertBusy(() -> assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob)))));
     }
 
     private int indexDocsAndFlush(String indexName) {

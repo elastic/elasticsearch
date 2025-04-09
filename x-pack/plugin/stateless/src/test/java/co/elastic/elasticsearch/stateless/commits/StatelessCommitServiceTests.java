@@ -1984,6 +1984,109 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testRegisterCommitForUnpromotableRecoveryAcquriesARefForAllBlobs() throws Exception {
+        Set<StaleCompoundCommit> deletedBCCs = ConcurrentCollections.newConcurrentSet();
+        var fakeSearchNode = new FakeSearchNode(threadPool);
+        var stateRef = new AtomicReference<ClusterState>();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
+                return new StatelessCommitCleaner(null, null, null) {
+                    @Override
+                    void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                        deletedBCCs.add(staleCompoundCommit);
+                    }
+                };
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return fakeSearchNode;
+            }
+
+            @Override
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
+                return Optional.ofNullable(stateRef.get()).map(s -> s.routingTable().shardRoutingTable(shardId));
+            }
+        }) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+            ClusterState stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            ClusterState stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(10);
+            var firstBCC = initialCommits.get(0);
+            var commit = initialCommits.get(initialCommits.size() - 1);
+            var nodeId = stateWithSearchShards.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId();
+
+            for (StatelessCommitRef initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+            }
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
+
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            commitService.onCommitCreation(mergedCommit);
+
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
+            var mergedCommitPTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
+
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+            stateRef.set(stateWithSearchShards);
+
+            var registerFuture = new PlainActionFuture<RegisterCommitResponse>();
+            commitService.registerCommitForUnpromotableRecovery(
+                null,
+                mergedCommitPTG,
+                shardId,
+                nodeId,
+                stateWithSearchShards,
+                registerFuture
+            );
+            var registrationResponse = registerFuture.get();
+            assertThat(registrationResponse, notNullValue());
+            assertThat(registrationResponse.getCompoundCommit().primaryTermAndGeneration(), equalTo(mergedCommitPTG));
+
+            for (StatelessCommitRef initialCommit : initialCommits) {
+                commitService.markCommitDeleted(shardId, initialCommit.getGeneration());
+            }
+            commitService.getIndexEngineLocalReaderListenerForShard(shardId)
+                .onLocalReaderClosed(commit.getGeneration(), Set.of(mergedCommitPTG));
+
+            assertThat(deletedBCCs, is(empty()));
+
+            var commitAfterMerge = testHarness.generateIndexCommits(1, false).get(0);
+            commitService.onCommitCreation(commitAfterMerge);
+
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, commitAfterMerge.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, commitAfterMerge.getGeneration());
+
+            var commitAfterMergePTG = new PrimaryTermAndGeneration(commitAfterMerge.getPrimaryTerm(), commitAfterMerge.getGeneration());
+            fakeSearchNode.getListenerForNewCommitUpload(commitAfterMergePTG)
+                .get()
+                .onResponse(new NewCommitNotificationResponse(Set.of(mergedCommitPTG, commitAfterMergePTG)));
+
+            assertThat(
+                deletedBCCs,
+                is(
+                    equalTo(
+                        Set.of(
+                            new StaleCompoundCommit(
+                                shardId,
+                                new PrimaryTermAndGeneration(firstBCC.getPrimaryTerm(), firstBCC.getGeneration()),
+                                primaryTerm
+                            )
+                        )
+                    )
+                )
+            );
+        }
+    }
+
     public void testScheduledCommitUpload() throws Exception {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override

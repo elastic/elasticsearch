@@ -37,20 +37,16 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
 
   private final DriverContext driverContext;
 
-  private final long unitInMillis;
-
   public RateDoubleGroupingAggregatorFunction(List<Integer> channels,
-      RateDoubleAggregator.DoubleRateGroupingState state, DriverContext driverContext,
-      long unitInMillis) {
+      RateDoubleAggregator.DoubleRateGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.unitInMillis = unitInMillis;
   }
 
   public static RateDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, long unitInMillis) {
-    return new RateDoubleGroupingAggregatorFunction(channels, RateDoubleAggregator.initGrouping(driverContext, unitInMillis), driverContext, unitInMillis);
+      DriverContext driverContext) {
+    return new RateDoubleGroupingAggregatorFunction(channels, RateDoubleAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

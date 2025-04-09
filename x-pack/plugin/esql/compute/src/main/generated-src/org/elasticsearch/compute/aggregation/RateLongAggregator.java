@@ -40,8 +40,8 @@ import java.util.Arrays;
 )
 public class RateLongAggregator {
 
-    public static LongRateGroupingState initGrouping(DriverContext driverContext, long unitInMillis) {
-        return new LongRateGroupingState(driverContext.bigArrays(), driverContext.breaker(), unitInMillis);
+    public static LongRateGroupingState initGrouping(DriverContext driverContext) {
+        return new LongRateGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
     public static void combine(LongRateGroupingState current, int groupId, long timestamp, long value) {
@@ -119,16 +119,14 @@ public class RateLongAggregator {
 
     public static final class LongRateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
         private ObjectArray<LongRateState> states;
-        private final long unitInMillis;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
 
-        LongRateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, long unitInMillis) {
+        LongRateGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
-            this.unitInMillis = unitInMillis;
         }
 
         void ensureCapacity(int groupId) {
@@ -316,7 +314,7 @@ public class RateLongAggregator {
             }
         }
 
-        private static double computeRateWithoutExtrapolate(LongRateState state, long unitInMillis) {
+        private static double computeRateWithoutExtrapolate(LongRateState state) {
             final int len = state.entries();
             assert len >= 2 : "rate requires at least two samples; got " + len;
             final long firstTS = state.timestamps[state.timestamps.length - 1];
@@ -329,7 +327,7 @@ public class RateLongAggregator {
             }
             final double firstValue = state.values[len - 1];
             final double lastValue = state.values[0] + reset;
-            return (lastValue - firstValue) * unitInMillis / (lastTS - firstTS);
+            return (lastValue - firstValue) * 1000.0 / (lastTS - firstTS);
         }
 
         /**
@@ -341,7 +339,7 @@ public class RateLongAggregator {
          * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
          * samples (which is our guess for where the series actually starts or ends).
          */
-        private static double extrapolateRate(LongRateState state, long rangeStart, long rangeEnd, long unitInMillis) {
+        private static double extrapolateRate(LongRateState state, long rangeStart, long rangeEnd) {
             final int len = state.entries();
             assert len >= 2 : "rate requires at least two samples; got " + len;
             final long firstTS = state.timestamps[state.timestamps.length - 1];
@@ -371,7 +369,7 @@ public class RateLongAggregator {
                 }
                 lastValue = lastValue + endGap * slope;
             }
-            return (lastValue - firstValue) * unitInMillis / (rangeEnd - rangeStart);
+            return (lastValue - firstValue) * 1000.0 / (rangeEnd - rangeStart);
         }
 
         Block evaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
@@ -387,14 +385,9 @@ public class RateLongAggregator {
                     int len = state.entries();
                     final double rate;
                     if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                        rate = extrapolateRate(
-                            state,
-                            tsContext.rangeStartInMillis(groupId),
-                            tsContext.rangeEndInMillis(groupId),
-                            unitInMillis
-                        );
+                        rate = extrapolateRate(state, tsContext.rangeStartInMillis(groupId), tsContext.rangeEndInMillis(groupId));
                     } else {
-                        rate = computeRateWithoutExtrapolate(state, unitInMillis);
+                        rate = computeRateWithoutExtrapolate(state);
                     }
                     rates.appendDouble(rate);
                 }

@@ -340,10 +340,8 @@ identifier
     ;
 
 tableIdentifier
-    : (catalog=identifier ':')? TABLE_IDENTIFIER
-    | (catalog=identifier ':')? name=identifier
-    | TABLE_IDENTIFIER ('::' selector=identifier)?
-    | name=identifier ('::' selector=identifier)?
+    : (catalog=identifier ':')? TABLE_IDENTIFIER ('::' selector=identifier)?
+    | (catalog=identifier ':')? name=identifier ('::' selector=identifier)?
     ;
 
 quoteIdentifier

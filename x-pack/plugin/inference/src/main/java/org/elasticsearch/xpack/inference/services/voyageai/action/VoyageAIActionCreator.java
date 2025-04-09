@@ -14,14 +14,14 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIRerankRequest;
-import org.elasticsearch.xpack.inference.external.response.voyageai.VoyageAIEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.voyageai.VoyageAIRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIResponseHandler;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIRerankRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
+import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIRerankResponseEntity;
 
 import java.util.Map;
 import java.util.Objects;
@@ -57,7 +57,7 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
             overriddenModel,
             EMBEDDINGS_HANDLER,
             (embeddingsInput) -> new VoyageAIEmbeddingsRequest(
-                embeddingsInput.getInputs(),
+                embeddingsInput.getStringInputs(),
                 embeddingsInput.getInputType(),
                 overriddenModel
             ),

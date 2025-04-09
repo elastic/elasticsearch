@@ -194,6 +194,6 @@ public class ScriptTests extends ESTestCase {
         map.put("long", 1L);
         map.put("string", "value");
         DynamicMap dm = new DynamicMap(map, Collections.emptyMap());
-        assertThat(dm.toString(), both(containsString("long: 1")).and(containsString("string: value")));
+        assertThat(dm.toString(), both(containsString("long=1")).and(containsString("string=value")));
     }
 }

@@ -1,5 +1,5 @@
 ---
-navigation_title: "conditional functions and expressions"
+navigation_title: "Conditional functions and expressions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/conditional-functions-and-expressions.md
 ---

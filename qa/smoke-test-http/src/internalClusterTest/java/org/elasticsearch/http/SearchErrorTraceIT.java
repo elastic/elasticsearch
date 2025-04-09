@@ -13,29 +13,34 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.ErrorTraceHelper;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.transport.TransportMessageListener;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Collection;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 
 public class SearchErrorTraceIT extends HttpSmokeTestCase {
-    private AtomicBoolean hasStackTrace;
+    private BooleanSupplier hasStackTrace;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
 
     @BeforeClass
     public static void setDebugLogLevel() {
@@ -43,22 +48,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     @Before
-    private void setupMessageListener() {
-        internalCluster().getDataNodeInstances(TransportService.class).forEach(ts -> {
-            ts.addMessageListener(new TransportMessageListener() {
-                @Override
-                public void onResponseSent(long requestId, String action, Exception error) {
-                    TransportMessageListener.super.onResponseSent(requestId, action, error);
-                    if (action.startsWith("indices:data/read/search")) {
-                        Optional<Throwable> throwable = ExceptionsHelper.unwrapCausesAndSuppressed(
-                            error,
-                            t -> t.getStackTrace().length > 0
-                        );
-                        hasStackTrace.set(throwable.isPresent());
-                    }
-                }
-            });
-        });
+    public void setupMessageListener() {
+        hasStackTrace = ErrorTraceHelper.setupErrorTraceListener(internalCluster());
     }
 
     private void setupIndexWithDocs() {
@@ -72,7 +63,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testSearchFailingQueryErrorTraceDefault() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -87,11 +77,10 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             }
             """);
         getRestClient().performRequest(searchRequest);
-        assertFalse(hasStackTrace.get());
+        assertFalse(hasStackTrace.getAsBoolean());
     }
 
     public void testSearchFailingQueryErrorTraceTrue() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -107,11 +96,10 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             """);
         searchRequest.addParameter("error_trace", "true");
         getRestClient().performRequest(searchRequest);
-        assertTrue(hasStackTrace.get());
+        assertTrue(hasStackTrace.getAsBoolean());
     }
 
     public void testSearchFailingQueryErrorTraceFalse() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -127,11 +115,10 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             """);
         searchRequest.addParameter("error_trace", "false");
         getRestClient().performRequest(searchRequest);
-        assertFalse(hasStackTrace.get());
+        assertFalse(hasStackTrace.getAsBoolean());
     }
 
     public void testDataNodeDoesNotLogStackTraceWhenErrorTraceTrue() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -158,7 +145,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testDataNodeLogsStackTraceWhenErrorTraceFalseOrEmpty() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -188,7 +174,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testMultiSearchFailingQueryErrorTraceDefault() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -201,11 +186,10 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
         );
         getRestClient().performRequest(searchRequest);
-        assertFalse(hasStackTrace.get());
+        assertFalse(hasStackTrace.getAsBoolean());
     }
 
     public void testMultiSearchFailingQueryErrorTraceTrue() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -219,11 +203,10 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         );
         searchRequest.addParameter("error_trace", "true");
         getRestClient().performRequest(searchRequest);
-        assertTrue(hasStackTrace.get());
+        assertTrue(hasStackTrace.getAsBoolean());
     }
 
     public void testMultiSearchFailingQueryErrorTraceFalse() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -238,11 +221,10 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         searchRequest.addParameter("error_trace", "false");
         getRestClient().performRequest(searchRequest);
 
-        assertFalse(hasStackTrace.get());
+        assertFalse(hasStackTrace.getAsBoolean());
     }
 
     public void testDataNodeDoesNotLogStackTraceWhenErrorTraceTrueMultiSearch() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -268,7 +250,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testDataNodeLogsStackTraceWhenErrorTraceFalseOrEmptyMultiSearch() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;

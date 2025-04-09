@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
 
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder.DEFAULT_SCORE;
+
 public class MinMaxScoreNormalizer extends ScoreNormalizer {
 
     public static final MinMaxScoreNormalizer INSTANCE = new MinMaxScoreNormalizer();
@@ -53,8 +55,10 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         boolean minEqualsMax = Math.abs(min - max) < EPSILON;
         for (int i = 0; i < docs.length; i++) {
             float score;
-            if (minEqualsMax) {
-                score = min;
+            if (Float.isNaN(docs[i].score)) {
+                score = DEFAULT_SCORE;
+            } else if (minEqualsMax) {
+                score = docs[i].score;
             } else {
                 score = (docs[i].score - min) / (max - min);
             }

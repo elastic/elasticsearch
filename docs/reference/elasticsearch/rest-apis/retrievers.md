@@ -60,7 +60,7 @@ A standard retriever returns top documents from a traditional [query](/reference
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies a [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to this retriever, where all documents must match this query but do not contribute to the score.
+    Applies a [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to this retriever, where all documents must match this query but do not contribute to the score.
 
 
 `search_after`
@@ -84,7 +84,7 @@ A standard retriever returns top documents from a traditional [query](/reference
 `min_score`
 :   (Optional, `float`)
 
-    Minimum [`_score`](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
+    Minimum [`_score`](/reference/query-languages/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
 
 
 `collapse`
@@ -269,11 +269,11 @@ Each entry specifies the following parameters:
 
 * `weight`:: (Optional, float)
 
-    The weight that each score of this retriever’s top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
+    The weight that each score of this retriever's top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
 
 * `normalizer`:: (Optional, String)
 
-    Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, and `none`. Defaults to `none`.
+    Specifies how we will normalize the retriever's scores, before applying the specified `weight`. Available values are: `minmax`, and `none`. Defaults to `none`.
 
     * `none`
     * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
@@ -288,14 +288,78 @@ See also [this hybrid search example](docs-content://solutions/search/retrievers
 `rank_window_size`
 :   (Optional, integer)
 
-    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
+    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request's [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
+
+
+`min_score`
+:   (Optional, float)
+
+    Minimum score threshold for documents to be included in the final result set. Documents with scores below this threshold will be filtered out. Must be greater than or equal to 0. Defaults to 0.
 
 
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever's specifications.
 
+
+### Example: Hybrid search with min_score [linear-retriever-example]
+
+This example demonstrates how to use the Linear retriever to combine a standard retriever with a kNN retriever, applying weights, normalization, and a minimum score threshold:
+
+```console
+GET /restaurants/_search
+{
+  "retriever": {
+    "linear": { <1>
+      "retrievers": [ <2>
+        {
+          "retriever": { <3>
+            "standard": {
+              "query": {
+                "multi_match": {
+                  "query": "Italian cuisine",
+                  "fields": [
+                    "description",
+                    "cuisine"
+                  ]
+                }
+              }
+            }
+          },
+          "weight": 2.0, <4>
+          "normalizer": "minmax" <5>
+        },
+        {
+          "retriever": { <6>
+            "knn": {
+              "field": "vector",
+              "query_vector": [10, 22, 77],
+              "k": 10,
+              "num_candidates": 10
+            }
+          },
+          "weight": 1.0, <7>
+          "normalizer": "minmax" <8>
+        }
+      ],
+      "rank_window_size": 50, <9>
+      "min_score": 1.5 <10>
+    }
+  }
+}
+```
+
+1. Defines a retriever tree with a Linear retriever.
+2. The sub-retrievers array.
+3. The first sub-retriever is a `standard` retriever.
+4. The weight applied to the scores from the standard retriever (2.0).
+5. The normalization method applied to the standard retriever's scores.
+6. The second sub-retriever is a `knn` retriever.
+7. The weight applied to the scores from the kNN retriever (1.0).
+8. The normalization method applied to the kNN retriever's scores.
+9. The rank window size for the Linear retriever.
+10. The minimum score threshold - documents with a combined score below 1.5 will be filtered out from the final result set.
 
 
 ## RRF Retriever [rrf-retriever]
@@ -320,13 +384,13 @@ An [RRF](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) retriever
 `rank_window_size`
 :   (Optional, integer)
 
-    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
+    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request's [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
 
 
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever's specifications.
 
 
 
@@ -435,12 +499,12 @@ For compound retrievers like `rrf`, the `window_size` parameter defines the tota
 
 When using the `rescorer`, an error is returned if the following conditions are not met:
 
-* The minimum configured rescore’s `window_size` is:
+* The minimum configured rescore's `window_size` is:
 
     * Greater than or equal to the `size` of the parent retriever for nested `rescorer` setups.
     * Greater than or equal to the `size` of the search request when used as the primary retriever in the tree.
 
-* And the maximum rescore’s `window_size` is:
+* And the maximum rescore's `window_size` is:
 
     * Smaller than or equal to the `size` or `rank_window_size` of the child retriever.
 
@@ -463,7 +527,7 @@ When using the `rescorer`, an error is returned if the following conditions are 
 `filter`
 :   (Optional. [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies a [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the retriever, ensuring that all documents match the filter criteria without affecting their scores.
+    Applies a [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to the retriever, ensuring that all documents match the filter criteria without affecting their scores.
 
 
 
@@ -564,7 +628,7 @@ To use `text_similarity_reranker` you must first set up an inference endpoint fo
 
 You have the following options:
 
-* Use the the built-in [Elastic Rerank](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) cross-encoder model via the inference API’s {{es}} service.
+* Use the the built-in [Elastic Rerank](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) cross-encoder model via the inference API's {{es}} service.
 * Use the [Cohere Rerank inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
 * Use the [Google Vertex AI inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
 * Upload a model to {{es}} with [Eland](eland://reference/machine-learning.md#ml-nlp-pytorch) using the `text_similarity` NLP task type.
@@ -632,7 +696,7 @@ score = ln(score), if score < 0
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
 
 
@@ -666,7 +730,7 @@ Follow these steps:
     }
     ```
 
-    1. [Adaptive allocations](docs-content://deploy-manage/autoscaling/trained-model-autoscaling.md#enabling-autoscaling-through-apis-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
+    1. [Adaptive allocations](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-auto-scale.md#nlp-model-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
 
 2. Define a `text_similarity_rerank` retriever:
 
@@ -800,7 +864,7 @@ Follow these steps to load the model and create a semantic re-ranker.
 
 ## Query Rules Retriever [rule-retriever]
 
-The `rule` retriever enables fine-grained control over search results by applying contextual [query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries. This retriever has similar functionality to the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md), but works out of the box with other retrievers.
+The `rule` retriever enables fine-grained control over search results by applying contextual [query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries. This retriever has similar functionality to the [rule query](/reference/query-languages/query-dsl-rule-query.md), but works out of the box with other retrievers.
 
 ### Prerequisites [_prerequisites_16]
 
@@ -929,7 +993,7 @@ The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operati
 
 ### Using aggregations with a retriever tree [retriever-aggregations]
 
-[Aggregations](/reference/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
+[Aggregations](/reference/data-analysis/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl-bool-query.md).
 
 
 ### Restrictions on search parameters when specifying a retriever [retriever-restrictions]

@@ -1063,3 +1063,220 @@ setup:
   - close_to: { hits.hits.0._score: { value: 10.5, error: 0.001 } }
   - match: { hits.hits.1._id: "1" }
   - match: { hits.hits.1._score: 10 }
+
+---
+"linear retriever with min_score filtering":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        term: {
+                          keyword: "one"
+                        }
+                      }
+                    }
+                  },
+                  weight: 2.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+              min_score: 1.5
+          size: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 3.4, error: 0.5 } }
+
+---
+"linear retriever with default min_score":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                },
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        term: {
+                          keyword: "one"
+                        }
+                      }
+                    }
+                  },
+                  weight: 2.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+          size: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+
+---
+"linear retriever with high min_score filters all documents":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+              min_score: 100.0
+          size: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 0 }
+
+---
+"linear retriever with negative min_score should throw error":
+  - do:
+      catch: "/\\[min_score\\] must be greater than 0, was: -1\\.0/"
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+              min_score: -1.0
+          size: 10
+
+---
+"linear retriever with zero min_score should return all documents":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+              min_score: 0.0
+          size: 10
+
+---
+"linear retriever with min_score should filter documents even with filters":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers:
+                - standard:
+                    query:
+                      term:
+                        text: "term"
+                - standard:
+                    query:
+                      term:
+                        topic: "technology"
+                - standard:
+                    query:
+                      range:
+                        price: 
+                          gte: 100
+              weights: [1.0, 1.0, 0.5]
+              min_score: 0.5
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_4" }
+
+---
+"linear retriever with missing min_score should use default value":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+          size: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }

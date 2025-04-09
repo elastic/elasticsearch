@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
 
 public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase<LinearRetrieverBuilder> {
     private static List<NamedXContentRegistry.Entry> xContentRegistryEntries;
@@ -54,7 +55,7 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
             weights[i] = randomFloat();
             normalizers[i] = randomScoreNormalizer();
         }
-        return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers);
+        return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers, DEFAULT_MIN_SCORE);
     }
 
     @Override

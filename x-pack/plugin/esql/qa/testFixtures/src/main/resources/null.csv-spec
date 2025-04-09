@@ -205,6 +205,7 @@ fullname:keyword | job_positions:keyword | salary:integer | salary_change:double
 ;
 
 inConvertedNull
+required_capability: filter_in_converted_null
 FROM employees
 | WHERE emp_no in (10021, 10022, null::int)
 | KEEP emp_no, first_name, last_name

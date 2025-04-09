@@ -216,6 +216,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(indexMetadata.getIndex()),
             randomNegativeLong(),
             Map.of(),
+            null,
             randomBoolean(),
             false,
             false,

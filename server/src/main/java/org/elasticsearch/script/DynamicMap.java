@@ -96,19 +96,21 @@ public final class DynamicMap implements Map<String, Object> {
         return delegate.entrySet();
     }
 
+
+
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder("DynamicMap [");
+        StringBuilder sb = new StringBuilder("{");
         int count = 0;
         for (Map.Entry<String, Object> entry : entrySet()) {
             sb.append(entry.getKey());
-            sb.append(": ");
+            sb.append("=");
             sb.append(entry.getValue());
             if (++count < size()) {
                 sb.append(", ");
             }
         }
-        sb.append("]");
+        sb.append("}");
         return sb.toString();
     }
 }

@@ -74,24 +74,6 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
         assertThat(exception.getMessage(), containsString("at least one non-null configuration value"));
     }
 
-    public void testInvalidLifecycleConfiguration() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DataStreamFailureStore.Template(
-                randomBoolean() ? ResettableValue.create(randomBoolean()) : randomEmptyResettableValue(),
-                ResettableValue.create(
-                    DataStreamLifecycle.failuresLifecycleBuilder()
-                        .downsampling(DataStreamLifecycleTests.randomDownsampling())
-                        .buildTemplate()
-                )
-            )
-        );
-        assertThat(
-            exception.getMessage(),
-            containsString("Failure store lifecycle does not support downsampling, please remove the downsampling configuration.")
-        );
-    }
-
     public void testTemplateComposition() {
         // Merging a template with itself, remains the same
         boolean enabled = randomBoolean();

@@ -93,7 +93,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }, ALIASES);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> DataStreamLifecycle.Template.fromXContent(p),
+            (p, c) -> DataStreamLifecycle.Template.dataLifecycleTemplatefromXContent(p),
             LIFECYCLE
         );
         PARSER.declareObjectOrNull(

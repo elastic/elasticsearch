@@ -74,7 +74,10 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
     public void testTemplateComposition() {
         // we fully define the options to avoid having to check for normalised values in the assertion
         DataStreamOptions.Template fullyConfigured = new DataStreamOptions.Template(
-            new DataStreamFailureStore.Template(randomBoolean(), new DataStreamLifecycle.Template(randomBoolean(), randomTimeValue(), null))
+            new DataStreamFailureStore.Template(
+                randomBoolean(),
+                DataStreamLifecycle.createFailuresLifecycleTemplate(randomBoolean(), randomTimeValue())
+            )
         );
 
         // No updates
@@ -108,7 +111,7 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
             new DataStreamFailureStore.Template(true, null)
         );
         DataStreamOptions.Template dataStreamOptionsWithLifecycle = new DataStreamOptions.Template(
-            new DataStreamFailureStore.Template(null, new DataStreamLifecycle.Template(true, randomPositiveTimeValue(), null))
+            new DataStreamFailureStore.Template(null, DataStreamLifecycle.createFailuresLifecycleTemplate(true, randomPositiveTimeValue()))
         );
         result = DataStreamOptions.builder(dataStreamOptionsWithLifecycle)
             .composeTemplate(dataStreamOptionsWithoutLifecycle)

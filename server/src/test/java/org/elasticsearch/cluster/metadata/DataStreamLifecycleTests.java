@@ -21,7 +21,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCase<DataStreamLifecycle> {
+public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<DataStreamLifecycle> {
 
     @Override
     protected Writeable.Reader<DataStreamLifecycle> instanceReader() {
@@ -53,25 +53,39 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected DataStreamLifecycle createTestInstance() {
-        return randomDataLifecycle();
+        return randomBoolean() ? randomDataLifecycle() : randomFailuresLifecycle();
     }
 
     @Override
     protected DataStreamLifecycle mutateInstance(DataStreamLifecycle instance) throws IOException {
+        var lifecycleTarget = instance.targetsFailureStore()
+            ? DataStreamLifecycle.LifecycleType.FAILURES
+            : DataStreamLifecycle.LifecycleType.DATA;
         var enabled = instance.enabled();
         var retention = instance.dataRetention();
         var downsampling = instance.downsampling();
-        switch (randomInt(2)) {
+        switch (randomInt(3)) {
             case 0 -> {
+                if (instance.targetsFailureStore()) {
+                    lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
+                } else {
+                    lifecycleTarget = DataStreamLifecycle.LifecycleType.FAILURES;
+                    downsampling = null;
+                }
+            }
+            case 1 -> {
                 if (retention == null) {
                     retention = randomPositiveTimeValue();
                 } else {
                     retention = randomBoolean() ? null : randomValueOtherThan(retention, ESTestCase::randomPositiveTimeValue);
                 }
             }
-            case 1 -> {
+            case 2 -> {
                 if (downsampling == null) {
                     downsampling = randomDownsampling();
+                    if (lifecycleTarget == DataStreamLifecycle.LifecycleType.FAILURES) {
+                        lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
+                    }
                 } else {
                     downsampling = randomBoolean()
                         ? null
@@ -80,12 +94,39 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             }
             default -> enabled = enabled == false;
         }
-        return new DataStreamLifecycle(enabled, retention, downsampling);
+        return new DataStreamLifecycle(lifecycleTarget, enabled, retention, downsampling);
     }
 
-    @Override
-    protected DataStreamLifecycle doParseInstance(XContentParser parser) throws IOException {
-        return DataStreamLifecycle.fromXContent(parser);
+    public void testDataLifecycleXContentSerialization() throws IOException {
+        DataStreamLifecycle lifecycle = randomDataLifecycle();
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            lifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, null, null, randomBoolean());
+            String lifecycleJson = Strings.toString(builder);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), lifecycleJson)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                var parsed = DataStreamLifecycle.dataLifecycleFromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+                assertThat(parsed, equalTo(lifecycle));
+            }
+        }
+    }
+
+    public void testFailuresLifecycleXContentSerialization() throws IOException {
+        DataStreamLifecycle lifecycle = randomFailuresLifecycle();
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            lifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, null, null, randomBoolean());
+            String lifecycleJson = Strings.toString(builder);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), lifecycleJson)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                var parsed = DataStreamLifecycle.failureLifecycleFromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+                assertThat(parsed, equalTo(lifecycle));
+            }
+        }
     }
 
     public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
@@ -132,7 +173,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             """;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), lifecycleJson)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            var parsed = DataStreamLifecycle.fromXContent(parser);
+            var parsed = DataStreamLifecycle.dataLifecycleFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
             assertThat(parsed, equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
@@ -441,5 +482,24 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
         );
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
+    }
+
+    public void testInvalidLifecycleConfiguration() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataStreamFailureStore(
+                randomBoolean(),
+                new DataStreamLifecycle(
+                    DataStreamLifecycle.LifecycleType.FAILURES,
+                    null,
+                    null,
+                    DataStreamLifecycleTests.randomDownsampling()
+                )
+            )
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("Failure store lifecycle does not support downsampling, please remove the downsampling configuration.")
+        );
     }
 }

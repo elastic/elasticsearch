@@ -41,8 +41,6 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
     public static final String LIFECYCLE = "lifecycle";
     private static final String EMPTY_FAILURE_STORE_ERROR_MESSAGE =
         "Failure store configuration should have at least one non-null configuration value.";
-    private static final String DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE =
-        "Failure store lifecycle does not support downsampling, please remove the downsampling configuration.";
 
     public static final ParseField ENABLED_FIELD = new ParseField(ENABLED);
     public static final ParseField LIFECYCLE_FIELD = new ParseField(LIFECYCLE);
@@ -57,7 +55,7 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, unused) -> DataStreamLifecycle.fromXContent(p),
+            (p, unused) -> DataStreamLifecycle.failureLifecycleFromXContent(p),
             LIFECYCLE_FIELD
         );
     }
@@ -70,9 +68,6 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
     public DataStreamFailureStore {
         if (enabled == null && lifecycle == null) {
             throw new IllegalArgumentException(EMPTY_FAILURE_STORE_ERROR_MESSAGE);
-        }
-        if (lifecycle != null && lifecycle.downsampling() != null) {
-            throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
         }
     }
 
@@ -151,7 +146,7 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL
                     ? ResettableValue.reset()
-                    : ResettableValue.create(DataStreamLifecycle.Template.fromXContent(p)),
+                    : ResettableValue.create(DataStreamLifecycle.Template.failuresLifecycleTemplatefromXContent(p)),
                 LIFECYCLE_FIELD,
                 ObjectParser.ValueType.OBJECT_OR_NULL
             );
@@ -164,9 +159,6 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
         public Template {
             if (enabled.get() == null && lifecycle.get() == null) {
                 throw new IllegalArgumentException(EMPTY_FAILURE_STORE_ERROR_MESSAGE);
-            }
-            if (lifecycle.get() != null && lifecycle.get().downsampling().isDefined()) {
-                throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
             }
         }
 

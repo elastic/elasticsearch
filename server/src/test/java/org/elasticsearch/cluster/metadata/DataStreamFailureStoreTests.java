@@ -61,18 +61,4 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataStreamFailureStore(null, null));
         assertThat(exception.getMessage(), containsString("at least one non-null configuration value"));
     }
-
-    public void testInvalidLifecycleConfiguration() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DataStreamFailureStore(
-                randomBoolean(),
-                new DataStreamLifecycle(null, null, DataStreamLifecycleTests.randomDownsampling())
-            )
-        );
-        assertThat(
-            exception.getMessage(),
-            containsString("Failure store lifecycle does not support downsampling, please remove the downsampling configuration.")
-        );
-    }
 }

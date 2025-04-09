@@ -748,7 +748,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for the index to appear");
         // that would mean that recovery process started and failing
-        safeGet(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test-idx").execute());
+        safeGet(clusterAdmin().prepareHealth(SAFE_AWAIT_TIMEOUT, "test-idx").execute());
 
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
@@ -1617,14 +1617,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for restore to finish");
         restoreFut.get();
-    }
-
-    private void waitForIndex(final String index, TimeValue timeout) throws Exception {
-        assertBusy(
-            () -> assertTrue("Expected index [" + index + "] to exist", indexExists(index)),
-            timeout.millis(),
-            TimeUnit.MILLISECONDS
-        );
     }
 
     public void testSnapshotName() throws Exception {

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -24,6 +26,7 @@ import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
@@ -51,9 +54,19 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             baselineConfig.setMergePolicy(mergePolicy);
             baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
             var contenderConf = newIndexWriterConfig();
-            contenderConf.setCodec(
-                TestUtil.alwaysDocValuesFormat(rarely() ? new TestES87TSDBDocValuesFormat() : new ES819TSDBDocValuesFormat())
-            );
+            contenderConf.setMergePolicy(mergePolicy);
+            Codec codec = new Elasticsearch900Lucene101Codec() {
+
+                final DocValuesFormat docValuesFormat = randomBoolean()
+                    ? new ES819TSDBDocValuesFormat()
+                    : new TestES87TSDBDocValuesFormat();
+
+                @Override
+                public DocValuesFormat getDocValuesFormatForField(String field) {
+                    return docValuesFormat;
+                }
+            };
+            contenderConf.setCodec(codec);
             contenderConf.setMergePolicy(mergePolicy);
 
             try (

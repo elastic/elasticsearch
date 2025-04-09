@@ -1094,6 +1094,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                         .build(),
                     Map.of(),
                     List.of(),
+                    "test",
                     ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS
                 )
             );

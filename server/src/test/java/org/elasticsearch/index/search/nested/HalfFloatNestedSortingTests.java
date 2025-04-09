@@ -10,33 +10,28 @@ package org.elasticsearch.index.search.nested;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.HalfFloatValuesComparatorSource;
 import org.elasticsearch.search.MultiValueMode;
 
-public class FloatNestedSortingTests extends DoubleNestedSortingTests {
+public class HalfFloatNestedSortingTests extends DoubleNestedSortingTests {
 
     @Override
     protected String getFieldDataType() {
-        return "float";
+        return "half_float";
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createFieldComparator(
-        String fieldName,
-        MultiValueMode sortMode,
-        Object missingValue,
-        Nested nested
-    ) {
+    protected XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue, Nested nested) {
         IndexNumericFieldData fieldData = getForField(fieldName);
-        return new FloatValuesComparatorSource(fieldData, missingValue, sortMode, nested);
+        return new HalfFloatValuesComparatorSource(fieldData, missingValue, sortMode, nested);
     }
 
     @Override
     protected IndexableField createField(String name, int value) {
-        return new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value));
+        return new SortedNumericDocValuesField(name, HalfFloatPoint.halfFloatToSortableShort(value));
     }
 }

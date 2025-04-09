@@ -85,7 +85,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
-            notifyListShards(progressListener, clusters, request.source());
+            notifyListShards(progressListener, clusters, request, shardsIts);
         }
     }
 
@@ -104,7 +104,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     }
 
     @Override
-    protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
+    protected void onShardResult(SearchPhaseResult result) {
         QuerySearchResult queryResult = result.queryResult();
         if (queryResult.isNull() == false
             // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
@@ -123,7 +123,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             }
             bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
-        super.onShardResult(result, shardIt);
+        super.onShardResult(result);
     }
 
     static SearchPhase nextPhase(

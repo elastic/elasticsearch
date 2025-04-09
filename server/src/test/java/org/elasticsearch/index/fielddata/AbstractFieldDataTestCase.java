@@ -108,6 +108,16 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 IndexVersion.current(),
                 null
             ).docValues(docValues).build(context).fieldType();
+        } else if (type.equals("half_float")) {
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.HALF_FLOAT,
+                ScriptCompiler.NONE,
+                false,
+                true,
+                IndexVersion.current(),
+                null
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,

@@ -31,7 +31,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
 
     @Override
     protected DataStreamLifecycle.Template createTestInstance() {
-        return randomLifecycleTemplate();
+        return randomDataLifecycleTemplate();
     }
 
     @Override
@@ -165,7 +165,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         }
     }
 
-    public static DataStreamLifecycle.Template randomLifecycleTemplate() {
+    public static DataStreamLifecycle.Template randomDataLifecycleTemplate() {
         return DataStreamLifecycle.createDataLifecycleTemplate(randomBoolean(), randomRetention(), randomDownsampling());
     }
 

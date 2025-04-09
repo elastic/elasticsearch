@@ -53,7 +53,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected DataStreamLifecycle createTestInstance() {
-        return randomLifecycle();
+        return randomDataLifecycle();
     }
 
     @Override
@@ -400,7 +400,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
     }
 
-    public static DataStreamLifecycle randomLifecycle() {
+    public static DataStreamLifecycle randomDataLifecycle() {
         return DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
             .downsampling(randomBoolean() ? null : randomDownsampling())

@@ -140,7 +140,7 @@ public class DataStreamLifecycleFixtures {
         assertTrue(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet().isAcknowledged());
     }
 
-    static DataStreamLifecycle.Template randomLifecycleTemplate() {
+    static DataStreamLifecycle.Template randomDataLifecycleTemplate() {
         return DataStreamLifecycle.createDataLifecycleTemplate(
             frequently(),
             randomResettable(ESTestCase::randomTimeValue),

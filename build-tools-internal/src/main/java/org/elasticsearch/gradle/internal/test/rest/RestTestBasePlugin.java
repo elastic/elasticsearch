@@ -100,7 +100,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(InternalDistributionDownloadPlugin.class);
-        project.getPluginManager().apply(JvmTestSuitePlugin.class);
 
         var bwcVersions = loadBuildParams(project).get().getBwcVersions();
 

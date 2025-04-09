@@ -14,6 +14,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
@@ -196,11 +197,9 @@ public abstract class GradleUtils {
     }
 
     public static void disableTransitiveDependencies(Configuration config) {
-        config.getDependencies().configureEach(dep -> {
-            if (dep instanceof ModuleDependency
-                && dep instanceof ProjectDependency == false
-                && dep.getGroup().startsWith("org.elasticsearch") == false) {
-                ((ModuleDependency) dep).setTransitive(false);
+        config.getDependencies().withType(ExternalModuleDependency.class).configureEach(dep -> {
+            if (dep.getGroup().startsWith("org.elasticsearch") == false) {
+                dep.setTransitive(false);
             }
         });
     }

@@ -8,8 +8,8 @@
  */
 org.elasticsearch.gradle.internal.test.rest.RestTestSuite
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
@@ -41,27 +41,46 @@ dependencies {
 }
 
 tasks.named('check') {
+  // TODO revisit to be the default in ES
   dependsOn tasks.withType(Test)
 }
-
 
 testing {
   suites {
     configureEach {
+      // common configuration for all test suites in this project
       dependencies {
+        implementation project()
         implementation project(':test:framework')
-        implementation project(':test:fixtures:s3-fixture')
-        runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+        runtimeOnly("org.slf4j:slf4j-simple:${versions.slf4j}") {
+          // TODO: (Rene) this should be handled by ElasticsearchBase Plugin but there's an open issue with that.
+          transitive = false
+        }
       }
     }
+    test {
+      dependencies {
+        println "adding dependency = dependency"
+        implementation(project(':test:fixtures:s3-fixture'))
+      }
+    }
+    // test suite defined by InternalJavaRestTestPlugin
     internalClusterTest {
       dependencies {
         implementation project(':test:fixtures:minio-fixture')
       }
+      targets {
+        all {
+          testTask.configure {
+            // TODO: remove once https://github.com/elastic/elasticsearch/issues/101608 is fixed
+            systemProperty 'es.insecure_network_trace_enabled', 'true'
+          }
+        }
+      }
     }
+    // test suite for the java rest tests provided by the InternalJavaRestTestPlugin
     javaRestTest {
       dependencies {
-        implementation project()
         implementation project(':test:fixtures:aws-fixture-utils')
         implementation project(':test:fixtures:s3-fixture')
         implementation project(':test:fixtures:testcontainer-utils')
@@ -71,6 +90,7 @@ testing {
         implementation project(':test:fixtures:testcontainer-utils')
       }
     }
+    // test suite for the Yaml rest tests provided by the InternalYamlRestTestPlugin
     yamlRestTest {
       dependencies {
         implementation project()
@@ -79,7 +99,66 @@ testing {
         implementation project(':test:fixtures:testcontainer-utils')
       }
     }
+    // Add-hoc test suites require to be passed a type. (usually JvmTestSuite)
+    webIdentityTokenTest(JvmTestSuite) {
+      dependencies {
+        implementation project(':server')
+      }
+      targets {
+        all {
+          testTask.configure {
+            systemProperty 'es.allow_insecure_settings', 'true'
+          }
+        }
+      }
+    }
+    insecureCredentialsTest(JvmTestSuite) {
+      dependencies {
+        implementation project(':server')
+      }
+      targets {
+        all {
+          testTask.configure {
+            systemProperty 'es.allow_insecure_settings', 'true'
+          }
+        }
+      }
+    }
+    s3ThirdPartyTest(JvmTestSuite) {
+      dependencies {
+        implementation project(':test:fixtures:minio-fixture')
+        implementation project(':server')
+      }
+      targets {
+        all {
+          testTask.configure {
+            boolean useFixture = false
+            String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
+            String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
+            String s3PermanentBucket = System.getenv("amazon_s3_bucket")
+            String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
 
+            // If all these variables are missing then we are testing against the MinIO fixture instead, which has the following credentials hard-coded in.
+            if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
+              useFixture = true
+              s3PermanentAccessKey = 's3_test_access_key'
+              s3PermanentSecretKey = 's3_test_secret_key'
+              s3PermanentBucket = 'bucket'
+              s3PermanentBasePath = 'base_path'
+            }
+            println "useFixture = $useFixture"
+            systemProperty("tests.use.fixture", Boolean.toString(useFixture))
+            systemProperty 'test.s3.account', s3PermanentAccessKey
+            systemProperty 'test.s3.key', s3PermanentSecretKey
+            systemProperty 'test.s3.bucket', s3PermanentBucket
+            nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + buildParams.testSeed
+
+            // test container accesses ~/.testcontainers.properties read
+            systemProperty "tests.security.manager", "false"
+          }
+        }
+      }
+    }
   }
 }
 
@@ -99,12 +178,6 @@ tasks.named("dependencyLicenses").configure {
 esplugin.bundleSpec.from('config/repository-s3') {
   into 'config'
 }
-
-tasks.named("internalClusterTest").configure {
-  // TODO: remove once https://github.com/elastic/elasticsearch/issues/101608 is fixed
-  systemProperty 'es.insecure_network_trace_enabled', 'true'
-}
-
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(

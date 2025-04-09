@@ -1592,9 +1592,7 @@ public class JobResultsProvider {
                 }
                 case SYSTEM_MEMORY_BYTES -> {
                     Long storedSystemMemoryBytes = latestModelSizeStats.getSystemMemoryBytes();
-                    handler.accept(
-                        (storedSystemMemoryBytes != null) ? storedSystemMemoryBytes : latestModelSizeStats.getModelBytes()
-                    );
+                    handler.accept((storedSystemMemoryBytes != null) ? storedSystemMemoryBytes : latestModelSizeStats.getModelBytes());
                     return;
                 }
                 case MAX_SYSTEM_MEMORY_BYTES -> {

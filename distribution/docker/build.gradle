@@ -310,8 +310,8 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
       if (base == DockerBase.IRON_BANK) {
         Map<String, String> buildArgsMap = [
-          'BASE_REGISTRY': 'docker.elastic.co',
-          'BASE_IMAGE'   : 'ubi9/ubi',
+          'BASE_REGISTRY': 'docker.io',
+          'BASE_IMAGE'   : 'redhat/ubi9',
           'BASE_TAG'     : 'latest'
         ]
 

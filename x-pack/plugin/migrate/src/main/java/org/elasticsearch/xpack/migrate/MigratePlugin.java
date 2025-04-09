@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.migrate;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.NamedDiff;
@@ -121,17 +119,17 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(new ActionHandler<>(ReindexDataStreamAction.INSTANCE, ReindexDataStreamTransportAction.class));
-        actions.add(new ActionHandler<>(GetMigrationReindexStatusAction.INSTANCE, GetMigrationReindexStatusTransportAction.class));
-        actions.add(new ActionHandler<>(CancelReindexDataStreamAction.INSTANCE, CancelReindexDataStreamTransportAction.class));
-        actions.add(new ActionHandler<>(ReindexDataStreamIndexAction.INSTANCE, ReindexDataStreamIndexTransportAction.class));
-        actions.add(new ActionHandler<>(CreateIndexFromSourceAction.INSTANCE, CreateIndexFromSourceTransportAction.class));
-        actions.add(new ActionHandler<>(CopyLifecycleIndexMetadataAction.INSTANCE, CopyLifecycleIndexMetadataTransportAction.class));
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actions = new ArrayList<>();
+        actions.add(new ActionHandler(ReindexDataStreamAction.INSTANCE, ReindexDataStreamTransportAction.class));
+        actions.add(new ActionHandler(GetMigrationReindexStatusAction.INSTANCE, GetMigrationReindexStatusTransportAction.class));
+        actions.add(new ActionHandler(CancelReindexDataStreamAction.INSTANCE, CancelReindexDataStreamTransportAction.class));
+        actions.add(new ActionHandler(ReindexDataStreamIndexAction.INSTANCE, ReindexDataStreamIndexTransportAction.class));
+        actions.add(new ActionHandler(CreateIndexFromSourceAction.INSTANCE, CreateIndexFromSourceTransportAction.class));
+        actions.add(new ActionHandler(CopyLifecycleIndexMetadataAction.INSTANCE, CopyLifecycleIndexMetadataTransportAction.class));
 
-        actions.add(new ActionHandler<>(GetFeatureUpgradeStatusAction.INSTANCE, TransportGetFeatureUpgradeStatusAction.class));
-        actions.add(new ActionHandler<>(PostFeatureUpgradeAction.INSTANCE, TransportPostFeatureUpgradeAction.class));
+        actions.add(new ActionHandler(GetFeatureUpgradeStatusAction.INSTANCE, TransportGetFeatureUpgradeStatusAction.class));
+        actions.add(new ActionHandler(PostFeatureUpgradeAction.INSTANCE, TransportPostFeatureUpgradeAction.class));
         return actions;
     }
 
@@ -185,7 +183,13 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         IndexNameExpressionResolver expressionResolver
     ) {
         return List.of(
-            new SystemIndexMigrationExecutor(client, clusterService, systemIndices.get(), settingsModule.getIndexScopedSettings()),
+            new SystemIndexMigrationExecutor(
+                client,
+                clusterService,
+                systemIndices.get(),
+                settingsModule.getIndexScopedSettings(),
+                threadPool
+            ),
             new ReindexDataStreamPersistentTaskExecutor(
                 new OriginSettingClient(client, REINDEX_DATA_STREAM_ORIGIN),
                 clusterService,

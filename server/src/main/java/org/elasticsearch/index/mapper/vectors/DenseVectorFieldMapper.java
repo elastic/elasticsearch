@@ -311,7 +311,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexed.getValue(),
                     similarity.getValue(),
                     indexOptions.getValue(),
-                    meta.getValue()
+                    meta.getValue(),
+                    context.isSourceSynthetic()
                 ),
                 builderParams(this, context),
                 indexOptions.getValue(),
@@ -2045,6 +2046,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final VectorSimilarity similarity;
         private final IndexVersion indexVersionCreated;
         private final IndexOptions indexOptions;
+        private final boolean isSyntheticSource;
 
         public DenseVectorFieldType(
             String name,
@@ -2054,7 +2056,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean indexed,
             VectorSimilarity similarity,
             IndexOptions indexOptions,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isSyntheticSource
         ) {
             super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
             this.elementType = elementType;
@@ -2063,6 +2066,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.similarity = similarity;
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -2079,18 +2083,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;
-                }
-            };
-        }
-
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, null) {
-                @Override
-                protected Object parseSourceValue(Object value) {
-                    if (value.equals("")) {
-                        return null;
-                    }
-                    return NumberFieldMapper.NumberType.FLOAT.parse(value, false);
                 }
             };
         }
@@ -2341,8 +2333,33 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return new BlockDocValuesReader.DenseVectorBlockLoader(name());
             }
 
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
+                return new BlockDocValuesReader.DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated);
+            }
+
+            if (isSyntheticSource) {
+                return NumberFieldMapper.NumberType.floatingPointBlockLoaderFromFallbackSyntheticSource(
+                    NumberFieldMapper.NumberType.FLOAT,
+                    name(),
+                    null,
+                    false
+                );
+            }
+
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, null) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    if (value.equals("")) {
+                        return null;
+                    }
+                    return NumberFieldMapper.NumberType.FLOAT.parse(value, false);
+                }
+            };
         }
     }
 
@@ -2398,7 +2415,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().indexed,
                 fieldType().similarity,
                 fieldType().indexOptions,
-                fieldType().meta()
+                fieldType().meta(),
+                fieldType().isSyntheticSource
             );
             Mapper update = new DenseVectorFieldMapper(
                 leafName(),

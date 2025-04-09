@@ -20,6 +20,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.mapper.BlockLoader.Docs;
 import org.elasticsearch.index.mapper.BlockLoader.DoubleBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.IntBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
+import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -825,6 +827,92 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.Bytes";
+        }
+    }
+
+    public static class DenseVectorFromBinaryBlockLoader extends DocValuesBlockLoader {
+        private final String fieldName;
+        private final int dims;
+        private final IndexVersion indexVersion;
+
+        public DenseVectorFromBinaryBlockLoader(String fieldName, int dims, IndexVersion indexVersion) {
+            this.fieldName = fieldName;
+            this.dims = dims;
+            this.indexVersion = indexVersion;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
+            if (docValues == null) {
+                return new ConstantNullsReader();
+            }
+            return new DenseVectorFromBinary(docValues, dims, indexVersion);
+        }
+    }
+
+    private static class DenseVectorFromBinary extends BlockDocValuesReader {
+        private final BinaryDocValues docValues;
+        private final IndexVersion indexVersion;
+        private final float[] scratch;
+
+        private int docID = -1;
+
+        DenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            this.docValues = docValues;
+            this.scratch = new float[dims];
+            this.indexVersion = indexVersion;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doubles(docs.count())) {
+                for (int i = 0; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (doc < docID) {
+                        throw new IllegalStateException("docs within same block must be in order");
+                    }
+                    read(doc, builder);
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            read(docId, (DoubleBuilder) builder);
+        }
+
+        private void read(int doc, DoubleBuilder builder) throws IOException {
+            this.docID = doc;
+            if (false == docValues.advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+            BytesRef bytesRef = docValues.binaryValue();
+            assert bytesRef.length > 0;
+            VectorEncoderDecoder.decodeDenseVector(indexVersion, bytesRef, scratch);
+
+            builder.beginPositionEntry();
+            for (float value : scratch) {
+                builder.appendDouble(value);
+            }
+            builder.endPositionEntry();
+        }
+
+        @Override
+        public int docId() {
+            return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "DenseVectorFromBinary.Bytes";
         }
     }
 

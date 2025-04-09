@@ -1,5 +1,5 @@
 ---
-navigation_title: "date-time functions"
+navigation_title: "Date-time functions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/date-time-functions.md
 ---

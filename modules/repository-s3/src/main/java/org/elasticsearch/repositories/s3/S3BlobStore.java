@@ -80,6 +80,8 @@ class S3BlobStore implements BlobStore {
 
     private final ByteSizeValue bufferSize;
 
+    private final ByteSizeValue maxCopySizeBeforeMultipart;
+
     private final boolean serverSideEncryption;
 
     private final CannedAccessControlList cannedACL;
@@ -104,6 +106,7 @@ class S3BlobStore implements BlobStore {
         String bucket,
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
+        ByteSizeValue maxCopySizeBeforeMultipart,
         String cannedACL,
         String storageClass,
         RepositoryMetadata repositoryMetadata,
@@ -117,6 +120,7 @@ class S3BlobStore implements BlobStore {
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
+        this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
@@ -327,6 +331,10 @@ class S3BlobStore implements BlobStore {
 
     public long bufferSizeInBytes() {
         return bufferSize.getBytes();
+    }
+
+    public long maxCopySizeBeforeMultipart() {
+        return maxCopySizeBeforeMultipart.getBytes();
     }
 
     public RepositoryMetadata getRepositoryMetadata() {

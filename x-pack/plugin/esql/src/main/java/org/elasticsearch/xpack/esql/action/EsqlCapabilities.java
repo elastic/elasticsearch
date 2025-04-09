@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -550,6 +550,15 @@ public class EsqlCapabilities {
          */
         DATE_NANOS_DATE_DIFF(),
         /**
+         * Indicates that https://github.com/elastic/elasticsearch/issues/125439 (incorrect lucene push down for date nanos) is fixed
+         */
+        FIX_DATE_NANOS_LUCENE_PUSHDOWN_BUG(),
+        /**
+         * Fixes a bug where dates are incorrectly formatted if a where clause compares nanoseconds to both milliseconds and nanoseconds,
+         * e.g. {@code WHERE millis > to_datenanos("2023-10-23T12:15:03.360103847") AND millis < to_datetime("2023-10-23T13:53:55.832")}
+         */
+        FIX_DATE_NANOS_MIXED_RANGE_PUSHDOWN_BUG(),
+        /**
          * DATE_PARSE supports reading timezones
          */
         DATE_PARSE_TZ(),
@@ -573,6 +582,11 @@ public class EsqlCapabilities {
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
         BUCKET_INCLUSIVE_UPPER_BOUND,
+
+        /**
+         * Enhanced DATE_TRUNC with arbitrary month and year intervals. (#120302)
+         */
+        DATE_TRUNC_WITH_ARBITRARY_INTERVALS,
 
         /**
          * Changed error messages for fields with conflicting types in different indices.
@@ -684,10 +698,6 @@ public class EsqlCapabilities {
          */
         FUNCTION_STATS,
         /**
-         * Support for semantic_text field mapping
-         */
-        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
-        /**
          * Fix for an optimization that caused wrong results
          * https://github.com/elastic/elasticsearch/issues/115281
          */
@@ -759,11 +769,6 @@ public class EsqlCapabilities {
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
          */
         FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
-
-        /**
-         * support for aggregations on semantic_text
-         */
-        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714, again
@@ -869,6 +874,11 @@ public class EsqlCapabilities {
         FORK(Build.current().isSnapshot()),
 
         /**
+         * Support for RERANK command
+         */
+        RERANK(Build.current().isSnapshot()),
+
+        /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
@@ -897,7 +907,7 @@ public class EsqlCapabilities {
         /**
          * Use double parameter markers to represent field or function names.
          */
-        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot()),
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS,
 
         /**
          * Non full text functions do not contribute to score
@@ -910,9 +920,46 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * The {@code _query} API now reports the original types.
+         */
+        REPORT_ORIGINAL_TYPES,
+
+        /**
          * The metrics command
          */
-        METRICS_COMMAND(Build.current().isSnapshot());
+        METRICS_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Index component selector syntax (my-data-stream-name::failures)
+         */
+        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+
+        /**
+         * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
+         */
+        MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT,
+
+        /**
+         * Support for sorting when aggregate_metric_doubles are present
+         */
+        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
+         */
+        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT,
+
+        /**
+         * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
+         * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
+         * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
+         */
+        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER,
+
+        /**
+         * Listing queries and getting information on a specific query.
+         */
+        QUERY_MONITORING;
 
         private final boolean enabled;
 

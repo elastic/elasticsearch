@@ -31,22 +31,14 @@ final class StackTrace implements ToXContentObject {
     double annualCostsUSD;
     long count;
 
-    StackTrace(
-        int[] addressOrLines,
-        String[] fileIds,
-        String[] frameIds,
-        int[] typeIds,
-        double annualCO2Tons,
-        double annualCostsUSD,
-        long count
-    ) {
+    StackTrace(int[] addressOrLines, String[] fileIds, String[] frameIds, int[] typeIds) {
         this.addressOrLines = addressOrLines;
         this.fileIds = fileIds;
         this.frameIds = frameIds;
         this.typeIds = typeIds;
-        this.annualCO2Tons = annualCO2Tons;
-        this.annualCostsUSD = annualCostsUSD;
-        this.count = count;
+        annualCO2Tons = 0.0d;
+        annualCostsUSD = 0.0d;
+        count = 0;
     }
 
     private static final int BASE64_FRAME_ID_LENGTH = 32;
@@ -218,7 +210,7 @@ final class StackTrace implements ToXContentObject {
         // Step 2: Convert the run-length byte encoding into a list of uint8s.
         int[] typeIDs = runLengthDecodeBase64Url(inputFrameTypes, inputFrameTypes.length(), countsFrameIDs);
 
-        return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs, 0, 0, 0);
+        return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs);
     }
 
     public void forNativeAndKernelFrames(Consumer<String> consumer) {
@@ -232,15 +224,15 @@ final class StackTrace implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("address_or_lines", this.addressOrLines);
-        builder.field("file_ids", this.fileIds);
-        builder.field("frame_ids", this.frameIds);
-        builder.field("type_ids", this.typeIds);
-        builder.field("annual_co2_tons", this.annualCO2Tons);
-        builder.field("annual_costs_usd", this.annualCostsUSD);
-        builder.field("count", this.count);
-        builder.endObject();
+        builder.startObject()
+            .field("address_or_lines", this.addressOrLines)
+            .field("file_ids", this.fileIds)
+            .field("frame_ids", this.frameIds)
+            .field("type_ids", this.typeIds)
+            .field("annual_co2_tons", this.annualCO2Tons)
+            .field("annual_costs_usd", this.annualCostsUSD)
+            .field("count", this.count)
+            .endObject();
         return builder;
     }
 

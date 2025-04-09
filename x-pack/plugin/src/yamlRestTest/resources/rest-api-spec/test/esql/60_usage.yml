@@ -21,6 +21,8 @@ setup:
                 type: long
               count:
                 type: integer
+              message:
+                type: keyword
 
 ---
 "Basic ESQL usage output (telemetry) snapshot version":
@@ -65,11 +67,16 @@ setup:
   - set: {esql.functions.cos: functions_cos}
   - set: {esql.functions.to_long: functions_to_long}
   - set: {esql.functions.coalesce: functions_coalesce}
+  - set: {esql.functions.categorize: functions_categorize}
 
   - do:
       esql.query:
         body:
-          query: 'from test | where data > 2 and to_long(data) > 2 | sort count desc | limit 5 | stats m = max(data)'
+          query: 'from test
+            | where data > 2 and to_long(data) > 2
+            | sort count desc
+            | limit 5
+            | stats m = max(data) by categorize(message)'
 
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
@@ -92,6 +99,7 @@ setup:
   - match: {esql.functions.cos: $functions_cos}
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
+  - gt: {esql.functions.categorize: $functions_categorize}
   # Testing for the entire function set isn't feasbile, so we just check that we return the correct count as an approximation.
   - length: {esql.functions: 134} # check the "sister" test below for a likely update to the same esql.functions length check
 
@@ -137,11 +145,16 @@ setup:
   - set: {esql.functions.cos: functions_cos}
   - set: {esql.functions.to_long: functions_to_long}
   - set: {esql.functions.coalesce: functions_coalesce}
+  - set: {esql.functions.categorize: functions_categorize}
 
   - do:
       esql.query:
         body:
-          query: 'from test | where data > 2 and to_long(data) > 2 | sort count desc | limit 5 | stats m = max(data)'
+          query: 'from test
+            | where data > 2 and to_long(data) > 2
+            | sort count desc
+            | limit 5
+            | stats m = max(data) by categorize(message)'
 
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
@@ -164,4 +177,5 @@ setup:
   - match: {esql.functions.cos: $functions_cos}
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
+  - gt: {esql.functions.categorize: $functions_categorize}
   - length: {esql.functions: 131} # check the "sister" test above for a likely update to the same esql.functions length check

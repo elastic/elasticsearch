@@ -1,10 +1,15 @@
 ## `LOOKUP JOIN` [esql-lookup-join]
 
 ::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
+This functionality is in technical preview and may be
+changed or removed in a future release. Elastic will work to fix any
+issues, but features in technical preview are not subject to the support
+SLA of official GA features.
 ::::
 
-`LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup' index, to your {{esql}} query results, simplifying data enrichment and analysis workflows.
+`LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup'
+index, to your {{esql}} query results, simplifying data enrichment
+and analysis workflows.
 
 **Syntax**
 
@@ -16,18 +21,27 @@ FROM <source_index>
 **Parameters**
 
 `<lookup_index>`
-: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported.
+: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster
+  references are not supported.
 
 `<field_name>`
-: The field to join on. This field must exist in both your current query results and in the lookup index. If the field contains multi-valued entries, those entries will not match anything (the added fields will contain `null` for those rows).
+: The field to join on. This field must exist
+  in both your current query results and in the lookup index. If the field
+  contains multi-valued entries, those entries will not match anything
+  (the added fields will contain `null` for those rows).
 
 **Description**
 
-The `LOOKUP JOIN` command adds new columns to your {esql} query results table by finding documents in a lookup index that share the same join field value as your result rows.
+The `LOOKUP JOIN` command adds new columns to your {esql} query
+results table by finding documents in a lookup index that share the same
+join field value as your result rows.
 
-For each row in your results table that matches a document in the lookup index based on the join field, all fields from the matching document are added as new columns to that row.
+For each row in your results table that matches a document in the lookup
+index based on the join field, all fields from the matching document are
+added as new columns to that row.
 
-If multiple documents in the lookup index match a single row in your results, the output will contain one row for each matching combination.
+If multiple documents in the lookup index match a single row in your
+results, the output will contain one row for each matching combination.
 
 **Examples**
 
@@ -35,7 +49,8 @@ If multiple documents in the lookup index match a single row in your results, th
 In case of name collisions, the newly created columns will override existing columns.
 ::::
 
-**IP Threat correlation**: This query would allow you to see if any source IPs match known malicious addresses.
+**IP Threat correlation**: This query would allow you to see if any source
+IPs match known malicious addresses.
 
 ```esql
 FROM firewall_logs
@@ -50,7 +65,8 @@ FROM firewall_logs
 | WHERE threat_level IS NOT NULL
 ```
 
-**Host metadata correlation**: This query pulls in environment or ownership details for each host to correlate with your metrics data.
+**Host metadata correlation**: This query pulls in environment or
+ownership details for each host to correlate with your metrics data.
 
 ```esql
 FROM system_metrics
@@ -58,16 +74,22 @@ FROM system_metrics
 | LOOKUP JOIN employees ON host.name
 ```
 
-**Service ownership mapping**: This query would show logs with the owning team or escalation information for faster triage and incident response.
+**Service ownership mapping**: This query would show logs with the owning
+team or escalation information for faster triage and incident response.
 
 ```esql
 FROM app_logs
 | LOOKUP JOIN service_owners ON service_id
 ```
 
-`LOOKUP JOIN` is generally faster when there are fewer rows to join with. {{esql}} will try and perform any `WHERE` clause before the `LOOKUP JOIN` where possible.
+`LOOKUP JOIN` is generally faster when there are fewer rows to join
+with. {{esql}} will try and perform any `WHERE` clause before the
+`LOOKUP JOIN` where possible.
 
-The two following examples will have the same results. The two examples have the `WHERE` clause before and after the `LOOKUP JOIN`. It does not matter how you write your query, our optimizer will move the filter before the lookup when possible.
+The two following examples will have the same results. The two examples
+have the `WHERE` clause before and after the `LOOKUP JOIN`. It does not
+matter how you write your query, our optimizer will move the filter
+before the lookup when possible.
 
 ```esql
 FROM Left
@@ -80,4 +102,3 @@ FROM Left
 | LOOKUP JOIN Right ON Key
 | WHERE Language IS NOT NULL
 ```
-

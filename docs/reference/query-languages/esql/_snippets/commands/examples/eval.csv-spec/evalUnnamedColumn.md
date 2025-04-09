@@ -1,0 +1,12 @@
+```esql
+FROM employees
+| SORT emp_no
+| KEEP first_name, last_name, height
+| EVAL height * 3.281
+```
+
+| first_name:keyword | last_name:keyword | height:double | height * 3.281:double |
+| --- | --- | --- | --- |
+| Georgi | Facello | 2.03 | 6.66043 |
+| Bezalel | Simmel | 2.08 | 6.82448 |
+| Parto | Bamford | 1.83 | 6.004230000000001 |

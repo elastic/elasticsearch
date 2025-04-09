@@ -193,6 +193,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         return lifecycleType == LifecycleType.FAILURES;
     }
 
+    public String getLifecycleType() {
+        return lifecycleType.label;
+    }
+
     /**
      * The least amount of time data should be kept by elasticsearch. The effective retention is a function with three parameters,
      * the {@link DataStreamLifecycle#dataRetention}, the global retention and whether this lifecycle is associated with an internal
@@ -949,14 +953,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * Visible for testing
      */
     enum LifecycleType implements Writeable {
-        DATA((byte) 0),
-        FAILURES((byte) 1);
+        DATA("data", (byte) 0),
+        FAILURES("failures", (byte) 1);
 
+        private final String label;
         private final byte id;
         private static final Map<Byte, LifecycleType> REGISTRY = Arrays.stream(LifecycleType.values())
             .collect(Collectors.toMap(l -> l.id, Function.identity()));
 
-        LifecycleType(byte id) {
+        LifecycleType(String label, byte id) {
+            this.label = label;
             this.id = id;
         }
 

@@ -1,0 +1,6 @@
+pr: 126565
+summary: Bedrock Cohere support for embedding types
+area: Machine Learning
+type: enhancement
+issues:
+ - 126526

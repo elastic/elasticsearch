@@ -34,7 +34,7 @@ public class MetricsRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_metrics/{index}"));
+        return List.of(new Route(POST, "/_otlp/v1/metrics"));
     }
 
     @Override
@@ -46,7 +46,10 @@ public class MetricsRestAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (request.hasContent()) {
-            var transportRequest = new MetricsTransportAction.MetricsRequest(request.param("index"), request.content().retain());
+            var transportRequest = new MetricsTransportAction.MetricsRequest(
+                Boolean.parseBoolean(request.header("X-MetricsDB-Normalized")),
+                request.content().retain()
+            );
             return channel -> client.execute(
                 MetricsTransportAction.TYPE,
                 transportRequest,

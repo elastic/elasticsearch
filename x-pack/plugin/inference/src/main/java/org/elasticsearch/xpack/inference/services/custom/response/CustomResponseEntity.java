@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.response.custom;
+package org.elasticsearch.xpack.inference.services.custom.response;
 
 import net.minidev.json.JSONArray;
 
@@ -30,8 +30,8 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.custom.CustomRequest;
 import org.elasticsearch.xpack.inference.services.custom.ResponseJsonParser;
+import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;

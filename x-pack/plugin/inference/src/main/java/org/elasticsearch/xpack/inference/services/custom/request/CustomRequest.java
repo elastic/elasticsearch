@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.custom;
+package org.elasticsearch.xpack.inference.services.custom.request;
 
 import com.google.gson.Gson;
 

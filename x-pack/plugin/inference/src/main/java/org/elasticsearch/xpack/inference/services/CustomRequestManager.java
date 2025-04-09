@@ -5,19 +5,25 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.http.sender;
+package org.elasticsearch.xpack.inference.services;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.custom.CustomResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.custom.CustomRequest;
-import org.elasticsearch.xpack.inference.external.response.custom.CustomResponseEntity;
+import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
+import org.elasticsearch.xpack.inference.services.custom.CustomResponseHandler;
+import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
+import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseEntity;
 
 import java.util.List;
 import java.util.Objects;

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.custom;
+package org.elasticsearch.xpack.inference.services.custom;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.custom.CustomErrorResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.custom.response.CustomErrorResponseEntity;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.custom.CustomRequestTests;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
+import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseEntity;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

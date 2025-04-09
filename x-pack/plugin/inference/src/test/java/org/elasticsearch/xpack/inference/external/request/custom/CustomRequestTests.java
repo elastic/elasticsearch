@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
+import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
 import org.hamcrest.MatcherAssert;
 
 import java.io.BufferedReader;

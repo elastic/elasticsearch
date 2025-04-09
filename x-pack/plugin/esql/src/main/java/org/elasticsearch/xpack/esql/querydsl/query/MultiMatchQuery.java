@@ -21,6 +21,7 @@ import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.ANALYZER_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZINESS_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_REWRITE_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
@@ -40,6 +41,7 @@ public class MultiMatchQuery extends Query {
 
     static {
         BUILDER_APPLIERS = Map.ofEntries(
+            entry(BOOST_FIELD.getPreferredName(), (qb, obj) -> qb.boost((Float) obj)),
             entry(SLOP_FIELD.getPreferredName(), (qb, obj) -> qb.slop((Integer) obj)),
             // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
             // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));

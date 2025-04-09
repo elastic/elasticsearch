@@ -53,6 +53,7 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
     public static final ZeroTermsQueryOption DEFAULT_ZERO_TERMS_QUERY = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
     public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
+    public static final ParseField BOOST_FIELD = new ParseField("boost");
     public static final ParseField SLOP_FIELD = new ParseField("slop");
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");

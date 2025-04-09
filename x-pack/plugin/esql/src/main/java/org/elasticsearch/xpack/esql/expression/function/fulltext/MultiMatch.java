@@ -46,6 +46,7 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.ANALYZER_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZINESS_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_REWRITE_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
@@ -116,6 +117,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     );
 
     public static final Map<String, DataType> OPTIONS = Map.ofEntries(
+        entry(BOOST_FIELD.getPreferredName(), FLOAT),
         entry(SLOP_FIELD.getPreferredName(), INTEGER),
         // TODO: add "zero_terms_query"
         entry(ANALYZER_FIELD.getPreferredName(), KEYWORD),

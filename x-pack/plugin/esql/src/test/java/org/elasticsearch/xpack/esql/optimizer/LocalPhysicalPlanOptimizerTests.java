@@ -1664,7 +1664,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             | where MULTI_MATCH("Anna", first_name, last_name, {"fuzzy_rewrite": "constant_score", "slop": 10, "analyzer": "auto",
             "auto_generate_synonyms_phrase_query": "false", "fuzziness": "auto", "fuzzy_transpositions": false, "lenient": "false",
             "max_expansions": 10, "minimum_should_match": 3, "operator": "AND", "prefix_length": 20, "tie_breaker": 1.0,
-            "type": "best_fields"})
+            "type": "best_fields", "boost": 2.0})
             """;
         var plan = plannerOptimizer.plan(query);
 
@@ -1673,6 +1673,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         var expectedQuery = new MultiMatchQueryBuilder("Anna").fields(Map.of("first_name", 1.0f, "last_name", 1.0f))
             .slop(10)
+            .boost(2.0f)
             .analyzer("auto")
             .autoGenerateSynonymsPhraseQuery(false)
             .operator(Operator.fromString("AND"))

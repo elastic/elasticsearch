@@ -353,8 +353,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static boolean isRegistered(Class<? extends Throwable> exception, TransportVersion version) {
         ElasticsearchExceptionHandle elasticsearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
         if (elasticsearchExceptionHandle != null) {
-            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded) ||
-                Arrays.stream(elasticsearchExceptionHandle.patchVersions).anyMatch(version::isPatchFrom);
+            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded)
+                || Arrays.stream(elasticsearchExceptionHandle.patchVersions).anyMatch(version::isPatchFrom);
         }
         return false;
     }
@@ -1070,7 +1070,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * in id order below. If you want to remove an exception leave a tombstone comment and mark the id as null in
      * ExceptionSerializationTests.testIds.ids.
      */
-    enum ElasticsearchExceptionHandle {
+    private enum ElasticsearchExceptionHandle {
         INDEX_SHARD_SNAPSHOT_FAILED_EXCEPTION(
             org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException.class,
             org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException::new,
@@ -1988,7 +1988,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             RemoteException.class,
             RemoteException::new,
             184,
-            TransportVersions.REMOTE_EXCEPTION, TransportVersions.REMOTE_EXCEPTION_8_19
+            TransportVersions.REMOTE_EXCEPTION,
+            TransportVersions.REMOTE_EXCEPTION_8_19
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

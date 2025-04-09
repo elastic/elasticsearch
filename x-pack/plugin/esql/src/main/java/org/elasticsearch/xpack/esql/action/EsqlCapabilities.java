@@ -961,6 +961,9 @@ public class EsqlCapabilities {
          */
         QUERY_MONITORING,
 
+        /**
+         * Support max_over_time aggregation
+         */
         MAX_OVER_TIME(Build.current().isSnapshot());
 
         private final boolean enabled;

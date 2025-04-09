@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
@@ -147,6 +148,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -283,6 +285,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    // This setting ensures that we skip online prewarming tasks if the queuing in the search thread pool
+    // reaches the configured factor X number of max threads in the search thread pool, such that
+    // the system has a chance to catch up and prewarming doesn't take over the network bandwidth
+    public static final Setting<Integer> PREWARMING_THRESHOLD_THREADPOOL_SIZE_FACTOR_POOL_SIZE = Setting.intSetting(
+        "search.online_prewarming_threshold_poolsize_factor",
+        10,
+        0, // 0 would mean we only execute online prewarming if there's no queuing in the search tp
+        Setting.Property.NodeScope
+    );
+
     private static final boolean BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase").isEnabled();
 
     /**
@@ -317,6 +329,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final FetchPhase fetchPhase;
     private final CircuitBreaker circuitBreaker;
+    private final OnlinePrewarmingService onlinePrewarmingService;
+    private final int prewarmingMaxPoolFactorThreshold;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
 
@@ -362,7 +376,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        OnlinePrewarmingService onlinePrewarmingService
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -375,7 +390,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.tracer = tracer;
-
+        this.onlinePrewarmingService = onlinePrewarmingService;
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
 
@@ -427,6 +442,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
+        prewarmingMaxPoolFactorThreshold = PREWARMING_THRESHOLD_THREADPOOL_SIZE_FACTOR_POOL_SIZE.get(settings);
     }
 
     public CircuitBreaker getCircuitBreaker() {
@@ -702,6 +718,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try {
             if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
                 runAsync(executor, executable, listener);
+                // we successfully submitted the async task to the search pool so let's prewarm the shard
+                onlinePrewarmingService.prewarm(
+                    shard,
+                    executor instanceof ThreadPoolExecutor tpe
+                        && ((tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size())
+                );
                 return;
             }
             if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
@@ -778,6 +800,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             timeoutTask.cancel();
                         }
                         runAsync(executor, executable, listener);
+                        // we successfully submitted the async task to the search pool so let's prewarm the shard
+                        onlinePrewarmingService.prewarm(
+                            shard,
+                            executor instanceof ThreadPoolExecutor tpe
+                                && ((tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size())
+                        );
                     }
                 }
             });
@@ -939,7 +967,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             freeReaderContext(readerContext.id());
             throw e;
         }
-        runAsync(getExecutor(readerContext.indexShard()), () -> {
+        Executor executor = getExecutor(readerContext.indexShard());
+        runAsync(executor, () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false);) {
                 var opsListener = searchContext.indexShard().getSearchOperationListener();
@@ -965,6 +994,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw e;
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
+        // we successfully submitted the async task to the search pool so let's prewarm the shard
+        onlinePrewarmingService.prewarm(
+            readerContext.indexShard(),
+            executor instanceof ThreadPoolExecutor tpe
+                && ((tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size())
+        );
     }
 
     /**
@@ -991,7 +1026,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
-            runAsync(getExecutor(readerContext.indexShard()), () -> {
+            Executor executor = getExecutor(readerContext.indexShard());
+            runAsync(executor, () -> {
                 readerContext.setAggregatedDfs(request.dfs());
                 try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);) {
                     final QuerySearchResult queryResult;
@@ -1029,6 +1065,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     throw e;
                 }
             }, wrapFailureListener(l, readerContext, markAsUsed));
+            // we successfully submitted the async task to the search pool so let's prewarm the shard
+            onlinePrewarmingService.prewarm(
+                readerContext.indexShard(),
+                executor instanceof ThreadPoolExecutor tpe
+                    && ((tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size())
+            );
         }));
     }
 

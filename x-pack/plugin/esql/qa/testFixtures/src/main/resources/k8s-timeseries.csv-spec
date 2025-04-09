@@ -158,6 +158,7 @@ null                                     | three       | 2024-05-10T00:01:00.000
 
 
 max_over_time
+required_capability: metrics_command
 required_capability: max_over_time
 TS k8s | STATS cost=sum(max_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT cost DESC, time_bucket DESC, cluster | LIMIT 10;
 

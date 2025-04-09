@@ -527,6 +527,8 @@ public class EsqlQueryGenerator {
     }
 
     private static String randomIdentifier() {
+        // Let's create identifiers that are long enough to avoid collisions with reserved keywords.
+        // There could be a smarter way (introspection on the lexer class?), but probably it's not worth the effort
         return randomAlphaOfLength(randomIntBetween(8, 12));
     }
 

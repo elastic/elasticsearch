@@ -1,0 +1,5 @@
+pr: 126256
+summary: Handle new `actual_memory_usage_bytes` field in model size stats
+area: Machine Learning
+type: enhancement
+issues: []

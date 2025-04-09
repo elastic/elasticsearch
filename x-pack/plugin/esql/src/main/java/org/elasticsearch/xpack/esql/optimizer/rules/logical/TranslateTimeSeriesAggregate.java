@@ -114,15 +114,15 @@ import java.util.Map;
  * | STATS sum(`rate(request)`), `min(memory_used)` = from_partial($p1, min($)) BY pod=`VALUES(pod)`, `bucket(@timestamp, 5m)`
  * | KEEP `min(memory_used)`, `sum(rate(request))`, pod, `bucket(@timestamp, 5m)`
  *
- * _over_time time-series aggregation will be rewritten in the similar way
+ * {agg}_over_time time-series aggregation will be rewritten in the similar way
  *
  * TS k8s | STATS sum(max_over_time(memory_usage)) BY host, bucket(@timestamp, 1minute)
  *
  * becomes
  *
  * TS k8s
- * | STATS max(memory_usage), VALUES(host) BY _tsid, bucket(@timestamp, 1minute)
- * | STATS sum(`max(memory_usage)`) BY host=`VALUES(host)`, `bucket(@timestamp, 1minute)`
+ * | STATS max_memory_usage = max(memory_usage), host_values=VALUES(host) BY _tsid, time_bucket=bucket(@timestamp, 1minute)
+ * | STATS sum(max_memory_usage) BY host_values, time_bucket
  *
  * </pre>
  */

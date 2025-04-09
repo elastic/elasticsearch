@@ -624,21 +624,21 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         logger.info("---> First request was received and is hanging");
 
         // Now we'll run a second request, which should error out with a connection exception.
-        Exception exception = new Exception();
-        try {
-            var inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_not_found");
-            Streams.readFully(inputStream);
-            inputStream.close();
-        } catch (SdkClientException e) {
-            logger.info("---> Threw the expected SdkClientException (should have a connection error): " + e);
-            exception = e;
-        } finally {
-            releaseRequest.countDown();
-            logger.info("---> First request is released");
-            thread.join();
-            logger.info("---> First request has finished");
-        }
-        assertFalse("Somehow failed to set the exception variable", exception.getMessage().isBlank());
+        final var exception = expectThrows(SdkClientException.class, () -> {
+            try (
+                var inputStream = blobContainer.readBlob(
+                    OperationPurpose.REPOSITORY_ANALYSIS /* no retries needed */,
+                    "read_blob_not_found"
+                )
+            ) {
+                Streams.readFully(inputStream);
+            } finally {
+                releaseRequest.countDown();
+                logger.info("---> First request is released");
+                thread.join();
+                logger.info("---> First request has finished");
+            }
+        });
 
         assertThat(exception, instanceOf(SdkClientException.class));
         assertThat(exception.getCause(), instanceOf(ConnectionPoolTimeoutException.class));

@@ -135,6 +135,32 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         }
     }
 
+    public void testOneRemoteClusterPartial() throws Exception {
+        populateIndices();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM ok*,cluster-a:ok*,*-b:fail* | KEEP id, fail_me");
+        request.allowPartialResults(true);
+        request.includeCCSMetadata(randomBoolean());
+        try (var resp = runQuery(request)) {
+            assertTrue(resp.isPartial());
+            Set<String> allIds = Stream.of(local.okIds, remote1.okIds).flatMap(Collection::stream).collect(Collectors.toSet());
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows.size(), equalTo(allIds.size()));
+            Set<String> returnedIds = new HashSet<>();
+            for (List<Object> row : rows) {
+                assertThat(row.size(), equalTo(2));
+                String id = (String) row.get(0);
+                assertTrue(returnedIds.add(id));
+            }
+            assertThat(returnedIds, equalTo(allIds));
+
+            assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
+            assertClusterSuccess(resp, REMOTE_CLUSTER_1, remote1.okShards);
+            assertClusterPartial(resp, REMOTE_CLUSTER_2, remote2.failingShards, 0);
+            assertClusterFailure(resp, REMOTE_CLUSTER_2, "Accessing failing field");
+        }
+    }
+
     public void testLocalIndexMissing() throws Exception {
         populateIndices();
         EsqlQueryRequest request = new EsqlQueryRequest();

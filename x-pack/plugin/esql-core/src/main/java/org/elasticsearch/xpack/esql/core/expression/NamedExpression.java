@@ -62,9 +62,9 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
     }
 
     /**
-     * Polymorphic equality is a pain.
-     * This equals shortcuts `this == o` and type checks.
-     * Here equals is final to ensure we are not duplication those checks.
+     * Polymorphic equality is a pain and are likely slower than a regular ones.
+     * This equals shortcuts `this == o` and type checks (important when we expect only a few non-equal objects).
+     * Here equals is final to ensure we are not duplicating those checks.
      * For actual equality check override `innerEquals` instead.
      */
     @Override

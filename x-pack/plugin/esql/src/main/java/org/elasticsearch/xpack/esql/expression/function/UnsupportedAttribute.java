@@ -57,8 +57,8 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         UnsupportedAttribute::readFrom
     );
 
-    private final String message;
     private final boolean hasCustomMessage; // TODO remove me and just use message != null?
+    private final String message;
 
     private static String errorMessage(String name, UnsupportedEsField field) {
         return "Cannot use field [" + name + "] with unsupported type [" + String.join(",", field.getOriginalTypes()) + "]";
@@ -165,7 +165,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     @Override
     @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
-        return Objects.hash(super.hashCode(), message, hasCustomMessage);
+        return Objects.hash(super.hashCode(), hasCustomMessage, message);
     }
 
     @Override

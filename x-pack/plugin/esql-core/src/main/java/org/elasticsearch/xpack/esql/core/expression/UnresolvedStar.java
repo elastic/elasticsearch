@@ -57,25 +57,15 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(qualifier);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        /*
-         * Intentionally not calling the superclass
-         * equals because it uses id which we always
-         * mutate when we make a clone. So we need
-         * to ignore it in equals for the transform
-         * tests to pass.
-         */
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-
-        UnresolvedStar other = (UnresolvedStar) obj;
-        return Objects.equals(qualifier, other.qualifier);
+    protected boolean innerEquals(Object o) {
+        var other = (UnresolvedStar) o;
+        return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier);
     }
 
     private String message() {

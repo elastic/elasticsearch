@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InputTypeTests;
+import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -884,6 +885,75 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             var taskType = randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING);
             expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
         }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() {
+        var service = createService(mock(Client.class));
+        var model = new Model(ModelConfigurationsTests.createRandomInstance());
+
+        assertThrows(ElasticsearchStatusException.class, () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); });
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_TextEmbeddingCustomElandEmbeddingsModelUpdatesDimensions() {
+        var service = createService(mock(Client.class));
+        var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+            1,
+            4,
+            "invalid",
+            null,
+            null,
+            null,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        var model = new CustomElandEmbeddingModel(
+            randomAlphaOfLength(10),
+            TaskType.TEXT_EMBEDDING,
+            "elasticsearch",
+            elandServiceSettings,
+            null
+        );
+
+        var embeddingSize = randomNonNegativeInt();
+        var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+        assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonTextEmbeddingCustomElandEmbeddingsModelNotModified() {
+        var service = createService(mock(Client.class));
+        var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+            1,
+            4,
+            "invalid",
+            null,
+            null,
+            null,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        var model = new CustomElandEmbeddingModel(
+            randomAlphaOfLength(10),
+            TaskType.SPARSE_EMBEDDING,
+            "elasticsearch",
+            elandServiceSettings,
+            null
+        );
+
+        var embeddingSize = randomNonNegativeInt();
+        var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+        assertEquals(model, updatedModel);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_ElasticsearchInternalModelNotModified() {
+        var service = createService(mock(Client.class));
+        var model = mock(ElasticsearchInternalModel.class);
+
+        var updatedModel = service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt());
+
+        assertEquals(model, updatedModel);
+        verifyNoMoreInteractions(model);
     }
 
     public void testChunkInfer_E5WithNullChunkingSettings() throws InterruptedException {

@@ -137,17 +137,27 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
     }
 
-    public void testWriteRead() throws IOException {
+    public void testWriteMaybeCopyRead() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
+            final String blobName = randomAlphaOfLengthBetween(8, 12);
+            String readBlobName = blobName;
+            writeBlob(container, blobName, new BytesArray(data), randomBoolean());
             if (randomBoolean()) {
                 // override file, to check if we get latest contents
                 data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-                writeBlob(container, "foobar", new BytesArray(data), false);
+                writeBlob(container, blobName, new BytesArray(data), false);
             }
-            try (InputStream stream = container.readBlob(randomPurpose(), "foobar")) {
+            if (randomBoolean()) {
+                // server-side copy if supported
+                try {
+                    final var destinationBlobName = blobName + "_copy";
+                    container.copyBlob(randomPurpose(), container, blobName, destinationBlobName, data.length);
+                    readBlobName = destinationBlobName;
+                } catch (UnsupportedOperationException ignored) {}
+            }
+            try (InputStream stream = container.readBlob(randomPurpose(), readBlobName)) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];

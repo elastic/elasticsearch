@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -373,20 +374,19 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
-
-        if (options() == null) {
-            return Map.of(LENIENT_FIELD.getPreferredName(), true);
-        }
-
-        Map<String, Object> matchOptions = new HashMap<>();
-        // Match is lenient by default to avoid failing on incompatible types
-        matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
-
-        for (EntryExpression entry : ((MapExpression) options()).entryExpressions()) {
+    public static void populateOptionsMap(
+        final MapExpression options,
+        final Map<String, Object> optionsMap,
+        final TypeResolutions.ParamOrdinal paramOrdinal,
+        final String sourceText,
+        final Map<String, DataType> allowedOptions
+    ) throws InvalidArgumentException {
+        for (EntryExpression entry : options.entryExpressions()) {
             Expression optionExpr = entry.key();
             Expression valueExpr = entry.value();
-            TypeResolution resolution = isFoldable(optionExpr, sourceText(), SECOND).and(isFoldable(valueExpr, sourceText(), SECOND));
+            TypeResolution resolution = isFoldable(optionExpr, sourceText, paramOrdinal).and(
+                isFoldable(valueExpr, sourceText, paramOrdinal)
+            );
             if (resolution.unresolved()) {
                 throw new InvalidArgumentException(resolution.message());
             }
@@ -395,21 +395,30 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
             String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
             // validate the optionExpr is supported
-            DataType dataType = ALLOWED_OPTIONS.get(optionName);
+            DataType dataType = allowedOptions.get(optionName);
             if (dataType == null) {
                 throw new InvalidArgumentException(
-                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText(), ALLOWED_OPTIONS.keySet())
+                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText, allowedOptions.keySet())
                 );
             }
             try {
-                matchOptions.put(optionName, DataTypeConverter.convert(optionValue, dataType));
+                optionsMap.put(optionName, DataTypeConverter.convert(optionValue, dataType));
             } catch (InvalidArgumentException e) {
-                throw new InvalidArgumentException(
-                    format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText(), e.getMessage())
-                );
+                throw new InvalidArgumentException(format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText, e.getMessage()));
             }
         }
+    }
 
+    private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
+        if (options() == null) {
+            return Map.of(LENIENT_FIELD.getPreferredName(), true);
+        }
+
+        Map<String, Object> matchOptions = new HashMap<>();
+        // Match is lenient by default to avoid failing on incompatible types
+        matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
+
+        populateOptionsMap((MapExpression) options(), matchOptions, SECOND, sourceText(), ALLOWED_OPTIONS);
         return matchOptions;
     }
 

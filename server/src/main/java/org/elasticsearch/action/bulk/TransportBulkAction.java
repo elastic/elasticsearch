@@ -300,7 +300,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             index,
             projectState.metadata()
         );
-        boolean lazyRolloverFailureStoreFeature = DataStream.isFailureStoreFeatureFlagEnabled();
         Set<String> indicesThatRequireAlias = new HashSet<>();
 
         for (DocWriteRequest<?> request : bulkRequest.requests) {
@@ -348,7 +347,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             if (dataStream != null) {
                 if (writeToFailureStore == false && dataStream.getDataComponent().isRolloverOnWrite()) {
                     dataStreamsToBeRolledOver.add(request.index());
-                } else if (lazyRolloverFailureStoreFeature && writeToFailureStore && dataStream.getFailureComponent().isRolloverOnWrite()) {
+                } else if (writeToFailureStore && dataStream.getFailureComponent().isRolloverOnWrite()) {
                     failureStoresToBeRolledOver.add(request.index());
                 }
             }
@@ -613,9 +612,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      */
     // Visibility for testing
     Boolean resolveFailureInternal(String indexName, ProjectMetadata projectMetadata, long epochMillis) {
-        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
-            return null;
-        }
         var resolution = resolveFailureStoreFromMetadata(indexName, projectMetadata, epochMillis);
         if (resolution != null) {
             return resolution;

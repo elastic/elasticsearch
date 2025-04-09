@@ -79,8 +79,15 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
     private final List<String> ids;
     private final List<SpecifiedDocument> docs;
 
+    private void validateIdsAndDocs(List<String> ids, List<SpecifiedDocument> docs) {
+        if (ids != null && docs != null && ids.isEmpty() == false && docs.isEmpty() == false) {
+            throw new IllegalArgumentException("Both 'ids' and 'docs' cannot be specified at the same time");
+        }
+    }
+
     public PinnedRetrieverBuilder(List<String> ids, List<SpecifiedDocument> docs, RetrieverBuilder retrieverBuilder, int rankWindowSize) {
         super(new ArrayList<>(), rankWindowSize);
+        validateIdsAndDocs(ids, docs);
         this.ids = ids != null ? ids : new ArrayList<>();
         this.docs = docs != null ? docs : new ArrayList<>();
         addChild(new PinnedRetrieverBuilderWrapper(retrieverBuilder));
@@ -95,6 +102,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         List<QueryBuilder> preFilterQueryBuilders
     ) {
         super(retrieverSource, rankWindowSize);
+        validateIdsAndDocs(ids, docs);
         this.ids = ids;
         this.docs = docs;
         this.retrieverName = retrieverName;

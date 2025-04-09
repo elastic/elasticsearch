@@ -959,7 +959,12 @@ public class EsqlCapabilities {
         /**
          * Support qualifiers in attribute names
          */
-        NAME_QUALIFIERS(Build.current().isSnapshot());
+        NAME_QUALIFIERS(Build.current().isSnapshot()),
+
+        /**
+         * Listing queries and getting information on a specific query.
+         */
+        QUERY_MONITORING;
 
         private final boolean enabled;
 

@@ -2253,15 +2253,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .collect(Collectors.toSet());
         }
 
-        void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes) {
-            var bccGenerationAndDependencies = getUploadedNotifiedGenerationAndDependencies();
-            updateUnpromotableShardAssignedNodes(
-                currentUnpromotableNodes,
-                bccGenerationAndDependencies.v1(),
-                bccGenerationAndDependencies.v2()
-            );
-        }
-
         void updateUnpromotableShardAssignedNodes(
             Set<String> currentUnpromotableNodes,
             long bccNotificationGeneration,
@@ -2311,7 +2302,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * Register commit used by unpromotable, returning the commit to use by the unpromotable.
          */
         void registerCommitForUnpromotableRecovery(
-            @Nullable PrimaryTermAndGeneration batchedCompoundGeneration,
+            PrimaryTermAndGeneration batchedCompoundGeneration,
             PrimaryTermAndGeneration compoundCommitGeneration,
             String nodeId,
             ActionListener<RegisterCommitResponse> listener
@@ -2357,13 +2348,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
             }
 
-            // search shard is on a node that does not register with a BCC generation (so it does not support recovering from a VBCC
-            // and should use the last uploaded BCC)
-            if (batchedCompoundGeneration == null) {
-                registerLastUploadedBccForUnpromotableRecovery(Set.of(nodeId), availableBcc, listener);
-            } else {
-                registerVirtualBccForUnpromotableRecovery(Set.of(nodeId), availableBcc, listener);
-            }
+            registerVirtualBccForUnpromotableRecovery(Set.of(nodeId), availableBcc, listener);
         }
 
         /**
@@ -2941,7 +2926,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * @param listener notified when available.
      */
     public void registerCommitForUnpromotableRecovery(
-        @Nullable PrimaryTermAndGeneration batchedCompoundGeneration,
+        PrimaryTermAndGeneration batchedCompoundGeneration,
         PrimaryTermAndGeneration compoundCommitGeneration,
         ShardId shardId,
         String nodeId,

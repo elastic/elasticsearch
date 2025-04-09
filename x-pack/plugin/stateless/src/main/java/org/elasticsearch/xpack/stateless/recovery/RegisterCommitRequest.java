@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -31,7 +30,6 @@ import java.util.Objects;
 
 public class RegisterCommitRequest extends ActionRequest {
 
-    @Nullable // null for search nodes that do not support recovering from virtual batched compound commit
     private final PrimaryTermAndGeneration batchedCompoundCommitPrimaryTermAndGeneration;
     private final PrimaryTermAndGeneration compoundCommitPrimaryTermAndGeneration;
     private final ShardId shardId;
@@ -48,7 +46,7 @@ public class RegisterCommitRequest extends ActionRequest {
     }
 
     RegisterCommitRequest(
-        @Nullable PrimaryTermAndGeneration batchedCompoundCommitPrimaryTermAndGeneration,
+        PrimaryTermAndGeneration batchedCompoundCommitPrimaryTermAndGeneration,
         PrimaryTermAndGeneration compoundCommitPrimaryTermAndGeneration,
         ShardId shardId,
         String nodeId,
@@ -97,10 +95,8 @@ public class RegisterCommitRequest extends ActionRequest {
     }
 
     /**
-     * @return the batched compound commit primary term/generation that the search node found in the object store, or {@code null} is the
-     * node does not support recovering from virtual batched compound commits.
+     * @return the batched compound commit primary term/generation that the search node found in the object store.
      */
-    @Nullable
     public PrimaryTermAndGeneration getBatchedCompoundCommitPrimaryTermAndGeneration() {
         return batchedCompoundCommitPrimaryTermAndGeneration;
     }

@@ -18,18 +18,14 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -56,7 +52,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
@@ -71,7 +66,6 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.ZERO_TERMS_QUERY_F
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
@@ -372,41 +366,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             }
         }
         return TypeResolution.TYPE_RESOLVED;
-    }
-
-    public static void populateOptionsMap(
-        final MapExpression options,
-        final Map<String, Object> optionsMap,
-        final TypeResolutions.ParamOrdinal paramOrdinal,
-        final String sourceText,
-        final Map<String, DataType> allowedOptions
-    ) throws InvalidArgumentException {
-        for (EntryExpression entry : options.entryExpressions()) {
-            Expression optionExpr = entry.key();
-            Expression valueExpr = entry.value();
-            TypeResolution resolution = isFoldable(optionExpr, sourceText, paramOrdinal).and(
-                isFoldable(valueExpr, sourceText, paramOrdinal)
-            );
-            if (resolution.unresolved()) {
-                throw new InvalidArgumentException(resolution.message());
-            }
-            Object optionExprLiteral = ((Literal) optionExpr).value();
-            Object valueExprLiteral = ((Literal) valueExpr).value();
-            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
-            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
-            // validate the optionExpr is supported
-            DataType dataType = allowedOptions.get(optionName);
-            if (dataType == null) {
-                throw new InvalidArgumentException(
-                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText, allowedOptions.keySet())
-                );
-            }
-            try {
-                optionsMap.put(optionName, DataTypeConverter.convert(optionValue, dataType));
-            } catch (InvalidArgumentException e) {
-                throw new InvalidArgumentException(format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText, e.getMessage()));
-            }
-        }
     }
 
     private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {

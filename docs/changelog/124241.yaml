@@ -1,5 +1,0 @@
-pr: 124241
-summary: Revert fail-fast disconnect strategy for `_resolve/cluster`
-area: Search
-type: bug
-issues: []

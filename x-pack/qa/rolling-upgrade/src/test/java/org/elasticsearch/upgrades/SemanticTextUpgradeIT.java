@@ -76,7 +76,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     private void createAndPopulateIndex() throws IOException {
         final String indexName = getIndexName();
-        final String mapping = """
+        final String mapping = Strings.format("""
             {
               "properties": {
                 "%s": {
@@ -85,7 +85,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
                 }
               }
             }
-            """.formatted(SEMANTIC_TEXT_FIELD, SPARSE_MODEL.getInferenceEntityId());
+            """, SEMANTIC_TEXT_FIELD, SPARSE_MODEL.getInferenceEntityId());
 
         CreateIndexResponse response = createIndex(
             indexName,

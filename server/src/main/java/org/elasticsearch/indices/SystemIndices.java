@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -40,6 +41,9 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.system.IndexPatternMatcher;
+import org.elasticsearch.indices.system.SystemResourceDescriptor;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
 
@@ -73,7 +77,7 @@ import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
  * from the user index space for a few reasons. In some cases, the indices contain information that should be hidden from users. But,
  * more generally, we want to protect these indices and data streams from being inadvertently modified or deleted.
  *
- * <p>The system resources are grouped by feature, using the {@link SystemIndices.Feature} class. Most features will be loaded from
+ * <p>The system resources are grouped by feature, using the {@link Feature} class. Most features will be loaded from
  * instances of {@link SystemIndexPlugin}; any other features will be described in this class. Features may be retrieved by name or
  * iterated over (see {@link #getFeature(String)} and {@link #getFeatures()}). Each Feature provides collections of
  * {@link SystemIndexDescriptor}s or {@link SystemDataStreamDescriptor}s. These descriptors define their resources by means of patterns.
@@ -84,7 +88,7 @@ import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
  * <p>For more information about the expected behavior of system indices, see {@link SystemIndexDescriptor}. For more information about
  * the expected behavior of system data streams, see {@link SystemDataStreamDescriptor}.
  *
- * <p>The SystemIndices object is constructed during {@link org.elasticsearch.node.Node} startup, and is not modified after construction.
+ * <p>The SystemIndices object is constructed during {@link Node} startup, and is not modified after construction.
  * In other words, the set of system resources will be consistent over the lifetime of a node.
  *
  * <p>System resources will specify thread pools for reads, writes, and searches. This can ensure that system-critical operations, such
@@ -234,7 +238,7 @@ public class SystemIndices {
         final List<String> duplicateAliases = aliasCounts.entrySet()
             .stream()
             .filter(entry -> entry.getValue() > 1)
-            .map(Map.Entry::getKey)
+            .map(Entry::getKey)
             .sorted()
             .toList();
 
@@ -320,7 +324,7 @@ public class SystemIndices {
     /**
      * Determines whether the provided name matches that of an index that backs a system data stream. Backing indices
      * for system data streams are marked as "system" in their metadata (see {@link
-     * org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService}) and receive the same protections as the
+     * SystemIndexMetadataUpgradeService}) and receive the same protections as the
      * system data stream.
      */
     public boolean isSystemIndexBackingDataStream(String name) {
@@ -712,7 +716,7 @@ public class SystemIndices {
         return Map.copyOf(map);
     }
 
-    Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).toList();
     }
 
@@ -880,6 +884,14 @@ public class SystemIndices {
 
         public Collection<SystemDataStreamDescriptor> getDataStreamDescriptors() {
             return dataStreamDescriptors;
+        }
+
+        /**
+         * Returns descriptors of all system resources - indices and data streams.
+         * Doesn't include associated indices {@link AssociatedIndexDescriptor}.
+         */
+        public Collection<SystemResourceDescriptor> getSystemResourceDescriptors() {
+            return Stream.concat(indexDescriptors.stream(), dataStreamDescriptors.stream()).toList();
         }
 
         public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {

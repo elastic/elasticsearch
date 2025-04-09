@@ -954,7 +954,12 @@ public class EsqlCapabilities {
          * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
          * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
          */
-        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER;
+        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER,
+
+        /**
+         * Listing queries and getting information on a specific query.
+         */
+        QUERY_MONITORING;
 
         private final boolean enabled;
 

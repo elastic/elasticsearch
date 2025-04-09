@@ -638,34 +638,8 @@ public class CefProcessorTests extends ESTestCase {
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
-        processor.execute(document);
-        assertMapsEqual(
-            document.getSource(),
-            Map.ofEntries(
-                entry(
-                    "cef",
-                    Map.ofEntries(
-                        entry("version", "0"),
-                        entry("device", Map.of("vendor", "SentinelOne", "product", "Mgmt")),
-                        entry(
-                            "extensions",
-                            Map.ofEntries(
-                                entry("activityID", "1111111111111111111"),
-                                entry("activityType", "3505"),
-                                entry("siteId", "None"),
-                                entry("siteName", "None"),
-                                entry("accountId", "1222222222222222222"),
-                                entry("accountName", "foo-bar mdr"),
-                                entry("notificationScope", "ACCOUNT")
-                            )
-                        )
-                    )
-                ),
-                entry("observer", Map.of("product", "Mgmt", "vendor", "SentinelOne")),
-                entry("message", message),
-                entry("error", Map.of("message", Set.of("incomplete CEF header")))
-            )
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
+        assertThat(e.getMessage(), equalTo("Incomplete CEF header"));
     }
 
     public void testIgnoreEmptyValuesInExtension() {

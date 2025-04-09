@@ -275,7 +275,9 @@ final class CefParser {
         entry("mrt", new ExtensionMapping("managerReceiptTime", TimestampType, "event.ingested"))
     );
 
-    private static final Set<String> ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = Set.of("incomplete CEF header");
+    private static final String INCOMPLETE_CEF_HEADER = "Incomplete CEF header";
+    private static final String INVALID_CEF_FORMAT = "Invalid CEF format";
+
     private static final List<String> TIME_LAYOUTS = List.of(
         // MMM dd HH:mm:ss.SSS zzz
         "MMM dd HH:mm:ss.SSS z",
@@ -326,15 +328,14 @@ final class CefParser {
 
         if (headers.isEmpty() == false && headers.getFirst().startsWith("CEF:")) {
             CefEvent event = new CefEvent();
-            // Add error message if there are not enough header fields
             if (headers.size() != 7) {
-                event.addRootMapping("error.message", new HashSet<>(ERROR_MESSAGE_INCOMPLETE_CEF_HEADER));
+                throw new IllegalArgumentException(INCOMPLETE_CEF_HEADER);
             }
             processHeaders(headers, event);
             processExtensions(cefString, extensionStart, event);
             return event;
         } else {
-            throw new IllegalArgumentException("Invalid CEF format");
+            throw new IllegalArgumentException(INVALID_CEF_FORMAT);
         }
     }
 

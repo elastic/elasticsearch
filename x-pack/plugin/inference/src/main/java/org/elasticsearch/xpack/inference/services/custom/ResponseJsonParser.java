@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -23,7 +22,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.COMPLETION_PARSER_RESULT;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.RERANK_PARSER_DOCUMENT_TEXT;
@@ -216,29 +214,6 @@ public class ResponseJsonParser {
         }
         builder.endObject();
         return builder;
-    }
-
-    public static ResponseJsonParser of(
-        Map<String, Object> map,
-        ValidationException validationException,
-        String serviceName,
-        ConfigurationParseContext context
-    ) {
-        Map<String, Object> responseParserMap = extractRequiredMap(map, FIELD_NAME, JSON_PARSER, validationException);
-        if (responseParserMap == null) {
-            throw validationException;
-        }
-        String taskTypeStr = extractRequiredString(responseParserMap, TaskType.NAME, FIELD_NAME, validationException);
-        if (taskTypeStr == null) {
-            throw validationException;
-        }
-        TaskType taskType = TaskType.fromString(taskTypeStr);
-        ResponseJsonParser responseJsonParser = new ResponseJsonParser(taskType, responseParserMap, validationException);
-
-        if (ConfigurationParseContext.isRequestContext(context)) {
-            throwIfNotEmptyMap(responseParserMap, serviceName);
-        }
-        return responseJsonParser;
     }
 
     @Override

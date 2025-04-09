@@ -44,8 +44,6 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
             dims = 1536;
         }
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
-        String description = randomAlphaOfLength(15);
-        String version = randomAlphaOfLength(5);
         String url = inputUrl != null ? inputUrl : randomAlphaOfLength(15);
         String path = inputPath != null ? inputPath : randomAlphaOfLength(15);
         String method = randomFrom(HttpMethod.PUT.name(), HttpMethod.POST.name(), HttpMethod.GET.name());
@@ -105,13 +103,7 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
             similarityMeasure,
             dims,
             maxInputTokens,
-            description,
-            version,
-            taskType.name(),
             url,
-            path,
-            method,
-            queryString,
             headers,
             requestContent,
             requestContentString,
@@ -152,41 +144,20 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CustomServiceSettings.DESCRIPTION,
-                    description,
-                    CustomServiceSettings.VERSION,
-                    version,
                     CustomServiceSettings.URL,
                     url,
-                    CustomServiceSettings.PATH,
+                    CustomServiceSettings.HEADERS,
+                    headers,
+                    CustomServiceSettings.REQUEST,
+                    new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                    CustomServiceSettings.RESPONSE,
                     new HashMap<>(
                         Map.of(
-                            path,
+                            CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
                                 Map.of(
-                                    method,
-                                    new HashMap<>(
-                                        Map.of(
-                                            CustomServiceSettings.QUERY_STRING,
-                                            queryString,
-                                            CustomServiceSettings.HEADERS,
-                                            headers,
-                                            CustomServiceSettings.REQUEST,
-                                            new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
-                                            CustomServiceSettings.RESPONSE,
-                                            new HashMap<>(
-                                                Map.of(
-                                                    CustomServiceSettings.JSON_PARSER,
-                                                    new HashMap<>(
-                                                        Map.of(
-                                                            CustomServiceSettings.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
-                                                            "$.result.embeddings[*].embedding"
-                                                        )
-                                                    )
-                                                )
-                                            )
-                                        )
-                                    )
+                                    CustomServiceSettings.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
+                                    "$.result.embeddings[*].embedding"
                                 )
                             )
                         )
@@ -204,13 +175,7 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
                     SimilarityMeasure.DOT_PRODUCT,
                     dims,
                     maxInputTokens,
-                    description,
-                    version,
-                    serviceType,
                     url,
-                    path,
-                    method,
-                    queryString,
                     headers,
                     null,
                     requestContentString,
@@ -232,13 +197,7 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
             null,
             null,
             null,
-            "test fromMap",
-            "v1",
-            TaskType.TEXT_EMBEDDING.toString(),
             "http://www.abc.com",
-            "/endpoint",
-            HttpMethod.POST.name(),
-            "?query=test",
             Map.of("key", "value"),
             null,
             "request body",

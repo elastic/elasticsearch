@@ -86,7 +86,7 @@ public class CustomSecretSettings implements SecretSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersions.ADD_INFERENCE_CUSTOM_MODEL;
     }
 
     @Override

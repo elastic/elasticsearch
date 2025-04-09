@@ -11,7 +11,6 @@ import com.google.gson.Gson;
 
 import org.apache.commons.text.StringSubstitutor;
 import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
@@ -55,9 +54,6 @@ public class CustomRequest implements Request {
     private final CustomServiceSettings serviceSettings;
     private final CustomTaskSettings taskSettings;
     private final String url;
-    private final String path;
-    private final String method;
-    private final String queryString;
     private final Map<String, Object> headers;
     private final String requestContentString;
     private final URI uri;
@@ -71,11 +67,7 @@ public class CustomRequest implements Request {
         serviceSettings = model.getServiceSettings();
         taskSettings = model.getTaskSettings();
         var secretParameters = model.getSecretSettings().getSecretParameters();
-        path = serviceSettings.getPath();
-        method = serviceSettings.getMethod().toUpperCase(Locale.ROOT);
-        queryString = serviceSettings.getQueryString();
         headers = serviceSettings.getHeaders();
-        var requestContent = serviceSettings.getRequestContent();
         requestContentString = serviceSettings.getRequestContentString();
         url = model.getServiceSettings().getUrl();
 
@@ -104,8 +96,7 @@ public class CustomRequest implements Request {
             customParamsObjectMap.put(QUERY, query);
         }
 
-        String serviceType = serviceSettings.getServiceType();
-        TaskType taskType = TaskType.fromStringOrStatusException(serviceType);
+        TaskType taskType = model.getTaskType();
         if (taskType.equals(TaskType.COMPLETION)) {
             if (input.size() == 1) {
                 customParamsObjectMap.put(INPUT, input.get(0));
@@ -125,16 +116,7 @@ public class CustomRequest implements Request {
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpRequestBase httpRequest;
-        if (method.equalsIgnoreCase(HttpGet.METHOD_NAME)) {
-            httpRequest = new HttpGet(uri);
-        } else if (method.equalsIgnoreCase(HttpPost.METHOD_NAME)) {
-            httpRequest = new HttpPost(uri);
-        } else if (method.equalsIgnoreCase(HttpPut.METHOD_NAME)) {
-            httpRequest = new HttpPut(uri);
-        } else {
-            throw new IllegalArgumentException("unsupported http method [" + method + "], support GET, PUT and POST");
-        }
+        HttpRequestBase httpRequest = new HttpPost(uri);
 
         setHeaders(httpRequest);
         setRequestContent(httpRequest);
@@ -157,16 +139,13 @@ public class CustomRequest implements Request {
     }
 
     private void setRequestContent(HttpRequestBase httpRequest) {
-
-        if (requestContentString != null && (method.equals(HttpPost.METHOD_NAME) || method.equals(HttpPut.METHOD_NAME))) {
-            String replacedRequestContentString = substitutor.replace(requestContentString);
-            placeholderValidation(replacedRequestContentString, taskSettings.getIgnorePlaceholderCheck());
-            StringEntity stringEntity = new StringEntity(replacedRequestContentString, StandardCharsets.UTF_8);
-            if (httpRequest instanceof HttpPost) {
-                ((HttpPost) httpRequest).setEntity(stringEntity);
-            } else if (httpRequest instanceof HttpPut) {
-                ((HttpPut) httpRequest).setEntity(stringEntity);
-            }
+        String replacedRequestContentString = substitutor.replace(requestContentString);
+        placeholderValidation(replacedRequestContentString, taskSettings.getIgnorePlaceholderCheck());
+        StringEntity stringEntity = new StringEntity(replacedRequestContentString, StandardCharsets.UTF_8);
+        if (httpRequest instanceof HttpPost) {
+            ((HttpPost) httpRequest).setEntity(stringEntity);
+        } else if (httpRequest instanceof HttpPut) {
+            ((HttpPut) httpRequest).setEntity(stringEntity);
         }
     }
 
@@ -196,17 +175,13 @@ public class CustomRequest implements Request {
 
     URI buildUri() {
         try {
-            String uri = url + path;
-            if (queryString != null) {
-                String replacedQueryString = substitutor.replace(queryString);
-                placeholderValidation(replacedQueryString, taskSettings.getIgnorePlaceholderCheck());
-                uri = uri + replacedQueryString;
-            }
-            return new URI(uri);
+            String replacedUrl = substitutor.replace(url);
+            placeholderValidation(replacedUrl, taskSettings.getIgnorePlaceholderCheck());
+            return new URI(replacedUrl);
         } catch (URISyntaxException e) {
             // using bad request here so that potentially sensitive URL information does not get logged
             throw new ElasticsearchStatusException(
-                "Failed to construct custom service URL [" + url + path + "]",
+                "Failed to construct custom service URL [" + url + "]",
                 RestStatus.BAD_REQUEST,
                 e
             );

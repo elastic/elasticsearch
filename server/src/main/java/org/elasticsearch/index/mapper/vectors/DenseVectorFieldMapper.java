@@ -2337,15 +2337,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return new BlockDocValuesReader.DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated);
             }
 
-            if (isSyntheticSource) {
-                return NumberFieldMapper.NumberType.floatingPointBlockLoaderFromFallbackSyntheticSource(
-                    NumberFieldMapper.NumberType.FLOAT,
-                    name(),
-                    null,
-                    false
-                );
-            }
-
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }

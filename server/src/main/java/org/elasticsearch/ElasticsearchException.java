@@ -352,7 +352,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static boolean isRegistered(Class<? extends Throwable> exception, TransportVersion version) {
         ElasticsearchExceptionHandle elasticsearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
         if (elasticsearchExceptionHandle != null) {
-            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded);
+            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded)
+                || Arrays.stream(elasticsearchExceptionHandle.patchVersions).anyMatch(version::isPatchFrom);
         }
         return false;
     }
@@ -1986,19 +1987,23 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;
         final int id;
-        final TransportVersion versionAdded;
+        private final TransportVersion versionAdded;
+        private final TransportVersion[] patchVersions;
 
         <E extends ElasticsearchException> ElasticsearchExceptionHandle(
             Class<E> exceptionClass,
             CheckedFunction<StreamInput, E, IOException> constructor,
             int id,
-            TransportVersion versionAdded
+            TransportVersion versionAdded,
+            TransportVersion... patchVersions
         ) {
             // We need the exceptionClass because you can't dig it out of the constructor reliably.
             this.exceptionClass = exceptionClass;
             this.constructor = constructor;
-            this.versionAdded = versionAdded;
+
             this.id = id;
+            this.versionAdded = versionAdded;
+            this.patchVersions = patchVersions;
         }
     }
 

@@ -170,7 +170,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * Call when ES|QL execution is complete in order to set the overall took time for an ES|QL query.
      */
     public void markEndQuery() {
-        assert overallTimeSpan == null : "markEndQuery should only be called once";
         assert relativeStart != null : "Relative start time must be set when markEndQuery is called";
         overallTimeSpan = relativeStart.stop();
         overallTook = overallTimeSpan.toTimeValue();

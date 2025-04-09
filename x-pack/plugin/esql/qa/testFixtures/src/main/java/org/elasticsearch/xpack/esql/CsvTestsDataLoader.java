@@ -315,7 +315,7 @@ public class CsvTestsDataLoader {
         return (mode != null && mode.equalsIgnoreCase("lookup"));
     }
 
-    private static boolean isSourceMappingDataset(TestDataset dataset) throws IOException {
+    public static boolean isSourceMappingDataset(TestDataset dataset) throws IOException {
         if (dataset.mappingFileName() == null) {
             return true;
         }

@@ -49,6 +49,7 @@ import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.w3c.dom.Node.ELEMENT_NODE;
@@ -163,8 +164,9 @@ public class S3HttpHandler implements HttpHandler {
                             exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                         } else {
                             var range = parsePartRange(exchange);
-                            // we'll assume for tests that the source object on the heap is under 2G
-                            var part = sourceBlob.slice(range.v1().intValue(), range.v2().intValue());
+                            int start = Math.toIntExact(range.start());
+                            int len = Math.toIntExact(range.end() - range.start() + 1);
+                            var part = sourceBlob.slice(start, len);
                             var etag = UUIDs.randomBase64UUID();
                             upload.addPart(etag, part);
                             byte[] response = ("""
@@ -309,7 +311,7 @@ public class S3HttpHandler implements HttpHandler {
                 // requests with a header value like "Range: bytes=start-end" where both {@code start} and {@code end} are always defined
                 // (sometimes to very high value for {@code end}). It would be too tedious to fully support the RFC so S3HttpHandler only
                 // supports when both {@code start} and {@code end} are defined to match the SDK behavior.
-                final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                final HttpHeaderParser.Range range = parseRangeHeader(rangeHeader);
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
@@ -508,9 +510,7 @@ public class S3HttpHandler implements HttpHandler {
         }
     }
 
-    private static final Pattern rangePattern = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$");
-
-    private static Tuple<Long, Long> parsePartRange(final HttpExchange exchange) {
+    private static HttpHeaderParser.Range parsePartRange(final HttpExchange exchange) {
         final var sourceRangeHeaders = exchange.getRequestHeaders().get("X-amz-copy-source-range");
         if (sourceRangeHeaders == null) {
             throw new IllegalStateException("missing x-amz-copy-source-range header");
@@ -518,15 +518,7 @@ public class S3HttpHandler implements HttpHandler {
         if (sourceRangeHeaders.size() != 1) {
             throw new IllegalStateException("expected 1 x-amz-copy-source-range header, found " + sourceRangeHeaders.size());
         }
-        final var sourceRangeHeader = sourceRangeHeaders.getFirst();
-        final Matcher matcher = rangePattern.matcher(sourceRangeHeader);
-        if (matcher.find() == false) {
-            throw new IllegalStateException("invalid x-amz-copy-source-range header [" + sourceRangeHeader + "]");
-        }
-        final var start = Long.parseLong(matcher.group(1));
-        final var end = Long.parseLong(matcher.group(2));
-
-        return new Tuple<>(start, end - start + 1);
+        return parseRangeHeader(sourceRangeHeaders.getFirst());
     }
 
     MultipartUpload getUpload(String uploadId) {

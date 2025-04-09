@@ -72,7 +72,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         for (Class<?> testClass : testClasses) {
             getTestEntries(entries, testClass, a -> a.fromJavaVersion() == null || Runtime.version().feature() >= a.fromJavaVersion());
         }
-        @SuppressWarnings({"unchecked", "rawtypes"})
+        @SuppressWarnings({ "unchecked", "rawtypes" })
         Entry<String, CheckAction>[] entriesArray = entries.toArray(new Entry[0]);
         return Map.ofEntries(entriesArray);
     }

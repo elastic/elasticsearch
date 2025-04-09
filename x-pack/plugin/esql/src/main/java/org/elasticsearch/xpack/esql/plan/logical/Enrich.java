@@ -248,9 +248,9 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
             if (enrichField.name().equals(newName)) {
                 newEnrichFields.add(enrichField);
             } else if (enrichField instanceof ReferenceAttribute ra) {
-                newEnrichFields.add(new Alias(ra.source(), newName, ra, new NameId(), ra.synthetic()));
+                newEnrichFields.add(new Alias(ra.source(), null, newName, ra, new NameId(), ra.synthetic()));
             } else if (enrichField instanceof Alias a) {
-                newEnrichFields.add(new Alias(a.source(), newName, a.child(), new NameId(), a.synthetic()));
+                newEnrichFields.add(new Alias(a.source(), null, newName, a.child(), new NameId(), a.synthetic()));
             } else {
                 throw new IllegalArgumentException("Enrich field must be Alias or ReferenceAttribute");
             }

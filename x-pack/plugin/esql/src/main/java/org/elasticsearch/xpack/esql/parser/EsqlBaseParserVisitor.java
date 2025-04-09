@@ -160,11 +160,23 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#unqualifiedName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUnqualifiedName(EsqlBaseParser.UnqualifiedNameContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePattern}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#unqualifiedNamePattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUnqualifiedNamePattern(EsqlBaseParser.UnqualifiedNamePatternContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
    * @param ctx the parse tree
@@ -332,6 +344,30 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinCondition}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#changePointCommand}.
    * @param ctx the parse tree
@@ -655,28 +691,4 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitComparisonOperator(EsqlBaseParser.ComparisonOperatorContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinTarget}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinCondition}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
 }

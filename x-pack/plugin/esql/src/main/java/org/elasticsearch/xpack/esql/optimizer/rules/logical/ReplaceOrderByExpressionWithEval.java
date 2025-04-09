@@ -33,7 +33,8 @@ public final class ReplaceOrderByExpressionWithEval extends OptimizerRules.Optim
             var order = orderBy.order().get(i);
             if (order.child() instanceof Attribute == false) {
                 var name = rawTemporaryName("order_by", String.valueOf(i), String.valueOf(counter++));
-                var eval = new Alias(order.child().source(), name, order.child());
+                // TODO: special qualifier for synths?
+                var eval = new Alias(order.child().source(), null, name, order.child());
                 newOrders.add(order.replaceChildren(List.of(eval.toAttribute())));
                 evals.add(eval);
             } else {

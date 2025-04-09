@@ -72,7 +72,7 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readCollectionAsList(Alias::new),
+            in.readCollectionAsList(Alias::readFrom),
             in.readNamedWriteable(Attribute.class)
         );
     }

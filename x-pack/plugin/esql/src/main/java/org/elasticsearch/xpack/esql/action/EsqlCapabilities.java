@@ -957,6 +957,11 @@ public class EsqlCapabilities {
         FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER,
 
         /**
+         * Support qualifiers in attribute names
+         */
+        NAME_QUALIFIERS(Build.current().isSnapshot()),
+
+        /**
          * Listing queries and getting information on a specific query.
          */
         QUERY_MONITORING;

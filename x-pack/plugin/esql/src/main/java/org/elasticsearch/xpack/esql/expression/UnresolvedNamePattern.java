@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
@@ -54,8 +55,9 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
         throw new UnsupportedOperationException("doesn't escape the node");
     }
 
-    public boolean match(String string) {
-        return automaton.run(string);
+    public boolean match(Attribute attribute) {
+        // TODO: Decide if we should ignore the qualifier in patterns; probably not, so we just return false.
+        return Objects.equals(qualifier(), attribute.qualifier()) && automaton.run(attribute.name());
     }
 
     @Override

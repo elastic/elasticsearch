@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
@@ -48,10 +49,11 @@ public class PlanConsistencyChecker {
             checkMissing(p, p.references(), p.inputSet(), "missing references", failures);
         }
 
-        var outputAttributeNames = Sets.<String>newHashSetWithExpectedSize(p.output().size());
+        var outputAttributeNames = Sets.<NamedExpression.QualifiedName>newHashSetWithExpectedSize(p.output().size());
         var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(p.output().size());
         for (Attribute outputAttr : p.output()) {
-            if (outputAttributeNames.add(outputAttr.name()) == false || outputAttributeIds.add(outputAttr.id()) == false) {
+            NamedExpression.QualifiedName qualifiedName = new NamedExpression.QualifiedName(outputAttr.qualifier(), outputAttr.name());
+            if (outputAttributeNames.add(qualifiedName) == false || outputAttributeIds.add(outputAttr.id()) == false) {
                 failures.add(
                     fail(p, "Plan [{}] optimized incorrectly due to duplicate output attribute {}", p.nodeString(), outputAttr.toString())
                 );

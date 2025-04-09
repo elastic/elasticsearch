@@ -20,13 +20,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 
 /**
  * Looks up values from the associated {@code tables}.
@@ -115,7 +116,7 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
                 }
             }
         }
-        return new JoinConfig(JoinTypes.LEFT, matchFields, leftFields, rightFields);
+        return new JoinConfig(LEFT, matchFields, leftFields, rightFields);
     }
 
     @Override

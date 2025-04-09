@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class AttributeMapTests extends ESTestCase {
 
     static Attribute a(String name) {
-        return new UnresolvedAttribute(Source.EMPTY, name);
+        return new UnresolvedAttribute(Source.EMPTY, null, name);
     }
 
     private static AttributeMap<String> threeMap() {
@@ -71,8 +71,8 @@ public class AttributeMapTests extends ESTestCase {
         Attribute one = a("one");
         Attribute two = fieldAttribute("two", DataType.INTEGER);
         Attribute three = fieldAttribute("three", DataType.INTEGER);
-        Alias threeAlias = new Alias(Source.EMPTY, "three_alias", three);
-        Alias threeAliasAlias = new Alias(Source.EMPTY, "three_alias_alias", threeAlias);
+        Alias threeAlias = new Alias(Source.EMPTY, null, "three_alias", three);
+        Alias threeAliasAlias = new Alias(Source.EMPTY, null, "three_alias_alias", threeAlias);
         builder.put(one, of("one"));
         builder.put(two, "two");
         builder.put(three, of("three"));
@@ -125,8 +125,7 @@ public class AttributeMapTests extends ESTestCase {
     private Alias createIntParameterAlias(int index, int value) {
         Source source = new Source(1, index * 5, "?");
         Literal literal = new Literal(source, value, DataType.INTEGER);
-        Alias alias = new Alias(literal.source(), literal.source().text(), literal);
-        return alias;
+        return new Alias(literal.source(), null, literal.source().text(), literal);
     }
 
     public void testEmptyConstructor() {

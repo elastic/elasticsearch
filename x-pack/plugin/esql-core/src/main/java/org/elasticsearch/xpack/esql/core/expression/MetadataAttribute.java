@@ -68,7 +68,8 @@ public class MetadataAttribute extends TypedAttribute {
         boolean synthetic,
         boolean searchable
     ) {
-        super(source, name, dataType, nullability, id, synthetic);
+        // TODO: Do MetadataAttributes ever need qualifiers?
+        super(source, null, name, dataType, nullability, id, synthetic);
         this.searchable = searchable;
     }
 
@@ -140,7 +141,15 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
-    protected MetadataAttribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+    protected MetadataAttribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return new MetadataAttribute(source, name, type, null, nullability, id, synthetic, searchable);
     }
 

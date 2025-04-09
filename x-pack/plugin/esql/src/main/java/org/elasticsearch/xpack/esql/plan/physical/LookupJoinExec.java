@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -21,6 +22,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -93,8 +96,11 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
     public List<Attribute> output() {
         if (lazyOutput == null) {
             lazyOutput = new ArrayList<>(left().output());
-            var addedFieldsNames = addedFields.stream().map(Attribute::name).toList();
-            lazyOutput.removeIf(a -> addedFieldsNames.contains(a.name()));
+            Set<NamedExpression.QualifiedName> addedFieldsNames = addedFields.stream()
+                .map(Attribute::qualifiedName)
+                .collect(Collectors.toSet());
+            // TODO: name conflicts with non-null qualifiers should be invalid, we need to add a validation.
+            lazyOutput.removeIf(a -> addedFieldsNames.contains(a.qualifiedName()));
             lazyOutput.addAll(addedFields);
         }
         return lazyOutput;

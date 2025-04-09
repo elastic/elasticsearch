@@ -260,16 +260,20 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx == null) {
             return null;
         }
-        List<Object> items = visitList(this, ctx.identifierOrParameter(), Object.class);
-        List<String> strings = new ArrayList<>(items.size());
-        for (Object item : items) {
+
+        // TODO: This does not take into account parameters for qualifiers at all; at least we need to validate against this, or enable it.
+        String qualifier = ctx.qualifier == null ? null : visitIdentifier(ctx.qualifier);
+
+        List<Object> nameItems = visitList(this, ctx.name.identifierOrParameter(), Object.class);
+        List<String> nameStrings = new ArrayList<>(nameItems.size());
+        for (Object item : nameItems) {
             if (item instanceof String s) {
-                strings.add(s);
+                nameStrings.add(s);
             } else if (item instanceof Expression e) {
-                strings.add(unresolvedAttributeNameInParam(ctx, e));
+                nameStrings.add(unresolvedAttributeNameInParam(ctx, e));
             }
         }
-        return new UnresolvedAttribute(source(ctx), Strings.collectionToDelimitedString(strings, "."));
+        return new UnresolvedAttribute(source(ctx), qualifier, Strings.collectionToDelimitedString(nameStrings, "."));
     }
 
     @Override
@@ -309,14 +313,18 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             return null;
         }
 
+        var qualifierPattern = ctx.qualifier;
+        // TODO: This does not take into account parameters for qualifiers at all; at least we need to validate against this, or enable it.
+        String qualifier = qualifierPattern == null ? null : qualifierPattern.ID_PATTERN().getText();
+
         var src = source(ctx);
         StringBuilder patternString = new StringBuilder();
         StringBuilder nameString = new StringBuilder();
-        var patterns = ctx.identifierPattern();
+        var patternSegments = ctx.name.identifierPattern();
 
         // check special wildcard case
-        if (patterns.size() == 1) {
-            var idCtx = patterns.get(0);
+        if (patternSegments.size() == 1) {
+            var idCtx = patternSegments.get(0);
             boolean unresolvedStar = false;
             if (idCtx.ID_PATTERN() != null && idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
                 unresolvedStar = true;
@@ -341,14 +349,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
             }
             if (unresolvedStar) {
-                return new UnresolvedStar(src, null);
+                return new UnresolvedStar(src);
             }
         }
 
         boolean hasPattern = false;
         // Builds a list of either strings (which map verbatim) or Automatons which match any string
-        List<Object> objects = new ArrayList<>(patterns.size());
-        for (int i = 0, s = patterns.size(); i < s; i++) {
+        List<Object> objects = new ArrayList<>(patternSegments.size());
+        for (int i = 0, s = patternSegments.size(); i < s; i++) {
             if (i > 0) {
                 patternString.append(".");
                 nameString.append(".");
@@ -356,7 +364,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
 
             String patternContext = "";
-            EsqlBaseParser.IdentifierPatternContext pattern = patterns.get(i);
+            EsqlBaseParser.IdentifierPatternContext pattern = patternSegments.get(i);
             if (pattern.ID_PATTERN() != null) {
                 patternContext = pattern.ID_PATTERN().getText();
             } else if (pattern.parameter() != null || pattern.doubleParameter() != null) {
@@ -450,6 +458,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 list.add(o instanceof Automaton a ? a : Automata.makeString(o.toString()));
             }
             // use the fast run variant
+            // TODO: Allow patterns with qualifiers here.
             result = new UnresolvedNamePattern(
                 src,
                 new CharacterRunAutomaton(Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)),
@@ -457,7 +466,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 nameString.toString()
             );
         } else {
-            result = new UnresolvedAttribute(src, Strings.collectionToDelimitedString(objects, ""));
+            result = new UnresolvedAttribute(src, qualifier, Strings.collectionToDelimitedString(objects, ""));
         }
         return result;
     }
@@ -789,7 +798,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(src, "Using wildcards [*] in RENAME is not allowed [{}]", src.text());
         }
 
-        return new Alias(src, newName.name(), oldName);
+        return new Alias(src, newName.qualifier(), newName.name(), oldName);
     }
 
     @Override
@@ -797,7 +806,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source src = source(ctx);
         NamedExpression enrichField = enrichFieldName(ctx.enrichField);
         NamedExpression newName = enrichFieldName(ctx.newName);
-        return newName == null ? enrichField : new Alias(src, newName.name(), enrichField);
+        return newName == null ? enrichField : new Alias(src, null, newName.name(), enrichField);
     }
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
@@ -817,8 +826,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
-        String name = id == null ? source.text() : id.name();
-        return new Alias(source, name, value);
+        String qualifier = (id == null) ? null : id.qualifier();
+        String name = (id == null) ? source.text() : id.name();
+        return new Alias(source, qualifier, name, value);
     }
 
     @Override
@@ -882,7 +892,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
                 // wrap when necessary - no alias and no underlying attribute
                 if (ne == null) {
-                    ne = new Alias(source(field), name, value);
+                    ne = new Alias(source(field), null, name, value);
                 }
                 list.add(ne);
             }
@@ -918,7 +928,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 // let visitQualifiedNamePattern create a real UnresolvedNamePattern with Automaton
                 return new UnresolvedNamePattern(source, null, value.toString(), value.toString());
             } else {
-                return new UnresolvedAttribute(source, value.toString());
+                return new UnresolvedAttribute(source, null, value.toString());
             }
         }
         return new Literal(source, value, type);

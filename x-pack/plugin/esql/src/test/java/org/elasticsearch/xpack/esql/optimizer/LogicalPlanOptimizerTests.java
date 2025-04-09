@@ -125,7 +125,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -180,6 +179,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.LT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.LTE;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -1377,7 +1377,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), LocalSupplier.EMPTY);
         assertNotEquals(leftChild, rightChild);
 
-        var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), List.of());
+        var joinConfig = new JoinConfig(LEFT, List.of(), List.of(), List.of());
         var join = switch (randomIntBetween(0, 2)) {
             case 0 -> new Join(EMPTY, leftChild, rightChild, joinConfig);
             case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig);
@@ -6294,7 +6294,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(left.child(), Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
-        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        assertThat(join.config().type(), equalTo(LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().leftFields().size(), equalTo(1));
         assertThat(join.config().rightFields().size(), equalTo(1));
@@ -6383,7 +6383,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(left.output().toString(), containsString("int{r}"));
         as(left.child(), EsRelation.class);
 
-        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        assertThat(join.config().type(), equalTo(LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().leftFields().size(), equalTo(1));
         assertThat(join.config().rightFields().size(), equalTo(1));
@@ -6451,7 +6451,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
-        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        assertThat(join.config().type().coreJoin(), equalTo(LEFT));
         var project = as(join.left(), Project.class);
         var limit = asLimit(project.child(), 1000, false);
         var filter = as(limit.child(), Filter.class);
@@ -6493,7 +6493,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
-        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        assertThat(join.config().type().coreJoin(), equalTo(LEFT));
         var project = as(join.left(), Project.class);
 
         var limit = asLimit(project.child(), 1000, false);
@@ -6545,7 +6545,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(literal.value(), equalTo(new BytesRef("English")));
 
         var join = as(filter.child(), Join.class);
-        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        assertThat(join.config().type().coreJoin(), equalTo(LEFT));
         var project = as(join.left(), Project.class);
 
         var leftRel = as(project.child(), EsRelation.class);
@@ -6589,7 +6589,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(literal.value(), equalTo(new BytesRef("English")));
 
         var join = as(filter.child(), Join.class);
-        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        assertThat(join.config().type().coreJoin(), equalTo(LEFT));
         var project = as(join.left(), Project.class);
         // filter pushed down
         filter = as(project.child(), Filter.class);
@@ -6648,7 +6648,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(literal.value(), equalTo(1));
 
         var join = as(filter.child(), Join.class);
-        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        assertThat(join.config().type().coreJoin(), equalTo(LEFT));
         var project = as(join.left(), Project.class);
 
         var leftRel = as(project.child(), EsRelation.class);

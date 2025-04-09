@@ -1,0 +1,167 @@
+basic
+required_capability: name_qualifiers
+
+FROM sample_data main
+| SORT main event_duration
+| KEEP main message
+| LIMIT 1
+;
+
+main message:keyword
+Connection error
+;
+
+keepPattern-Ignore
+required_capability: name_qualifiers
+
+FROM sample_data main
+| SORT mian event_duration
+| KEEP m* me*age
+| LIMIT 1
+;
+
+main message:keyword
+;
+
+dropPattern-Ignore
+required_capability: name_qualifiers
+
+FROM sample_data main
+| SORT event_duration
+| KEEP main message, main event_duration
+| DROP * *duration
+| LIMIT 1
+;
+
+main message:keyword
+;
+
+evalNonShadow
+required_capability: name_qualifiers
+
+ROW main x = 2
+| EVAL main y = main x * 3, other x = main y - 5
+;
+
+main x:integer | main y:integer | other x:integer
+2              | 6              | 1
+;
+
+rename
+required_capability: name_qualifiers
+
+FROM sample_data
+| SORT event_duration
+| LIMIT 1
+| RENAME message AS main message
+| KEEP main message, event_duration
+;
+
+main message:keyword | event_duration:long
+Connection error     | 725448
+;
+
+lookupJoinLeftNoQualifier
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees main
+| KEEP main emp_no, main languages
+| WHERE main emp_no == 10001
+| EVAL language_code = main languages
+// TODO: Should ON without predicate even be allowed with qualifiers?
+| LOOKUP JOIN languages_lookup right ON language_code
+;
+
+main emp_no:integer | main languages:integer | language_code:integer | right language_name:keyword
+10001               | 2                      | 2                     | French
+;
+
+lookupJoinLeftQualifier
+// Same as above, but this time we use a name with a non-null qualifier in ON
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees main
+| KEEP main emp_no, main languages
+| WHERE main emp_no == 10001
+| EVAL main language_code = main languages
+| LOOKUP JOIN languages_lookup right ON main language_code
+;
+
+main emp_no:integer | main languages:integer | main language_code:integer |  right language_name:keyword
+10001               | 2                      | 2                          |  French
+;
+
+lookupJoinOnlyMainHasQualifier
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees main
+| KEEP main emp_no, main languages
+| WHERE main emp_no == 10001
+| EVAL main language_code = main languages
+// TODO: should ON without == be allowed if the left side join key has a qualifier?
+| LOOKUP JOIN languages_lookup ON main language_code
+;
+
+// TODO: Should this include the `language_code` field, now that the `ON` clause used a qualified name?
+main emp_no:integer | main languages:integer | main language_code:integer | language_name:keyword
+10001               | 2                      | 2                          | French
+;
+
+lookupJoinOnPredicate
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees main
+| KEEP main emp_no, main languages
+| WHERE main emp_no == 10001
+| LOOKUP JOIN languages_lookup right ON main languages == right language_code
+;
+
+main emp_no:integer | main languages:integer | right language_code:integer | right language_name:keyword
+10001               | 2                      | 2                          | French
+;
+
+lookupJoinOnPredicateCommutative-Ignore
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees main
+| KEEP main emp_no, main languages
+| WHERE main emp_no == 10001
+| LOOKUP JOIN languages_lookup right ON right language_code == main languages
+;
+
+main emp_no:integer | main languages:integer | right language_code:integer | right language_name:keyword
+10001               | 2                      | 2                          | French
+;
+
+lookupJoinOnPredicateOnlyRightHasQualifier
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees
+| KEEP emp_no, languages
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup right ON languages == right language_code
+;
+
+emp_no:integer | languages:integer | right language_code:integer | right language_name:keyword
+10001          | 2                 | 2                          | French
+;
+
+lookupJoinOnPredicateOnlyLeftHasQualifier
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees main
+| KEEP main emp_no, main languages
+| WHERE main emp_no == 10001
+| LOOKUP JOIN languages_lookup ON main languages == language_code
+;
+
+main emp_no:integer | main languages:integer | language_code:integer | language_name:keyword
+10001               | 2                      | 2                     | French
+;

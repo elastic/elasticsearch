@@ -637,11 +637,11 @@ public class EsqlSession {
                 referencesBuilder.addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    referencesBuilder.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    referencesBuilder.add(new UnresolvedAttribute(ur.source(), null, MetadataAttribute.TIMESTAMP_FIELD));
                 }
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
-                    var ua = new UnresolvedAttribute(up.source(), up.name());
+                    var ua = new UnresolvedAttribute(up.source(), null, up.name());
                     referencesBuilder.add(ua);
                     if (p instanceof Keep) {
                         keepCommandRefsBuilder.add(ua);

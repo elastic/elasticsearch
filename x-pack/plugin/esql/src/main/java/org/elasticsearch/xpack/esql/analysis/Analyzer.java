@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
@@ -144,6 +145,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
 
@@ -154,7 +156,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
     // ie from test | stats c = count(*)
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, null, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
     );
 
     private static final List<Batch<LogicalPlan>> RULES = List.of(
@@ -227,6 +229,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.source(),
                         plan.indexPattern(),
                         plan.frozen(),
+                        plan.qualifier(),
                         plan.metadataFields(),
                         plan.indexMode(),
                         indexResolutionMessage,
@@ -240,6 +243,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.source(),
                     plan.indexPattern(),
                     plan.frozen(),
+                    plan.qualifier(),
                     plan.metadataFields(),
                     plan.indexMode(),
                     "invalid [" + table + "] resolution to [" + indexResolution + "]",
@@ -249,7 +253,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             EsIndex esIndex = indexResolution.get();
 
-            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            var attributes = mappingAsAttributes(plan.source(), plan.qualifier(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
             return new EsRelation(
                 plan.source(),
@@ -269,14 +273,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      *     Public for testing.
      * </p>
      */
-    public static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
+    public static List<Attribute> mappingAsAttributes(Source source, @Nullable String qualifier, Map<String, EsField> mapping) {
         var list = new ArrayList<Attribute>();
-        mappingAsAttributes(list, source, null, mapping);
+        mappingAsAttributes(list, source, null, qualifier, mapping);
         list.sort(Comparator.comparing(Attribute::name));
         return list;
     }
 
-    private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
+    private static void mappingAsAttributes(
+        List<Attribute> list,
+        Source source,
+        String parentName,
+        String qualifier,
+        Map<String, EsField> mapping
+    ) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
@@ -291,16 +301,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
                 }
 
+                // TODO: if we were to allow qualifiers in FROM, they'd need to arrive here:
                 FieldAttribute attribute = t instanceof UnsupportedEsField uef
-                    ? new UnsupportedAttribute(source, name, uef)
-                    : new FieldAttribute(source, parentName, name, t);
+                    ? new UnsupportedAttribute(source, qualifier, name, uef)
+                    : new FieldAttribute(source, parentName, qualifier, name, t);
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
                 }
                 // allow compound object even if they are unknown
                 if (fieldProperties.isEmpty() == false) {
-                    mappingAsAttributes(list, source, attribute.name(), fieldProperties);
+                    mappingAsAttributes(list, source, attribute.name(), qualifier, fieldProperties);
                 }
             }
         }
@@ -319,12 +330,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
                 var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
-                    ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
+                    ? new UnresolvedAttribute(plan.source(), null, policy.getMatchField())
                     : plan.matchField();
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), resolved.mapping()),
+                    // TODO: Qualifier for ENRICH would go here.
+                    mappingAsAttributes(plan.source(), null, resolved.mapping()),
                     plan.enrichFields(),
                     policy
                 );
@@ -340,7 +352,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             } else {
                 String error = context.enrichResolution().getError(policyName, plan.mode());
-                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
+                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), null, policyName, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
         }
@@ -366,7 +378,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 for (NamedExpression enrichField : enrichFields) {
                     String enrichFieldName = Expressions.name(enrichField instanceof Alias a ? a.child() : enrichField);
                     NamedExpression field = createEnrichFieldExpression(source, policyName, fieldMap, enrichFieldName);
-                    result.add(enrichField instanceof Alias a ? new Alias(a.source(), a.name(), field) : field);
+                    result.add(enrichField instanceof Alias a ? new Alias(a.source(), a.qualifier(), a.name(), field) : field);
                 }
             }
             return result;
@@ -385,9 +397,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (CollectionUtils.isEmpty(similar) == false) {
                     msg += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
                 }
-                return new UnresolvedAttribute(source, enrichFieldName, msg);
+                return new UnresolvedAttribute(source, null, enrichFieldName, msg);
             } else {
-                return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
+                return new ReferenceAttribute(source, null, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
             }
         }
     }
@@ -438,7 +450,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (CollectionUtils.isEmpty(potentialMatches) == false) {
                     message = UnresolvedAttribute.errorMessage(tableName, potentialMatches).replace("column", "table");
                 }
-                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), tableName, message);
+                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), null, tableName, message);
             }
             // wrap the table in a local relationship for idiomatic field resolution
             else {
@@ -604,7 +616,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     p.child(),
                     resolved,
                     resolved.resolved()
-                        ? new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), resolved.nullable(), null, false)
+                        ? new ReferenceAttribute(
+                            resolved.source(),
+                            resolved.qualifier(),
+                            resolved.name(),
+                            resolved.dataType(),
+                            resolved.nullable(),
+                            null,
+                            false
+                        )
                         : resolved
                 );
             }
@@ -652,6 +672,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             if (false == dataTypesOk) {
                                 matchFieldChildReference = new UnresolvedAttribute(
                                     attr.source(),
+                                    attr.qualifier(),
                                     attr.name(),
                                     attr.id(),
                                     "column type mismatch, table column was ["
@@ -686,28 +707,58 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return join;
                 }
 
-                JoinType coreJoin = using.coreJoin();
+                JoinTypes.CoreJoinType coreJoin = using.coreJoin();
                 // verify the join type
-                if (coreJoin != JoinTypes.LEFT) {
+                if (coreJoin != LEFT) {
                     String name = cols.get(0).name();
                     UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
                         join.source(),
+                        null,
                         name,
                         "Only LEFT join is supported with USING"
                     );
                     return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
                 }
                 // resolve the using columns against the left and the right side then assemble the new join config
-                List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
-                List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
 
-                config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
+                List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), false, "left");
+                List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), true, "right");
+
+                using = new UsingJoinType(coreJoin, leftKeys);
+                config = new JoinConfig(using, leftKeys, leftKeys, rightKeys);
                 join = new LookupJoin(join.source(), join.left(), join.right(), config);
-            } else if (type != JoinTypes.LEFT) {
+            } else if (type instanceof JoinTypes.EquiJoinType equi) {
+                if (Expressions.anyMatch(equi.leftColumns(), c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                    return join;
+                }
+                if (Expressions.anyMatch(equi.rightColumns(), c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                    return join;
+                }
+
+                JoinTypes.CoreJoinType coreJoin = equi.coreJoin();
+                // verify the join type
+                if (coreJoin != LEFT) {
+                    String name = equi.leftColumns().get(0).name();
+                    UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
+                        join.source(),
+                        null,
+                        name,
+                        "Only LEFT join is supported with '=='"
+                    );
+                    return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
+                }
+
+                // resolve the using columns against the left and the right side then assemble the new join config
+
+                List<Attribute> leftKeys = resolveUsingColumns(equi.leftColumns(), join.left().output(), false, "left");
+                List<Attribute> rightKeys = resolveUsingColumns(equi.rightColumns(), join.right().output(), true, "right");
+
+                equi = new JoinTypes.EquiJoinType(coreJoin, leftKeys, rightKeys);
+                config = new JoinConfig(equi, leftKeys, leftKeys, rightKeys);
+                join = new LookupJoin(join.source(), join.left(), join.right(), config);
+            } else {
                 // everything else is unsupported for now
-                // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
-                // more than once.
-                UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
+                UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), null, "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
             }
@@ -741,11 +792,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return rerank;
         }
 
-        private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
+        private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, boolean ignoreQualifier, String side) {
             List<Attribute> resolved = new ArrayList<>(cols.size());
             for (Attribute col : cols) {
                 if (col instanceof UnresolvedAttribute ua) {
-                    Attribute resolvedField = maybeResolveAttribute(ua, output);
+                    Attribute resolvedField = maybeResolveAttribute(ua, output, ignoreQualifier);
                     if (resolvedField instanceof UnresolvedAttribute ucol) {
                         String message = ua.unresolvedMessage();
                         String match = "column [" + ucol.name() + "]";
@@ -797,11 +848,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         fa.dataType().typeName()
                     )
                 );
-            return new FieldAttribute(fa.source(), name, field);
+            return new FieldAttribute(fa.source(), fa.qualifier(), name, field);
         }
 
         private static FieldAttribute insistKeyword(Attribute attribute) {
-            return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
+            return new FieldAttribute(
+                attribute.source(),
+                attribute.qualifier(),
+                attribute.name(),
+                new PotentiallyUnmappedKeywordEsField(attribute.name())
+            );
         }
 
         private LogicalPlan resolveDedup(Dedup dedup, List<Attribute> childrenOutput) {
@@ -853,23 +909,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
-            return maybeResolveAttribute(ua, childrenOutput, log);
+            return maybeResolveAttribute(ua, childrenOutput, false);
         }
 
-        private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+        private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, boolean ignoreQualifier) {
+            return maybeResolveAttribute(ua, childrenOutput, ignoreQualifier, log);
+        }
+
+        private static Attribute maybeResolveAttribute(
+            UnresolvedAttribute ua,
+            List<Attribute> childrenOutput,
+            boolean ignoreQualifier,
+            Logger logger
+        ) {
             if (ua.customMessage()) {
                 return ua;
             }
-            return resolveAttribute(ua, childrenOutput, logger);
+            return resolveAttribute(ua, childrenOutput, ignoreQualifier, logger);
         }
 
         private Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
-            return resolveAttribute(ua, childrenOutput, log);
+            return resolveAttribute(ua, childrenOutput, false, log);
         }
 
-        private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+        private static Attribute resolveAttribute(
+            UnresolvedAttribute ua,
+            List<Attribute> childrenOutput,
+            boolean ignoreQualifier,
+            Logger logger
+        ) {
             Attribute resolved = ua;
-            var named = resolveAgainstList(ua, childrenOutput);
+            var named = resolveAgainstList(ua, childrenOutput, ignoreQualifier);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
@@ -1024,29 +1094,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             int renamingsCount = rename.renamings().size();
             List<NamedExpression> unresolved = new ArrayList<>(renamingsCount);
-            Map<String, String> reverseAliasing = new HashMap<>(renamingsCount); // `| rename a as x` => map(a: x)
+            // For an alias like `| rename a as x` keep track fo what we renamed `a` to (namely `x`).
+            Map<NamedExpression.QualifiedName, NamedExpression.QualifiedName> reverseAliasing = new HashMap<>(renamingsCount);
 
             rename.renamings().forEach(alias -> {
                 // skip NOPs: `| rename a as a`
-                if (alias.child() instanceof UnresolvedAttribute ua && alias.name().equals(ua.name()) == false) {
+                if (alias.child() instanceof UnresolvedAttribute ua && alias.qualifiedName().equals(ua.qualifiedName()) == false) {
                     // remove attributes overwritten by a renaming: `| keep a, b, c | rename a as b`
-                    projections.removeIf(x -> x.name().equals(alias.name()));
-                    childrenOutput.removeIf(x -> x.name().equals(alias.name()));
+                    if (alias.qualifier() == null) {
+                        projections.removeIf(x -> x.qualifier() == null && x.name().equals(alias.name()));
+                        childrenOutput.removeIf(x -> x.qualifier() == null && x.name().equals(alias.name()));
+                    }
 
-                    var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
+                    var resolved = maybeResolveAttribute(ua, childrenOutput, false, logger);
                     if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
                         var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
                         projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
                         childrenOutput.removeIf(x -> x.equals(resolved));
-                        reverseAliasing.put(resolved.name(), alias.name());
+                        reverseAliasing.put(resolved.qualifiedName(), alias.qualifiedName());
                     } else { // remained UnresolvedAttribute
                         // is the current alias referencing a previously declared alias?
                         boolean updated = false;
-                        if (reverseAliasing.containsValue(resolved.name())) {
+                        if (reverseAliasing.containsValue(resolved.qualifiedName())) {
                             for (var li = projections.listIterator(); li.hasNext();) {
                                 // does alias still exist? i.e. it hasn't been renamed again (`| rename a as b, b as c, b as d`)
                                 if (li.next() instanceof Alias a && a.name().equals(resolved.name())) {
-                                    reverseAliasing.put(resolved.name(), alias.name());
+                                    reverseAliasing.put(resolved.qualifiedName(), alias.qualifiedName());
                                     // update aliased projection in place
                                     li.set(alias.replaceChildren(a.children()));
                                     updated = true;
@@ -1056,7 +1129,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         }
                         if (updated == false) {
                             var u = resolved;
-                            var previousAliasName = reverseAliasing.get(resolved.name());
+                            var previousAliasName = reverseAliasing.get(resolved.qualifiedName());
                             if (previousAliasName != null) {
                                 String message = LoggerMessageFormat.format(
                                     null,
@@ -1129,15 +1202,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
-        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
-        Predicate<Attribute> matcher = a -> up.match(a.name());
+        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.qualifier(), up.pattern());
+        Predicate<Attribute> matcher = up::match;
         var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
-        var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
-        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
+        return resolveAgainstList(ua, attrList, false);
+    }
+
+    private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList, boolean ignoreQualifier) {
+        Predicate<Attribute> predicate = ignoreQualifier ? (attr -> attr.name().equals(ua.name())) : ua::match;
+        var matches = AnalyzerRules.maybeResolveAgainstList(predicate, () -> ua, attrList, false, a -> Analyzer.handleSpecialFields(ua, a));
+        return potentialCandidatesIfNoMatchesFound(
+            ua,
+            matches,
+            attrList,
+            list -> UnresolvedAttribute.errorMessage(ua.qualifiedName().toString(), list)
+        );
     }
 
     private static List<Attribute> potentialCandidatesIfNoMatchesFound(
@@ -1153,12 +1236,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         if (matches.isEmpty()) {
             Set<String> names = new HashSet<>(attrList.size());
             for (var a : attrList) {
-                String nameCandidate = a.name();
+                String nameCandidate = a.qualifiedName().toString();
                 if (DataType.isPrimitive(a.dataType())) {
                     names.add(nameCandidate);
                 }
             }
-            var name = ua.name();
+            String name = ua.qualifiedName().toString();
             UnresolvedAttribute unresolved = ua.withUnresolvedMessage(messageProducer.apply(StringUtils.findSimilar(name, names)));
             matches = singletonList(unresolved);
         }
@@ -1457,7 +1540,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 type,
                 (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
             );
-            return new UnresolvedAttribute(value.source(), String.valueOf(value.fold(FoldContext.small() /* TODO remove me */)), message);
+            return new UnresolvedAttribute(
+                value.source(),
+                null,
+                String.valueOf(value.fold(FoldContext.small() /* TODO remove me */)),
+                message
+            );
         }
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
@@ -1568,7 +1656,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         + "] must be a constant, received ["
                         + Expressions.name(fa)
                         + "]";
-                    Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
+                    Expression ua = new UnresolvedAttribute(fa.source(), null, fa.name(), unresolvedMessage);
                     return fcf.replaceChildren(Collections.singletonList(ua));
                 }
                 imf.types().forEach(type -> {
@@ -1598,7 +1686,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
             // synthetic to work around a bug.
             String unionTypedFieldName = Attribute.rawTemporaryName(fa.name(), "converted_to", resolvedField.getDataType().typeName());
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parentName(), unionTypedFieldName, resolvedField, true);
+            FieldAttribute unionFieldAttribute = new FieldAttribute(
+                fa.source(),
+                fa.parentName(),
+                fa.qualifier(),
+                unionTypedFieldName,
+                resolvedField,
+                true
+            );
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
@@ -1628,6 +1723,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
                 originalFieldAttr.parentName(),
+                originalFieldAttr.qualifier(),
                 originalFieldAttr.name(),
                 field,
                 originalFieldAttr.nullable(),
@@ -1668,6 +1764,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<String> types = imf.getTypesToIndices().keySet().stream().toList();
                 return new UnsupportedAttribute(
                     fa.source(),
+                    fa.qualifier(),
                     fa.name(),
                     new UnsupportedEsField(imf.getName(), types),
                     unresolvedMessage,

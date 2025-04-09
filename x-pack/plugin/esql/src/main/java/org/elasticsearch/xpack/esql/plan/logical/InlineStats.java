@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,6 +28,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 
 /**
  * Enriches the stream of data with the results of running a {@link Aggregate STATS}.
@@ -114,7 +114,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
                 }
             }
         }
-        return new JoinConfig(JoinTypes.LEFT, namedGroupings, leftFields, rightFields);
+        return new JoinConfig(LEFT, namedGroupings, leftFields, rightFields);
     }
 
     @Override

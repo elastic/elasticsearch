@@ -20,8 +20,7 @@ options {
   tokenVocab=EsqlBaseLexer;
 }
 
-import Expression,
-       Join;
+import Expression;
 
 singleStatement
     : query EOF
@@ -93,8 +92,10 @@ timeSeriesCommand
     : DEV_TIME_SERIES indexPatternAndMetadataFields
     ;
 
+// TODO: Qualifier shouldn't be an indexString, that's too general; needs to be consistent with qualifiedName/Pattern
+// TODO: Ambiguity in case that the qualifier is METADATA? Should we use the AS keyword?
 indexPatternAndMetadataFields:
-    indexPattern (COMMA indexPattern)* metadata?
+    indexPattern (COMMA indexPattern)* qualifier=indexString? metadata?
     ;
 
 indexPattern
@@ -138,11 +139,21 @@ aggField
     ;
 
 qualifiedName
+    // TODO: Test all kind of valid/invalid qualifier strings and make sure they make sense. Same for patterns below.
+    // TODO: Account for qualifiers in parameters.
+    : qualifier=identifier? name=unqualifiedName
+    ;
+
+unqualifiedName
     : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
-    : identifierPattern (DOT identifierPattern)*
+    : qualifier=identifierPattern? name=unqualifiedNamePattern
+    ;
+
+unqualifiedNamePattern
+    : (identifierPattern (DOT identifierPattern)*)
     ;
 
 qualifiedNamePatterns
@@ -253,6 +264,24 @@ lookupCommand
 
 inlinestatsCommand
     : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+joinCommand
+    : type=(JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT) JOIN joinTarget joinCondition
+    ;
+
+joinTarget
+    // TODO: qualifier shouldn't be indexPattern, that's too general.
+    // TODO: Ambiguity in case that the qualifier is ON or other keyword? Should we use the AS keyword?
+    : index=indexPattern qualifier=indexString?
+    ;
+
+joinCondition
+    : ON joinPredicate (COMMA joinPredicate)*
+    ;
+
+joinPredicate
+    : valueExpression
     ;
 
 changePointCommand

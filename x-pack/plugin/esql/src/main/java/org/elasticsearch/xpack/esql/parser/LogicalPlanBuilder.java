@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -247,7 +248,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
-        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.name()));
+        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.qualifier(), field.name()));
 
     }
 
@@ -272,6 +273,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private UnresolvedRelation visitRelation(Source source, IndexMode indexMode, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
         IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
+        String qualifier = null;
+        if (ctx.qualifier != null) {
+            qualifier = visitIndexString(ctx.qualifier);
+        }
         if (ctx.metadata() != null) {
             for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
                 String id = c.getText();
@@ -287,7 +292,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
         final String commandName = indexMode == IndexMode.TIME_SERIES ? "TS" : "FROM";
-        return new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
+        return new UnresolvedRelation(source, table, false, qualifier, metadataFields, indexMode, null, commandName);
     }
 
     @Override
@@ -307,7 +312,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> new Insist(
             source,
             input,
-            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
+            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.qualifier(), ne.name())).toList()
         );
     }
 
@@ -476,14 +481,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
-        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, null, "@timestamp") : visitQualifiedName(ctx.key);
         Attribute targetType = new ReferenceAttribute(
             src,
+            // TODO: Probably forbid assigning a qualifier here.
+            ctx.targetType == null ? null : visitQualifiedName(ctx.targetType).qualifier(),
             ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
+            ctx.targetPvalue == null ? null : visitQualifiedName(ctx.targetPvalue).qualifier(),
             ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
             DataType.DOUBLE
         );
@@ -573,6 +581,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 rightPattern
             );
         }
+        String qualifier = null;
+        if (target.qualifier != null) {
+            qualifier = visitIndexString(target.qualifier);
+        }
         if (rightPattern.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
             throw new ParsingException(
                 source(target),
@@ -585,6 +597,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             source(target),
             new IndexPattern(source(target.index), rightPattern),
             false,
+            qualifier,
             emptyList(),
             IndexMode.LOOKUP,
             null
@@ -592,19 +605,36 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var condition = ctx.joinCondition();
 
-        // ON only with qualified names
+        // ON only with field names
         var predicates = expressions(condition.joinPredicate());
-        List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        List<Attribute> leftJoinFields = new ArrayList<>(predicates.size());
+        List<Attribute> rightJoinFields = new ArrayList<>(predicates.size());
         for (var f : predicates) {
             // verify each field is an unresolved attribute
             if (f instanceof UnresolvedAttribute ua) {
-                joinFields.add(ua);
-            } else {
-                throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
-            }
+                leftJoinFields.add(ua);
+            } else if (f instanceof Equals eq
+                && eq.left() instanceof UnresolvedAttribute leftUa
+                && eq.right() instanceof UnresolvedAttribute rightUa) {
+                    leftJoinFields.add(leftUa);
+                    rightJoinFields.add(rightUa);
+                } else {
+                    throw new ParsingException(
+                        f.source(),
+                        "JOIN ON clause only supports attributes or '==' expressions at the moment, found [{}]",
+                        f.sourceText()
+                    );
+                }
         }
 
-        var matchFieldsCount = joinFields.size();
+        // join of type USING: LOOKUP JOIN lu_idx ON attribute
+        // equijoin: LOOKUP JOIN lu_idx AS right ON attribute = right otherattribute
+        // The two types don't mix.
+        if (rightJoinFields.isEmpty() == false && leftJoinFields.size() != rightJoinFields.size()) {
+            throw new ParsingException(source, "JOIN ON clause can only be used with single attributes OR with '==' expressions, not both");
+        }
+
+        var matchFieldsCount = leftJoinFields.size();
         if (matchFieldsCount > 1) {
             throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
         }
@@ -622,7 +652,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             });
 
-            return new LookupJoin(source, p, right, joinFields);
+            return rightJoinFields.isEmpty()
+                ? new LookupJoin(source, p, right, leftJoinFields)
+                : new LookupJoin(source, p, right, leftJoinFields, rightJoinFields);
         };
     }
 
@@ -652,10 +684,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             // align _fork id across all fork branches
             Alias alias = null;
             if (firstForkNameId == null) {
-                alias = new Alias(source(ctx), Fork.FORK_FIELD, literal);
+                // TODO: how will qualifiers interact with FORK?
+                alias = new Alias(source(ctx), null, Fork.FORK_FIELD, literal);
                 firstForkNameId = alias.id();
             } else {
-                alias = new Alias(source(ctx), Fork.FORK_FIELD, literal, firstForkNameId);
+                alias = new Alias(source(ctx), null, Fork.FORK_FIELD, literal, firstForkNameId);
             }
 
             var finalAlias = alias;

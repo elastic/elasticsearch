@@ -24,12 +24,6 @@ public class JoinTypes {
 
     private JoinTypes() {}
 
-    public static JoinType INNER = CoreJoinType.INNER;
-    public static JoinType LEFT = CoreJoinType.LEFT;
-    public static JoinType RIGHT = CoreJoinType.RIGHT;
-    public static JoinType FULL = CoreJoinType.FULL;
-    public static JoinType CROSS = CoreJoinType.CROSS;
-
     private static Map<Byte, JoinType> JOIN_TYPES;
 
     static {
@@ -43,7 +37,7 @@ public class JoinTypes {
     /**
      * The predefined core join types. Implements as enum for easy comparison and serialization.
      */
-    private enum CoreJoinType implements JoinType {
+    public enum CoreJoinType implements JoinType {
         INNER(1, "INNER"),
         LEFT(2, "LEFT OUTER"),
         RIGHT(3, "RIGHT OUTER"),
@@ -64,6 +58,11 @@ public class JoinTypes {
         }
 
         @Override
+        public CoreJoinType coreJoin() {
+            return this;
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(id);
         }
@@ -76,9 +75,9 @@ public class JoinTypes {
      */
     public static class UsingJoinType implements JoinType {
         private final List<Attribute> columns;
-        private final JoinType coreJoin;
+        private final CoreJoinType coreJoin;
 
-        public UsingJoinType(JoinType coreJoin, List<Attribute> columns) {
+        public UsingJoinType(CoreJoinType coreJoin, List<Attribute> columns) {
             this.columns = columns;
             this.coreJoin = coreJoin;
         }
@@ -93,7 +92,8 @@ public class JoinTypes {
             throw new IllegalArgumentException("USING join type should not be serialized due to being rewritten");
         }
 
-        public JoinType coreJoin() {
+        @Override
+        public CoreJoinType coreJoin() {
             return coreJoin;
         }
 
@@ -117,6 +117,70 @@ public class JoinTypes {
             if (o == null || getClass() != o.getClass()) return false;
             UsingJoinType that = (UsingJoinType) o;
             return Objects.equals(columns, that.columns) && coreJoin == that.coreJoin;
+        }
+
+        @Override
+        public String toString() {
+            return joinName();
+        }
+    }
+
+    /**
+     * Join type for the USING clause - shorthand for defining an equi-join (equality join meaning the condition checks if columns across
+     * each side of the join are equal).
+     * One important difference is that the USING clause returns the join column only once, at the beginning of the result set.
+     */
+    public static class EquiJoinType implements JoinType {
+        private final List<Attribute> leftColumns;
+        private final List<Attribute> rightColumns;
+        private final CoreJoinType coreJoin;
+
+        public EquiJoinType(CoreJoinType coreJoin, List<Attribute> leftColumns, List<Attribute> rightColumns) {
+            this.coreJoin = coreJoin;
+            this.leftColumns = leftColumns;
+            this.rightColumns = rightColumns;
+        }
+
+        @Override
+        public String joinName() {
+            return coreJoin.joinName() + " EQUI " + leftColumns.toString() + " == " + rightColumns.toString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new IllegalArgumentException("EQUI join type should not be serialized due to being rewritten");
+        }
+
+        public CoreJoinType coreJoin() {
+            return coreJoin;
+        }
+
+        public List<Attribute> leftColumns() {
+            return leftColumns;
+        }
+
+        public List<Attribute> rightColumns() {
+            return rightColumns;
+        }
+
+        @Override
+        public boolean resolved() {
+            return Resolvables.resolved(leftColumns) && Resolvables.resolved(rightColumns);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(coreJoin, leftColumns, rightColumns);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            EquiJoinType that = (EquiJoinType) o;
+            return coreJoin == that.coreJoin
+                && Objects.equals(leftColumns, that.leftColumns)
+                && Objects.equals(rightColumns, that.rightColumns);
         }
 
         @Override

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -31,6 +30,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 
 /**
  * <p>Maps a (local) logical plan into a (local) physical plan. This class is the equivalent of {@link Mapper} but for data nodes.
@@ -94,7 +95,7 @@ public class LocalMapper {
         // special handling for inlinejoin - join + subquery which has to be executed first (async) and replaced by its result
         if (binary instanceof Join join) {
             JoinConfig config = join.config();
-            if (config.type() != JoinTypes.LEFT) {
+            if (config.type().coreJoin() != LEFT) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 

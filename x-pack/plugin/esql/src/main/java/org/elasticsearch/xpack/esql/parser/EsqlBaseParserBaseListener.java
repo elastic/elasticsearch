@@ -301,6 +301,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterUnqualifiedName(EsqlBaseParser.UnqualifiedNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitUnqualifiedName(EsqlBaseParser.UnqualifiedNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx) { }
   /**
    * {@inheritDoc}
@@ -308,6 +320,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterUnqualifiedNamePattern(EsqlBaseParser.UnqualifiedNamePatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitUnqualifiedNamePattern(EsqlBaseParser.UnqualifiedNamePatternContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -632,6 +656,54 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterJoinCommand(EsqlBaseParser.JoinCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterJoinTarget(EsqlBaseParser.JoinTargetContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitJoinTarget(EsqlBaseParser.JoinTargetContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterJoinCondition(EsqlBaseParser.JoinConditionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1220,54 +1292,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitComparisonOperator(EsqlBaseParser.ComparisonOperatorContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterJoinCommand(EsqlBaseParser.JoinCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterJoinTarget(EsqlBaseParser.JoinTargetContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitJoinTarget(EsqlBaseParser.JoinTargetContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterJoinCondition(EsqlBaseParser.JoinConditionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx) { }
 
   /**
    * {@inheritDoc}

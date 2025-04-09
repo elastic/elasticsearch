@@ -21,7 +21,7 @@ public final class Expressions {
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ne ? ne : new Alias(exp.source(), exp.sourceText(), exp);
+        return exp instanceof NamedExpression ne ? ne : new Alias(exp.source(), null, exp.sourceText(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {

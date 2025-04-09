@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -67,17 +66,6 @@ public final class AnalyzerRules {
         }
 
         protected abstract LogicalPlan doRule(LogicalPlan plan);
-    }
-
-    public static List<Attribute> maybeResolveAgainstList(
-        UnresolvedAttribute u,
-        Collection<Attribute> attrList,
-        java.util.function.Function<Attribute, Attribute> fieldInspector
-    ) {
-        final String name = u.name();
-
-        Predicate<Attribute> predicate = a -> Objects.equals(name, a.name());
-        return maybeResolveAgainstList(predicate, () -> u, attrList, false, fieldInspector);
     }
 
     public static List<Attribute> maybeResolveAgainstList(

@@ -25,12 +25,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 
 public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRule<Filter> {
     @Override
@@ -111,7 +112,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         LogicalPlan plan = filter;
         // pushdown only through LEFT joins
         // TODO: generalize this for other join types
-        if (join.config().type() == JoinTypes.LEFT) {
+        if (join.config().type().coreJoin() == LEFT) {
             LogicalPlan left = join.left();
             LogicalPlan right = join.right();
 

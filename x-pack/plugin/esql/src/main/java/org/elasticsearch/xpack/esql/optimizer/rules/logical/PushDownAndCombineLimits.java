@@ -18,10 +18,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 
 public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
 
@@ -59,7 +60,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                     }
                 }
             }
-        } else if (limit.child() instanceof Join join && join.config().type() == JoinTypes.LEFT) {
+        } else if (limit.child() instanceof Join join && join.config().type().coreJoin() == LEFT) {
             // Left joins increase the number of rows if any join key has multiple matches from the right hand side.
             // Therefore, we cannot simply push down the limit - but we can add another limit before the join.
             // To avoid repeating this infinitely, we have to set duplicated = true.

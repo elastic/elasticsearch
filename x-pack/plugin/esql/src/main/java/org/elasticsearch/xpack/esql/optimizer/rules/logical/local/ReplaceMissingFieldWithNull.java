@@ -89,13 +89,13 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                         // layouts due to a duplicate name id.
                         // If someone reaches here AGAIN when debugging e.g. ClassCastExceptions NPEs from wrong layouts, we should probably
                         // give up on this approach and instead insert EvalExecs in InsertFieldExtraction.
-                        Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), f.id());
+                        Alias alias = new Alias(f.source(), f.qualifier(), f.name(), Literal.of(f, null), f.id());
                         nullLiterals.put(dt, alias);
                         projection = alias.toAttribute();
                     }
                     // otherwise point to it since this avoids creating field copies
                     else {
-                        projection = new Alias(f.source(), f.name(), nullAlias.toAttribute(), f.id());
+                        projection = new Alias(f.source(), f.qualifier(), f.name(), nullAlias.toAttribute(), f.id());
                     }
                 } else {
                     projection = attr;

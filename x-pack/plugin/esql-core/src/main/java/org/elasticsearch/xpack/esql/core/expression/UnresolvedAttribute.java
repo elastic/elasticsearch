@@ -25,19 +25,34 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final String unresolvedMsg;
     private final Object resolutionMetadata;
 
+    /**
+     * Sets the qualifier to {@code null}.
+     * Mostly for tests and convenience wherever qualifiers aren't required.
+     */
     public UnresolvedAttribute(Source source, String name) {
-        this(source, name, null);
+        this(source, null, name, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String unresolvedMessage) {
-        this(source, name, null, unresolvedMessage, null);
+    public UnresolvedAttribute(Source source, @Nullable String qualifier, String name) {
+        this(source, qualifier, name, null);
+    }
+
+    public UnresolvedAttribute(Source source, @Nullable String qualifier, String name, String unresolvedMessage) {
+        this(source, qualifier, name, null, unresolvedMessage, null);
     }
 
     @SuppressWarnings("this-escape")
-    public UnresolvedAttribute(Source source, String name, @Nullable NameId id, String unresolvedMessage, Object resolutionMetadata) {
-        super(source, name, id);
+    public UnresolvedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        @Nullable NameId id,
+        String unresolvedMessage,
+        Object resolutionMetadata
+    ) {
+        super(source, qualifier, name, id);
         this.customMessage = unresolvedMessage != null;
-        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
+        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName().toString(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
     }
 
@@ -53,7 +68,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, name(), id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(this, UnresolvedAttribute::new, qualifier(), name(), id(), unresolvedMsg, resolutionMetadata);
     }
 
     public Object resolutionMetadata() {
@@ -70,17 +85,29 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return this;
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), name(), id(), unresolvedMessage, resolutionMetadata());
+        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage, resolutionMetadata());
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return new TypeResolution("unresolved attribute [" + name() + "]");
+        return new TypeResolution("unresolved attribute [" + qualifiedName() + "]");
+    }
+
+    public boolean match(Attribute attribute) {
+        return Objects.equals(qualifier(), attribute.qualifier()) && Objects.equals(name(), attribute.name());
     }
 
     @Override
@@ -90,7 +117,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + name();
+        return UNRESOLVED_PREFIX + qualifiedName();
     }
 
     @Override

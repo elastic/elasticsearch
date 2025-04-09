@@ -190,7 +190,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
     }
 
     private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected, boolean keepAllFields) throws IOException {
-        List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
+        List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), null, index.mapping());
         List<Attribute> keepAttributes = keepAllFields || allAttributes.isEmpty() ? allAttributes : List.of(allAttributes.getFirst());
         EsRelation relation = new EsRelation(randomSource(), index.name(), IndexMode.STANDARD, index.indexNameWithModes(), keepAttributes);
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);

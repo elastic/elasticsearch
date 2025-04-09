@@ -60,7 +60,7 @@ public class RerankExec extends InferenceExec {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readCollectionAsList(Alias::new),
+            in.readCollectionAsList(Alias::readFrom),
             in.readNamedWriteable(Attribute.class)
         );
     }

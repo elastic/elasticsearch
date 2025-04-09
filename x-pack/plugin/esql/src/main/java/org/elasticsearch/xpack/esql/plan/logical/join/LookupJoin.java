@@ -17,13 +17,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.EquiJoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 
 /**
  * Lookup join - specialized LEFT (OUTER) JOIN between the main left side and a lookup index (index_mode = lookup) on the right.
@@ -32,6 +33,10 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
         this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList());
+    }
+
+    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> leftFields, List<Attribute> rightFields) {
+        this(source, left, right, new EquiJoinType(LEFT, leftFields, rightFields), emptyList(), emptyList(), emptyList());
     }
 
     public LookupJoin(

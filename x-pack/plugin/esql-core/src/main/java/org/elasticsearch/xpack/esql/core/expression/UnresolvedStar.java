@@ -13,18 +13,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
 public class UnresolvedStar extends UnresolvedNamedExpression {
 
-    // typically used for nested fields or inner/dotted fields
-    private final UnresolvedAttribute qualifier;
-
-    public UnresolvedStar(Source source, UnresolvedAttribute qualifier) {
+    public UnresolvedStar(Source source) {
         super(source, emptyList());
-        this.qualifier = qualifier;
     }
 
     @Override
@@ -39,7 +34,7 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
 
     @Override
     protected NodeInfo<UnresolvedStar> info() {
-        return NodeInfo.create(this, UnresolvedStar::new, qualifier);
+        return NodeInfo.create(this);
     }
 
     @Override
@@ -52,24 +47,8 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
         throw new UnresolvedException("nullable", this);
     }
 
-    public UnresolvedAttribute qualifier() {
-        return qualifier;
-    }
-
-    @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(qualifier);
-    }
-
-    @Override
-    protected boolean innerEquals(Object o) {
-        var other = (UnresolvedStar) o;
-        return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier);
-    }
-
     private String message() {
-        return (qualifier() != null ? qualifier().name() + "." : "") + "*";
+        return (qualifier() != null ? qualifier() + " " : "") + "*";
     }
 
     @Override

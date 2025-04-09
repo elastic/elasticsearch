@@ -65,8 +65,8 @@ public class Explain extends LeafPlan implements TelemetryAware {
     @Override
     public List<Attribute> output() {
         return List.of(
-            new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD)
+            new ReferenceAttribute(Source.EMPTY, null, "plan", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "type", DataType.KEYWORD)
         );
     }
 

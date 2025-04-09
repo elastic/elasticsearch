@@ -327,7 +327,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 originalTypes = new ArrayList<>(c.originalTypes());
                 Collections.sort(originalTypes);
             }
-            return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
+            return new ColumnInfoImpl(c.qualifiedName().toString(), c.dataType().outputType(), originalTypes);
         }).toList();
         EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
         threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");

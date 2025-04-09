@@ -18,4 +18,6 @@ public interface JoinType extends Writeable {
     default boolean resolved() {
         return true;
     }
+
+    JoinTypes.CoreJoinType coreJoin();
 }

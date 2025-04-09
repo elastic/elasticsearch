@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -606,17 +607,34 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         // ON only with field names
         var predicates = expressions(condition.joinPredicate());
-        List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        List<Attribute> leftJoinFields = new ArrayList<>(predicates.size());
+        List<Attribute> rightJoinFields = new ArrayList<>(predicates.size());
         for (var f : predicates) {
             // verify each field is an unresolved attribute
             if (f instanceof UnresolvedAttribute ua) {
-                joinFields.add(ua);
-            } else {
-                throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
-            }
+                leftJoinFields.add(ua);
+            } else if (f instanceof Equals eq
+                && eq.left() instanceof UnresolvedAttribute leftUa
+                && eq.right() instanceof UnresolvedAttribute rightUa) {
+                    leftJoinFields.add(leftUa);
+                    rightJoinFields.add(rightUa);
+                } else {
+                    throw new ParsingException(
+                        f.source(),
+                        "JOIN ON clause only supports attributes or '==' expressions at the moment, found [{}]",
+                        f.sourceText()
+                    );
+                }
         }
 
-        var matchFieldsCount = joinFields.size();
+        // join of type USING: LOOKUP JOIN lu_idx ON attribute
+        // equijoin: LOOKUP JOIN lu_idx AS right ON attribute = right otherattribute
+        // The two types don't mix.
+        if (rightJoinFields.isEmpty() == false && leftJoinFields.size() != rightJoinFields.size()) {
+            throw new ParsingException(source, "JOIN ON clause can only be used with single attributes OR with '==' expressions, not both");
+        }
+
+        var matchFieldsCount = leftJoinFields.size();
         if (matchFieldsCount > 1) {
             throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
         }
@@ -634,7 +652,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             });
 
-            return new LookupJoin(source, p, right, joinFields);
+            return rightJoinFields.isEmpty()
+                ? new LookupJoin(source, p, right, leftJoinFields)
+                : new LookupJoin(source, p, right, leftJoinFields, rightJoinFields);
         };
     }
 

@@ -20,8 +20,7 @@ options {
   tokenVocab=EsqlBaseLexer;
 }
 
-import Expression,
-       Join;
+import Expression;
 
 singleStatement
     : query EOF

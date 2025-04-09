@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 
 /**
  * Specialized type of join where the source of the left and right plans are the same. The plans themselves can contain different nodes
@@ -146,7 +146,7 @@ public class InlineJoin extends Join {
     public List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
         JoinType joinType = config().type();
         List<Attribute> output;
-        if (LEFT.equals(joinType)) {
+        if (LEFT == joinType.coreJoin()) {
             AttributeSet rightFields = AttributeSet.of(config().rightFields());
             List<Attribute> leftOutputWithoutMatchFields = new ArrayList<>();
             // at this point "left" part of the join contains all the attributes that represent the input of the join

@@ -145,6 +145,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
 
@@ -706,9 +707,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return join;
                 }
 
-                JoinType coreJoin = using.coreJoin();
+                JoinTypes.CoreJoinType coreJoin = using.coreJoin();
                 // verify the join type
-                if (coreJoin != JoinTypes.LEFT) {
+                if (coreJoin != LEFT) {
                     String name = cols.get(0).name();
                     UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
                         join.source(),
@@ -723,12 +724,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), false, "left");
                 List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), true, "right");
 
-                config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
+                using = new UsingJoinType(coreJoin, leftKeys);
+                config = new JoinConfig(using, leftKeys, leftKeys, rightKeys);
                 join = new LookupJoin(join.source(), join.left(), join.right(), config);
-            } else if (type != JoinTypes.LEFT) {
+            } else if (type instanceof JoinTypes.EquiJoinType equi) {
+                if (Expressions.anyMatch(equi.leftColumns(), c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                    return join;
+                }
+                if (Expressions.anyMatch(equi.rightColumns(), c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                    return join;
+                }
+
+                JoinTypes.CoreJoinType coreJoin = equi.coreJoin();
+                // verify the join type
+                if (coreJoin != LEFT) {
+                    String name = equi.leftColumns().get(0).name();
+                    UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
+                        join.source(),
+                        null,
+                        name,
+                        "Only LEFT join is supported with '=='"
+                    );
+                    return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
+                }
+
+                // resolve the using columns against the left and the right side then assemble the new join config
+
+                List<Attribute> leftKeys = resolveUsingColumns(equi.leftColumns(), join.left().output(), false, "left");
+                List<Attribute> rightKeys = resolveUsingColumns(equi.rightColumns(), join.right().output(), true, "right");
+
+                equi = new JoinTypes.EquiJoinType(coreJoin, leftKeys, rightKeys);
+                config = new JoinConfig(equi, leftKeys, leftKeys, rightKeys);
+                join = new LookupJoin(join.source(), join.left(), join.right(), config);
+            } else {
                 // everything else is unsupported for now
-                // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
-                // more than once.
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), null, "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));

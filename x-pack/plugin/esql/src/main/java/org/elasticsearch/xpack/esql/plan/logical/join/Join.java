@@ -31,7 +31,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 
 public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
@@ -138,14 +138,19 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         JoinType joinType = config.type();
         List<Attribute> output;
         // TODO: make the other side nullable
-        if (LEFT.equals(joinType)) {
+        if (LEFT == joinType.coreJoin()) {
             // right side becomes nullable and overrides left except for join keys, which we preserve from the left unless they are
             // qualified.
             AttributeSet rightKeys = AttributeSet.of(config.rightFields());
-            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
-                .filter(attr -> attr.qualifier() != null || rightKeys.contains(attr) == false)
-                .toList();
-            output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+
+            if (joinType instanceof JoinTypes.UsingJoinType) {
+                List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
+                    .filter(attr -> rightKeys.contains(attr) == false)
+                    .toList();
+                output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+            } else {
+                output = mergeOutputAttributes(rightOutput, leftOutput);
+            }
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }

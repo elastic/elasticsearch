@@ -92,6 +92,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final CsvTestCase testCase;
     protected final String instructions;
     protected final Mode mode;
+    protected static Boolean supportsTook;
 
     public enum Mode {
         SYNC,
@@ -272,7 +273,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             builder.tables(tables());
         }
 
-        Map<?, ?> prevTooks = tooks();
+        Map<?, ?> prevTooks = supportsTook() ? tooks() : null;
         Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.assertWarnings(deduplicateExactWarnings()));
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
@@ -290,9 +291,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
 
-        long took = ((Number) answer.get("took")).longValue();
-        int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
-        assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
+        if (supportsTook()) {
+            LOGGER.info("checking took incremented from {}", prevTooks);
+            long took = ((Number) answer.get("took")).longValue();
+            int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
+            assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
+        }
     }
 
     private Map<?, ?> tooks() throws IOException {
@@ -484,6 +488,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             )
         );
         return tables;
+    }
+
+    protected boolean supportsTook() throws IOException {
+        if (supportsTook == null) {
+            supportsTook = hasCapabilities(client(), List.of("usage_contains_took"));
+        }
+        return supportsTook;
     }
 
     private String tookKey(long took) {

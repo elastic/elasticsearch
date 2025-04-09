@@ -58,6 +58,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -391,7 +392,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             Settings originalSettings = originalTemplate.template().settings();
             Settings overriddenSettings = templateOverrides.template().settings();
             Settings.Builder settingsBuilder = Settings.builder().put(originalSettings).put(overriddenSettings);
-            for (String settingName : settingsBuilder.keys()) {
+            for (String settingName : new HashSet<>(settingsBuilder.keys())) {
                 if (settingsBuilder.get(settingName) == null) {
                     settingsBuilder.remove(settingName);
                 }

@@ -11,8 +11,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -46,6 +46,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 
 /**
  * Handles data stream modification requests.
@@ -499,48 +501,67 @@ public class MetadataDataStreamsService {
         return MetadataDeleteIndexService.deleteIndices(newState.projectState(projectState.projectId()), backingIndicesToRemove, settings);
     }
 
-    public void updateSettings(
+    public void updateTemplateOverrides(
         ProjectResolver projectResolver,
-        final UpdateSettingsRequest request,
-        List<String> dataStreamNames,
-        Settings updatedSettings,
+        final AcknowledgedRequest<?> request,
+        String dataStreamName,
+        ComposableIndexTemplate templateOverrides,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        if (dataStreamNames.isEmpty()) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return;
-        }
         submitUnbatchedTask(
-            "updating settings on data streams [" + String.join(", ", dataStreamNames) + "]",
+            "updating settings on data stream [" + dataStreamName + "]",
             new AckedClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout(), request.ackTimeout(), listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     ProjectMetadata projectMetadata = currentState.projectState(projectResolver.getProjectId()).metadata();
                     ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
                     Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
-                    for (String dataStreamName : dataStreamNames) {
-                        DataStream dataStream = dataStreamMap.get(dataStreamName);
-                        Settings existingSettings = Settings.EMPTY;
-                        ComposableIndexTemplate existingIndexTemplateOverrides = dataStream.getIndexTemplateOverrides();
-                        if (existingIndexTemplateOverrides != null) {
-                            Template existingTemplate = dataStream.getIndexTemplateOverrides().template();
-                            if (existingTemplate != null) {
-                                Settings settings = existingTemplate.settings();
-                                if (settings != null) {
-                                    existingSettings = settings;
-                                }
+                    DataStream dataStream = dataStreamMap.get(dataStreamName);
+                    Settings existingSettings = Settings.EMPTY;
+                    ComposableIndexTemplate existingIndexTemplateOverrides = dataStream.getIndexTemplateOverrides();
+                    if (existingIndexTemplateOverrides != null) {
+                        Template existingTemplate = dataStream.getIndexTemplateOverrides().template();
+                        if (existingTemplate != null) {
+                            Settings settings = existingTemplate.settings();
+                            if (settings != null) {
+                                existingSettings = settings;
                             }
                         }
-                        Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings).put(updatedSettings);
-                        // Currently, the only thing we support having in template overrides is settings:
-                        ComposableIndexTemplate indexTemplateOverrides = ComposableIndexTemplate.builder()
-                            .template(Template.builder().settings(mergedSettingsBuilder))
-                            .indexPatterns(List.of())
-                            .build();
-                        DataStream.Builder dataStreamBuilder = dataStream.copy().setIndexTemplateOverrides(indexTemplateOverrides);
-                        projectMetadataBuilder.removeDataStream(dataStreamName);
-                        projectMetadataBuilder.put(dataStreamBuilder.build());
                     }
+
+                    ProjectMetadata currentProject = currentState.projectState(projectResolver.getProjectId()).metadata();
+                    final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentProject, false);
+                    ComposableIndexTemplate mergedTemplate = DataStream.mergeTemplates(template, templateOverrides);
+                    if (mergedTemplate == null) {
+                        throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
+                    } else if (mergedTemplate.getDataStreamTemplate() == null) {
+                        throw new IllegalArgumentException(
+                            "matching index template ["
+                                + MetadataIndexTemplateService.findV2Template(currentProject, dataStreamName, false)
+                                + "] for data stream ["
+                                + dataStreamName
+                                + "] has no data stream template"
+                        );
+                    }
+                    // Maybe MetadataIndexTemplateService::validateTemplate(mergedTemplate) here?
+
+                    Template.Builder templateBuilder = Template.builder();
+                    Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings);
+                    if (templateOverrides.template() != null && templateOverrides.template().settings() != null) {
+                        mergedSettingsBuilder.put(templateOverrides.template().settings());
+                    }
+                    templateBuilder.settings(mergedSettingsBuilder);
+                    if (templateOverrides.template() != null && templateOverrides.template().mappings() != null) {
+                        templateBuilder.mappings(templateOverrides.template().mappings());
+                    }
+                    // Currently, the only thing we support having in template overrides is settings and mappings:
+                    ComposableIndexTemplate indexTemplateOverrides = ComposableIndexTemplate.builder()
+                        .template(templateBuilder)
+                        .indexPatterns(List.of())
+                        .build();
+                    DataStream.Builder dataStreamBuilder = dataStream.copy().setIndexTemplateOverrides(indexTemplateOverrides);
+                    projectMetadataBuilder.removeDataStream(dataStreamName);
+                    projectMetadataBuilder.put(dataStreamBuilder.build());
                     return ClusterState.builder(currentState).putProjectMetadata(projectMetadataBuilder).build();
                 }
             }

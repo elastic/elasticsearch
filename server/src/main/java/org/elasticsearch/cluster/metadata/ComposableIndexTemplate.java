@@ -70,7 +70,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     );
 
     static {
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX_PATTERNS);
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDEX_PATTERNS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Template.PARSER, TEMPLATE);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), COMPOSED_OF);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PRIORITY);

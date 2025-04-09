@@ -30,10 +30,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class ScriptTests extends ESTestCase {
 

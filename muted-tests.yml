@@ -453,6 +453,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testDataNodeLogsStackTraceWhenErrorTraceFalseOrEmpty
   issue: https://github.com/elastic/elasticsearch/issues/126357
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/get_trained_model_stats/Test get stats given trained models}
+  issue: https://github.com/elastic/elasticsearch/issues/126510
 
 # Examples:
 #

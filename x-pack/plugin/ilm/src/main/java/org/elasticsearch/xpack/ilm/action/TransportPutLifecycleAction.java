@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -353,12 +352,9 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
     private static class IlmLifecycleExecutor extends SimpleBatchedAckListenerTaskExecutor<UpdateLifecyclePolicyTask> {
 
         @Override
-        public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateLifecyclePolicyTask task, ClusterState clusterState) {
-            try {
-                return Tuple.tuple(task.execute(clusterState), task);
-            } catch (Exception e) {
-                throw new ElasticsearchException("failed to execute task", e);
-            }
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateLifecyclePolicyTask task, ClusterState clusterState)
+            throws Exception {
+            return Tuple.tuple(task.execute(clusterState), task);
         }
 
     }

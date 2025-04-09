@@ -63,7 +63,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
     public static class TestInferenceService extends AbstractTestInferenceService {
         public static final String NAME = "test_service";
 
-        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING);
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 

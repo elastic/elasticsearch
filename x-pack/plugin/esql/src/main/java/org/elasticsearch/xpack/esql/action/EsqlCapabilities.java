@@ -959,7 +959,12 @@ public class EsqlCapabilities {
         /**
          * Listing queries and getting information on a specific query.
          */
-        QUERY_MONITORING;
+        QUERY_MONITORING,
+
+        /**
+         * Does the usage information for ESQL contain a histogram of {@code took} values?
+         */
+        USAGE_CONTAINS_TOOK;
 
         private final boolean enabled;
 

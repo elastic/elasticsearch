@@ -712,12 +712,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
-        var source = source(ctx);
-
-        if (false == EsqlCapabilities.Cap.RERANK.isEnabled()) {
-            throw new ParsingException(source, "RERANK is in preview and only available in SNAPSHOT build");
-        }
-
+        Source source = source(ctx);
         Expression queryText = expression(ctx.queryText);
         if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
             if (queryTextLiteral.value() == null) {
@@ -740,13 +735,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
-
         Source source = source(ctx);
-
-        if (false == EsqlCapabilities.Cap.COMPLETION.isEnabled()) {
-            throw new ParsingException(source, "COMPLETION is in preview and only available in SNAPSHOT build");
-        }
-
         Expression prompt = expression(ctx.prompt);
         Literal inferenceId = inferenceId(ctx.inferenceId);
         String targetFieldName = ctx.targetField == null

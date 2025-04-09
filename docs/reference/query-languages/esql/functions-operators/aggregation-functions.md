@@ -1,7 +1,7 @@
 ---
 navigation_title: "Aggregation functions"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/aggregation-functions.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-agg-functions
 ---
 
 # {{esql}} aggregation functions [esql-aggregation-functions]

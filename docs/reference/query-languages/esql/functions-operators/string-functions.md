@@ -1,7 +1,7 @@
 ---
-navigation_title: "string functions"
+navigation_title: "String functions"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/string-functions.md
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-string-functions
 ---
 
 # {{esql}} string functions [esql-string-functions]

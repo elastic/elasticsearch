@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -29,17 +31,20 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
 public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockServiceSettings {
     public static final String NAME = "amazon_bedrock_embeddings_service_settings";
+    static final String EMBEDDING_TYPE = "embedding_type";
     static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
     private final Integer dimensions;
     private final Boolean dimensionsSetByUser;
     private final Integer maxInputTokens;
     private final SimilarityMeasure similarity;
+    private final CohereEmbeddingType embeddingType;
 
     public static AmazonBedrockEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -70,6 +75,15 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
+
+        var embeddingType = extractOptionalEnum(
+            map,
+            EMBEDDING_TYPE,
+            ModelConfigurations.SERVICE_SETTINGS,
+            CohereEmbeddingType::fromString,
+            CohereEmbeddingType.ALL,
+            validationException
+        );
 
         switch (context) {
             case REQUEST -> {
@@ -102,7 +116,8 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
             dimensionsSetByUser,
             maxTokens,
             similarity,
-            baseSettings.rateLimitSettings()
+            baseSettings.rateLimitSettings(),
+            embeddingType
         );
     }
 
@@ -112,6 +127,9 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         dimensionsSetByUser = in.readBoolean();
         maxInputTokens = in.readOptionalVInt();
         similarity = in.readOptionalEnum(SimilarityMeasure.class);
+        embeddingType = in.getTransportVersion().onOrAfter(TransportVersions.AMAZON_BEDROCK_EMBEDDING_TYPES)
+            ? in.readOptionalEnum(CohereEmbeddingType.class)
+            : null;
     }
 
     public AmazonBedrockEmbeddingsServiceSettings(
@@ -122,13 +140,15 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         Boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity,
-        RateLimitSettings rateLimitSettings
+        RateLimitSettings rateLimitSettings,
+        @Nullable CohereEmbeddingType embeddingType
     ) {
         super(region, model, provider, rateLimitSettings);
         this.dimensions = dimensions;
         this.dimensionsSetByUser = dimensionsSetByUser;
         this.maxInputTokens = maxInputTokens;
         this.similarity = similarity;
+        this.embeddingType = embeddingType;
     }
 
     @Override
@@ -138,6 +158,9 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         out.writeBoolean(dimensionsSetByUser);
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalEnum(similarity);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.AMAZON_BEDROCK_EMBEDDING_TYPES)) {
+            out.writeOptionalEnum(embeddingType);
+        }
     }
 
     @Override
@@ -169,6 +192,9 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
+        if (embeddingType != null) {
+            builder.field(EMBEDDING_TYPE, embeddingType);
+        }
 
         return builder;
     }
@@ -192,6 +218,10 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         return maxInputTokens;
     }
 
+    public CohereEmbeddingType embeddingType() {
+        return embeddingType;
+    }
+
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
         return DenseVectorFieldMapper.ElementType.FLOAT;
@@ -210,12 +240,23 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
             && Objects.equals(dimensionsSetByUser, that.dimensionsSetByUser)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(similarity, that.similarity)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && Objects.equals(embeddingType, that.embeddingType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(region, model, provider, dimensions, dimensionsSetByUser, maxInputTokens, similarity, rateLimitSettings);
+        return Objects.hash(
+            region,
+            model,
+            provider,
+            dimensions,
+            dimensionsSetByUser,
+            maxInputTokens,
+            similarity,
+            rateLimitSettings,
+            embeddingType
+        );
     }
 
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -60,7 +59,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                     EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     CohereEmbeddingType::fromString,
-                    EnumSet.allOf(CohereEmbeddingType.class),
+                    CohereEmbeddingType.ALL,
                     validationException
                 ),
                 CohereEmbeddingType.FLOAT

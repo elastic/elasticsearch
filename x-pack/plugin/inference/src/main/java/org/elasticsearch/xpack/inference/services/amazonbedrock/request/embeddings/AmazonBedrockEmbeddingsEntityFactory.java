@@ -39,7 +39,12 @@ public final class AmazonBedrockEmbeddingsEntityFactory {
                 return new AmazonBedrockTitanEmbeddingsRequestEntity(truncatedInput.get(0));
             }
             case COHERE -> {
-                return new AmazonBedrockCohereEmbeddingsRequestEntity(truncatedInput, inputType, model.getTaskSettings());
+                return new AmazonBedrockCohereEmbeddingsRequestEntity(
+                    truncatedInput,
+                    inputType,
+                    model.getTaskSettings(),
+                    model.getServiceSettings().embeddingType()
+                );
             }
             default -> {
                 return null;

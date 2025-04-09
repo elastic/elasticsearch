@@ -351,7 +351,8 @@ public class AmazonBedrockService extends SenderService {
                 serviceSettings.dimensionsSetByUser(),
                 serviceSettings.maxInputTokens(),
                 similarityToUse,
-                serviceSettings.rateLimitSettings()
+                serviceSettings.rateLimitSettings(),
+                serviceSettings.embeddingType()
             );
 
             return new AmazonBedrockEmbeddingsModel(embeddingsModel, updatedServiceSettings);

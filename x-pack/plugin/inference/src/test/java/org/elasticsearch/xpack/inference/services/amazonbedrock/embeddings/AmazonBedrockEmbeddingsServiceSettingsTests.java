@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
@@ -63,6 +65,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     false,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
+                    null,
                     null
                 )
             )
@@ -90,7 +93,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     false,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
-                    new RateLimitSettings(3)
+                    new RateLimitSettings(3),
+                    null
                 )
             )
         );
@@ -115,6 +119,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     false,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
+                    null,
                     null
                 )
             )
@@ -209,6 +214,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     false,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
+                    null,
                     null
                 )
             )
@@ -225,7 +231,19 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
 
         assertThat(
             serviceSettings,
-            is(new AmazonBedrockEmbeddingsServiceSettings(region, model, AmazonBedrockProvider.AMAZONTITAN, null, true, null, null, null))
+            is(
+                new AmazonBedrockEmbeddingsServiceSettings(
+                    region,
+                    model,
+                    AmazonBedrockProvider.AMAZONTITAN,
+                    null,
+                    true,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            )
         );
     }
 
@@ -248,6 +266,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     true,
                     null,
                     SimilarityMeasure.DOT_PRODUCT,
+                    null,
                     null
                 )
             )
@@ -281,7 +300,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             true,
             null,
             null,
-            new RateLimitSettings(2)
+            new RateLimitSettings(2),
+            null
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -302,7 +322,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             false,
             512,
             null,
-            new RateLimitSettings(3)
+            new RateLimitSettings(3),
+            null
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -323,7 +344,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             false,
             512,
             null,
-            new RateLimitSettings(3)
+            new RateLimitSettings(3),
+            null
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -371,6 +393,19 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         AmazonBedrockEmbeddingsServiceSettings instance,
         TransportVersion version
     ) {
+        if (version.before(TransportVersions.AMAZON_BEDROCK_EMBEDDING_TYPES)) {
+            return new AmazonBedrockEmbeddingsServiceSettings(
+                instance.region(),
+                instance.modelId(),
+                instance.provider(),
+                instance.dimensions(),
+                instance.dimensionsSetByUser(),
+                instance.maxInputTokens(),
+                instance.similarity(),
+                instance.rateLimitSettings(),
+                null
+            );
+        }
         return instance;
     }
 
@@ -398,7 +433,8 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             randomBoolean(),
             randomFrom(new Integer[] { null, randomNonNegativeInt() }),
             randomFrom(new SimilarityMeasure[] { null, randomFrom(SimilarityMeasure.values()) }),
-            RateLimitSettingsTests.createRandom()
+            RateLimitSettingsTests.createRandom(),
+            randomFrom(CohereEmbeddingType.ALL)
         );
     }
 }

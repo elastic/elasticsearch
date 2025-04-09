@@ -46,6 +46,8 @@ public enum CohereEmbeddingType {
      */
     BINARY(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT);
 
+    public static EnumSet<CohereEmbeddingType> ALL = EnumSet.allOf(CohereEmbeddingType.class);
+
     private static final class RequestConstants {
         private static final String FLOAT = "float";
         private static final String INT8 = "int8";

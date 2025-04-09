@@ -68,14 +68,14 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasRerankInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasRerankInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createRerankInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createRerankInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteRerankInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.cap;
 
 // This test can run very long in serverless configurations
@@ -184,8 +184,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        if (testCase.requiredCapabilities.contains("semantic_text_field_caps") || testCase.requiredCapabilities.contains("rerank")) {
-            assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
+        if (requiresInferenceEndpoint()) {
+            assumeTrue("Inference test service needs to be supported", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
@@ -253,6 +253,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsInferenceTestService() {
         return true;
+    }
+
+    protected boolean requiresInferenceEndpoint() {
+        return Stream.of(SEMANTIC_TEXT_FIELD_CAPS.capabilityName(), RERANK.capabilityName())
+            .anyMatch(testCase.requiredCapabilities::contains);
     }
 
     protected boolean supportsIndexModeLookup() throws IOException {

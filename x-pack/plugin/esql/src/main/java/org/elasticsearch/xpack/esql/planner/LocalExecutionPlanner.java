@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
@@ -117,9 +118,6 @@ import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -501,8 +499,8 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = source.layout.builder();
         List<Attribute> extractedFields = grok.extractedFields();
         layoutBuilder.append(extractedFields);
-        Map<String, Integer> fieldToPos = new HashMap<>(extractedFields.size());
-        Map<String, ElementType> fieldToType = new HashMap<>(extractedFields.size());
+        Map<String, Integer> fieldToPos = Maps.newHashMapWithExpectedSize(extractedFields.size());
+        Map<String, ElementType> fieldToType = Maps.newHashMapWithExpectedSize(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
         List<Attribute> extractedFieldsFromPattern = grok.pattern().extractedFields();
         for (int i = 0; i < extractedFields.size(); i++) {
@@ -559,7 +557,8 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = new LinkedHashMap<>();
+        Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
+            .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());
 
         for (var rerankField : rerank.rerankFields()) {
             rerankFieldsEvaluatorSuppliers.put(
@@ -734,31 +733,13 @@ public class LocalExecutionPlanner {
         List<Integer> projectionList = new ArrayList<>(projections.size());
 
         Layout.Builder layout = new Layout.Builder();
-        Map<Integer, Layout.ChannelSet> inputChannelToOutputIds = new HashMap<>();
-        for (int index = 0, size = projections.size(); index < size; index++) {
-            NamedExpression ne = projections.get(index);
-
-            NameId inputId = null;
-            if (ne instanceof Alias a) {
-                inputId = ((NamedExpression) a.child()).id();
-            } else {
-                inputId = ne.id();
-            }
+        for (NamedExpression ne : projections) {
+            NameId inputId = ne instanceof Alias a ? ((NamedExpression) a.child()).id() : ne.id();
             Layout.ChannelAndType input = source.layout.get(inputId);
             if (input == null) {
                 throw new IllegalStateException("can't find input for [" + ne + "]");
             }
-            Layout.ChannelSet channelSet = inputChannelToOutputIds.get(input.channel());
-            if (channelSet == null) {
-                channelSet = new Layout.ChannelSet(new HashSet<>(), input.type());
-                channelSet.nameIds().add(ne.id());
-                layout.append(channelSet);
-            } else {
-                channelSet.nameIds().add(ne.id());
-            }
-            if (channelSet.type() != input.type()) {
-                throw new IllegalArgumentException("type mismatch for aliases");
-            }
+            layout.append(ne);
             projectionList.add(input.channel());
         }
 

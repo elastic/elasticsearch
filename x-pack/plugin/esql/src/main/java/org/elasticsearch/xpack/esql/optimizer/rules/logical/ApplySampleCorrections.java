@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HasSampleCorrection;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -17,27 +18,38 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class ApplySampleCorrections extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {
-        Holder<Expression> sampleProbability = new Holder<>(null);
+        List<Expression> sampleProbabilities = new ArrayList<>();
         return logicalPlan.transformUp(plan -> {
             if (plan instanceof Sample sample) {
-                sampleProbability.set(sample.probability());
+                sampleProbabilities.add(sample.probability());
             }
             if (plan instanceof Limit || plan instanceof MvExpand) {
-                sampleProbability.set(null);
+                sampleProbabilities.clear();
             }
-            if (plan instanceof Aggregate && sampleProbability.get() != null) {
+            if (plan instanceof Aggregate && sampleProbabilities.isEmpty() == false) {
                 plan = plan.transformExpressionsOnly(
                     e -> e instanceof HasSampleCorrection hsc && hsc.isSampleCorrected() == false
-                        ? hsc.sampleCorrection(sampleProbability.get())
+                        ? hsc.sampleCorrection(getSampleProbability(sampleProbabilities, e.source()))
                         : e
                 );
-                sampleProbability.set(null);
+                sampleProbabilities.clear();
             }
             return plan;
         });
+    }
+
+    private Expression getSampleProbability(List<Expression> sampleProbabilities, Source source) {
+        Expression result = null;
+        for (Expression probability : sampleProbabilities) {
+            result = result == null ? probability : new Mul(source, result, probability);
+        }
+        return result;
     }
 }

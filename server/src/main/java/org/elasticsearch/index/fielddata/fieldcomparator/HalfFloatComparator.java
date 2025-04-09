@@ -14,7 +14,6 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.comparators.NumericComparator;
-import org.apache.lucene.util.BitUtil;
 
 import java.io.IOException;
 
@@ -46,19 +45,6 @@ public class HalfFloatComparator extends NumericComparator<Float> {
     @Override
     public Float value(int slot) {
         return Float.valueOf(values[slot]);
-    }
-
-    @Override
-    protected long missingValueAsComparableLong() {
-        return HalfFloatPoint.halfFloatToSortableShort(missingValue);
-    }
-
-    @Override
-    protected long sortableBytesToLong(byte[] bytes) {
-        // Copied form HalfFloatPoint::sortableBytesToShort
-        short x = (short) BitUtil.VH_BE_SHORT.get(bytes, 0);
-        // Re-flip the sign bit to restore the original value:
-        return (short) (x ^ 0x8000);
     }
 
     @Override
@@ -104,13 +90,23 @@ public class HalfFloatComparator extends NumericComparator<Float> {
         }
 
         @Override
-        protected long bottomAsComparableLong() {
-            return HalfFloatPoint.halfFloatToSortableShort(bottom);
+        protected int compareMissingValueWithTopValue() {
+            return Float.compare(missingValue, bottom);
         }
 
         @Override
-        protected long topAsComparableLong() {
-            return HalfFloatPoint.halfFloatToSortableShort(topValue);
+        protected int compareMissingValueWithBottomValue() {
+            return Float.compare(missingValue, topValue);
+        }
+
+        @Override
+        protected void encodeBottom(byte[] packedValue) {
+            HalfFloatPoint.encodeDimension(bottom, packedValue, 0);
+        }
+
+        @Override
+        protected void encodeTop(byte[] packedValue) {
+            HalfFloatPoint.encodeDimension(topValue, packedValue, 0);
         }
     }
 }

@@ -58,7 +58,7 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
-import org.gradle.internal.Factory;
+import org.gradle.api.tasks.util.internal.PatternSetFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -99,7 +99,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
     private final Map<PatternFilterable, List<Pair<String, String>>> skippedTestByTestNameTransformations = new HashMap<>();
 
     @Inject
-    protected Factory<PatternSet> getPatternSetFactory() {
+    protected PatternSetFactory getPatternSetFactory() {
         throw new UnsupportedOperationException();
     }
 
@@ -109,7 +109,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
         this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
         this.sourceDirectory = objectFactory.directoryProperty();
         this.outputDirectory = objectFactory.directoryProperty();
-        this.testPatternSet = getPatternSetFactory().create();
+        this.testPatternSet = getPatternSetFactory().createPatternSet();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         // always inject compat headers
         headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
@@ -144,7 +144,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
             );
         }
 
-        PatternSet skippedPatternSet = getPatternSetFactory().create();
+        PatternSet skippedPatternSet = getPatternSetFactory().createPatternSet();
         // create file patterns for all a1/a2/a3/b.yml possibilities.
         for (int i = testParts.length - 1; i > 1; i--) {
             final String lastPart = testParts[i];
@@ -158,7 +158,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
     }
 
     public void skipTestsByFilePattern(String filePattern, String reason) {
-        PatternSet skippedPatternSet = getPatternSetFactory().create();
+        PatternSet skippedPatternSet = getPatternSetFactory().createPatternSet();
         skippedPatternSet.include(filePattern);
         skippedTestByFilePatternTransformations.put(skippedPatternSet, reason);
     }

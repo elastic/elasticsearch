@@ -179,6 +179,16 @@ public class EsqlPartitioningIT extends ESRestTestCase {
         if (exists.getStatusLine().getStatusCode() == 200) {
             return;
         }
+        Request create = new Request("PUT", index);
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index": {
+                  "number_of_shards": 1
+                }
+              }
+            }""");  // Use a single shard to get consistent results.
+        client().performRequest(create);
         StringBuilder bulk = new StringBuilder();
         for (int d = 0; d < docs; d++) {
             bulk.append("{\"index\":{}}\n");

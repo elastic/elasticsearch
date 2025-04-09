@@ -184,12 +184,12 @@ public abstract class DocsV3Support {
         operatorEntry("less_than", "<", LessThan.class, OperatorCategory.BINARY),
         operatorEntry("less_than_or_equal", "<=", LessThanOrEqual.class, OperatorCategory.BINARY),
         operatorEntry("add", "+", Add.class, OperatorCategory.BINARY),
-        operatorEntry("sub", "-", Sub.class, OperatorCategory.BINARY),
-        operatorEntry("mul", "*", Mul.class, OperatorCategory.BINARY),
-        operatorEntry("div", "/", Div.class, OperatorCategory.BINARY),
-        operatorEntry("mod", "%", Mod.class, OperatorCategory.BINARY),
+        operatorEntry("sub", "-", Sub.class, OperatorCategory.BINARY, "subtract"),
+        operatorEntry("mul", "*", Mul.class, OperatorCategory.BINARY, "multiply"),
+        operatorEntry("div", "/", Div.class, OperatorCategory.BINARY, "divide"),
+        operatorEntry("mod", "%", Mod.class, OperatorCategory.BINARY, "modulo"),
         // Unary
-        operatorEntry("neg", "-", Neg.class, OperatorCategory.UNARY),
+        operatorEntry("neg", "-", Neg.class, OperatorCategory.UNARY, "negate"),
         // Logical
         operatorEntry("and", "AND", And.class, OperatorCategory.LOGICAL),
         operatorEntry("or", "OR", Or.class, OperatorCategory.LOGICAL),
@@ -220,7 +220,18 @@ public abstract class DocsV3Support {
     }
 
     /** Since operators do not exist in the function registry, we need an equivalent registry here in the docs generating code */
-    public record OperatorConfig(String name, String symbol, Class<?> clazz, OperatorCategory category, boolean variadic) {}
+    public record OperatorConfig(
+        String name,
+        String symbol,
+        Class<?> clazz,
+        OperatorCategory category,
+        boolean variadic,
+        String titleName
+    ) {
+        public OperatorConfig(String name, String symbol, Class<?> clazz, OperatorCategory category) {
+            this(name, symbol, clazz, category, false, null);
+        }
+    }
 
     private static Map.Entry<String, OperatorConfig> operatorEntry(
         String name,
@@ -229,11 +240,21 @@ public abstract class DocsV3Support {
         OperatorCategory category,
         boolean variadic
     ) {
-        return entry(name, new OperatorConfig(name, symbol, clazz, category, variadic));
+        return entry(name, new OperatorConfig(name, symbol, clazz, category, variadic, null));
+    }
+
+    private static Map.Entry<String, OperatorConfig> operatorEntry(
+        String name,
+        String symbol,
+        Class<?> clazz,
+        OperatorCategory category,
+        String displayName
+    ) {
+        return entry(name, new OperatorConfig(name, symbol, clazz, category, false, displayName));
     }
 
     private static Map.Entry<String, OperatorConfig> operatorEntry(String name, String symbol, Class<?> clazz, OperatorCategory category) {
-        return operatorEntry(name, symbol, clazz, category, false);
+        return entry(name, new OperatorConfig(name, symbol, clazz, category));
     }
 
     @FunctionalInterface
@@ -516,8 +537,8 @@ public abstract class DocsV3Support {
             boolean hasExamples = renderExamples(info);
             boolean hasAppendix = renderAppendix(info.appendix());
             renderFullLayout(info.preview(), info.appliesTo(), hasExamples, hasAppendix, hasFunctionOptions);
-            renderKibanaInlineDocs(name, info);
-            renderKibanaFunctionDefinition(name, info, description.args(), description.variadic());
+            renderKibanaInlineDocs(name, null, info);
+            renderKibanaFunctionDefinition(name, null, info, description.args(), description.variadic());
         }
 
         private void renderFunctionNamedParams(EsqlFunctionRegistry.MapArgSignature mapArgSignature) throws IOException {
@@ -698,7 +719,7 @@ public abstract class DocsV3Support {
             if (ctor != null) {
                 FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
                 assert functionInfo != null;
-                renderDocsForOperators(op.name(), ctor, functionInfo, op.variadic());
+                renderDocsForOperators(op.name(), op.titleName(), ctor, functionInfo, op.variadic());
             } else {
                 logger.info("Skipping rendering docs for operator '" + op.name() + "' with no @FunctionInfo");
             }
@@ -767,11 +788,13 @@ public abstract class DocsV3Support {
                     return new Example[] {};
                 }
             };
-            renderDocsForOperators("not_" + baseName, ctor, functionInfo, op.variadic());
+            String name = "not_" + baseName;
+            renderDocsForOperators(name, null, ctor, functionInfo, op.variadic());
         }
 
-        void renderDocsForOperators(String name, Constructor<?> ctor, FunctionInfo info, boolean variadic) throws IOException {
-            renderKibanaInlineDocs(name, info);
+        void renderDocsForOperators(String name, String titleName, Constructor<?> ctor, FunctionInfo info, boolean variadic)
+            throws IOException {
+            renderKibanaInlineDocs(name, titleName, info);
 
             var params = ctor.getParameters();
 
@@ -787,7 +810,7 @@ public abstract class DocsV3Support {
                     }
                 }
             }
-            renderKibanaFunctionDefinition(name, info, args, variadic);
+            renderKibanaFunctionDefinition(name, titleName, info, args, variadic);
             renderDetailedDescription(info.detailedDescription(), info.note());
             renderTypes(name, args);
             renderExamples(info);
@@ -926,7 +949,10 @@ public abstract class DocsV3Support {
             }
             String exampleQuery = loadExampleQuery(example);
             String exampleResult = loadExampleResult(example);
-            builder.append(exampleQuery).append("\n").append(exampleResult).append("\n");
+            builder.append(exampleQuery).append("\n");
+            if (exampleResult != null && exampleResult.isEmpty() == false) {
+                builder.append(exampleResult).append("\n");
+            }
             if (example.explanation().isEmpty() == false) {
                 builder.append("\n");
                 builder.append(replaceLinks(example.explanation().trim()));
@@ -940,15 +966,15 @@ public abstract class DocsV3Support {
         return true;
     }
 
-    void renderKibanaInlineDocs(String name, FunctionInfo info) throws IOException {
+    void renderKibanaInlineDocs(String name, String titleName, FunctionInfo info) throws IOException {
+        titleName = titleName == null ? name.replace("_", " ") : titleName;
+        if (false == info.operator().isEmpty()
+            && false == titleName.toUpperCase(Locale.ROOT).replaceAll("_", " ").equals(info.operator().toUpperCase(Locale.ROOT))) {
+            titleName = titleName + " `" + info.operator() + "`";
+        }
         StringBuilder builder = new StringBuilder();
-        builder.append("""
-            <!--
-            This is generated by ESQL’s AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.
-            -->
-
-            """);
-        builder.append("### ").append(name.toUpperCase(Locale.ROOT)).append("\n");
+        builder.append(DOCS_WARNING);
+        builder.append("### ").append(titleName.toUpperCase(Locale.ROOT)).append("\n");
         builder.append(replaceLinks(info.description())).append("\n\n");
 
         if (info.examples().length > 0) {
@@ -965,8 +991,13 @@ public abstract class DocsV3Support {
         writeToTempKibanaDir("docs", "md", rendered);
     }
 
-    void renderKibanaFunctionDefinition(String name, FunctionInfo info, List<EsqlFunctionRegistry.ArgSignature> args, boolean variadic)
-        throws IOException {
+    void renderKibanaFunctionDefinition(
+        String name,
+        String titleName,
+        FunctionInfo info,
+        List<EsqlFunctionRegistry.ArgSignature> args,
+        boolean variadic
+    ) throws IOException {
 
         try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().lfAtEnd().startObject()) {
             builder.field(
@@ -986,6 +1017,9 @@ public abstract class DocsV3Support {
                 });
             }
             builder.field("name", name);
+            if (titleName != null && titleName.equals(name) == false) {
+                builder.field("titleName", titleName);
+            }
             builder.field("description", removeAsciidocLinks(info.description()));
             if (Strings.isNullOrEmpty(info.note()) == false) {
                 builder.field("note", removeAsciidocLinks(info.note()));

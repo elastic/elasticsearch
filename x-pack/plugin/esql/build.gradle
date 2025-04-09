@@ -154,7 +154,7 @@ tasks.named("test").configure {
             // If we do run the full test of tests, be careful about what we need to preserve
             preserve {
               // The lists and commands are static, and the operators are a mix of generated and static content
-              include '*.md', '**/operators/*.md', '**/operators/**/*.md', '**/lists/*.md', '**/commands/**/*.md'
+              include '*.md', '**/operators/*.md', '**/operators/**/*.md', '**/lists/*.md', '**/commands/**/*.md', '**/common/**/*.md'
             }
           }
         }

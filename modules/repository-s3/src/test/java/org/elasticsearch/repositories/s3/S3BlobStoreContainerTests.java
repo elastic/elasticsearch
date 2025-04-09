@@ -429,6 +429,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
+        when(blobStore.maxCopySizeBeforeMultipart()).thenReturn(S3Repository.MIN_PART_SIZE_USING_MULTIPART.getBytes());
 
         final var sourceBlobPath = BlobPath.EMPTY.add(randomAlphaOfLengthBetween(1, 10));
         final var sourceBlobContainer = new S3BlobContainer(sourceBlobPath, blobStore);

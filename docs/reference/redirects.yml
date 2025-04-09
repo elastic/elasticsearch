@@ -1,0 +1,61 @@
+redirects:
+  # Redirect main files that were split up
+  'query-languages/esql/esql-commands.md':
+    many:
+      - to: 'query-languages/esql/commands/source-commands.md'
+        anchors:
+          'esql-from': 'esql-from'
+          'esql-row': 'esql-row'
+          'esql-show': 'esql-show'
+      - to: 'query-languages/esql/commands/processing-commands.md'
+        anchors:
+          'esql-stats-by': 'esql-stats-by'
+          'esql-limit': 'esql-limit'
+          'esql-drop': 'esql-drop'
+          'esql-eval': 'esql-eval'
+          'esql-keep': 'esql-keep'
+          'esql-lookup-join': 'esql-lookup-join'
+          'esql-enrich': 'esql-enrich'
+          'esql-where': 'esql-where'
+          'esql-sort': 'esql-sort'
+          'esql-grok': 'esql-grok'
+          'esql-dissect': 'esql-dissect'
+
+  # Redirect function and operator anchors
+  'query-languages/esql/esql-functions-operators.md':
+    many:
+      - to: 'query-languages/esql/functions-operators/aggregation-functions.md'
+        anchors:
+          'esql-agg-functions': ''
+      - to: 'query-languages/esql/functions-operators/type-conversion-functions.md'
+        anchors:
+          'esql-type-conversion-functions': ''
+          'esql-to_string': 'esql-to_string'
+      - to: 'query-languages/esql/functions-operators/search-functions.md'
+        anchors:
+          'esql-search-functions': ''
+          'esql-match': 'esql-match'
+          'esql-kql': 'esql-kql'
+          'esql-qstr': 'esql-qstr'
+      - to: 'query-languages/esql/functions-operators/operators.md'
+        anchors:
+          'esql-operators': ''
+          'esql-search-operators': 'esql-match-operator'
+          'esql-like': 'esql-like'
+      - to: 'query-languages/esql/functions-operators/spatial-functions.md'
+        anchors:
+          'esql-spatial-functions': ''
+          'esql-st_distance': 'esql-st_distance'
+          'esql-st_within': 'esql-st_within'
+          'esql-st_contains': 'esql-st_contains'
+          'esql-st_disjoint': 'esql-st_disjoint'
+          'esql-st_intersects': 'esql-st_intersects'
+      - to: 'query-languages/esql/functions-operators/date-time-functions.md'
+        anchors:
+          'esql-now': 'esql-now'
+      - to: 'query-languages/esql/functions-operators/grouping-functions.md'
+        anchors:
+          'esql-bucket': 'esql-bucket'
+      - to: 'query-languages/esql/functions-operators/math-functions.md'
+        anchors:
+          'esql-round': 'esql-round'

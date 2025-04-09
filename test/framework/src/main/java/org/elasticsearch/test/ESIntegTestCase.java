@@ -1731,6 +1731,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return getIndexResponse.getIndices().length > 0;
     }
 
+    public static void ensureIndexExists(String index) {
+        ensureIndexExists(index, SAFE_AWAIT_TIMEOUT.seconds(), SAFE_AWAIT_TIMEOUT.timeUnit());
+    }
+
+    public static void ensureIndexExists(String index, long timeout, TimeUnit unit) {
+        safeGet(
+            clusterAdmin().prepareHealth(new TimeValue(timeout, unit), index)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
+                .execute(),
+            timeout,
+            unit
+        );
+    }
+
     /**
      * Syntactic sugar for enabling allocation for <code>indices</code>
      */

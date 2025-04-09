@@ -201,6 +201,7 @@ public class TransportVersions {
     public static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE_8_19 = def(8_841_0_14);
     public static final TransportVersion RERANK_COMMON_OPTIONS_ADDED_8_19 = def(8_841_0_15);
     public static final TransportVersion REMOTE_EXCEPTION_8_19 = def(8_841_0_16);
+    public static final TransportVersion REPO_ANALYSIS_COPY_BLOB_8_19 = def(8_841_0_17);
 
     /*
      * STOP! READ THIS FIRST! No, really,

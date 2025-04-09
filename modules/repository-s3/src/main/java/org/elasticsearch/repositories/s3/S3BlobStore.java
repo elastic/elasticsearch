@@ -55,6 +55,7 @@ import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 
 class S3BlobStore implements BlobStore {
 
+    public static final String CUSTOM_QUERY_PARAMETER_COPY_SOURCE = "x-amz-copy-source";
     public static final String CUSTOM_QUERY_PARAMETER_PURPOSE = "x-purpose";
 
     /**
@@ -74,6 +75,8 @@ class S3BlobStore implements BlobStore {
     private final String bucket;
 
     private final ByteSizeValue bufferSize;
+
+    private final ByteSizeValue maxCopySizeBeforeMultipart;
 
     private final boolean serverSideEncryption;
 
@@ -96,6 +99,7 @@ class S3BlobStore implements BlobStore {
         String bucket,
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
+        ByteSizeValue maxCopySizeBeforeMultipart,
         String cannedACL,
         String storageClass,
         RepositoryMetadata repositoryMetadata,
@@ -108,6 +112,7 @@ class S3BlobStore implements BlobStore {
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
+        this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
@@ -244,10 +249,10 @@ class S3BlobStore implements BlobStore {
                 case GET_OBJECT, LIST_OBJECTS -> {
                     return request.getHttpMethod().name().equals("GET");
                 }
-                case PUT_OBJECT -> {
+                case PUT_OBJECT, COPY_OBJECT -> {
                     return request.getHttpMethod().name().equals("PUT");
                 }
-                case PUT_MULTIPART_OBJECT -> {
+                case PUT_MULTIPART_OBJECT, COPY_MULTIPART_OBJECT -> {
                     return request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
                 }
                 case DELETE_OBJECTS -> {
@@ -318,6 +323,10 @@ class S3BlobStore implements BlobStore {
 
     public long bufferSizeInBytes() {
         return bufferSize.getBytes();
+    }
+
+    public long maxCopySizeBeforeMultipart() {
+        return maxCopySizeBeforeMultipart.getBytes();
     }
 
     public RepositoryMetadata getRepositoryMetadata() {
@@ -488,7 +497,9 @@ class S3BlobStore implements BlobStore {
         PUT_OBJECT("PutObject"),
         PUT_MULTIPART_OBJECT("PutMultipartObject"),
         DELETE_OBJECTS("DeleteObjects"),
-        ABORT_MULTIPART_OBJECT("AbortMultipartObject");
+        ABORT_MULTIPART_OBJECT("AbortMultipartObject"),
+        COPY_OBJECT("CopyObject"),
+        COPY_MULTIPART_OBJECT("CopyMultipartObject");
 
         private final String key;
 

@@ -637,6 +637,36 @@ public class AzureBlobStore implements BlobStore {
         return stats.toMap();
     }
 
+    // partial backport of #113573
+    // visible for testing
+    enum Operation {
+        GET_BLOB("GetBlob"),
+        LIST_BLOBS("ListBlobs"),
+        GET_BLOB_PROPERTIES("GetBlobProperties"),
+        PUT_BLOB("PutBlob"),
+        PUT_BLOCK("PutBlock"),
+        PUT_BLOCK_LIST("PutBlockList");
+
+        private final String key;
+
+        public String getKey() {
+            return key;
+        }
+
+        Operation(String key) {
+            this.key = key;
+        }
+
+        public static Operation fromKey(String key) {
+            for (Operation operation : Operation.values()) {
+                if (operation.key.equals(key)) {
+                    return operation;
+                }
+            }
+            throw new IllegalArgumentException("No matching key: " + key);
+        }
+    }
+
     private static class Stats {
 
         private final AtomicLong getOperations = new AtomicLong();

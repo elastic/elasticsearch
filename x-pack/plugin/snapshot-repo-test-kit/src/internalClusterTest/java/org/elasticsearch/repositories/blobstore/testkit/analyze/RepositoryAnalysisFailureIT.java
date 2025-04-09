@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
@@ -170,6 +171,31 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         });
 
         assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsOnCopyAfterWrite() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        final AtomicBoolean failedCopy = new AtomicBoolean();
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public void onCopy() throws IOException {
+                failedCopy.set(true);
+                throw new IOException("simulated");
+            }
+        });
+
+        safeAwait((ActionListener<RepositoryAnalyzeAction.Response> l) -> analyseRepository(request, l.delegateResponse((ll, e) -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof RepositoryVerificationException repositoryVerificationException) {
+                assertAnalysisFailureMessage(repositoryVerificationException.getMessage());
+                assertTrue("did not fail a copy operation, so why did the verification fail?", failedCopy.get());
+                ll.onResponse(null);
+            } else {
+                ll.onFailure(e);
+            }
+        })));
     }
 
     public void testFailsOnChecksumMismatch() {
@@ -593,6 +619,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         default void onWrite() throws IOException {}
 
+        default void onCopy() throws IOException {}
+
         default Map<String, BlobMetadata> onList(Map<String, BlobMetadata> actualListing) throws IOException {
             return actualListing;
         }
@@ -733,6 +761,25 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
             disruption.onWrite();
             blobs.put(blobName, contents);
+        }
+
+        @Override
+        public void copyBlob(
+            OperationPurpose purpose,
+            BlobContainer sourceBlobContainer,
+            String sourceBlobName,
+            String blobName,
+            long blobSize
+        ) throws IOException {
+            assertThat(sourceBlobContainer, instanceOf(DisruptableBlobContainer.class));
+            assertPurpose(purpose);
+            final var source = (DisruptableBlobContainer) sourceBlobContainer;
+            final var sourceBlob = source.blobs.get(sourceBlobName);
+            if (sourceBlob == null) {
+                throw new FileNotFoundException(sourceBlobName + " not found");
+            }
+            disruption.onCopy();
+            blobs.put(blobName, sourceBlob);
         }
 
         @Override

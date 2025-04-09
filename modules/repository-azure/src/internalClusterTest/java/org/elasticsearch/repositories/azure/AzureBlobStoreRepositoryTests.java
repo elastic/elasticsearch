@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
@@ -200,7 +201,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         private final Set<String> seenRequestIds = ConcurrentCollections.newConcurrentSet();
 
         private AzureHTTPStatsCollectorHandler(HttpHandler delegate) {
-            super(delegate);
+            // minimal implementation of
+            super(delegate, Arrays.stream(AzureBlobStore.Operation.values()).map(AzureBlobStore.Operation::getKey).toArray(String[]::new));
         }
 
         @Override

@@ -993,10 +993,19 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         aggBuilder.sum().appendDouble(((Number) value).doubleValue());
                         aggBuilder.count().appendInt(((Number) value).intValue());
                     }
+                    case DENSE_VECTOR -> {
+                        DoubleBlock.Builder doubleBuilder = (DoubleBlock.Builder) builder;
+                        @SuppressWarnings("unchecked")
+                        List<Double> vector = (List<Double>) value;
+                        doubleBuilder.beginPositionEntry();
+                        for (Double v : vector) {
+                            doubleBuilder.appendDouble(v);
+                        }
+                        doubleBuilder.endPositionEntry();
+                    }
                 }
             }
         }
         return new Page(results.stream().map(Block.Builder::build).toArray(Block[]::new));
     }
-
 }

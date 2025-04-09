@@ -76,7 +76,7 @@ public abstract class PositionToXContent {
                     return builder.value(((IntBlock) block).getInt(valueIndex));
                 }
             };
-            case DOUBLE, COUNTER_DOUBLE -> new PositionToXContent(block) {
+            case DOUBLE, COUNTER_DOUBLE, DENSE_VECTOR -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
@@ -180,13 +180,6 @@ public abstract class PositionToXContent {
                         parser.nextToken();
                         return builder.copyCurrentStructure(parser);
                     }
-                }
-            };
-            case DENSE_VECTOR -> new PositionToXContent(block) {
-                @Override
-                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                    throws IOException {
-                    return builder.value(((DoubleBlock) block).getDouble(valueIndex));
                 }
             };
             case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT,

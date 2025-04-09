@@ -7,6 +7,10 @@
 package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
+import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -31,7 +35,12 @@ public class SystemUser extends InternalUser {
 
     private static final RoleDescriptor REMOTE_ACCESS_ROLE_DESCRIPTOR = new RoleDescriptor(
         ROLE_NAME + "_cross_cluster_access",
-        new String[] { "cross_cluster_search", "cross_cluster_replication" },
+        new String[] {
+            RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+            RemoteClusterNodesAction.TYPE.name(),
+            TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+            TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
+            XPackInfoAction.NAME },
         // Needed for CCR background jobs (with system user)
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()

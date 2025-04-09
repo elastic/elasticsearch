@@ -372,7 +372,7 @@ public class AmazonBedrockService extends SenderService {
     private static void checkTaskSettingsForTextEmbeddingModel(AmazonBedrockEmbeddingsModel model) {
         if (model.provider() != AmazonBedrockProvider.COHERE && model.getTaskSettings().cohereTruncation() != null) {
             throw new ElasticsearchStatusException(
-                "The [%s] task type for provider [%s] does not allow [truncate] field",
+                "The [{}] task type for provider [{}] does not allow [truncate] field",
                 RestStatus.BAD_REQUEST,
                 TaskType.TEXT_EMBEDDING,
                 model.provider()

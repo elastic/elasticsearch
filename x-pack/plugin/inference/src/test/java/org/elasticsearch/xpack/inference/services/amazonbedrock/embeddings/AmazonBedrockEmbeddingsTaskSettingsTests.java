@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -20,43 +19,29 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.INPUT_TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TRUNCATE_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AmazonBedrockEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AmazonBedrockEmbeddingsTaskSettings> {
-    private static final EnumSet<InputType> EXPECTED_INPUT_TYPES = EnumSet.of(
-        InputType.INGEST,
-        InputType.INTERNAL_INGEST,
-        InputType.SEARCH,
-        InputType.INTERNAL_SEARCH,
-        InputType.CLASSIFICATION,
-        InputType.CLUSTERING
-    );
 
     public static AmazonBedrockEmbeddingsTaskSettings emptyTaskSettings() {
-        return new AmazonBedrockEmbeddingsTaskSettings(null, null);
+        return AmazonBedrockEmbeddingsTaskSettings.EMPTY;
     }
 
     public static AmazonBedrockEmbeddingsTaskSettings randomTaskSettings() {
         var inputType = randomBoolean() ? randomWithoutUnspecified() : null;
         var truncation = randomBoolean() ? randomFrom(CohereTruncation.values()) : null;
-        return new AmazonBedrockEmbeddingsTaskSettings(inputType, truncation);
+        return new AmazonBedrockEmbeddingsTaskSettings(truncation);
     }
 
     public static AmazonBedrockEmbeddingsTaskSettings mutateTaskSettings(AmazonBedrockEmbeddingsTaskSettings instance) {
         return randomValueOtherThanMany(
-            v -> Objects.equals(instance, v)
-                || (instance.cohereTruncation() != null && v.cohereTruncation() == null)
-                || (instance.inputType() != null && v.inputType() == null),
+            v -> Objects.equals(instance, v) || (instance.cohereTruncation() != null && v.cohereTruncation() == null),
             AmazonBedrockEmbeddingsTaskSettingsTests::randomTaskSettings
         );
     }
@@ -90,31 +75,8 @@ public class AmazonBedrockEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
         assertTrue(AmazonBedrockEmbeddingsTaskSettings.fromMap(Map.of()).isEmpty());
     }
 
-    public void testValidInputType() {
-        for (var expectedInputType : EXPECTED_INPUT_TYPES) {
-            var map = mutableMap(INPUT_TYPE_FIELD, expectedInputType);
-            var taskSettings = AmazonBedrockEmbeddingsTaskSettings.fromMap(map);
-            assertFalse(taskSettings.isEmpty());
-            assertThat(taskSettings.inputType(), equalTo(expectedInputType));
-            assertNull(taskSettings.cohereTruncation());
-        }
-    }
-
     public static Map<String, Object> mutableMap(String key, Enum<?> value) {
         return new HashMap<>(Map.of(key, value.toString()));
-    }
-
-    public void testInvalidInputType() {
-        var unexpectedInputTypes = Arrays.stream(InputType.values()).filter(Predicate.not(EXPECTED_INPUT_TYPES::contains)).toList();
-        for (var unexpectedInputType : unexpectedInputTypes) {
-            var map = mutableMap(INPUT_TYPE_FIELD, unexpectedInputType);
-            assertThrows(ValidationException.class, () -> AmazonBedrockEmbeddingsTaskSettings.fromMap(map));
-        }
-    }
-
-    public void testGarbageInputType() {
-        var map = new HashMap<String, Object>(Map.of(INPUT_TYPE_FIELD, "bawekrjawerjawer"));
-        assertThrows(ValidationException.class, () -> AmazonBedrockEmbeddingsTaskSettings.fromMap(map));
     }
 
     public void testValidCohereTruncations() {
@@ -123,7 +85,6 @@ public class AmazonBedrockEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
             var taskSettings = AmazonBedrockEmbeddingsTaskSettings.fromMap(map);
             assertFalse(taskSettings.isEmpty());
             assertThat(taskSettings.cohereTruncation(), equalTo(expectedCohereTruncation));
-            assertNull(taskSettings.inputType());
         }
     }
 

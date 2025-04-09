@@ -45,15 +45,13 @@ public record AmazonBedrockCohereEmbeddingsRequestEntity(
 
         if (InputType.isSpecified(inputType)) {
             builder.field(INPUT_TYPE_FIELD, convertToString(inputType));
-        } else if (InputType.isSpecified(taskSettings.inputType())) {
-            builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.inputType()));
         } else {
             // input_type is required so default to document
             builder.field(INPUT_TYPE_FIELD, SEARCH_DOCUMENT);
         }
 
         if (taskSettings.cohereTruncation() != null) {
-            builder.field(TRUNCATE, taskSettings.cohereTruncation());
+            builder.field(TRUNCATE, taskSettings.cohereTruncation().name());
         }
 
         builder.endObject();

@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.Amazo
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -151,7 +152,30 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     createEmbeddingsRequestSettingsMap("region", "model", "cohere", null, null, null, null),
-                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("input_type", InputType.SEARCH),
+                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("truncate", CohereTruncation.START),
+                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                ),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CohereSettingsWithNoCohereModel() throws IOException {
+        try (var service = createAmazonBedrockService()) {
+            ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(exception -> {
+                assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                assertThat(
+                    exception.getMessage(),
+                    is("The [text_embedding] task type for provider [amazontitan] does not allow [truncate] field")
+                );
+            });
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null),
+                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("truncate", CohereTruncation.START),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
                 modelVerificationListener

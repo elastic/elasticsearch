@@ -23,7 +23,7 @@ public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase 
         var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(
             List.of("test input"),
             InputType.CLASSIFICATION,
-            new AmazonBedrockEmbeddingsTaskSettings(InputType.CLUSTERING, null)
+            AmazonBedrockEmbeddingsTaskSettingsTests.emptyTaskSettings()
         );
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
@@ -34,22 +34,11 @@ public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase 
         var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(
             List.of("test input"),
             InputType.INTERNAL_SEARCH,
-            new AmazonBedrockEmbeddingsTaskSettings(InputType.CLUSTERING, null)
+            AmazonBedrockEmbeddingsTaskSettingsTests.emptyTaskSettings()
         );
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
         assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_query\"}"));
-    }
-
-    public void testRequestEntity_GeneratesExpectedJsonBody_WithInputTypeFromTaskSettings() throws IOException {
-        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(
-            List.of("test input"),
-            null,
-            new AmazonBedrockEmbeddingsTaskSettings(InputType.CLUSTERING, null)
-        );
-        var builder = new AmazonBedrockJsonBuilder(entity);
-        var result = builder.getStringContent();
-        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"clustering\"}"));
     }
 
     public void testRequestEntity_GeneratesExpectedJsonBody_WithoutInputType() throws IOException {
@@ -67,10 +56,10 @@ public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase 
         var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(
             List.of("test input"),
             null,
-            new AmazonBedrockEmbeddingsTaskSettings(InputType.CLUSTERING, CohereTruncation.START)
+            new AmazonBedrockEmbeddingsTaskSettings(CohereTruncation.START)
         );
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
-        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"clustering\",\"truncate\":\"start\"}"));
+        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_document\",\"truncate\":\"START\"}"));
     }
 }

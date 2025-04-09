@@ -1,7 +1,7 @@
 ---
-navigation_title: "Full-text search functions"
+navigation_title: "Search functions"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/search-functions.md
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-search-functions
 ---
 
 # {{esql}} Full-text search functions [esql-search-functions]

@@ -24,21 +24,45 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.EMBEDDING_TYPE_FIELD;
 
 public abstract class AmazonBedrockServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     protected static final String AMAZON_BEDROCK_BASE_NAME = "amazon_bedrock";
 
+    public enum AmazonBedrockEmbeddingType {
+        FLOAT,
+        BINARY;
+
+        public static AmazonBedrockEmbeddingType fromString(String value) {
+            return switch (value.toLowerCase()) {
+                case "float" -> FLOAT;
+                case "binary" -> BINARY;
+                default -> throw new IllegalArgumentException("unknown value for embedding type: " + value);
+            };
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase();
+        }
+    }
+
+    protected static final AmazonBedrockEmbeddingType DEFAULT_EMBEDDING_TYPE = AmazonBedrockEmbeddingType.FLOAT;
+
     protected final String region;
     protected final String model;
     protected final AmazonBedrockProvider provider;
     protected final RateLimitSettings rateLimitSettings;
+    protected final AmazonBedrockEmbeddingType embeddingType;
 
     // the default requests per minute are defined as per-model in the "Runtime quotas" on AWS
     // see: https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html
@@ -69,15 +93,24 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             AMAZON_BEDROCK_BASE_NAME,
             context
         );
+        AmazonBedrockEmbeddingType embeddingType = extractOptionalEnum(
+            map,
+            EMBEDDING_TYPE_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            AmazonBedrockEmbeddingType::fromString,
+            EnumSet.allOf(AmazonBedrockEmbeddingType.class),
+            validationException
+        ).orElse(DEFAULT_EMBEDDING_TYPE);
 
-        return new BaseAmazonBedrockCommonSettings(region, model, provider, rateLimitSettings);
+        return new BaseAmazonBedrockCommonSettings(region, model, provider, rateLimitSettings, embeddingType);
     }
 
     protected record BaseAmazonBedrockCommonSettings(
         String region,
         String model,
         AmazonBedrockProvider provider,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings,
+        AmazonBedrockEmbeddingType embeddingType
     ) {}
 
     protected AmazonBedrockServiceSettings(StreamInput in) throws IOException {
@@ -85,18 +118,25 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         this.model = in.readString();
         this.provider = in.readEnum(AmazonBedrockProvider.class);
         this.rateLimitSettings = new RateLimitSettings(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_9_0_0)) { // Version set for BWC
+            this.embeddingType = in.readEnum(AmazonBedrockEmbeddingType.class);
+        } else {
+            this.embeddingType = DEFAULT_EMBEDDING_TYPE;
+        }
     }
 
     protected AmazonBedrockServiceSettings(
         String region,
         String model,
         AmazonBedrockProvider provider,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings,
+        AmazonBedrockEmbeddingType embeddingType
     ) {
         this.region = Objects.requireNonNull(region);
         this.model = Objects.requireNonNull(model);
         this.provider = Objects.requireNonNull(provider);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.embeddingType = Objects.requireNonNullElse(embeddingType, DEFAULT_EMBEDDING_TYPE);
     }
 
     @Override
@@ -121,12 +161,19 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         return rateLimitSettings;
     }
 
+    public AmazonBedrockEmbeddingType embeddingType() {
+        return embeddingType;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(region);
         out.writeString(model);
         out.writeEnum(provider);
         rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_9_0_0)) { // Version set for BWC
+            out.writeEnum(embeddingType);
+        }
     }
 
     public void addBaseXContent(XContentBuilder builder, Params params) throws IOException {
@@ -137,6 +184,9 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         builder.field(REGION_FIELD, region);
         builder.field(MODEL_FIELD, model);
         builder.field(PROVIDER_FIELD, provider.name());
+        if (embeddingType != DEFAULT_EMBEDDING_TYPE) {
+            builder.field(EMBEDDING_TYPE_FIELD, embeddingType.toString());
+        }
         rateLimitSettings.toXContent(builder, params);
     }
 }

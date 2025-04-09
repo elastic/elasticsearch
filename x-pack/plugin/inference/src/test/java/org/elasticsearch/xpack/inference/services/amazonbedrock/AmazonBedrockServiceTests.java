@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBytesResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -58,11 +60,13 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -84,6 +88,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -1005,92 +1010,138 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsRequest_ForEmbeddingsModel() throws IOException {
-        var sender = mock(Sender.class);
-        var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender()).thenReturn(sender);
+        var mockSenderFactory = mock(AmazonBedrockMockRequestSender.Factory.class);
+        var mockSender = mock(AmazonBedrockMockRequestSender.class);
+        when(mockSenderFactory.createSender()).thenReturn(mockSender);
 
-        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
-            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
-            mockClusterServiceEmpty()
-        );
+        try (var service = createAmazonBedrockService(mockSenderFactory)) {
+            // Test Titan Float (Default)
+            var modelTitanFloat = AmazonBedrockEmbeddingsModelTests.createRandomTitanModelWithEmbeddingType(
+                AmazonBedrockEmbeddingType.FLOAT
+            );
+            List<Float> titanFloatEmbeddings = List.of(1.0f, 2.0f, 3.0f);
+            String titanFloatResponseBody = createTitanResponseBody(titanFloatEmbeddings, null);
+            when(mockSender.sendEmbeddingsRequest(modelTitanFloat, List.of("input1"))).thenReturn(
+                new BytesArray(titanFloatResponseBody)
+            );
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
-            try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var results = new TextEmbeddingFloatResults(
-                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
-                );
-                requestSender.enqueue(results);
+            var futureTitanFloat = new PlainActionFuture<InferenceServiceResults>();
+            service.infer(
+                modelTitanFloat,
+                null,
+                null,
+                null,
+                List.of("input1"),
+                false,
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                futureTitanFloat
+            );
+            var resultTitanFloat = futureTitanFloat.actionGet(TIMEOUT);
+            assertThat(resultTitanFloat, instanceOf(TextEmbeddingFloatResults.class));
+            assertThat(
+                ((TextEmbeddingFloatResults) resultTitanFloat).getResults(),
+                Matchers.contains(
+                    buildExpectationFloat(titanFloatEmbeddings)
+                )
+            );
 
-                var model = AmazonBedrockEmbeddingsModelTests.createModel(
-                    "id",
-                    "region",
-                    "model",
-                    AmazonBedrockProvider.COHERE,
-                    "access",
-                    "secret"
-                );
-                PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-                service.infer(
-                    model,
-                    null,
-                    null,
-                    null,
-                    List.of("abc"),
-                    false,
-                    new HashMap<>(),
-                    InputType.CLASSIFICATION,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                );
+            // Test Titan Binary
+            var modelTitanBinary = AmazonBedrockEmbeddingsModelTests.createRandomTitanModelWithEmbeddingType(
+                AmazonBedrockEmbeddingType.BINARY
+            );
+            byte[] binaryEmbeddingBytes = new byte[]{1, 2, 3, 4};
+            String binaryEmbeddingBase64 = Base64.getEncoder().encodeToString(binaryEmbeddingBytes);
+            String titanBinaryResponseBody = createTitanResponseBody(null, binaryEmbeddingBase64);
+            when(mockSender.sendEmbeddingsRequest(modelTitanBinary, List.of("input1"))).thenReturn(
+                new BytesArray(titanBinaryResponseBody)
+            );
 
-                var result = listener.actionGet(TIMEOUT);
+            var futureTitanBinary = new PlainActionFuture<InferenceServiceResults>();
+            service.infer(
+                modelTitanBinary,
+                new InferenceAction.Request(null, List.of("input1")),
+                Map.of(),
+                TIMEOUT,
+                futureTitanBinary
+            );
+            var resultTitanBinary = futureTitanBinary.actionGet(TIMEOUT);
+            assertThat(resultTitanBinary, instanceOf(TextEmbeddingBytesResults.class));
+            var byteResults = ((TextEmbeddingBytesResults) resultTitanBinary).getResults();
+            assertThat(byteResults, hasSize(1));
+            assertArrayEquals(binaryEmbeddingBytes, byteResults.get(0).getEmbedding());
 
-                assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.123F, 0.678F }))));
-            }
+            // Test Cohere
+            var modelCohere = AmazonBedrockEmbeddingsModelTests.createRandomCohereModel();
+            List<Float> cohereEmbeddings1 = List.of(4.0f, 5.0f);
+            String cohereResponseBody = createCohereResponseBody(List.of(cohereEmbeddings1));
+            when(mockSender.sendEmbeddingsRequest(modelCohere, List.of("input1"))).thenReturn(
+                new BytesArray(cohereResponseBody)
+            );
+            var futureCohere = new PlainActionFuture<InferenceServiceResults>();
+            service.infer(
+                modelCohere,
+                null,
+                null,
+                null,
+                List.of("input1"),
+                false,
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                futureCohere
+            );
+            var resultCohere = futureCohere.actionGet(TIMEOUT);
+            assertThat(resultCohere, instanceOf(TextEmbeddingFloatResults.class));
+            assertThat(
+                ((TextEmbeddingFloatResults) resultCohere).getResults(),
+                Matchers.contains(buildExpectationFloat(cohereEmbeddings1))
+            );
+
+            // Verify interactions
+            verify(mockSenderFactory, times(1)).createSender();
+            verifyNoMoreInteractions(mockSenderFactory);
         }
     }
 
     public void testInfer_SendsRequest_ForChatCompletionModel() throws IOException {
-        var sender = mock(Sender.class);
-        var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender()).thenReturn(sender);
+        var mockSenderFactory = mock(AmazonBedrockMockRequestSender.Factory.class);
+        var mockSender = spy(new AmazonBedrockMockRequestSender());
+        when(mockSenderFactory.createSender()).thenReturn(mockSender);
 
-        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
-            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
-            mockClusterServiceEmpty()
-        );
+        try (var service = createAmazonBedrockService(mockSenderFactory)) {
+            var mockResults = new ChatCompletionResults(List.of(new ChatCompletionResults.Result("test result")));
+            mockSender.enqueue(mockResults);
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
-            try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var mockResults = new ChatCompletionResults(List.of(new ChatCompletionResults.Result("test result")));
-                requestSender.enqueue(mockResults);
+            var model = AmazonBedrockChatCompletionModelTests.createModel(
+                "id",
+                "region",
+                "model",
+                AmazonBedrockProvider.AMAZONTITAN,
+                "access",
+                "secret"
+            );
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("abc"),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
-                var model = AmazonBedrockChatCompletionModelTests.createModel(
-                    "id",
-                    "region",
-                    "model",
-                    AmazonBedrockProvider.AMAZONTITAN,
-                    "access",
-                    "secret"
-                );
-                PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-                service.infer(
-                    model,
-                    null,
-                    null,
-                    null,
-                    List.of("abc"),
-                    false,
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                );
+            var result = listener.actionGet(TIMEOUT);
 
-                var result = listener.actionGet(TIMEOUT);
+            assertThat(result.asMap(), Matchers.is(buildExpectationCompletion(List.of("test result"))));
 
-                assertThat(result.asMap(), Matchers.is(buildExpectationCompletion(List.of("test result"))));
-            }
+            verify(mockSenderFactory, times(1)).createSender();
+            verifyNoMoreInteractions(mockSenderFactory);
         }
     }
 
@@ -1247,17 +1298,12 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     private void testChunkedInfer(AmazonBedrockEmbeddingsModel model) throws IOException {
-        var sender = mock(Sender.class);
-        var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender()).thenReturn(sender);
+        var mockSenderFactory = mock(AmazonBedrockMockRequestSender.Factory.class);
+        var mockSender = spy(new AmazonBedrockMockRequestSender());
+        when(mockSenderFactory.createSender()).thenReturn(mockSender);
 
-        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
-            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
-            mockClusterServiceEmpty()
-        );
-
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
-            try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
+        try (var service = createAmazonBedrockService(mockSenderFactory)) {
+            try (var requestSender = (AmazonBedrockMockRequestSender) mockSender) {
                 {
                     var mockResults1 = new TextEmbeddingFloatResults(
                         List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
@@ -1309,6 +1355,9 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     );
                 }
             }
+
+            verify(mockSenderFactory, times(1)).createSender();
+            verifyNoMoreInteractions(mockSenderFactory);
         }
     }
 
@@ -1368,5 +1417,36 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
             new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
         );
+    }
+
+    // Helper to create a Titan response body
+    private String createTitanResponseBody(@Nullable List<Float> embeddingFloats, @Nullable String embeddingBase64) {
+        StringBuilder sb = new StringBuilder("{");
+        if (embeddingFloats != null) {
+            sb.append("\"embedding\": [");
+            sb.append(embeddingFloats.stream().map(String::valueOf).collect(Collectors.joining(",")));
+            sb.append("]");
+        } else if (embeddingBase64 != null) {
+            sb.append("\"embedding\": \"").append(embeddingBase64).append("\"");
+        } else {
+            fail("Either float or base64 embedding must be provided for Titan response");
+        }
+        sb.append(", \"inputTextTokenCount\": 10}");
+        return sb.toString();
+    }
+
+    // Helper to create a Cohere response body
+    private String createCohereResponseBody(List<List<Float>> embeddings) {
+        StringBuilder sb = new StringBuilder("{\n            \"embeddings\": [");
+        for (int i = 0; i < embeddings.size(); i++) {
+            sb.append("[");
+            sb.append(embeddings.get(i).stream().map(String::valueOf).collect(Collectors.joining(",")));
+            sb.append("]");
+            if (i < embeddings.size() - 1) {
+                sb.append(",");
+            }
+        }
+        sb.append("], \"id\": \"test-id\", \"response_type\" : \"embeddings_floats\", \"texts\": [\"input1\"]}");
+        return sb.toString();
     }
 }

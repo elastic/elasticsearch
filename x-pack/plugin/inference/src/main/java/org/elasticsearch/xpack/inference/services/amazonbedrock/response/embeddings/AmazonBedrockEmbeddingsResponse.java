@@ -16,16 +16,19 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBytesResults;
 import org.elasticsearch.xpack.inference.external.response.XContentUtils;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponse;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings.AmazonBedrockEmbeddingType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Base64;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
@@ -42,13 +45,13 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
     @Override
     public InferenceServiceResults accept(AmazonBedrockRequest request) {
         if (request instanceof AmazonBedrockEmbeddingsRequest asEmbeddingsRequest) {
-            return fromResponse(result, asEmbeddingsRequest.provider());
+            return fromResponse(result, asEmbeddingsRequest);
         }
 
         throw new ElasticsearchException("unexpected request type [" + request.getClass() + "]");
     }
 
-    public static TextEmbeddingFloatResults fromResponse(InvokeModelResponse response, AmazonBedrockProvider provider) {
+    public static TextEmbeddingResults fromResponse(InvokeModelResponse response, AmazonBedrockEmbeddingsRequest request) {
         var charset = StandardCharsets.UTF_8;
         var bodyText = String.valueOf(charset.decode(response.body().asByteBuffer()));
 
@@ -61,28 +64,33 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
             XContentParser.Token token = jsonParser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
-            var embeddingList = parseEmbeddings(jsonParser, provider);
-
-            return new TextEmbeddingFloatResults(embeddingList);
+            var embeddingType = request.getServiceSettings().embeddingType();
+            if (embeddingType == AmazonBedrockEmbeddingType.BINARY) {
+                var embeddingList = parseBinaryEmbeddings(jsonParser, request.provider());
+                return new TextEmbeddingBytesResults(embeddingList);
+            } else {
+                var embeddingList = parseFloatEmbeddings(jsonParser, request.provider());
+                return new TextEmbeddingFloatResults(embeddingList);
+            }
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         }
     }
 
-    private static List<TextEmbeddingFloatResults.Embedding> parseEmbeddings(XContentParser jsonParser, AmazonBedrockProvider provider)
+    private static List<TextEmbeddingResults.InferredValue> parseFloatEmbeddings(XContentParser jsonParser, AmazonBedrockProvider provider)
         throws IOException {
         switch (provider) {
             case AMAZONTITAN -> {
-                return parseTitanEmbeddings(jsonParser);
+                return parseTitanFloatEmbeddings(jsonParser);
             }
             case COHERE -> {
-                return parseCohereEmbeddings(jsonParser);
+                return parseCohereFloatEmbeddings(jsonParser);
             }
             default -> throw new IOException("Unsupported provider [" + provider + "]");
         }
     }
 
-    private static List<TextEmbeddingFloatResults.Embedding> parseTitanEmbeddings(XContentParser parser) throws IOException {
+    private static List<TextEmbeddingResults.InferredValue> parseTitanFloatEmbeddings(XContentParser parser) throws IOException {
         /*
         Titan response:
         {
@@ -92,11 +100,11 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
         */
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
         List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
-        var embeddingValues = TextEmbeddingFloatResults.Embedding.of(embeddingValuesList);
+        TextEmbeddingResults.InferredValue embeddingValues = TextEmbeddingFloatResults.Embedding.of(embeddingValuesList);
         return List.of(embeddingValues);
     }
 
-    private static List<TextEmbeddingFloatResults.Embedding> parseCohereEmbeddings(XContentParser parser) throws IOException {
+    private static List<TextEmbeddingResults.InferredValue> parseCohereFloatEmbeddings(XContentParser parser) throws IOException {
         /*
         Cohere response:
         {
@@ -111,17 +119,43 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
          */
         positionParserAtTokenAfterField(parser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-        List<TextEmbeddingFloatResults.Embedding> embeddingList = parseList(
+        List<TextEmbeddingResults.InferredValue> embeddingList = parseList(
             parser,
-            AmazonBedrockEmbeddingsResponse::parseCohereEmbeddingsListItem
+            AmazonBedrockEmbeddingsResponse::parseCohereFloatEmbeddingsListItem
         );
 
         return embeddingList;
     }
 
-    private static TextEmbeddingFloatResults.Embedding parseCohereEmbeddingsListItem(XContentParser parser) throws IOException {
+    private static TextEmbeddingResults.InferredValue parseCohereFloatEmbeddingsListItem(XContentParser parser) throws IOException {
         List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
         return TextEmbeddingFloatResults.Embedding.of(embeddingValuesList);
+    }
+
+    private static List<TextEmbeddingResults.InferredValue> parseBinaryEmbeddings(XContentParser jsonParser, AmazonBedrockProvider provider)
+        throws IOException {
+        switch (provider) {
+            case AMAZONTITAN -> {
+                return parseTitanBinaryEmbeddings(jsonParser);
+            }
+            default -> throw new IOException("Binary embeddings not supported for provider [" + provider + "]");
+        }
+    }
+
+    private static List<TextEmbeddingResults.InferredValue> parseTitanBinaryEmbeddings(XContentParser parser) throws IOException {
+        /*
+        Titan Binary response (structure assumed based on float version):
+        {
+            "embedding": "<base64-encoded-binary-data>",
+            "inputTextTokenCount": int
+        }
+        */
+        positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
+        String base64Embedding = parser.text();
+        byte[] embeddingBytes = Base64.getDecoder().decode(base64Embedding);
+
+        TextEmbeddingResults.InferredValue embeddingValue = TextEmbeddingBytesResults.Embedding.of(embeddingBytes);
+        return List.of(embeddingValue);
     }
 
 }

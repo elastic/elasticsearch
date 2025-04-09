@@ -12,19 +12,26 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings.AmazonBedrockEmbeddingType;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.EMBEDDING_TYPE_FIELD;
 
-public record AmazonBedrockTitanEmbeddingsRequestEntity(String inputText) implements ToXContentObject {
+public record AmazonBedrockTitanEmbeddingsRequestEntity(String inputText, AmazonBedrockEmbeddingType embeddingType)
+    implements ToXContentObject {
 
     private static final String INPUT_TEXT_FIELD = "inputText";
 
     public AmazonBedrockTitanEmbeddingsRequestEntity {
         Objects.requireNonNull(inputText);
+        Objects.requireNonNull(embeddingType);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INPUT_TEXT_FIELD, inputText);
+        if (embeddingType == AmazonBedrockEmbeddingType.BINARY) {
+            builder.field(EMBEDDING_TYPE_FIELD, embeddingType.toString());
+        }
         builder.endObject();
         return builder;
     }

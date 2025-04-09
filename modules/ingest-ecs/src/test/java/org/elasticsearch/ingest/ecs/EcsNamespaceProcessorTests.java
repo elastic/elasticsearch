@@ -16,6 +16,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Map.entry;
+import static org.hamcrest.Matchers.sameInstance;
+
 public class EcsNamespaceProcessorTests extends ESTestCase {
 
     private final EcsNamespaceProcessor processor = new EcsNamespaceProcessor("test", "test processor");
@@ -111,18 +114,15 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
     }
 
     public void testExecute_validOTelDocument() {
-        Map<String, Object> source = new HashMap<>();
-        source.put("resource", new HashMap<>());
-        source.put("scope", new HashMap<>());
-        Map<String, Object> body = new HashMap<>();
-        body.put("text", "a string");
-        body.put("structured", new HashMap<>());
-        source.put("body", body);
-        source.put("key1", "value1");
-        Map<String, Object> before = new HashMap<>(source);
+        Map<String, Object> source = Map.ofEntries(
+            entry("resource", Map.of()),
+            entry("scope", Map.of()),
+            entry("body", Map.of("text", "a string", "structured", Map.of())),
+            entry("key1", "value1")
+        );
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
         processor.execute(document);
-        assertEquals(before, document.getSource());
+        assertThat(source, sameInstance(document.getSource()));
     }
 
     public void testExecute_nonOTelDocument() {

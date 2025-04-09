@@ -64,24 +64,13 @@ testMultiMatchWithOptionsMinimumShouldMatch
 required_capability: multi_match_function
 
 from books 
-| where multi_match("Hobbit", title, description, {"minimum_should_match": 2, "operator": "OR"})
+| where multi_match("here back again", title, description, {"minimum_should_match": 2, "operator": "OR"})
 | sort book_no
 | keep title;
 
 title:text                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
-Realms of Tolkien: Images of Middle-earth                                                   
-Smith of Wootton Major & Farmer Giles of Ham                                                
-The Lord of the Rings - Boxed Set                                                           
-Return of the King Being the Third Part of The Lord of the Rings                            
-Fellowship of the Ring 2ND Edition                                                          
-A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings 
-Poems from the Hobbit                                                                       
-Letters of J R R Tolkien                                                                    
-Smith of Wooten Manor & Farmer Giles of Ham                                                 
-The Hobbit or There and Back Again                                                          
-Roverandom                                                                                  
-Return of the Shadow                                                                        
-The Hobbit                                                                                  
+My First 100 Words in Spanish/English (My First 100 Words Pull-Tab Book)
+The Hobbit or There and Back Again                                                                                           
 ;
 
 testMultiMatchWithNonPushableDisjunctions

@@ -964,7 +964,12 @@ public class EsqlCapabilities {
         /**
          * Support max_over_time aggregation
          */
-        MAX_OVER_TIME(Build.current().isSnapshot());
+        MAX_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support avg_over_time aggregation
+         */
+        AVG_OVER_TIME(Build.current().isSnapshot());
 
         private final boolean enabled;
 

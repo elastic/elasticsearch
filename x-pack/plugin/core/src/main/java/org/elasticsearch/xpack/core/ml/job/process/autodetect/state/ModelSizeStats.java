@@ -41,7 +41,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
      */
     public static final ParseField MODEL_BYTES_FIELD = new ParseField("model_bytes");
     public static final ParseField PEAK_MODEL_BYTES_FIELD = new ParseField("peak_model_bytes");
-    public static final ParseField ACTUAL_MEMORY_USAGE_BYTES = new ParseField("actual_memory_usage_bytes");
+    public static final ParseField SYSTEM_MEMORY_BYTES = new ParseField("system_memory_bytes");
+    public static final ParseField MAX_SYSTEM_MEMORY_BYTES = new ParseField("max_system_memory_bytes");
     public static final ParseField MODEL_BYTES_EXCEEDED_FIELD = new ParseField("model_bytes_exceeded");
     public static final ParseField MODEL_BYTES_MEMORY_LIMIT_FIELD = new ParseField("model_bytes_memory_limit");
     public static final ParseField TOTAL_BY_FIELD_COUNT_FIELD = new ParseField("total_by_field_count");
@@ -75,7 +76,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         parser.declareString((modelSizeStat, s) -> {}, Result.RESULT_TYPE);
         parser.declareLong(Builder::setModelBytes, MODEL_BYTES_FIELD);
         parser.declareLong(Builder::setPeakModelBytes, PEAK_MODEL_BYTES_FIELD);
-        parser.declareLong(Builder::setActualMemoryUsageBytes, ACTUAL_MEMORY_USAGE_BYTES);
+        parser.declareLong(Builder::setSystemMemoryBytes, SYSTEM_MEMORY_BYTES);
+        parser.declareLong(Builder::setMaxSystemMemoryBytes, MAX_SYSTEM_MEMORY_BYTES);
         parser.declareLong(Builder::setModelBytesExceeded, MODEL_BYTES_EXCEEDED_FIELD);
         parser.declareLong(Builder::setModelBytesMemoryLimit, MODEL_BYTES_MEMORY_LIMIT_FIELD);
         parser.declareLong(Builder::setBucketAllocationFailuresCount, BUCKET_ALLOCATION_FAILURES_COUNT_FIELD);
@@ -154,7 +156,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
      * 1. The job's model_memory_limit
      * 2. The current model memory, i.e. what's reported in model_bytes of this object
      * 3. The peak model memory, i.e. what's reported in peak_model_bytes of this object
-     * 4. The actual memory usage, i.e. what's reported in actual_memory_usage_bytes of this object
+     * 4. The system memory, i.e. what's reported in system_memory_bytes of this object
+     * 5. The max system memory, i.e. what's reported in max_system_memory_bytes of this object
      * The field storing this enum can also be <code>null</code>, which means the
      * assignment code will decide on the fly - this was the old behaviour prior
      * to 7.11.
@@ -163,7 +166,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         MODEL_MEMORY_LIMIT,
         CURRENT_MODEL_BYTES,
         PEAK_MODEL_BYTES,
-        ACTUAL_MEMORY_USAGE_BYTES;
+        SYSTEM_MEMORY_BYTES,
+        MAX_SYSTEM_MEMORY_BYTES,;
 
         public static AssignmentMemoryBasis fromString(String statusName) {
             return valueOf(statusName.trim().toUpperCase(Locale.ROOT));
@@ -187,7 +191,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     private final String jobId;
     private final long modelBytes;
     private final Long peakModelBytes;
-    private final Long actualMemoryUsageBytes;
+    private final Long systemMemoryUsageBytes;
+    private final Long maxSystemMemoryUsageBytes;
     private final Long modelBytesExceeded;
     private final Long modelBytesMemoryLimit;
     private final long totalByFieldCount;
@@ -211,7 +216,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         String jobId,
         long modelBytes,
         Long peakModelBytes,
-        Long actualMemoryUsageBytes,
+        Long systemMemoryUsageBytes,
+        Long maxSystemMemoryUsageBytes,
         Long modelBytesExceeded,
         Long modelBytesMemoryLimit,
         long totalByFieldCount,
@@ -234,7 +240,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         this.jobId = jobId;
         this.modelBytes = modelBytes;
         this.peakModelBytes = peakModelBytes;
-        this.actualMemoryUsageBytes = actualMemoryUsageBytes;
+        this.systemMemoryUsageBytes = systemMemoryUsageBytes;
+        this.maxSystemMemoryUsageBytes = maxSystemMemoryUsageBytes;
         this.modelBytesExceeded = modelBytesExceeded;
         this.modelBytesMemoryLimit = modelBytesMemoryLimit;
         this.totalByFieldCount = totalByFieldCount;
@@ -259,10 +266,12 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         jobId = in.readString();
         modelBytes = in.readVLong();
         peakModelBytes = in.readOptionalLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_AD_ACTUAL_MEMORY_USAGE)) {
-            actualMemoryUsageBytes = in.readOptionalLong();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_AD_SYSTEM_MEMORY_USAGE)) {
+            systemMemoryUsageBytes = in.readOptionalLong();
+            maxSystemMemoryUsageBytes = in.readOptionalLong();
         } else {
-            actualMemoryUsageBytes = null;
+            systemMemoryUsageBytes = null;
+            maxSystemMemoryUsageBytes = null;
         }
         modelBytesExceeded = in.readOptionalLong();
         modelBytesMemoryLimit = in.readOptionalLong();
@@ -305,8 +314,9 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         out.writeString(jobId);
         out.writeVLong(modelBytes);
         out.writeOptionalLong(peakModelBytes);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_AD_ACTUAL_MEMORY_USAGE)) {
-            out.writeOptionalLong(actualMemoryUsageBytes);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_AD_SYSTEM_MEMORY_USAGE)) {
+            out.writeOptionalLong(systemMemoryUsageBytes);
+            out.writeOptionalLong(maxSystemMemoryUsageBytes);
         }
         out.writeOptionalLong(modelBytesExceeded);
         out.writeOptionalLong(modelBytesMemoryLimit);
@@ -354,8 +364,11 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         if (peakModelBytes != null) {
             builder.field(PEAK_MODEL_BYTES_FIELD.getPreferredName(), peakModelBytes);
         }
-        if (actualMemoryUsageBytes != null) {
-            builder.field(ACTUAL_MEMORY_USAGE_BYTES.getPreferredName(), actualMemoryUsageBytes);
+        if (systemMemoryUsageBytes != null) {
+            builder.field(SYSTEM_MEMORY_BYTES.getPreferredName(), systemMemoryUsageBytes);
+        }
+        if (maxSystemMemoryUsageBytes != null) {
+            builder.field(MAX_SYSTEM_MEMORY_BYTES.getPreferredName(), maxSystemMemoryUsageBytes);
         }
         if (modelBytesExceeded != null) {
             builder.field(MODEL_BYTES_EXCEEDED_FIELD.getPreferredName(), modelBytesExceeded);
@@ -409,8 +422,12 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         return peakModelBytes;
     }
 
-    public Long getActualMemoryUsageBytes() {
-        return actualMemoryUsageBytes;
+    public Long getSystemMemoryBytes() {
+        return systemMemoryUsageBytes;
+    }
+
+    public Long getMaxSystemMemoryBytes() {
+        return maxSystemMemoryUsageBytes;
     }
 
     public Long getModelBytesExceeded() {
@@ -501,7 +518,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             jobId,
             modelBytes,
             peakModelBytes,
-            actualMemoryUsageBytes,
+            systemMemoryUsageBytes,
+            maxSystemMemoryUsageBytes,
             modelBytesExceeded,
             modelBytesMemoryLimit,
             totalByFieldCount,
@@ -540,7 +558,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
         return this.modelBytes == that.modelBytes
             && Objects.equals(this.peakModelBytes, that.peakModelBytes)
-            && this.actualMemoryUsageBytes == that.actualMemoryUsageBytes
+            && this.systemMemoryUsageBytes == that.systemMemoryUsageBytes
+            && this.maxSystemMemoryUsageBytes == that.maxSystemMemoryUsageBytes
             && Objects.equals(this.modelBytesExceeded, that.modelBytesExceeded)
             && Objects.equals(this.modelBytesMemoryLimit, that.modelBytesMemoryLimit)
             && this.totalByFieldCount == that.totalByFieldCount
@@ -567,7 +586,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         private final String jobId;
         private long modelBytes;
         private Long peakModelBytes;
-        private Long actualMemoryUsageBytes;
+        private Long systemMemoryUsageBytes;
+        private Long maxSystemMemoryUsageBytes;
         private Long modelBytesExceeded;
         private Long modelBytesMemoryLimit;
         private long totalByFieldCount;
@@ -598,7 +618,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             this.jobId = modelSizeStats.jobId;
             this.modelBytes = modelSizeStats.modelBytes;
             this.peakModelBytes = modelSizeStats.peakModelBytes;
-            this.actualMemoryUsageBytes = modelSizeStats.actualMemoryUsageBytes;
+            this.systemMemoryUsageBytes = modelSizeStats.systemMemoryUsageBytes;
+            this.maxSystemMemoryUsageBytes = modelSizeStats.maxSystemMemoryUsageBytes;
             this.modelBytesExceeded = modelSizeStats.modelBytesExceeded;
             this.modelBytesMemoryLimit = modelSizeStats.modelBytesMemoryLimit;
             this.totalByFieldCount = modelSizeStats.totalByFieldCount;
@@ -629,8 +650,13 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setActualMemoryUsageBytes(long actualMemoryUsageBytes) {
-            this.actualMemoryUsageBytes = actualMemoryUsageBytes;
+        public Builder setSystemMemoryBytes(long systemMemoryUsageBytes) {
+            this.systemMemoryUsageBytes = systemMemoryUsageBytes;
+            return this;
+        }
+
+        public Builder setMaxSystemMemoryBytes(long maxSystemMemoryUsageBytes) {
+            this.maxSystemMemoryUsageBytes = maxSystemMemoryUsageBytes;
             return this;
         }
 
@@ -731,7 +757,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
                 jobId,
                 modelBytes,
                 peakModelBytes,
-                actualMemoryUsageBytes,
+                systemMemoryUsageBytes,
+                maxSystemMemoryUsageBytes,
                 modelBytesExceeded,
                 modelBytesMemoryLimit,
                 totalByFieldCount,

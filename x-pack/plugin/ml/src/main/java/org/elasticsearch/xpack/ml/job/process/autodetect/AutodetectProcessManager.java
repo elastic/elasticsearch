@@ -1076,7 +1076,9 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     case MODEL_MEMORY_LIMIT -> Optional.ofNullable(modelSizeStats.getModelBytesMemoryLimit()).orElse(0L);
                     case CURRENT_MODEL_BYTES -> modelSizeStats.getModelBytes();
                     case PEAK_MODEL_BYTES -> Optional.ofNullable(modelSizeStats.getPeakModelBytes()).orElse(modelSizeStats.getModelBytes());
-                    case ACTUAL_MEMORY_USAGE_BYTES -> Optional.ofNullable(modelSizeStats.getActualMemoryUsageBytes())
+                    case SYSTEM_MEMORY_BYTES -> Optional.ofNullable(modelSizeStats.getSystemMemoryBytes())
+                        .orElse(modelSizeStats.getModelBytes());
+                    case MAX_SYSTEM_MEMORY_BYTES -> Optional.ofNullable(modelSizeStats.getMaxSystemMemoryBytes())
                         .orElse(modelSizeStats.getModelBytes());
                 };
                 memoryUsedBytes += Job.PROCESS_MEMORY_OVERHEAD.getBytes();

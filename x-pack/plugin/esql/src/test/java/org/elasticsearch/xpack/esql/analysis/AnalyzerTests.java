@@ -3113,7 +3113,7 @@ public class AnalyzerTests extends ESTestCase {
         limit = as(subPlans.get(0), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
         Keep keep = as(limit.child(), Keep.class);
-        List<String> keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).collect(Collectors.toList());
+        List<String> keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(keptColumns, equalTo(expectedOutput));
 
         Eval eval = as(keep.child(), Eval.class);
@@ -3144,7 +3144,7 @@ public class AnalyzerTests extends ESTestCase {
         limit = as(subPlans.get(1), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).collect(Collectors.toList());
+        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(keptColumns, equalTo(expectedOutput));
         eval = as(keep.child(), Eval.class);
         assertEquals(eval.fields().size(), 2);
@@ -3174,7 +3174,7 @@ public class AnalyzerTests extends ESTestCase {
         limit = as(subPlans.get(2), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).collect(Collectors.toList());
+        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(keptColumns, equalTo(expectedOutput));
         eval = as(keep.child(), Eval.class);
         assertEquals(eval.fields().size(), 2);

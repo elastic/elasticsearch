@@ -737,10 +737,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
-                List<Alias> aliases = missing.stream()
-                    .map(attr -> new Alias(source, attr.name(), Literal.of(attr, null)))
-                    .collect(Collectors.toList());
-                ;
+                List<Alias> aliases = missing.stream().map(attr -> new Alias(source, attr.name(), Literal.of(attr, null))).toList();
 
                 // add the missing columns
                 if (aliases.size() > 0) {
@@ -748,10 +745,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     changed = true;
                 }
 
-                List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).collect(Collectors.toList());
+                List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
                 // We need to add an explicit Keep even if the outputs align
                 // This is because at the moment the sub plans are executed and optimized separately and the output might change
                 // during optimizations. Once we add streaming we might not need to add a Keep when the outputs already align.
+                // Note that until we add explicit support for KEEP in FORK branches, this condition will always be true.
                 if (logicalPlan instanceof Keep == false || subPlanColumns.equals(forkColumns) == false) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
@@ -768,11 +766,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(logicalPlan);
             }
 
-            if (changed == false) {
-                return fork;
-            }
-
-            return new Fork(fork.source(), newSubPlans);
+            return changed ? new Fork(fork.source(), newSubPlans) : fork;
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {

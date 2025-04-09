@@ -122,8 +122,8 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         document.put("key1", "value1");
         Map<String, Object> before = new HashMap<>(document);
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
-        IngestDocument result = processor.execute(ingestDocument);
-        assertEquals(before, result.getSource());
+        processor.execute(ingestDocument);
+        assertEquals(before, ingestDocument.getSource());
     }
 
     public void testExecute_nonOTelDocument() {
@@ -132,9 +132,9 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         document.put("key2", "value2");
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
 
-        IngestDocument result = processor.execute(ingestDocument);
+        processor.execute(ingestDocument);
 
-        Map<String, Object> source = result.getSource();
+        Map<String, Object> source = ingestDocument.getSource();
         assertTrue(source.containsKey("attributes"));
         assertTrue(source.containsKey("resource"));
 
@@ -157,9 +157,9 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         document.put("key1", "value1");
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
 
-        IngestDocument result = processor.execute(ingestDocument);
+        processor.execute(ingestDocument);
 
-        Map<String, Object> source = result.getSource();
+        Map<String, Object> source = ingestDocument.getSource();
         assertTrue(source.containsKey("attributes"));
         assertTrue(source.containsKey("resource"));
 
@@ -181,9 +181,9 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         document.put("key1", "value1");
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
 
-        IngestDocument result = processor.execute(ingestDocument);
+        processor.execute(ingestDocument);
 
-        Map<String, Object> source = result.getSource();
+        Map<String, Object> source = ingestDocument.getSource();
         assertTrue(source.containsKey("attributes"));
         assertTrue(source.containsKey("resource"));
 
@@ -279,9 +279,9 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
         document.put("service", service);
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
 
-        IngestDocument result = processor.execute(ingestDocument);
+        processor.execute(ingestDocument);
 
-        Map<String, Object> source = result.getSource();
+        Map<String, Object> source = ingestDocument.getSource();
 
         // all attributes should be flattened
         Map<String, Object> expectedResourceAttributes = Map.of(
@@ -341,9 +341,9 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
 
-        IngestDocument result = processor.execute(ingestDocument);
+        processor.execute(ingestDocument);
 
-        Map<String, Object> source = result.getSource();
+        Map<String, Object> source = ingestDocument.getSource();
 
         Map<String, Object> expectedResourceAttributes = Map.of("agent.name", "agentNameValue", "agent.details.type", "agentTypeValue");
 
@@ -377,9 +377,9 @@ public class EcsNamespaceProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
 
-        IngestDocument result = processor.execute(ingestDocument);
+        processor.execute(ingestDocument);
 
-        Map<String, Object> source = result.getSource();
+        Map<String, Object> source = ingestDocument.getSource();
 
         Map<String, Object> expectedResourceAttributes = Map.of("agent.name", "agentNameValue", "agent.array", agentArray);
 

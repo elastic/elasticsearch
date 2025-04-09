@@ -43,6 +43,7 @@ public record TimeSpan(long startMillis, long startNanos, long stopMillis, long 
         if (builder.humanReadable()) {
             builder.field("took_time", toTimeValue());
         }
+        builder.field("took_millis", durationInMillis());
         builder.field("took_nanos", durationInNanos());
         builder.endObject();
         return builder;

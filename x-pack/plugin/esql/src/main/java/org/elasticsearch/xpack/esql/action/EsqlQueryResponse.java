@@ -244,19 +244,13 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         if (profile == null) {
             return Collections.emptyIterator();
         }
-        return Iterators.concat(
-            Iterators.single((b, p) -> b.field("profile")),
-            ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.chunk((b, p) -> {
-                if (executionInfo != null) {
-                    b.field("query", executionInfo.overallTimeSpan());
-                    b.field("planning", executionInfo.planningTimeSpan());
-                }
-                return b;
-            }),
-            ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params),
-            ChunkedToXContentHelper.endObject()
-        );
+        return Iterators.concat(ChunkedToXContentHelper.startObject("profile"), ChunkedToXContentHelper.chunk((b, p) -> {
+            if (executionInfo != null) {
+                b.field("query", executionInfo.overallTimeSpan());
+                b.field("planning", executionInfo.planningTimeSpan());
+            }
+            return b;
+        }), ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params), ChunkedToXContentHelper.endObject());
     }
 
     public boolean[] nullColumns() {
@@ -274,11 +268,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }
         }
         return true;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     @Override

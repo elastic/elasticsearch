@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -32,11 +33,16 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests.addSemanticTextInferenceResults;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     private static final String INDEX_BASE_NAME = "semantic_text_test_index";
@@ -93,8 +99,8 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     private void performIndexQueryHighlightOps() throws IOException {
         indexDoc("doc_2", List.of("another test value"));
-        ObjectPath queryObjectPath = semanticQuery("test value");
-        assertThat(queryObjectPath.evaluate("hits.total.value"), equalTo(2));
+        ObjectPath queryObjectPath = semanticQuery("test value", 3);
+        assertQueryResponse(queryObjectPath);
     }
 
     private String getIndexName() {
@@ -129,7 +135,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         assertOK(response);
     }
 
-    private ObjectPath semanticQuery(String query) throws IOException {
+    private ObjectPath semanticQuery(String query, Integer numOfHighlightFragments) throws IOException {
         // We can't perform a real semantic query because that requires performing inference, so instead we perform an equivalent nested
         // query
         List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s")).map(t -> new WeightedToken(t, 1.0f)).toList();
@@ -150,6 +156,15 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("query", nestedQueryBuilder);
+        if (numOfHighlightFragments != null) {
+            HighlightBuilder.Field highlightField = new HighlightBuilder.Field(SEMANTIC_TEXT_FIELD);
+            highlightField.numOfFragments(numOfHighlightFragments);
+
+            HighlightBuilder highlightBuilder = new HighlightBuilder();
+            highlightBuilder.field(highlightField);
+
+            builder.field("highlight", highlightBuilder);
+        }
         builder.endObject();
 
         Request request = new Request("GET", getIndexName() + "/_search");
@@ -157,5 +172,35 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
         Response response = client().performRequest(request);
         return assertOKAndCreateObjectPath(response);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertQueryResponse(ObjectPath queryObjectPath) throws IOException {
+        final Map<String, List<String>> expectedHighlights = Map.of(
+            "doc_1",
+            List.of("a test value", "with multiple test values"),
+            "doc_2",
+            List.of("another test value")
+        );
+
+        assertThat(queryObjectPath.evaluate("hits.total.value"), equalTo(2));
+        assertThat(queryObjectPath.evaluateArraySize("hits.hits"), equalTo(2));
+
+        Set<String> docIds = new HashSet<>();
+        List<Object> hits = queryObjectPath.evaluate("hits.hits");
+        for (Object hit : hits) {
+            assertThat(hit, instanceOf(Map.class));
+            Map<String, Object> hitMap = (Map<String, Object>) hit;
+
+            String id = (String) hitMap.get("_id");
+            assertThat(id, notNullValue());
+            docIds.add(id);
+
+            List<String> expectedHighlight = expectedHighlights.get(id);
+            assertThat(expectedHighlight, notNullValue());
+            assertThat(((Map<String, Object>) hitMap.get("highlight")).get(SEMANTIC_TEXT_FIELD), equalTo(expectedHighlight));
+        }
+
+        assertThat(docIds, equalTo(Set.of("doc_1", "doc_2")));
     }
 }

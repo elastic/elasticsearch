@@ -74,10 +74,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
 
-    // start time for the ESQL query for calculating took times
+    // start time for the ESQL query for calculating time spans relative to the beginning of the query
     private final transient TimeSpan.Builder relativeStart;
+    private transient TimeSpan overallTimeSpan;
+    private transient TimeSpan planningTimeSpan; // time elapsed since start of query to calling ComputeService.execute
     private TimeValue overallTook;
-    private transient TimeValue planningTookTime;  // time elapsed since start of query to calling ComputeService.execute
 
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
         this(Predicates.always(), includeCCSMetadata);  // default all clusters to skip_unavailable=true
@@ -156,21 +157,23 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * moves towards GA we may need to revisit this model. Currently, it should never be called more than once.
      */
     public void markEndPlanning() {
-        assert planningTookTime == null : "markEndPlanning should only be called once";
+        assert planningTimeSpan == null : "markEndPlanning should only be called once";
         assert relativeStart != null : "Relative start time must be set when markEndPlanning is called";
-        planningTookTime = relativeStart.stop().toTimeValue();
+        planningTimeSpan = relativeStart.stop();
     }
 
     public TimeValue planningTookTime() {
-        return planningTookTime;
+        return planningTimeSpan.toTimeValue();
     }
 
     /**
      * Call when ES|QL execution is complete in order to set the overall took time for an ES|QL query.
      */
     public void markEndQuery() {
+        assert overallTimeSpan == null : "markEndQuery should only be called once";
         assert relativeStart != null : "Relative start time must be set when markEndQuery is called";
-        overallTook = relativeStart.stop().toTimeValue();
+        overallTimeSpan = relativeStart.stop();
+        overallTook = overallTimeSpan.toTimeValue();
     }
 
     // for testing only - use markEndQuery in production code
@@ -187,6 +190,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public TimeValue tookSoFar() {
         return relativeStart != null ? relativeStart.stop().toTimeValue() : TimeValue.ZERO;
+    }
+
+    public TimeSpan overallTimeSpan() {
+        return overallTimeSpan;
+    }
+
+    public TimeSpan planningTimeSpan() {
+        return planningTimeSpan;
     }
 
     public Set<String> clusterAliases() {

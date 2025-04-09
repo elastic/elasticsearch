@@ -66,11 +66,11 @@ public record TimeSpan(long startMillis, long startNanos, long stopMillis, long 
 
     public static class Builder {
 
-        private final long startTime = System.currentTimeMillis();
-        private final long startNanoTime = System.nanoTime();
+        private final long startMillis = System.currentTimeMillis();
+        private final long startNanos = System.nanoTime();
 
         public TimeSpan stop() {
-            return new TimeSpan(startTime, startNanoTime, System.nanoTime(), System.nanoTime());
+            return new TimeSpan(startMillis, startNanos, System.currentTimeMillis(), System.nanoTime());
         }
     }
 }

@@ -247,11 +247,13 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return Iterators.concat(
             Iterators.single((b, p) -> b.field("profile")),
             ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.chunk(
-                (b, p) -> b //
-                    .field("query", TimeSpan.start().stop())
-                    .field("planning", TimeSpan.start().stop())
-            ),
+            ChunkedToXContentHelper.chunk((b, p) -> {
+                if (executionInfo != null) {
+                    b.field("query", executionInfo.overallTimeSpan());
+                    b.field("planning", executionInfo.planningTimeSpan());
+                }
+                return b;
+            }),
             ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params),
             ChunkedToXContentHelper.endObject()
         );

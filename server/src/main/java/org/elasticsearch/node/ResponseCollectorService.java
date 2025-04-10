@@ -58,25 +58,23 @@ public final class ResponseCollectorService implements ClusterStateListener {
     }
 
     public void addNodeStatistics(String nodeId, int queueSize, long responseTimeNanos, long avgServiceTimeNanos) {
-        nodeIdToStats.compute(nodeId, (id, ns) -> {
-            if (ns == null) {
-                ExponentiallyWeightedMovingAverage queueEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, queueSize);
-                ExponentiallyWeightedMovingAverage responseEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, responseTimeNanos);
-                return new NodeStatistics(nodeId, queueEWMA, responseEWMA, avgServiceTimeNanos);
-            } else {
-                ns.queueSize.addValue((double) queueSize);
-                ns.responseTime.addValue((double) responseTimeNanos);
-                ns.serviceTime = avgServiceTimeNanos;
-                return ns;
-            }
-        });
+        var ns = nodeIdToStats.get(nodeId);
+        if (ns == null) {
+            ns = new NodeStatistics(nodeId, queueSize, responseTimeNanos, avgServiceTimeNanos);
+            ns = nodeIdToStats.putIfAbsent(nodeId, ns);
+        }
+        if (ns != null) {
+            ns.serviceTime = avgServiceTimeNanos;
+            ns.queueSize.addValue((double) queueSize);
+            ns.responseTime.addValue((double) responseTimeNanos);
+        }
     }
 
     public Map<String, ComputedNodeStats> getAllNodeStatistics() {
         final int clientNum = nodeIdToStats.size();
         // Transform the mutable object internally used for accounting into the computed version
         Map<String, ComputedNodeStats> nodeStats = Maps.newMapWithExpectedSize(nodeIdToStats.size());
-        nodeIdToStats.forEach((k, v) -> { nodeStats.put(k, new ComputedNodeStats(clientNum, v)); });
+        nodeIdToStats.forEach((k, v) -> nodeStats.put(k, new ComputedNodeStats(clientNum, v)));
         return nodeStats;
     }
 
@@ -103,7 +101,7 @@ public final class ResponseCollectorService implements ClusterStateListener {
         // We store timestamps with nanosecond precision, however, the
         // formula specifies milliseconds, therefore we need to convert
         // the values so the times don't unduely weight the formula
-        private final double FACTOR = 1000000.0;
+        private static final double FACTOR = 1000000.0;
         private final int clientNum;
 
         private double cachedRank = 0;
@@ -208,16 +206,12 @@ public final class ResponseCollectorService implements ClusterStateListener {
         final ExponentiallyWeightedMovingAverage responseTime;
         double serviceTime;
 
-        NodeStatistics(
-            String nodeId,
-            ExponentiallyWeightedMovingAverage queueSizeEWMA,
-            ExponentiallyWeightedMovingAverage responseTimeEWMA,
-            double serviceTimeEWMA
-        ) {
+        NodeStatistics(String nodeId, int queueSize, long responseTime, double serviceTimeEWMA) {
             this.nodeId = nodeId;
-            this.queueSize = queueSizeEWMA;
-            this.responseTime = responseTimeEWMA;
+            this.queueSize = new ExponentiallyWeightedMovingAverage(ALPHA, queueSize);
+            this.responseTime = new ExponentiallyWeightedMovingAverage(ALPHA, responseTime);
             this.serviceTime = serviceTimeEWMA;
         }
     }
+
 }

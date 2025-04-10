@@ -9,6 +9,6 @@ FROM employees
 
 | emp_no:integer | language_code:integer | language_name:keyword |
 | --- | --- | --- |
-| 10091          | 3                     | Spanish |
-| 10092          | 1                     | English |
-| 10093          | 3                     | Spanish |
+| 10091 | 3 | Spanish |
+| 10092 | 1 | English |
+| 10093 | 3 | Spanish |

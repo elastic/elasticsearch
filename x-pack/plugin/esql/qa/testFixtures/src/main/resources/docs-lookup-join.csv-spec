@@ -13,10 +13,10 @@
 lookupJoinSourceIp
 required_capability: join_lookup_v12
 
-// tag::lookupJoinSourceIp
+// tag::lookupJoinSourceIp[]
 FROM firewall_logs
 | LOOKUP JOIN threat_list ON source.IP
-// end:lookupJoinSourceIp
+// end::lookupJoinSourceIp[]
 ;
 
 @timestamp:datetime | destination.IP:ip | message:keyword | source.IP:ip | threat_level:keyword
@@ -28,11 +28,11 @@ FROM firewall_logs
 lookupJoinSourceIpWhere
 required_capability: join_lookup_v12
 
-// tag::lookupJoinSourceIpWhere
+// tag::lookupJoinSourceIpWhere[]
 FROM firewall_logs
 | LOOKUP JOIN threat_list ON source.IP
 | WHERE threat_level IS NOT NULL
-// end:lookupJoinSourceIpWhere
+// end::lookupJoinSourceIpWhere[]
 ;
 
 @timestamp:datetime | destination.IP:ip | message:keyword | source.IP:ip | threat_level:keyword
@@ -44,11 +44,11 @@ FROM firewall_logs
 lookupJoinHostNameTwice
 required_capability: join_lookup_v12
 
-// tag::lookupJoinHostNameTwice
+// tag::lookupJoinHostNameTwice[]
 FROM system_metrics
 | LOOKUP JOIN host_inventory ON host.name
 | LOOKUP JOIN ownerships ON host.name
-// end:lookupJoinHostNameTwice
+// end::lookupJoinHostNameTwice[]
 ;
 
 count:long | details:keyword | host.name:keyword | description:keyword | host.os:keyword | host.version:keyword | owner.name:keyword
@@ -60,10 +60,10 @@ count:long | details:keyword | host.name:keyword | description:keyword | host.os
 lookupJoinIpServiceId
 required_capability: join_lookup_v12
 
-// tag::lookupJoinIpServiceId
+// tag::lookupJoinServiceId[]
 FROM app_logs
 | LOOKUP JOIN service_owners ON service_id
-// end:lookupJoinIpServiceId
+// end::lookupJoinServiceId[]
 ;
 
 @timestamp:datetime | message:keyword | service_id:keyword | owner:keyword

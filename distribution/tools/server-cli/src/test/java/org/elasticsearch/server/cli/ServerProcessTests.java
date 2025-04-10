@@ -57,7 +57,6 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class ServerProcessTests extends ESTestCase {
 
@@ -66,6 +65,7 @@ public class ServerProcessTests extends ESTestCase {
     protected final Map<String, String> sysprops = new HashMap<>();
     protected final Map<String, String> envVars = new HashMap<>();
     Path esHomeDir;
+    Path workingDir;
     Settings.Builder nodeSettings;
     ProcessValidator processValidator;
     MainMethod mainCallback;
@@ -88,12 +88,14 @@ public class ServerProcessTests extends ESTestCase {
 
     @Before
     public void resetEnv() {
+        esHomeDir = createTempDir();
         terminal.reset();
         sysprops.clear();
         sysprops.put("os.name", "Linux");
         sysprops.put("java.home", "javahome");
+        sysprops.put("es.path.home", esHomeDir.toString());
         envVars.clear();
-        esHomeDir = createTempDir();
+        workingDir = createTempDir();
         nodeSettings = Settings.builder();
         processValidator = null;
         mainCallback = null;
@@ -229,7 +231,8 @@ public class ServerProcessTests extends ESTestCase {
             .withProcessInfo(pinfo)
             .withServerArgs(createServerArgs(daemonize, quiet))
             .withJvmOptions(List.of())
-            .withTempDir(ServerProcessUtils.setupTempDir(pinfo));
+            .withTempDir(ServerProcessUtils.setupTempDir(pinfo))
+            .withWorkingDir(workingDir);
         return serverProcessBuilder.start(starter);
     }
 
@@ -238,7 +241,7 @@ public class ServerProcessTests extends ESTestCase {
             assertThat(pb.redirectInput(), equalTo(ProcessBuilder.Redirect.PIPE));
             assertThat(pb.redirectOutput(), equalTo(ProcessBuilder.Redirect.INHERIT));
             assertThat(pb.redirectError(), equalTo(ProcessBuilder.Redirect.PIPE));
-            assertThat(pb.directory(), nullValue()); // leave default, which is working directory
+            assertThat(String.valueOf(pb.directory()), equalTo(workingDir.toString())); // leave default, which is working directory
         };
         mainCallback = (args, stdin, stderr, exitCode) -> {
             try (PrintStream err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
@@ -312,7 +315,8 @@ public class ServerProcessTests extends ESTestCase {
             .withProcessInfo(createProcessInfo())
             .withServerArgs(createServerArgs(false, false))
             .withJvmOptions(List.of("-Dfoo1=bar", "-Dfoo2=baz"))
-            .withTempDir(Path.of("."));
+            .withTempDir(Path.of("."))
+            .withWorkingDir(workingDir);
         serverProcessBuilder.start(starter).waitFor();
     }
 

@@ -1,4 +1,4 @@
 redirects:
   # Strip anchors and redirect to main files
-  'query-languages/esql/esql-commands.md': '!query-languages/esql/commands/processing-commands.md'
-  'query-languages/esql/esql-functions-operators.md': '!query-languages/esql/functions-operators/aggregation-functions.md'
+  'reference/query-languages/esql/esql-commands.md': '!query-languages/esql/commands/processing-commands.md'
+  'reference/query-languages/esql/esql-functions-operators.md': '!query-languages/esql/functions-operators/aggregation-functions.md'

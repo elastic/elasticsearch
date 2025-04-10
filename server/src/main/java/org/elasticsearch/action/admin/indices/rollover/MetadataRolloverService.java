@@ -343,6 +343,7 @@ public class MetadataRolloverService {
                 now.toEpochMilli(),
                 dataStreamName,
                 templateV2,
+                systemDataStreamDescriptor,
                 newWriteIndexName,
                 (builder, indexMetadata) -> builder.put(dataStream.rolloverFailureStore(indexMetadata.getIndex(), newGeneration))
             );

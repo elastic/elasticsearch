@@ -14,7 +14,6 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 
 /**
  * Sniffs channel reads, helps detect missing or unexpected ones.
- * Plug-in into channel and checks at the end test.
  * <pre>
  *     {@code
  *     chan = new EmbeddedChannel();

@@ -829,7 +829,7 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
-            case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Double[10], ESTestCase::randomDouble));
+            case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Double[10], ESTestCase::randomFloat));
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );

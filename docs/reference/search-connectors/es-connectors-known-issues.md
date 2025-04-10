@@ -39,9 +39,9 @@ The connector service has the following known issues:
 
         * Review and optimize sync rules to filter and reduce data retrieved from the source before syncing.
 
-    * **Use a self-managed connector** instead of a managed connector:
+%    * **Use a self-managed connector** instead of a managed connector:
 
-        * Because self-managed connectors run on your infrastructure, they are not subject to the same RAM limitations of the Enterprise Search node.
+%        * Because self-managed connectors run on your infrastructure, they are not subject to the same RAM limitations of the Enterprise Search node.
 
 * **Upgrades from deployments running on versions earlier than 8.9.0 can cause sync job failures**
 

@@ -89,7 +89,10 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public Collection<?> createComponents(PluginServices services) {
         PerProjectClientManager perProjectClientManager = null;
         if (services.projectResolver().supportsMultipleProjects()) {
-            perProjectClientManager = new PerProjectClientManager(settings, this.service.get()::buildClient);
+            perProjectClientManager = new PerProjectClientManager(
+                settings,
+                s3ClientSettings -> this.service.get().buildClient(s3ClientSettings)
+            );
             services.clusterService().addListener(perProjectClientManager);
         }
         service.set(

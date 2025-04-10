@@ -3,6 +3,8 @@ navigation_title: "Elasticsearch"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-release-notes.html
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-release-notes.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/master/release-notes-9.0.0.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html
 ---
 
 # Elasticsearch release notes [elasticsearch-release-notes]

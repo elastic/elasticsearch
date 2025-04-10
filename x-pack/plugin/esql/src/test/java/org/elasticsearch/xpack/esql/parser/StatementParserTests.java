@@ -488,15 +488,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
-            // clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");// this is not a valid pattern, * should be inside <>
-            // clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}*>");
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
                 assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
-                // assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:\"foo::failures\"");
                 assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo\"::data");
                 assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo::data\"");
                 assertStringAsIndexPattern("*::data", command + " *::data");
@@ -3113,25 +3110,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // 1. Quoting the entire pattern.
         // 2. Quoting the cluster alias - "invalid cluster alias":<rest of the pattern>
         // 3. Quoting the index name - <cluster alias>:"invalid index"
+        //
+        // Note that in these tests, we unquote a pattern and then quote it immediately.
+        // This is because when randomly generating an index pattern, it may look like: "foo"::data.
+        // To convert it into a quoted string like "foo::data", we need to unquote and then re-quote it.
 
         // Prohibited char in a quoted cross cluster index pattern should result in an error.
         {
-            var firstValidIndexPattern = randomIndexPattern();
-            // Exclude date math expressions or its parsing might result in an error when an invalid char is sneaked in.
-            var secondRandomIndex = unquoteIndexPattern(randomIndexPattern(without(DATE_MATH), without(INDEX_SELECTOR)));
-
+            var randomIndex = randomIndexPattern();
             // Select an invalid char to sneak in.
-            char[] invalidChars = { ' ', '\"', '*', ',', '/', '<', '>', '?', '|' };
+            char[] invalidChars = { ' ', '/', '<', '>', '?', '|' };
             var randomInvalidChar = invalidChars[randomIntBetween(0, invalidChars.length - 1)];
 
-            // Find a random position to insert the invalid char.
-            var randomPos = randomIntBetween(3, secondRandomIndex.length() - 1);
             // Construct the new invalid index pattern.
-            var remoteIndexWithInvalidChar = quote(
-                secondRandomIndex.substring(0, randomPos) + randomInvalidChar + secondRandomIndex.substring(randomPos + 1)
-            );
-
-            var query = "FROM " + firstValidIndexPattern + "," + remoteIndexWithInvalidChar;
+            var remoteIndexWithInvalidChar = quote(randomIdentifier() + ":" + "foo" + randomInvalidChar + "bar");
+            var query = "FROM " + randomIndex + "," + remoteIndexWithInvalidChar;
             expectError(query, "must not contain the following characters [' ','\"','*',',','/','<','>','?','\\','|']");
         }
 
@@ -3144,7 +3137,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
             // We do not generate a cross cluster pattern or else we'd be getting a different error (which is tested in
             // the next test).
-            var remoteIndex = randomIndexPattern(without(CROSS_CLUSTER));
+            var remoteIndex = quote(unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER))));
             // Format: FROM <some index>, "<cluster alias: random string>":<remote index>
             var query = "FROM " + randomIndex + "," + malformedClusterAlias + ":" + remoteIndex;
             expectError(query, "cluster string [" + unquoteIndexPattern(malformedClusterAlias) + "] must not contain ':'");
@@ -3177,9 +3170,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
             // If a stream in on a remote and the cluster alias and index pattern are separately quoted, we should
             // still be able to validate it.
-            // Note:
-            // 1. Invalid selector syntax is covered in a different test.
-            // 2. We unquote a pattern and re-quote it to prevent partial quoting of pattern fragments.
+            // Note: invalid selector syntax is covered in a different test.
             {
                 var fromPattern = randomIndexPattern();
                 var malformedIndexSelectorPattern = quote(randomIdentifier())

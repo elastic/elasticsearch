@@ -78,6 +78,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -354,7 +355,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             threadPool::relativeTimeInNanos,
             new CapturingIndexCommitListener(),
             true,
-            mapperService
+            mapperService,
+            new EngineResetLock()
         );
     }
 
@@ -430,7 +432,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             null,
             false,
-            null
+            null,
+            new EngineResetLock()
         );
         return new SearchEngine(searchConfig, new ClosedShardService()) {
             @Override
@@ -506,7 +509,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             null,
             false,
-            null
+            null,
+            new EngineResetLock()
         );
     }
 

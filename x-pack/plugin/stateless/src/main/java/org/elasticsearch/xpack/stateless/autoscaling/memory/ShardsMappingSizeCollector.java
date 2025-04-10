@@ -272,28 +272,34 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
 
     void updateMappingMetricsForAllIndices(long clusterStateVersion) {
         final long publishSeqNo = seqNo.incrementAndGet(); // generate seq_no before capturing data
-        final Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
-        for (IndexService indexService : indicesService) {
-            var nodeMappingStats = indexService.getNodeMappingStats();
-            if (nodeMappingStats != null) {
-                addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), indexService, shardMappingSizes);
+        // Fork to generic thread pool to compute and publish the node's mapping stats for all indices
+        threadPool.generic().execute(() -> {
+            final Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
+            for (IndexService indexService : indicesService) {
+                var nodeMappingStats = indexService.getNodeMappingStats();
+                if (nodeMappingStats != null) {
+                    addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), indexService, shardMappingSizes);
+                }
             }
-        }
-        HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes, clusterStateVersion);
-        threadPool.generic().execute(() -> publishHeapUsage(heapUsage));
+            HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes, clusterStateVersion);
+            publishHeapUsage(heapUsage);
+        });
     }
 
     void updateMappingMetricsForIndex(Index index, long clusterStateVersion) {
         final long publishSeqNo = seqNo.incrementAndGet(); // generate seq_no before capturing data
         final IndexService indexService = indicesService.indexService(index);
         if (indexService != null) {
-            final var nodeMappingStats = indexService.getNodeMappingStats();
-            if (nodeMappingStats != null) {
-                Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
-                addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), indexService, shardMappingSizes);
-                HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes, clusterStateVersion);
-                threadPool.generic().execute(() -> publishHeapUsage(heapUsage));
-            }
+            // Fork to generic thread pool to compute the node's mapping stats for the index
+            threadPool.generic().execute(() -> {
+                final var nodeMappingStats = indexService.getNodeMappingStats();
+                if (nodeMappingStats != null) {
+                    Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
+                    addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), indexService, shardMappingSizes);
+                    HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes, clusterStateVersion);
+                    publishHeapUsage(heapUsage);
+                }
+            });
         }
     }
 
@@ -314,17 +320,27 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
      */
     public void updateMappingMetricsForShard(ShardId shardId, long clusterStateVersion) {
         final long publishSeqNo = seqNo.incrementAndGet(); // generate seq_no before capturing data
-        final IndexService indexService = indicesService.indexService(shardId.getIndex());
-        if (indexService != null) {
-            final IndexShard shard = indexService.getShardOrNull(shardId.id());
-            final var nodeMappingStats = indexService.getNodeMappingStats();
-            if (shard != null && nodeMappingStats != null) {
-                Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
-                addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), List.of(shard), shardMappingSizes);
-                HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes, clusterStateVersion);
-                threadPool.generic().execute(() -> publishHeapUsage(heapUsage));
+        // This method is called on the cluster state applied thread as well as during refresh by refresh listeners.
+        //
+        // It computes the stats for all shards of the index that exist on the node and therefore needs to acquire an engine read lock for
+        // each of those shards. We need to fork to generic thread pool here otherwise we risk the following deadlock:
+        // - thread t1 resets the engine of shard 0 of index `foo`, holds the write lock for shard 0, triggers a refresh, blocks on
+        // acquiring the read lock of shard 1 of index `foo` to compute the stats since write lock is held by t2
+        // - thread t2 resets the engine of shard 1 of index `foo`, holds the write lock for shard A, triggers a refresh, blocks on
+        // acquiring the read lock of shard 0 of index `foo` since write lock is held by t1
+        threadPool.generic().execute(() -> {
+            final IndexService indexService = indicesService.indexService(shardId.getIndex());
+            if (indexService != null) {
+                final IndexShard shard = indexService.getShardOrNull(shardId.id());
+                final var nodeMappingStats = indexService.getNodeMappingStats();
+                if (shard != null && nodeMappingStats != null) {
+                    Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
+                    addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), List.of(shard), shardMappingSizes);
+                    HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes, clusterStateVersion);
+                    publishHeapUsage(heapUsage);
+                }
             }
-        }
+        });
     }
 
     void start() {

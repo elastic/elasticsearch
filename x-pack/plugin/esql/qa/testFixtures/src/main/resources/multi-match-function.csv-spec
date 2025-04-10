@@ -95,3 +95,35 @@ book_no:keyword
 8678           
 8875
 ;
+
+testMultiMatchPhraseQuery
+from books 
+| where multi_match("Lord of the rings", title, description, { "type": "phrase" } )
+| keep title
+;
+ignoreOrder: true
+
+title:text                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+Return of the Shadow
+The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+Letters of J R R Tolkien
+The Lord of the Rings - Boxed Set
+The Two Towers
+Realms of Tolkien: Images of Middle-earth
+Return of the King Being the Third Part of The Lord of the Rings
+;
+
+testMultiMatchPhrasePrefixQuery
+from books 
+| where multi_match("Lord of the ri", title, { "type": "phrase_prefix" } )
+| keep title
+;
+ignoreOrder: true
+
+title:text                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+The Lord of the Rings - Boxed Set
+Return of the King Being the Third Part of The Lord of the Rings
+A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;

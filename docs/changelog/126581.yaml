@@ -1,0 +1,5 @@
+pr: 126581
+summary: Evict from the shared blob cache asynchronously
+area: Searchable Snapshots
+type: enhancement
+issues: []

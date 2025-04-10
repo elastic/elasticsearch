@@ -1561,3 +1561,43 @@ from *
 salary_change.long:double|foo:long
 5.0                      |1698069301543123456
 ;
+
+
+joinMaskingEval
+required_capability: fix_join_masking_eval
+from languag* 
+| eval type = null 
+| rename language_name as message 
+| lookup join message_types_lookup on message 
+| rename type as message 
+| lookup join message_types_lookup on message 
+| keep `language.name`
+;
+
+language.name:keyword
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+English
+Franch
+Spanish
+German
+;

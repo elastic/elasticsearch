@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -499,6 +500,7 @@ public class EsqlSession {
 
     /**
      * Check if there are any clusters to search.
+     *
      * @return true if there are no clusters to search, false otherwise
      */
     private boolean allCCSClustersSkipped(
@@ -607,7 +609,12 @@ public class EsqlSession {
         var keepJoinRefsBuilder = AttributeSet.builder();
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
+        boolean[] joinsFound = new boolean[] { false };
+
         parsed.forEachDown(p -> {// go over each plan top-down
+            if (p instanceof Join || p instanceof Enrich) {
+                joinsFound[0] = true;
+            }
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
@@ -658,14 +665,19 @@ public class EsqlSession {
             AttributeSet planRefs = p.references();
             Set<String> fieldNames = planRefs.names();
             p.forEachExpressionDown(Alias.class, alias -> {
-                // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
-                // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                if (fieldNames.contains(alias.name())) {
-                    return;
+                // If there are joins/enriches in the middle, these could override some of these fields.
+                // We don't know at this stage, so we have to keep all of them.
+                if (joinsFound[0] == false) {
+                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
+                    // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
+                    if (fieldNames.contains(alias.name())) {
+                        return;
+                    }
+                    referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
                 }
-                referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
             });
         });
+
         // Add JOIN ON column references afterward to avoid Alias removal
         referencesBuilder.addAll(keepJoinRefsBuilder);
         // If any JOIN commands need wildcard field-caps calls, persist the index names

@@ -62,6 +62,9 @@ public class PerProjectClientManager implements ClusterStateListener {
                 .build();
             final Map<String, S3ClientSettings> clientSettings = S3ClientSettings.load(currentSettings);
 
+            // TODO: clientSettings should not be empty, i.e. there should be at least one client configured
+            // Maybe log a warning if it is empty and continue. The project will not have usable client but that is probably ok.
+
             // TODO: Building and comparing the whole S3ClientSettings may be insufficient, we could just compare the relevant secrets
             if (newOrUpdated(project.id(), clientSettings)) {
                 updatedPerProjectClients.put(

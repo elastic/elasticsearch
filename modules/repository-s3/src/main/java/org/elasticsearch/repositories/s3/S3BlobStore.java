@@ -25,7 +25,6 @@ import com.amazonaws.util.TimingInfo;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
@@ -493,8 +492,8 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        // TODO: take actual project-id in account
-        service.onBlobStoreClose(Metadata.DEFAULT_PROJECT_ID);
+        // TODO: change to use service.onBlobStoreClose(projectId)
+        service.onBlobStoreClose();
     }
 
     @Override

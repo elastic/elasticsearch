@@ -104,7 +104,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             )
         );
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
-
         return List.of(service);
     }
 

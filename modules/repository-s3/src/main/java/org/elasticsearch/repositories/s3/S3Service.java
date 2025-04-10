@@ -174,7 +174,7 @@ class S3Service implements Closeable {
      * Otherwise, attempts to retrieve a per-project client by the project-id and repository metadata from the
      * per-project client manager. Throws if project-id or the client does not exist. The client maybe initialized lazily.
      */
-    public AmazonS3Reference client(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+    public AmazonS3Reference client(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata) {
         if (perProjectClientManager == null) {
             // Multi-Project is disabled and we have a single default project
             assert ProjectId.DEFAULT.equals(projectId) : projectId;
@@ -337,9 +337,18 @@ class S3Service implements Closeable {
         IdleConnectionReaper.shutdown();
     }
 
-    public void onBlobStoreClose(ProjectId projectId) {
+    public void onBlobStoreClose() {
+        releaseCachedClients();
+    }
+
+    public void onBlobStoreClose(@Nullable ProjectId projectId) {
         if (perProjectClientManager == null) {
-            releaseCachedClients();
+            // Multi-Project is disabled and we have a single default project
+            assert ProjectId.DEFAULT.equals(projectId) : projectId;
+            onBlobStoreClose();
+        } else if (projectId == null) {
+            // Multi-Project is enabled and this is for the cluster level blobstore
+            onBlobStoreClose();
         } else {
             perProjectClientManager.clearCacheForProject(projectId);
         }

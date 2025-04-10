@@ -460,7 +460,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             }
             // must check both node and transport versions to correctly deal with BwC on proxy connections
             if (connection.getTransportVersion().before(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X)
-                || connection.getNode().getVersionInformation().nodeVersion().before(Version.V_8_10_1)) {
+                || connection.getNode().getVersionInformation().nodeVersion().before(Version.V_8_19_0)) {
                 executeWithoutBatching(routing, request);
                 return;
             }

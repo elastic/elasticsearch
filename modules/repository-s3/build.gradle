@@ -60,7 +60,6 @@ testing {
     }
     test {
       dependencies {
-        println "adding dependency = dependency"
         implementation(project(':test:fixtures:s3-fixture'))
       }
     }

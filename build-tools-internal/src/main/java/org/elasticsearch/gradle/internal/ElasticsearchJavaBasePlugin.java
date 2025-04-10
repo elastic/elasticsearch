@@ -21,6 +21,7 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -65,6 +66,16 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
         project.getPluginManager().apply(JvmTestSuitePlugin.class);
         TestingExtension testing = project.getExtensions().getByType(TestingExtension.class);
+        testing.getSuites().withType(JvmTestSuite.class).configureEach(suite -> {
+            if (suite.getName().equals("test") == false) {
+                // default test task behaves differently in gradle
+                suite.useJUnit();
+            }
+            ExternalModuleDependency junitDependency = suite.getDependencies()
+                .module("junit", "junit", VersionProperties.getVersions().get("junit"));
+            junitDependency.setTransitive(false);
+            suite.getDependencies().getImplementation().add(junitDependency);
+        });
         // common repositories setup
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);

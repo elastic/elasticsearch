@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceInferenceRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.request.HuggingFaceInferenceRequest;
 
 import java.util.List;
 import java.util.Objects;

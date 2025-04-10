@@ -1,7 +1,7 @@
 ---
 navigation_title: "Math functions"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/math-functions.md
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-math-functions
 ---
 
 # {{esql}} mathematical functions [esql-math-functions]

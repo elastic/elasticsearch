@@ -121,9 +121,11 @@ public class S3HttpHandler implements HttpHandler {
                 uploadsList.append("<MaxUploads>10000</MaxUploads>");
                 uploadsList.append("<IsTruncated>false</IsTruncated>");
 
-                for (final var multipartUpload : uploads.values()) {
-                    if (multipartUpload.getPath().startsWith(prefix)) {
-                        multipartUpload.appendXml(uploadsList);
+                synchronized (uploads) {
+                    for (final var multipartUpload : uploads.values()) {
+                        if (multipartUpload.getPath().startsWith(prefix)) {
+                            multipartUpload.appendXml(uploadsList);
+                        }
                     }
                 }
 
@@ -135,9 +137,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (request.isInitiateMultipartUploadRequest()) {
-                final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), request.path().substring(bucket.length() + 2));
-                uploads.put(upload.getUploadId(), upload);
-
+                final var upload = putUpload(request.path().substring(bucket.length() + 2));
                 final var uploadResult = new StringBuilder();
                 uploadResult.append("<?xml version='1.0' encoding='UTF-8'?>");
                 uploadResult.append("<InitiateMultipartUploadResult>");
@@ -152,7 +152,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (request.isUploadPartRequest()) {
-                final var upload = uploads.get(request.getQueryParamOnce("uploadId"));
+                final var upload = getUpload(request.getQueryParamOnce("uploadId"));
                 if (upload == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
@@ -187,7 +187,7 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
             } else if (request.isCompleteMultipartUploadRequest()) {
-                final var upload = uploads.remove(request.getQueryParamOnce("uploadId"));
+                final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
                 if (upload == null) {
                     if (Randomness.get().nextBoolean()) {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
@@ -222,7 +222,7 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.getResponseBody().write(response);
                 }
             } else if (request.isAbortMultipartUploadRequest()) {
-                final var upload = uploads.remove(request.getQueryParamOnce("uploadId"));
+                final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (request.isPutObjectRequest()) {
@@ -521,8 +521,24 @@ public class S3HttpHandler implements HttpHandler {
         return parseRangeHeader(sourceRangeHeaders.getFirst());
     }
 
+    MultipartUpload putUpload(String path) {
+        final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), path);
+        synchronized (uploads) {
+            uploads.put(upload.getUploadId(), upload);
+            return upload;
+        }
+    }
+
     MultipartUpload getUpload(String uploadId) {
-        return uploads.get(uploadId);
+        synchronized (uploads) {
+            return uploads.get(uploadId);
+        }
+    }
+
+    MultipartUpload removeUpload(String uploadId) {
+        synchronized (uploads) {
+            return uploads.remove(uploadId);
+        }
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

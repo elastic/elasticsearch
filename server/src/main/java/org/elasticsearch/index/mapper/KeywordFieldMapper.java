@@ -1263,11 +1263,14 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
+        /*
         if (hasNormalizer()) {
             // NOTE: no matter if we have doc values or not we use fallback synthetic source
             // to store the original value whose doc values would be altered by the normalizer
             return SyntheticSourceSupport.FALLBACK;
         }
+
+         */
 
         if (fieldType.stored() || hasDocValues) {
             return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));

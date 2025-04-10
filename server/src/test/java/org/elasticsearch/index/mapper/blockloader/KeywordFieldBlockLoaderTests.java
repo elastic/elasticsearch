@@ -28,21 +28,23 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
     @SuppressWarnings("unchecked")
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        var nullValue = (String) fieldMapping.get("null_value");
+        String nullValue = (String) fieldMapping.get("null_value");
 
-        var ignoreAbove = fieldMapping.get("ignore_above") == null
+        int ignoreAbove = fieldMapping.get("ignore_above") == null
             ? Integer.MAX_VALUE
             : ((Number) fieldMapping.get("ignore_above")).intValue();
 
+        String normalizerName = (String) fieldMapping.get("normalizer");
+
         if (value == null) {
-            return convert(null, nullValue, ignoreAbove);
+            return convert(null, nullValue, ignoreAbove, normalizerName);
         }
 
         if (value instanceof String s) {
-            return convert(s, nullValue, ignoreAbove);
+            return convert(s, nullValue, ignoreAbove, normalizerName);
         }
 
-        Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove))
+        Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove, normalizerName))
             .filter(Objects::nonNull);
 
         boolean hasDocValues = hasDocValues(fieldMapping, false);
@@ -63,7 +65,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         return maybeFoldList(resultList);
     }
 
-    private BytesRef convert(String value, String nullValue, int ignoreAbove) {
+    private BytesRef convert(String value, String nullValue, int ignoreAbove, String normalizer) {
         if (value == null) {
             if (nullValue != null) {
                 value = nullValue;
@@ -71,7 +73,13 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
                 return null;
             }
         }
-
+        if (Objects.equals(normalizer, "lowercase")) {
+            // hopefully not Turkish...
+            value = value.toLowerCase();
+        } else if (normalizer != null) {
+            // we probably can't get here anyway, since MapperServiceTestCase only initializes the lowercase normalizer
+            throw new IllegalArgumentException("normalizer [" + normalizer + "] not supported for block loader tests");
+        }
         return value.length() <= ignoreAbove ? new BytesRef(value) : null;
     }
 }

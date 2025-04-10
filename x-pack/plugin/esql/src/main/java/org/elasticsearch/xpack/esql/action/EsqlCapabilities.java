@@ -962,12 +962,12 @@ public class EsqlCapabilities {
         QUERY_MONITORING,
 
         /**
-         * Support max_over_time aggregation
+         * Support max_over_time aggregation that gets evaluated per time-series
          */
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support avg_over_time aggregation
+         * Support avg_over_time aggregation that gets evaluated per time-series
          */
         AVG_OVER_TIME(Build.current().isSnapshot());
 

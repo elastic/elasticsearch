@@ -1713,12 +1713,16 @@ magnitude:double | sign:double | result:double
 ;
 
 copySignOfPositiveToNegative
+// tag::copySign-PosToNeg[]
 ROW magnitude = 5.2, sign = -9.0
 | EVAL result = COPY_SIGN(magnitude, sign)
+// end::copySign-PosToNeg[]
 ;
 
+// tag::copySign-PosToNeg-result[]
 magnitude:double | sign:double | result:double
 5.2              | -9.0        | -5.2
+// end::copySign-PosToNeg-result[]
 ;
 
 copySignOfNegativeToPositive
@@ -1782,4 +1786,12 @@ ROW magnitude = 9223372036854775808, sign = -11.2
 
 magnitude:unsigned_long | sign:double | result:double
 9223372036854775808     | -11.2       | -9223372036854775808
+;
+
+copySignAsArgument
+ROW result = SIGNUM(COPY_SIGN(24, -11))
+;
+
+result:double
+-1
 ;

@@ -40,7 +40,7 @@ public class CopySign extends EsqlScalarFunction {
     @FunctionInfo(
         returnType = { "double" },
         description = "Returns the first argument with the sign of the second argument.",
-        examples = @Example(file = "math", tag = "CopySign")
+        examples = @Example(file = "math", tag = "copySign-PosToNeg")
     )
     public CopySign(
         Source source,

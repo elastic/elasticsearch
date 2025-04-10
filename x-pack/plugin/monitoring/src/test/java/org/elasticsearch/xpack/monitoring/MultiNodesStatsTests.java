@@ -104,7 +104,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
             .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(true))
             .build();
         awaitClusterState(cs -> {
-            final var indices = indexNameExpressionResolver.concreteIndices(cs, indicesOptions, ALL_MONITORING_INDICES);
+            final var indices = indexNameExpressionResolver.concreteIndices(cs, indicesOptions, ".monitoring-es-*");
             if (indices.length == 0) {
                 return false;
             }

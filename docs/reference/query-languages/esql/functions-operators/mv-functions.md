@@ -1,7 +1,7 @@
 ---
-navigation_title: "multivalue functions"
+navigation_title: "Multivalue functions"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/mv-functions.md
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-mv-functions
 ---
 
 # {{esql}} multivalue functions [esql-mv-functions]

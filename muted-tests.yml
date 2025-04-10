@@ -432,6 +432,9 @@ tests:
 - class: org.elasticsearch.upgrades.SearchStatesIT
   method: testCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/126633
+- class: org.elasticsearch.xpack.esql.action.EsqlActionIT
+  method: testQueryOnEmptyDataIndex
+  issue: https://github.com/elastic/elasticsearch/issues/126580
 
 # Examples:
 #

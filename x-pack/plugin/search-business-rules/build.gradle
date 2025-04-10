@@ -15,5 +15,38 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(":test:framework")
+  testImplementation(testArtifact(project(':server')))
+
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(xpackModule('search-business-rules'))
+  clusterModules project(':modules:lang-painless')
+}
+
+restResources {
+  restApi {
+    include '_common',
+            'bulk',
+            'cluster',
+            'indices',
+            'index',
+            'search',
+            'xpack'
+  }
+  restTests {
+    includeXpack 'searchbusinessrules'
+  }
+}
+
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("uses search business rules plugin")
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'false'
 }

@@ -31,8 +31,8 @@ This gives you a first estimation of your overall search quality, as well as a m
 
 For full details about the API syntax, refer to:
 
-* [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-rank-eval)
-* [{{es-serverless}} API documentation](https://www.elastic.co/docs/api/doc/elasticsearch-serverless/operation/operation-rank-eval)
+* [{{es}} API documentation]({{es-apis}}operation/operation-rank-eval)
+* [{{es-serverless}} API documentation]({{es-serverless-apis}}operation/operation-rank-eval)
 
 ## Examples
 

@@ -37,7 +37,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -202,7 +201,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(BlobCachePlugin.class, TestStateless.class, LogsDBPlugin.class);
+        return List.of(BlobCachePlugin.class, TestStateless.class);
     }
 
     @Override

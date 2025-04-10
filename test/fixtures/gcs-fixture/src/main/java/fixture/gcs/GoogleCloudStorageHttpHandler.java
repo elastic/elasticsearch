@@ -173,14 +173,18 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=multipart*", request)) {
-                final var multipartUpload = MultipartUpload.parseBody(exchange, requestBody.streamInput());
-                final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
-                final MockGcsBlobStore.BlobVersion newBlobVersion = mockGcsBlobStore.updateBlob(
-                    multipartUpload.name(),
-                    ifGenerationMatch,
-                    multipartUpload.content()
-                );
-                writeBlobVersionAsJson(exchange, newBlobVersion);
+                try {
+                    final var multipartUpload = MultipartUpload.parseBody(exchange, requestBody.streamInput());
+                    final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
+                    final MockGcsBlobStore.BlobVersion newBlobVersion = mockGcsBlobStore.updateBlob(
+                        multipartUpload.name(),
+                        ifGenerationMatch,
+                        multipartUpload.content()
+                    );
+                    writeBlobVersionAsJson(exchange, newBlobVersion);
+                } catch (IllegalArgumentException e) {
+                    throw new AssertionError(e);
+                }
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=resumable*", request)) {
                 // Resumable upload initialization https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
                 final Map<String, String> params = new HashMap<>();

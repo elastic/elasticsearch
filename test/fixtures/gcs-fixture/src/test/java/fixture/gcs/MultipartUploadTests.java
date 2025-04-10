@@ -12,6 +12,7 @@ package fixture.gcs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -19,6 +20,50 @@ import java.io.IOException;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class MultipartUploadTests extends ESTestCase {
+
+    // produces content that does not contain boundary
+    static String randomPartContent(int len, String boundary) {
+        assert len > 0 && boundary.isEmpty() == false;
+        var n = 100;
+        for (var i = 0; i < 100; i++) {
+            var content = randomAlphanumericOfLength(len);
+            if (content.contains(boundary) == false) {
+                return content;
+            }
+        }
+        throw new IllegalStateException("cannot generate part content for len=" + len + " boundary=" + boundary);
+    }
+
+    public void testGenericMultipart() throws IOException {
+        var boundary = randomAlphanumericOfLength(between(1, 70));
+        var part1 = "plain text\nwith line break";
+        var part2 = "";
+        var part3 = randomPartContent(between(1, 1024), boundary);
+        var strInput = """
+            --$boundary\r
+            \r
+            \r
+            $part1\r
+            --$boundary\r
+            X-Header: x-man\r
+            \r
+            $part2\r
+            --$boundary\r
+            Content-Type: application/octet-stream\r
+            \r
+            $part3\r
+            --$boundary--"""
+            .replace("$boundary", boundary)
+            .replace("$part1", part1)
+            .replace("$part2", part2)
+            .replace("$part3", part3);
+
+        var reader = new MultipartUpload.MultipartContentReader(boundary, new ByteArrayStreamInput(strInput.getBytes()));
+        assertEquals(part1, reader.next().utf8ToString());
+        assertEquals(part2, reader.next().utf8ToString());
+        assertEquals(part3, reader.next().utf8ToString());
+        assertFalse(reader.hasNext());
+    }
 
     public void testReadUntilDelimiter() throws IOException {
         for (int run = 0; run < 100; run++) {

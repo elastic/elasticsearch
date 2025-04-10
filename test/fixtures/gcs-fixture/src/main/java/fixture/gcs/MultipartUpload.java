@@ -19,7 +19,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Iterator;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
@@ -36,7 +36,6 @@ public record MultipartUpload(String bucket, String name, String generation, Str
      * like this {@code multipart/related; boundary=__END_OF_PART__4914cd49-4065-44f6-9846-ce805fe1e77f__}.
      * Last part, close-delimiter, is dashed from both sides {@code --boundary--}.
      * Part headers are separated from the content by double CRLF.
-     *
      * More details here <a href=https://www.rfc-editor.org/rfc/rfc2046.html#page-19>rfc2046</a>.
      *
      * <pre>
@@ -54,66 +53,42 @@ public record MultipartUpload(String bucket, String name, String generation, Str
      * </pre>
      */
     public static MultipartUpload parseBody(HttpExchange exchange, InputStream gzipInput) throws IOException {
-        var boundary = getBoundaryHeader(exchange);
-        try (var input = new GZIPInputStream(gzipInput)) {
-            var dashBoundary = ("--" + boundary).getBytes();
-            var bodyPartDelimiter = ("\r\n--" + boundary).getBytes();
-
-            skipDashBoundary(input, dashBoundary);
-
-            // read first body-part - blob metadata json
-            skipUntilDelimiter(input, BODY_PART_HEADERS_DELIMITER);
-            var metadataBytes = readUntilDelimiter(input, bodyPartDelimiter);
-            var match = METADATA_PATTERN.matcher(metadataBytes.utf8ToString());
-            String bucket = "", name = "", gen = "", crc = "", md5 = "";
-            while (match.find()) {
-                switch (match.group(1)) {
-                    case "bucket" -> bucket = match.group(2);
-                    case "name" -> name = match.group(2);
-                    case "generation" -> gen = match.group(2);
-                    case "crc32c" -> crc = match.group(2);
-                    case "md5Hash" -> md5 = match.group(2);
-                }
-            }
-            var blobParts = new ArrayList<BytesReference>();
-
-            // read content from remaining parts, can be 0..n
-            while (readCloseDelimiterOrCRLF(input) == false) {
-                skipUntilDelimiter(input, BODY_PART_HEADERS_DELIMITER);
-                var content = readUntilDelimiter(input, bodyPartDelimiter);
-                blobParts.add(content);
-            }
-
-            var compositeBuf = CompositeBytesReference.of(blobParts.toArray(new BytesReference[0]));
-            return new MultipartUpload(bucket, name, gen, crc, md5, compositeBuf);
-        }
-    }
-
-    static String getBoundaryHeader(HttpExchange exchange) {
         var m = BOUNDARY_HEADER_PATTERN.matcher(exchange.getRequestHeaders().getFirst("Content-Type"));
         if (m.matches() == false) {
-            throw new AssertionError("boundary header is not present");
+            throw new IllegalStateException("boundary header is not present");
         }
-        return m.group(1);
+        var boundary = m.group(1);
+        try (var input = new GZIPInputStream(gzipInput)) {
+            return parseBody(boundary, input);
+        }
     }
 
-    /**
-     * read and discard very first delimiter
-     */
-    static void skipDashBoundary(InputStream is, byte[] dashBoundary) throws IOException {
-        var b = is.readNBytes(dashBoundary.length);
-        if (Arrays.equals(b, dashBoundary) == false) {
-            throw new AssertionError("cannot read dash-boundary, expect=" + Arrays.toString(dashBoundary) + " got=" + Arrays.toString(b));
-        }
-        skipCRLF(is);
-    }
+    // for tests
+    static MultipartUpload parseBody(String boundary, InputStream input) throws IOException {
+        var reader = new MultipartContentReader(boundary, input);
 
-    static void skipCRLF(InputStream is) throws IOException {
-        var cr = is.read();
-        var lf = is.read();
-        if (cr != '\r' && lf != '\n') {
-            throw new AssertionError("cannot read CRLF got " + cr + " " + lf);
+        // read first body-part - blob metadata json
+        var metadataBytes = reader.next();
+        var match = METADATA_PATTERN.matcher(metadataBytes.utf8ToString());
+        String bucket = "", name = "", gen = "", crc = "", md5 = "";
+        while (match.find()) {
+            switch (match.group(1)) {
+                case "bucket" -> bucket = match.group(2);
+                case "name" -> name = match.group(2);
+                case "generation" -> gen = match.group(2);
+                case "crc32c" -> crc = match.group(2);
+                case "md5Hash" -> md5 = match.group(2);
+            }
         }
+
+        // read and combine remaining parts
+        var blobParts = new ArrayList<BytesReference>();
+        while (reader.hasNext()) {
+            blobParts.add(reader.next());
+        }
+        var compositeBuf = CompositeBytesReference.of(blobParts.toArray(new BytesReference[0]));
+
+        return new MultipartUpload(bucket, name, gen, crc, md5, compositeBuf);
     }
 
     /**
@@ -128,7 +103,7 @@ public record MultipartUpload(String bucket, String name, String generation, Str
         } else if (d1 == '\r' && d2 == '\n') {
             return false;
         } else {
-            throw new AssertionError("expect '--' or CRLF, got " + d1 + " " + d2);
+            throw new IllegalStateException("expect '--' or CRLF, got " + d1 + " " + d2);
         }
     }
 
@@ -185,6 +160,40 @@ public record MultipartUpload(String bucket, String name, String generation, Str
                 } else {
                     delimiterMatchLen = 0;
                 }
+            }
+        }
+    }
+
+    /**
+     * Multipart content iterator.
+     */
+    static class MultipartContentReader implements Iterator<BytesReference> {
+        private final InputStream input;
+        private final byte[] bodyPartDelimiter;
+        private boolean done;
+
+        MultipartContentReader(String boundary, InputStream input) throws IOException {
+            this.input = input;
+            this.bodyPartDelimiter = ("\r\n--" + boundary).getBytes();
+            byte[] dashBoundary = ("--" + boundary).getBytes();
+            skipUntilDelimiter(input, dashBoundary);
+            readCloseDelimiterOrCRLF(input);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return done == false;
+        }
+
+        @Override
+        public BytesReference next() {
+            try {
+                skipUntilDelimiter(input, BODY_PART_HEADERS_DELIMITER);
+                BytesReference buf = readUntilDelimiter(input, bodyPartDelimiter);
+                done = readCloseDelimiterOrCRLF(input);
+                return buf;
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
             }
         }
     }

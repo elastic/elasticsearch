@@ -17,6 +17,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -28,6 +29,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.SdkPartType;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
+import software.amazon.awssdk.services.s3.model.UploadPartCopyRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
@@ -377,24 +379,24 @@ class S3BlobContainer extends AbstractBlobContainer {
             } else {
                 // metadata is inherited from source, but not canned ACL or storage class
                 final var blobKey = buildKey(blobName);
-                final CopyObjectRequest copyRequest = new CopyObjectRequest(
-                    s3SourceBlobContainer.blobStore.bucket(),
-                    s3SourceBlobContainer.buildKey(sourceBlobName),
-                    blobStore.bucket(),
-                    blobKey
-                ).withCannedAccessControlList(blobStore.getCannedACL()).withStorageClass(blobStore.getStorageClass());
-
-                S3BlobStore.configureRequestForMetrics(copyRequest, blobStore, Operation.COPY_OBJECT, purpose);
-
+                final CopyObjectRequest.Builder copyObjectRequestBuilder = CopyObjectRequest.builder()
+                    .sourceBucket(s3SourceBlobContainer.blobStore.bucket())
+                    .sourceKey(s3SourceBlobContainer.buildKey(sourceBlobName))
+                    .destinationBucket(blobStore.bucket())
+                    .destinationKey(blobKey)
+                    .acl(blobStore.getCannedACL())
+                    .storageClass(blobStore.getStorageClass());
+                S3BlobStore.configureRequestForMetrics(copyObjectRequestBuilder, blobStore, Operation.COPY_OBJECT, purpose);
+                final var copyObjectRequest = copyObjectRequestBuilder.build();
                 try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                    SocketAccess.doPrivilegedVoid(() -> { clientReference.client().copyObject(copyRequest); });
+                    SocketAccess.doPrivilegedVoid(() -> clientReference.client().copyObject(copyObjectRequest));
                 }
             }
-        } catch (final AmazonClientException e) {
-            if (e instanceof AmazonS3Exception amazonS3Exception) {
-                if (amazonS3Exception.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+        } catch (final SdkException e) {
+            if (e instanceof SdkServiceException sdkServiceException) {
+                if (sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
                     final var sourceKey = s3SourceBlobContainer.buildKey(sourceBlobName);
-                    throw new NoSuchFileException("Copy source [" + sourceKey + "] not found: " + amazonS3Exception.getMessage());
+                    throw new NoSuchFileException("Copy source [" + sourceKey + "] not found: " + sdkServiceException.getMessage());
                 }
             }
             throw new IOException("Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]", e);
@@ -585,7 +587,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private interface PartOperation {
-        PartETag doPart(String uploadId, int partNum, long partSize, boolean lastPart);
+        CompletedPart doPart(String uploadId, int partNum, long partSize, boolean lastPart);
     }
 
     // for copy, blobName and s3BlobStore are the destination
@@ -630,7 +632,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             for (int i = 1; i <= nbParts; i++) {
                 final boolean lastPart = i == nbParts;
                 final var curPartSize = lastPart ? lastPartSize : partSize;
-                final var partEtag = partOperation.doPart(uploadId.get(), i, curPartSize, lastPart);
+                final var partEtag = partOperation.doPart(uploadId, i, curPartSize, lastPart);
                 bytesCount += curPartSize;
                 parts.add(partEtag);
             }
@@ -662,9 +664,11 @@ class S3BlobContainer extends AbstractBlobContainer {
                 SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(completeMultipartUploadRequest));
             }
             cleanupOnFailureActions.clear();
-        } catch (final AmazonClientException e) {
-            if (e instanceof AmazonServiceException ase && ase.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
-                throw new NoSuchFileException(blobName, null, e.getMessage());
+        } catch (final SdkException e) {
+            if (e instanceof SdkServiceException sdkServiceException) {
+                if (sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                    throw new NoSuchFileException(blobName, null, e.getMessage());
+                }
             }
             throw new IOException("Unable to upload object [" + blobName + "] using multipart upload", e);
         } finally {
@@ -689,21 +693,14 @@ class S3BlobContainer extends AbstractBlobContainer {
             s3BlobStore.bufferSizeInBytes(),
             blobSize,
             (uploadId, partNum, partSize, lastPart) -> {
-                final UploadPartRequest uploadRequest = createPartUploadRequest(
-                    purpose,
-                    input,
-                    uploadId,
-                    partNum,
-                    blobName,
-                    partSize,
-                    lastPart
-                );
+                final UploadPartRequest uploadRequest = createPartUploadRequest(purpose, uploadId, partNum, blobName, partSize, lastPart);
 
-                try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
-                    final UploadPartResult uploadResponse = SocketAccess.doPrivileged(
-                        () -> clientReference.client().uploadPart(uploadRequest)
+                try (var clientReference = s3BlobStore.clientReference()) {
+                    final UploadPartResponse uploadResponse = SocketAccess.doPrivileged(
+                        () -> clientReference.client().uploadPart(uploadRequest, RequestBody.fromInputStream(input, partSize))
                     );
-                    return uploadResponse.getPartETag();
+
+                    return CompletedPart.builder().partNumber(partNum).eTag(uploadResponse.eTag()).build();
                 }
             }
         );
@@ -730,19 +727,22 @@ class S3BlobContainer extends AbstractBlobContainer {
         final var destinationKey = buildKey(destinationBlobName);
         executeMultipart(purpose, blobStore, destinationKey, copyPartSize, blobSize, ((uploadId, partNum, partSize, lastPart) -> {
             final long startOffset = (partNum - 1) * copyPartSize;
-            final var request = new CopyPartRequest().withSourceBucketName(sourceContainer.blobStore.bucket())
-                .withSourceKey(sourceContainer.buildKey(sourceBlobName))
-                .withDestinationBucketName(blobStore.bucket())
-                .withDestinationKey(destinationKey)
-                .withUploadId(uploadId)
-                .withPartNumber(partNum)
-                .withFirstByte(startOffset)
-                .withLastByte(startOffset + partSize - 1);
-            S3BlobStore.configureRequestForMetrics(request, blobStore, Operation.COPY_MULTIPART_OBJECT, purpose);
+            final var uploadPartCopyRequestBuilder = UploadPartCopyRequest.builder()
+                .sourceBucket(sourceContainer.blobStore.bucket())
+                .sourceKey(sourceContainer.buildKey(sourceBlobName))
+                .destinationBucket(blobStore.bucket())
+                .destinationKey(destinationKey)
+                .uploadId(uploadId)
+                .partNumber(partNum)
+                .copySourceRange("bytes=" + startOffset + "-" + (startOffset + partSize - 1));
+            S3BlobStore.configureRequestForMetrics(uploadPartCopyRequestBuilder, blobStore, Operation.COPY_MULTIPART_OBJECT, purpose);
+            final var uploadPartCopyRequest = uploadPartCopyRequestBuilder.build();
 
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                final var result = SocketAccess.doPrivileged(() -> clientReference.client().copyPart(request));
-                return result.getPartETag();
+                final var uploadPartCopyResponse = SocketAccess.doPrivileged(
+                    () -> clientReference.client().uploadPartCopy(uploadPartCopyRequest)
+                );
+                return CompletedPart.builder().partNumber(partNum).eTag(uploadPartCopyResponse.copyPartResult().eTag()).build();
             }
         }));
     }

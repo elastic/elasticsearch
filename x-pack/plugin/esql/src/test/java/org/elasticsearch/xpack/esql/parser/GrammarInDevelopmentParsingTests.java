@@ -35,7 +35,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentCompletion() {
-        parse("row a = 1 | completion concat(\"test\", \"a\" with inferenceId as fieldName", "completion");
+        parse("row a = 1 | completion concat(\"test\", \"a\") with inferenceId as fieldName", "completion");
     }
 
     void parse(String query, String errorMessage) {

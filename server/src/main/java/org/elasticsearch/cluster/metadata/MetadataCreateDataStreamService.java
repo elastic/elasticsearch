@@ -290,7 +290,6 @@ public class MetadataCreateDataStreamService {
                 currentState,
                 request.startTime(),
                 dataStreamName,
-                systemDataStreamDescriptor,
                 template,
                 failureStoreIndexName,
                 null
@@ -420,7 +419,6 @@ public class MetadataCreateDataStreamService {
         ClusterState currentState,
         long nameResolvedInstant,
         String dataStreamName,
-        SystemDataStreamDescriptor systemDataStreamDescriptor,
         ComposableIndexTemplate template,
         String failureStoreIndexName,
         @Nullable BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer
@@ -441,8 +439,7 @@ public class MetadataCreateDataStreamService {
             .performReroute(false)
             .setMatchingTemplate(template)
             .settings(indexSettings)
-            .isFailureIndex(true)
-            .systemDataStreamDescriptor(systemDataStreamDescriptor);
+            .isFailureIndex(true);
 
         try {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(

@@ -360,7 +360,6 @@ public class MetadataRolloverService {
                 projectState.cluster(),
                 now.toEpochMilli(),
                 dataStreamName,
-                systemDataStreamDescriptor,
                 templateV2,
                 newWriteIndexName,
                 (builder, indexMetadata) -> builder.put(dataStream.rolloverFailureStore(indexMetadata.getIndex(), newGeneration))

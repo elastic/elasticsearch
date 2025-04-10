@@ -1,4 +1,8 @@
 setup:
+  - requires:
+      cluster_features: ["pinned_retriever_test"]
+      reason: "pinned retriever test feature is required"
+
   - do:
       indices.create:
         index: test-index1
@@ -31,7 +35,6 @@ setup:
 
 ---
 "pinned retriever basic functionality":
-
   - do:
       search:
         index: test-index1
@@ -50,13 +53,14 @@ setup:
   - match: { hits.hits.2._id: doc3 }
   - match: { hits.hits.3._id: doc4 }
   - match: { hits.hits.4._id: doc5 }
+  - is_true: { hits.hits.0._score > 1.0 }
+  - is_true: { hits.hits.1._score > 1.0 }
+  - is_true: { hits.hits.2._score <= 1.0 }
+  - is_true: { hits.hits.3._score <= 1.0 }
+  - is_true: { hits.hits.4._score <= 1.0 }
 
 ---
 "pinned retriever parameter variations":
-  - requires:
-      cluster_features: ["gte_v7.15.0"]
-      reason: "docs parameter support was added in 7.15"
-
   - do:
       search:
         index: test-index1
@@ -76,6 +80,11 @@ setup:
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
+  - is_true: { hits.hits.0._score > 1.0 }
+  - is_true: { hits.hits.1._score > 1.0 }
+  - is_true: { hits.hits.2._score <= 1.0 }
+  - is_true: { hits.hits.3._score <= 1.0 }
+  - is_true: { hits.hits.4._score <= 1.0 }
 
   - do:
       search:
@@ -91,6 +100,11 @@ setup:
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
+  - is_true: { hits.hits.0._score > 1.0 }
+  - is_true: { hits.hits.1._score <= 1.0 }
+  - is_true: { hits.hits.2._score <= 1.0 }
+  - is_true: { hits.hits.3._score <= 1.0 }
+  - is_true: { hits.hits.4._score <= 1.0 }
 
   - do:
       search:
@@ -108,13 +122,14 @@ setup:
 
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
+  - is_true: { hits.hits.0._score > 1.0 }
+  - is_true: { hits.hits.1._score <= 1.0 }
+  - is_true: { hits.hits.2._score <= 1.0 }
+  - is_true: { hits.hits.3._score <= 1.0 }
+  - is_true: { hits.hits.4._score <= 1.0 }
 
 ---
 "pinned retriever with combined parameters":
-  - requires:
-      cluster_features: ["gte_v7.15.0"]
-      reason: "combined parameters support was added in 7.15"
-
   - do:
       search:
         index: test-index1
@@ -133,6 +148,11 @@ setup:
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
+  - is_true: { hits.hits.0._score > 1.0 }
+  - is_true: { hits.hits.1._score > 1.0 }
+  - is_true: { hits.hits.2._score <= 1.0 }
+  - is_true: { hits.hits.3._score <= 1.0 }
+  - is_true: { hits.hits.4._score <= 1.0 }
 
   - do:
       search:
@@ -156,10 +176,14 @@ setup:
   - match: { hits.hits.1._id: doc3 }
   - match: { hits.hits.2._id: doc2 }
   - match: { hits.hits.3._id: doc4 }
+  - is_true: { hits.hits.0._score > 1.0 }
+  - is_true: { hits.hits.1._score > 1.0 }
+  - is_true: { hits.hits.2._score > 1.0 }
+  - is_true: { hits.hits.3._score > 1.0 }
+  - is_true: { hits.hits.4._score <= 1.0 }
 
 ---
 "pinned retriever combined with rrf":
-
   - do:
       search:
         index: test-index1
@@ -173,14 +197,18 @@ setup:
                     {
                       standard: {
                         query: {
-                          match_all: {}
+                          match: {
+                            text: "document one"
+                          }
                         }
                       }
                     },
                     {
                       standard: {
                         query: {
-                          match_all: {}
+                          match: {
+                            text: "document two"
+                          }
                         }
                       }
                     }
@@ -189,10 +217,13 @@ setup:
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
+  - is_true: { hits.hits.0._score > 1.0 }
+  - is_true: { hits.hits.1._score > 1.0 }
+  - is_true: { hits.hits.2._score > hits.hits.3._score }
+  - is_true: { hits.hits.3._score > hits.hits.4._score }
 
 ---
 "pinned retriever with pagination":
-
   - do:
       search:
         index: test-index1
@@ -210,10 +241,10 @@ setup:
   - match: { hits.total.value: 5 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: doc2 }
+  - is_true: { hits.hits.0._score > 1.0 }
 
 ---
 "pinned retriever as a sub-retriever":
-
   - do:
       search:
         index: test-index1
@@ -243,10 +274,14 @@ setup:
               ]
 
   - match: { hits.total.value: 5 }
+  - is_true: { hits.hits.0._score > 1.0 }
+  - is_true: { hits.hits.1._score > 1.0 }
+  - is_true: { hits.hits.2._score <= 1.0 }
+  - is_true: { hits.hits.3._score <= 1.0 }
+  - is_true: { hits.hits.4._score <= 1.0 }
 
 ---
 "pinned retriever with explicit sort on score":
-
   - do:
       search:
         index: test-index1
@@ -263,6 +298,11 @@ setup:
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: doc1 }
   - match: { hits.hits.1._id: doc2 }
+  - is_true: { hits.hits.0._score > 1.0 }
+  - is_true: { hits.hits.1._score > 1.0 }
+  - is_true: { hits.hits.2._score <= 1.0 }
+  - is_true: { hits.hits.3._score <= 1.0 }
+  - is_true: { hits.hits.4._score <= 1.0 }
 
 ---
 "pinned retriever with rank window size":
@@ -316,7 +356,6 @@ setup:
 
 ---
 "pinned retriever explanation":
-
   - do:
       headers:
         Content-Type: application/json
@@ -335,12 +374,17 @@ setup:
   - match: { hits.hits.0._id: doc1 }
   - is_true: { hits.hits.0._explanation.value > 1.0 }
   - is_true: { hits.hits.0._explanation.description: "pinned documents" }
-  - is_true: { hits.hits.0._explanation.description: "rank [1]" }
-  - is_true: { hits.hits.0._explanation.details.0.details.0.details.0.details.0.details.0.description: "ConstantScore" }
+  - is_true: { hits.hits.0._explanation.details.0.details.0.details.0.description: "pinned_by: [ids]" }
+  - is_true: { hits.hits.0._explanation.details.0.details.0.details.1.description: "is_pinned: true" }
+
+  - match: { hits.hits.1._id: doc2 }
+  - is_true: { hits.hits.1._explanation.value > 1.0 }
+  - is_true: { hits.hits.1._explanation.description: "pinned documents" }
+  - is_true: { hits.hits.1._explanation.details.0.details.0.details.0.description: "pinned_by: [ids]" }
+  - is_true: { hits.hits.1._explanation.details.0.details.0.details.1.description: "is_pinned: true" }
 
 ---
 "pinned retriever with empty parameters":
-
   - do:
       search:
         index: test-index1
@@ -361,7 +405,6 @@ setup:
 
 ---
 "pinned retriever error cases":
-
   - do:
       catch: /\[pinned\] duplicate id found in list: doc1/
       search:

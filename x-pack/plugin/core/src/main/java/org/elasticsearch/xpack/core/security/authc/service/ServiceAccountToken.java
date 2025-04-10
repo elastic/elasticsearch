@@ -14,9 +14,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.Validation;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

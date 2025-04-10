@@ -26,11 +26,11 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.util.Collection;
 import java.util.List;

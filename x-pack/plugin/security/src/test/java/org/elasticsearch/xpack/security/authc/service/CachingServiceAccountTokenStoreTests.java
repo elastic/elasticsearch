@@ -17,10 +17,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
-import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
+import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.junit.After;
 import org.junit.Before;
 

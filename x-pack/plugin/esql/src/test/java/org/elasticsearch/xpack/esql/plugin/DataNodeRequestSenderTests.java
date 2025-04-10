@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
@@ -52,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_ROLE;
@@ -459,16 +459,13 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             executor,
             "",
             task,
+            new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS),
+            null,
             allowPartialResults,
             concurrentRequests
         ) {
             @Override
-            void searchShards(
-                QueryBuilder filter,
-                Set<String> concreteIndices,
-                OriginalIndices originalIndices,
-                ActionListener<TargetShards> listener
-            ) {
+            void searchShards(Predicate<ShardId> predicate, ActionListener<TargetShards> listener) {
                 var targetShards = new TargetShards(
                     shards.stream().collect(Collectors.toMap(TargetShard::shardId, Function.identity())),
                     shards.size(),
@@ -487,13 +484,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 sender.sendRequestToOneNode(node, shardIds, aliasFilters, listener);
             }
         };
-        requestSender.startComputeOnDataNodes(
-            Set.of(randomAlphaOfLength(10)),
-            new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS),
-            null,
-            () -> {},
-            future
-        );
+        requestSender.startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, future);
         return future;
     }
 

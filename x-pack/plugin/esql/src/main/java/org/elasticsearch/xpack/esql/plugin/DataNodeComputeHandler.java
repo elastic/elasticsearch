@@ -106,6 +106,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             esqlExecutor,
             clusterAlias,
             parentTask,
+            originalIndices,
+            PlannerUtils.canMatchFilter(dataNodePlan),
             configuration.allowPartialResults(),
             maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster
         ) {
@@ -200,8 +202,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             }
         }.startComputeOnDataNodes(
             concreteIndices,
-            originalIndices,
-            PlannerUtils.canMatchFilter(dataNodePlan),
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );

@@ -383,7 +383,7 @@ When overwriting current cluster state, system indices should be restored as par
 ### Node specification [cluster-nodes]
 
 Some cluster-level APIs may operate on a subset of the nodes which can be specified with node filters.
-For example, task management, node stats, and node info APIs can all report results from a filtered set of nodes rather than from all nodes.
+For example,  [task management]({{es-apis}}group/endpoint-tasks), [node stats]({{es-apis}}operation/operation-nodes-stats), and [node info]({{es-apis}}operation/operation-nodes-info-1) APIs can all report results from a filtered set of nodes rather than from all nodes.
 
 Node filters are written as a comma-separated list of individual filters, each of which adds or removes nodes from the chosen subset.
 Each filter can be one of the following:
@@ -396,7 +396,7 @@ Each filter can be one of the following:
 * a pattern, using `*` wildcards, which adds all nodes to the subset whose name, address, or hostname matches the pattern.
 * `master:true`, `data:true`, `ingest:true`, `voting_only:true`, `ml:true`, or `coordinating_only:true`, which respectively add to the subset all master-eligible nodes, all data nodes, all ingest nodes, all voting-only nodes, all machine learning nodes, and all coordinating-only nodes.
 * `master:false`, `data:false`, `ingest:false`, `voting_only:false`, `ml:false`, or `coordinating_only:false`, which respectively remove from the subset all master-eligible nodes, all data nodes, all ingest nodes, all voting-only nodes, all machine learning nodes, and all coordinating-only nodes.
-* a pair of patterns, using `*` wildcards, of the form `attrname:attrvalue`, which adds to the subset all nodes with a custom node attribute whose name and value match the respective patterns. Custom node attributes are configured by setting properties in the configuration file of the form `node.attr.attrname: attrvalue`.
+* a pair of patterns, using `*` wildcards, of the form `attrname:attrvalue`, which adds to the subset all nodes with a [custom node attribute](/reference/elasticsearch/configuration-reference/node-settings#custom-node-attributes) whose name and value match the respective patterns. Custom node attributes are configured by setting properties in the configuration file of the form `node.attr.attrname: attrvalue`.
 
 Node filters run in the order in which they are given, which is important if using filters that remove nodes from the set.
 For example, `_all,master:false` means all the nodes except the master-eligible ones.
@@ -406,6 +406,35 @@ If no filters are given, the default is to select all nodes.
 If any filters are specified, they run starting with an empty chosen subset.
 This means that filters such as `master:false` which remove nodes from the chosen subset are only useful if they come after some other filters.
 When used on its own, `master:false` selects no nodes.
+
+Here are some examples of the use of node filters with some [cluster APIs]({{es-apis}}group/endpoint-cluster):
+
+```sh
+# If no filters are given, the default is to select all nodes
+GET /_nodes
+# Explicitly select all nodes
+GET /_nodes/_all
+# Select just the local node
+GET /_nodes/_local
+# Select the elected master node
+GET /_nodes/_master
+# Select nodes by name, which can include wildcards
+GET /_nodes/node_name_goes_here
+GET /_nodes/node_name_goes_*
+# Select nodes by address, which can include wildcards
+GET /_nodes/10.0.0.3,10.0.0.4
+GET /_nodes/10.0.0.*
+# Select nodes by role
+GET /_nodes/_all,master:false
+GET /_nodes/data:true,ingest:true
+GET /_nodes/coordinating_only:true
+GET /_nodes/master:true,voting_only:false
+# Select nodes by custom attribute
+# (for example, with something like `node.attr.rack: 2` in the configuration file)
+GET /_nodes/rack:2
+GET /_nodes/ra*:2
+GET /_nodes/ra*:2*
+```
 
 ## Parameters [api-conventions-parameters]
 

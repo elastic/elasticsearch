@@ -5202,9 +5202,11 @@ public class IndexShardTests extends IndexShardTestCase {
             });
         });
         holdEngineThread.start();
-        safeGet(hold);
+        var retainedInstance = safeGet(hold);
 
-        assertThat(shard.getEngine(), instanceOf(InternalEngine.class));
+        var currentInstance = shard.getEngine();
+        assertThat(currentInstance, instanceOf(InternalEngine.class));
+        assertThat(currentInstance, sameInstance(retainedInstance));
 
         final var reset = new PlainActionFuture<Void>();
         final var resetEngineThread = new Thread(() -> {

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -55,12 +56,14 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -3086,7 +3089,134 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
     }
 
-    public void testBasicForkError() {
+    public void testForkBranchesWithDifferentSchemas() {
+        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        LogicalPlan plan = analyze("""
+            from test
+            | WHERE first_name == "Chris"
+            | KEEP emp_no, first_name
+            | FORK ( WHERE emp_no > 3 | SORT emp_no | LIMIT 7 )
+                   ( WHERE emp_no > 2 | EVAL xyz = "def" )
+                   ( DISSECT first_name "%{d} %{e} %{f}"
+                   | STATS x = MIN(d::double), y = MAX(e::double) WHERE d::double > 1000
+                   | EVAL xyz = "abc")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Fork fork = as(limit.child(), Fork.class);
+
+        var subPlans = fork.children();
+        var expectedOutput = List.of("emp_no", "first_name", "_fork", "xyz", "x", "y");
+
+        // fork branch 1
+        limit = as(subPlans.get(0), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+        Keep keep = as(limit.child(), Keep.class);
+        List<String> keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(keptColumns, equalTo(expectedOutput));
+
+        Eval eval = as(keep.child(), Eval.class);
+        assertEquals(eval.fields().size(), 3);
+
+        Set<String> evalFieldNames = eval.fields().stream().map(a -> a.name()).collect(Collectors.toSet());
+        assertThat(evalFieldNames, equalTo(Set.of("x", "xyz", "y")));
+
+        for (Alias a : eval.fields()) {
+            assertThat(as(a.child(), Literal.class).value(), equalTo(null));
+        }
+
+        eval = as(eval.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork1"))));
+        limit = as(eval.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(7));
+        var orderBy = as(limit.child(), OrderBy.class);
+        Filter filter = as(orderBy.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(3)));
+
+        EsqlProject project = as(filter.child(), EsqlProject.class);
+        filter = as(project.child(), Filter.class);
+        assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
+        var esRelation = as(filter.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("test"));
+
+        // fork branch 2
+        limit = as(subPlans.get(1), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        keep = as(limit.child(), Keep.class);
+        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(keptColumns, equalTo(expectedOutput));
+        eval = as(keep.child(), Eval.class);
+        assertEquals(eval.fields().size(), 2);
+        evalFieldNames = eval.fields().stream().map(a -> a.name()).collect(Collectors.toSet());
+        assertThat(evalFieldNames, equalTo(Set.of("x", "y")));
+
+        for (Alias a : eval.fields()) {
+            assertThat(as(a.child(), Literal.class).value(), equalTo(null));
+        }
+
+        eval = as(eval.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork2"))));
+        eval = as(eval.child(), Eval.class);
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("xyz"));
+        assertThat(as(alias.child(), Literal.class), equalTo(string("def")));
+        filter = as(eval.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(2)));
+
+        project = as(filter.child(), EsqlProject.class);
+        filter = as(project.child(), Filter.class);
+        assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
+        esRelation = as(filter.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("test"));
+
+        // fork branch 3
+        limit = as(subPlans.get(2), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        keep = as(limit.child(), Keep.class);
+        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(keptColumns, equalTo(expectedOutput));
+        eval = as(keep.child(), Eval.class);
+        assertEquals(eval.fields().size(), 2);
+        evalFieldNames = eval.fields().stream().map(a -> a.name()).collect(Collectors.toSet());
+        assertThat(evalFieldNames, equalTo(Set.of("emp_no", "first_name")));
+
+        for (Alias a : eval.fields()) {
+            assertThat(as(a.child(), Literal.class).value(), equalTo(null));
+        }
+
+        eval = as(eval.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork3"))));
+
+        eval = as(eval.child(), Eval.class);
+        alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("xyz"));
+        assertThat(as(alias.child(), Literal.class), equalTo(string("abc")));
+
+        Aggregate aggregate = as(eval.child(), Aggregate.class);
+        assertEquals(aggregate.aggregates().size(), 2);
+        alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("x"));
+
+        alias = as(aggregate.aggregates().get(1), Alias.class);
+        assertThat(alias.name(), equalTo("y"));
+        FilteredExpression filteredExp = as(alias.child(), FilteredExpression.class);
+
+        GreaterThan greaterThan = as(filteredExp.filter(), GreaterThan.class);
+        assertThat(as(greaterThan.right(), Literal.class).value(), equalTo(1000));
+
+        Dissect dissect = as(aggregate.child(), Dissect.class);
+        assertThat(dissect.parser().pattern(), equalTo("%{d} %{e} %{f}"));
+        assertThat(as(dissect.input(), FieldAttribute.class).name(), equalTo("first_name"));
+
+        project = as(dissect.child(), EsqlProject.class);
+        filter = as(project.child(), Filter.class);
+        assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
+        esRelation = as(filter.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("test"));
+    }
+
+    public void testForkError() {
         assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
@@ -3124,6 +3254,40 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 6 | SORT emp_no | LIMIT 5 )
             """));
         assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting INTEGER_LITERAL"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE emp_no > 2 | SORT emp_no | LIMIT 10 | EVAL x = abc + 2 )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [abc]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK ( STATS a = CONCAT(first_name, last_name) BY emp_no )
+                   ( WHERE emp_no > 2 | SORT emp_no | LIMIT 10 )
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("column [first_name] must appear in the STATS BY clause or be used in an aggregate function")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK ( DISSECT emp_no "%{abc} %{def}" )
+                   ( WHERE emp_no > 2 | SORT emp_no | LIMIT 10 )
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("Dissect only supports KEYWORD or TEXT values, found expression [emp_no] type [INTEGER]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK ( EVAL c = COUNT(first_name) )
+                   ( WHERE emp_no > 2 | SORT emp_no | LIMIT 10 )
+            """));
+        assertThat(e.getMessage(), containsString("aggregate function [COUNT(first_name)] not allowed outside STATS command"));
     }
 
     public void testValidRrf() {

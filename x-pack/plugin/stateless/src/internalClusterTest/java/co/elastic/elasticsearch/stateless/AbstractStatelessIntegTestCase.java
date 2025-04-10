@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
@@ -65,6 +66,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -90,7 +92,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -201,13 +202,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(
-            SystemIndexTestPlugin.class,
-            BlobCachePlugin.class,
-            Stateless.class,
-            MockTransportService.TestPlugin.class,
-            LogsDBPlugin.class
-        );
+        return List.of(SystemIndexTestPlugin.class, BlobCachePlugin.class, Stateless.class, MockTransportService.TestPlugin.class);
     }
 
     public static class NoopSharedBlobCacheWarmingService extends SharedBlobCacheWarmingService {
@@ -313,6 +308,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     protected Settings.Builder nodeSettings() {
         final Settings.Builder builder = Settings.builder()
             .put(Stateless.STATELESS_ENABLED.getKey(), true)
+            .put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
             .put(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), false)
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.FS)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), getFsRepoSanitizedBucketName())

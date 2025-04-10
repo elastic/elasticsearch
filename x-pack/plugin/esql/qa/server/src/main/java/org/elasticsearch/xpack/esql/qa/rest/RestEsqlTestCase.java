@@ -20,7 +20,6 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -40,7 +39,6 @@ import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -132,7 +130,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
-        private Boolean allowPartialResults = null;
+        private Boolean allPartialResults = null;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -210,13 +208,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
-        public RequestObjectBuilder allowPartialResults(boolean allowPartialResults) {
-            this.allowPartialResults = allowPartialResults;
+        public RequestObjectBuilder allPartialResults(boolean allPartialResults) {
+            this.allPartialResults = allPartialResults;
             return this;
-        }
-
-        public Boolean allowPartialResults() {
-            return allowPartialResults;
         }
 
         public RequestObjectBuilder build() throws IOException {
@@ -1373,8 +1367,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         requestObject.build();
         Request request = prepareRequest(mode);
         String mediaType = attachBody(requestObject, request);
-        if (requestObject.allowPartialResults != null) {
-            request.addParameter("allow_partial_results", String.valueOf(requestObject.allowPartialResults));
+        if (requestObject.allPartialResults != null) {
+            request.addParameter("allow_partial_results", String.valueOf(requestObject.allPartialResults));
         }
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -1399,15 +1393,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     protected static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {
-        try (InputStream content = entity.getContent()) {
-            XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
-            assertEquals(expectedContentType, xContentType);
-            var map = XContentHelper.convertToMap(xContentType.xContent(), content, false);
-            if (shouldLog()) {
-                LOGGER.info("entity={}", map);
-            }
-            return map;
+        var result = EsqlTestUtils.entityToMap(entity, expectedContentType);
+        if (shouldLog()) {
+            LOGGER.info("entity={}", result);
         }
+        return result;
     }
 
     static void addAsyncParameters(RequestObjectBuilder requestObject, boolean keepOnCompletion) throws IOException {
@@ -1539,21 +1529,18 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Request prepareRequest(Mode mode) {
-        Request request = new Request("POST", "/_query" + (mode == ASYNC ? "/async" : ""));
-        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
-        request.addParameter("pretty", "true");        // Improves error reporting readability
-        return request;
+        return finishRequest(new Request("POST", "/_query" + (mode == ASYNC ? "/async" : "")));
     }
 
     private static Request prepareAsyncGetRequest(String id) {
-        Request request = new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s");
-        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
-        request.addParameter("pretty", "true");        // Improves error reporting readability
-        return request;
+        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s"));
     }
 
     private static Request prepareAsyncDeleteRequest(String id) {
-        Request request = new Request("DELETE", "/_query/async/" + id);
+        return finishRequest(new Request("DELETE", "/_query/async/" + id));
+    }
+
+    private static Request finishRequest(Request request) {
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         return request;

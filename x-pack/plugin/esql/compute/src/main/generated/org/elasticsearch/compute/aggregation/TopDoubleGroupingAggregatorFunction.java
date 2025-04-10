@@ -195,8 +195,8 @@ public final class TopDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = TopDoubleAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = TopDoubleAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

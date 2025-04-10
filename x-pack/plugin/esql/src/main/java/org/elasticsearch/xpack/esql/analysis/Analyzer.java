@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -67,6 +69,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -86,6 +89,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -122,7 +127,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -149,12 +153,21 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParse
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
     // ie from test | stats c = count(*)
+    public static final String NO_FIELDS_NAME = "<no-fields>";
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, NO_FIELDS_NAME, DataType.NULL, Nullability.TRUE, null, true)
     );
 
     private static final List<Batch<LogicalPlan>> RULES = List.of(
-        new Batch<>("Initialize", Limiter.ONCE, new ResolveTable(), new ResolveEnrich(), new ResolveLookupTables(), new ResolveFunctions()),
+        new Batch<>(
+            "Initialize",
+            Limiter.ONCE,
+            new ResolveTable(),
+            new ResolveEnrich(),
+            new ResolveInference(),
+            new ResolveLookupTables(),
+            new ResolveFunctions()
+        ),
         new Batch<>(
             "Resolution",
             /*
@@ -380,6 +393,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    private static class ResolveInference extends ParameterizedAnalyzerRule<InferencePlan, AnalyzerContext> {
+        @Override
+        protected LogicalPlan rule(InferencePlan plan, AnalyzerContext context) {
+            assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
+
+            String inferenceId = plan.inferenceId().fold(FoldContext.small()).toString();
+            ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
+
+            if (resolvedInference != null && resolvedInference.taskType() == plan.taskType()) {
+                return plan;
+            } else if (resolvedInference != null) {
+                String error = "cannot use inference endpoint ["
+                    + inferenceId
+                    + "] with task type ["
+                    + resolvedInference.taskType()
+                    + "] within a "
+                    + plan.nodeName()
+                    + " command. Only inference endpoints with the task type ["
+                    + plan.taskType()
+                    + "] are supported.";
+                return plan.withInferenceResolutionError(inferenceId, error);
+            } else {
+                String error = context.inferenceResolution().getError(inferenceId);
+                return plan.withInferenceResolutionError(inferenceId, error);
+            }
+        }
+    }
+
     private static class ResolveLookupTables extends ParameterizedAnalyzerRule<Lookup, AnalyzerContext> {
 
         @Override
@@ -459,6 +500,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveKeep(p, childrenOutput);
             }
 
+            if (plan instanceof Fork f) {
+                return resolveFork(f, context);
+            }
+
             if (plan instanceof Eval p) {
                 return resolveEval(p, childrenOutput);
             }
@@ -489,6 +534,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof RrfScoreEval rrf) {
                 return resolveRrfScoreEval(rrf, childrenOutput);
+            }
+
+            if (plan instanceof Rerank r) {
+                return resolveRerank(r, childrenOutput);
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
@@ -668,6 +717,83 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
             }
             return join;
+        }
+
+        private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {
+            // we align the outputs of the sub plans such that they have the same columns
+            boolean changed = false;
+            List<LogicalPlan> newSubPlans = new ArrayList<>();
+            Set<String> forkColumns = fork.outputSet().names();
+
+            for (LogicalPlan logicalPlan : fork.children()) {
+                Source source = logicalPlan.source();
+
+                // find the missing columns
+                List<Attribute> missing = new ArrayList<>();
+                Set<String> currentNames = logicalPlan.outputSet().names();
+                for (Attribute attr : fork.outputSet()) {
+                    if (currentNames.contains(attr.name()) == false) {
+                        missing.add(attr);
+                    }
+                }
+
+                List<Alias> aliases = missing.stream().map(attr -> new Alias(source, attr.name(), Literal.of(attr, null))).toList();
+
+                // add the missing columns
+                if (aliases.size() > 0) {
+                    logicalPlan = new Eval(source, logicalPlan, aliases);
+                    changed = true;
+                }
+
+                List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
+                // We need to add an explicit Keep even if the outputs align
+                // This is because at the moment the sub plans are executed and optimized separately and the output might change
+                // during optimizations. Once we add streaming we might not need to add a Keep when the outputs already align.
+                // Note that until we add explicit support for KEEP in FORK branches, this condition will always be true.
+                if (logicalPlan instanceof Keep == false || subPlanColumns.equals(forkColumns) == false) {
+                    changed = true;
+                    List<Attribute> newOutput = new ArrayList<>();
+                    for (String attrName : forkColumns) {
+                        for (Attribute subAttr : logicalPlan.output()) {
+                            if (attrName.equals(subAttr.name())) {
+                                newOutput.add(subAttr);
+                            }
+                        }
+                    }
+                    logicalPlan = new Keep(logicalPlan.source(), logicalPlan, newOutput);
+                }
+
+                newSubPlans.add(logicalPlan);
+            }
+
+            return changed ? new Fork(fork.source(), newSubPlans) : fork;
+        }
+
+        private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {
+            List<Alias> newFields = new ArrayList<>();
+            boolean changed = false;
+
+            // First resolving fields used in expression
+            for (Alias field : rerank.rerankFields()) {
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
+                newFields.add(result);
+                changed |= result != field;
+            }
+
+            if (changed) {
+                rerank = rerank.withRerankFields(newFields);
+            }
+
+            // Ensure the score attribute is present in the output.
+            if (rerank.scoreAttribute() instanceof UnresolvedAttribute ua) {
+                Attribute resolved = resolveAttribute(ua, childrenOutput);
+                if (resolved.resolved() == false || resolved.dataType() != DOUBLE) {
+                    resolved = MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE);
+                }
+                rerank = rerank.withScoreAttribute(resolved);
+            }
+
+            return rerank;
         }
 
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
@@ -987,7 +1113,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             var u = resolved;
                             var previousAliasName = reverseAliasing.get(resolved.name());
                             if (previousAliasName != null) {
-                                String message = format(
+                                String message = LoggerMessageFormat.format(
                                     null,
                                     "Column [{}] renamed to [{}] and is no longer available [{}]",
                                     resolved.name(),
@@ -1380,7 +1506,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
-            String message = format(
+            String message = LoggerMessageFormat.format(
                 "Cannot convert string [{}] to [{}], error [{}]",
                 value.fold(FoldContext.small() /* TODO remove me */),
                 type,

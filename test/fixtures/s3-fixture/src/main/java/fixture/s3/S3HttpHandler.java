@@ -49,6 +49,7 @@ import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.w3c.dom.Node.ELEMENT_NODE;
@@ -155,10 +156,34 @@ public class S3HttpHandler implements HttpHandler {
                 if (upload == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
-                    final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    upload.addPart(blob.v1(), blob.v2());
-                    exchange.getResponseHeaders().add("ETag", blob.v1());
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    // CopyPart is UploadPart with an x-amz-copy-source header
+                    final var sourceBlobName = exchange.getRequestHeaders().get("X-amz-copy-source");
+                    if (sourceBlobName != null) {
+                        var sourceBlob = blobs.get(sourceBlobName.getFirst());
+                        if (sourceBlob == null) {
+                            exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                        } else {
+                            var range = parsePartRange(exchange);
+                            int start = Math.toIntExact(range.start());
+                            int len = Math.toIntExact(range.end() - range.start() + 1);
+                            var part = sourceBlob.slice(start, len);
+                            var etag = UUIDs.randomBase64UUID();
+                            upload.addPart(etag, part);
+                            byte[] response = ("""
+                                <?xml version="1.0" encoding="UTF-8"?>
+                                <CopyPartResult>
+                                    <ETag>%s</ETag>
+                                </CopyPartResult>""".formatted(etag)).getBytes(StandardCharsets.UTF_8);
+                            exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                            exchange.getResponseBody().write(response);
+                        }
+                    } else {
+                        final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                        upload.addPart(blob.v1(), blob.v2());
+                        exchange.getResponseHeaders().add("ETag", blob.v1());
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    }
                 }
 
             } else if (request.isCompleteMultipartUploadRequest()) {
@@ -201,16 +226,30 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (request.isPutObjectRequest()) {
-                final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                blobs.put(request.path(), blob.v2());
-                exchange.getResponseHeaders().add("ETag", blob.v1());
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                // a copy request is a put request with a copy source header
+                final var sourceBlobName = exchange.getRequestHeaders().get("X-amz-copy-source");
+                if (sourceBlobName != null) {
+                    var sourceBlob = blobs.get(sourceBlobName.getFirst());
+                    if (sourceBlob == null) {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    } else {
+                        blobs.put(request.path(), sourceBlob);
 
-            } else if (request.isListObjectsRequest()) {
-                if (request.queryParameters().containsKey("list-type")) {
-                    throw new AssertionError("Test must be adapted for GET Bucket (List Objects) Version 2");
+                        byte[] response = ("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <CopyObjectResult></CopyObjectResult>""").getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                        exchange.getResponseBody().write(response);
+                    }
+                } else {
+                    final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                    blobs.put(request.path(), blob.v2());
+                    exchange.getResponseHeaders().add("ETag", blob.v1());
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
 
+            } else if (request.isListObjectsRequest()) {
                 final StringBuilder list = new StringBuilder();
                 list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                 list.append("<ListBucketResult>");
@@ -223,6 +262,9 @@ public class S3HttpHandler implements HttpHandler {
                 if (delimiter != null) {
                     list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
                 }
+                // Would be good to test pagination here (the only real difference between ListObjects and ListObjectsV2) but for now
+                // we return all the results at once.
+                list.append("<IsTruncated>false</IsTruncated>");
                 for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
                     if (prefix != null && blob.getKey().startsWith("/" + bucket + "/" + prefix) == false) {
                         continue;
@@ -269,7 +311,7 @@ public class S3HttpHandler implements HttpHandler {
                 // requests with a header value like "Range: bytes=start-end" where both {@code start} and {@code end} are always defined
                 // (sometimes to very high value for {@code end}). It would be too tedious to fully support the RFC so S3HttpHandler only
                 // supports when both {@code start} and {@code end} are defined to match the SDK behavior.
-                final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                final HttpHeaderParser.Range range = parseRangeHeader(rangeHeader);
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
@@ -466,6 +508,17 @@ public class S3HttpHandler implements HttpHandler {
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }
+    }
+
+    private static HttpHeaderParser.Range parsePartRange(final HttpExchange exchange) {
+        final var sourceRangeHeaders = exchange.getRequestHeaders().get("X-amz-copy-source-range");
+        if (sourceRangeHeaders == null) {
+            throw new IllegalStateException("missing x-amz-copy-source-range header");
+        }
+        if (sourceRangeHeaders.size() != 1) {
+            throw new IllegalStateException("expected 1 x-amz-copy-source-range header, found " + sourceRangeHeaders.size());
+        }
+        return parseRangeHeader(sourceRangeHeaders.getFirst());
     }
 
     MultipartUpload getUpload(String uploadId) {

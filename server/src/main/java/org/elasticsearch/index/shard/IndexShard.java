@@ -3400,6 +3400,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Executes an operation (potentially throwing a checked exception) while preventing the shard's engine instance to be reset during the
+     * execution.
+     * If the current engine instance is null, this method throws an {@link AlreadyClosedException} and the operation is not executed. The
+     * engine might be closed while the operation is executed.
+     *
+     * @param operation     the operation to execute
+     * @return              the result of the operation
+     * @param <R>           the type of the result
+     * @param <E>           the type of checked exception that the operation can potentially throws.
+     * @throws              AlreadyClosedException if the current engine instance is {@code null}.
+     */
+    public <R, E extends Exception> R withEngineException(CheckedFunction<Engine, R, E> operation) throws E {
+        assert assertCurrentThreadWithEngine();
+        assert operation != null;
+
+        engineResetLock.readLock().lock();
+        try {
+            var engine = getCurrentEngine(false);
+            return operation.apply(engine);
+        } finally {
+            engineResetLock.readLock().unlock();
+        }
+    }
+
+    /**
      * Executes an operation while preventing the shard's engine instance to be reset during the execution
      * (see {@link #resetEngine(Consumer<Engine>)}.
      * NOTE: It does not prevent the engine to be closed by {@link #close(String, boolean, Executor, ActionListener)} though.
@@ -3413,9 +3438,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param <R>           the type of the result
      */
     private <R> R withEngine(Function<Engine, R> operation, boolean allowNoEngine) {
-        assert ClusterApplierService.assertNotClusterStateUpdateThread("IndexShard.withEngine() can block");
-        assert MasterService.assertNotMasterUpdateThread("IndexShard.withEngine() can block");
-        assert Transports.assertNotTransportThread("IndexShard.withEngine() can block");
+        assert assertCurrentThreadWithEngine();
         assert operation != null;
 
         engineResetLock.readLock().lock();
@@ -3425,6 +3448,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } finally {
             engineResetLock.readLock().unlock();
         }
+    }
+
+    private static boolean assertCurrentThreadWithEngine() {
+        var message = "method IndexShard#withEngine (or one of its variant) can block";
+        assert ClusterApplierService.assertNotClusterStateUpdateThread(message);
+        assert MasterService.assertNotMasterUpdateThread(message);
+        assert Transports.assertNotTransportThread(message);
+        return true;
     }
 
     public void startRecovery(

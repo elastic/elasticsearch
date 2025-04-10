@@ -11,6 +11,7 @@ package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
 import org.elasticsearch.index.shard.ShardId;
@@ -215,7 +217,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("mget_from_translog[shard] failed", cause);
-            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
+            // All of the following exceptions can be thrown if the shard is relocated
+            if (cause instanceof ShardNotFoundException
+                || cause instanceof IndexNotFoundException
+                || cause instanceof IllegalIndexShardStateException
+                || cause instanceof AlreadyClosedException) {
                 logger.debug("retrying mget_from_translog[shard]");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override

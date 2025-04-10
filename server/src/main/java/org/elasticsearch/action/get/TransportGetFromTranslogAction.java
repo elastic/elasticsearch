@@ -64,21 +64,24 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
         assert getRequest.realtime();
         ActionListener.completeWith(listener, () -> {
-            var result = indexShard.getService()
-                .getFromTranslog(
-                    getRequest.id(),
-                    getRequest.storedFields(),
-                    getRequest.realtime(),
-                    getRequest.version(),
-                    getRequest.versionType(),
-                    getRequest.fetchSourceContext(),
-                    getRequest.isForceSyntheticSource()
-                );
-            long segmentGeneration = -1;
-            if (result == null) {
-                segmentGeneration = indexShard.withEngine(Engine::getLastUnsafeSegmentGenerationForGets);
-            }
-            return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
+            // Allows to keep the same engine instance for getFromTranslog and getLastUnsafeSegmentGenerationForGets
+            return indexShard.withEngineException(engine -> {
+                var result = indexShard.getService()
+                    .getFromTranslog(
+                        getRequest.id(),
+                        getRequest.storedFields(),
+                        getRequest.realtime(),
+                        getRequest.version(),
+                        getRequest.versionType(),
+                        getRequest.fetchSourceContext(),
+                        getRequest.isForceSyntheticSource()
+                    );
+                long segmentGeneration = -1;
+                if (result == null) {
+                    segmentGeneration = engine.getLastUnsafeSegmentGenerationForGets();
+                }
+                return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
+            });
         });
     }
 

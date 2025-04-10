@@ -10,16 +10,18 @@ package org.elasticsearch.datastreams.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.datastreams.PostDataStreamAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
@@ -28,6 +30,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
@@ -85,17 +88,70 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
         ClusterState state,
         ActionListener<PostDataStreamAction.Response> listener
     ) throws Exception {
-        String dataStreamName = request.getName();
+        String dataStreamNamePattern = request.getName();
+        List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
+            clusterService.state(),
+            IndicesOptions.DEFAULT,
+            dataStreamNamePattern
+        );
+        List<PostDataStreamAction.DataStreamResponse> dataStreamResponses = new ArrayList<>();
+        CountDownActionListener countDownListener = new CountDownActionListener(dataStreamNames.size(), new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                listener.onResponse(new PostDataStreamAction.Response(dataStreamResponses));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e); // TODO ?
+            }
+        });
+        // TODO there's a much better way
+        for (String dataStreamName : dataStreamNames) {
+            updateSingleDataStream(
+                dataStreamName,
+                request.getTemplateOverrides(),
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(PostDataStreamAction.DataStreamResponse dataStreamResponse) {
+                        dataStreamResponses.add(dataStreamResponse);
+                        countDownListener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // TODO this is not actually correct at all:
+                        dataStreamResponses.add(
+                            new PostDataStreamAction.DataStreamResponse(dataStreamName, false, e.getMessage(), null, List.of())
+                        );
+                        countDownListener.onResponse(null);
+                    }
+                }
+            );
+        }
+    }
+
+    private void updateSingleDataStream(
+        String dataStreamName,
+        ComposableIndexTemplate templateOverrides,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<PostDataStreamAction.DataStreamResponse> listener
+    ) {
         if (systemIndices.isSystemDataStream(dataStreamName)) {
-            listener.onFailure(new ElasticsearchException("Cannot update a system data stream"));
+            listener.onResponse(
+                new PostDataStreamAction.DataStreamResponse(dataStreamName, false, "Cannot update a system data stream", null, List.of())
+            );
             return;
         }
-
         metadataDataStreamsService.updateTemplateOverrides(
             projectResolver,
-            request,
+            masterNodeTimeout,
+            ackTimeout,
             dataStreamName,
-            request.getTemplateOverrides(),
+            templateOverrides,
             new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -107,7 +163,7 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                             .get(dataStreamName)
                             .getIndices()
                             .toArray(Index.EMPTY_ARRAY);
-                        final Settings requestSettings = request.getTemplateOverrides().template().settings();
+                        final Settings requestSettings = templateOverrides.template().settings();
                         final Settings.Builder settingsBuilder = Settings.builder();
                         for (String setting : requestSettings.keySet()) {
                             if (APPLY_TO_BACKING_INDICES.contains(setting)) {
@@ -119,8 +175,8 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                         updateSettingsService.updateSettings(
                             new UpdateSettingsClusterStateUpdateRequest(
                                 projectResolver.getProjectId(),
-                                request.masterNodeTimeout(),
-                                request.ackTimeout(),
+                                masterNodeTimeout,
+                                ackTimeout,
                                 settingsToUpdate,
                                 UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
                                 UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
@@ -155,8 +211,7 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                                             ),
                                             indexSettingResults
                                         );
-                                    PostDataStreamAction.Response response = new PostDataStreamAction.Response(List.of(dataStreamResponse));
-                                    listener.onResponse(response);
+                                    listener.onResponse(dataStreamResponse);
                                 }
 
                                 @Override
@@ -207,10 +262,7 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                                                 ),
                                                 indexSettingResults
                                             );
-                                        PostDataStreamAction.Response response = new PostDataStreamAction.Response(
-                                            List.of(dataStreamResponse)
-                                        );
-                                        listener.onResponse(response);
+                                        listener.onResponse(dataStreamResponse);
                                     } else {
                                         listener.onFailure(e);
                                     }
@@ -218,7 +270,15 @@ public class PostDataStreamTransportAction extends TransportMasterNodeAction<Pos
                             }
                         );
                     } else {
-                        listener.onFailure(new ElasticsearchException("Unable to set "));
+                        listener.onResponse(
+                            new PostDataStreamAction.DataStreamResponse(
+                                dataStreamName,
+                                false,
+                                "Updating template overrides not accepted for unknown reasons",
+                                null,
+                                List.of()
+                            )
+                        );
                     }
                 }
 

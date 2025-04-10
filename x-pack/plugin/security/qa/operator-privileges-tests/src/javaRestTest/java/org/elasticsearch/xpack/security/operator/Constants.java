@@ -513,6 +513,7 @@ public class Constants {
         "indices:admin/data_stream/lifecycle/get",
         "indices:admin/data_stream/lifecycle/put",
         "indices:admin/data_stream/lifecycle/explain",
+        "indices:admin/data_stream/update",
         DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/delete" : null,
         DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/get" : null,
         DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/put" : null,

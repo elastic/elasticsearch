@@ -42,7 +42,7 @@ public class RestPostDataStreamAction extends BaseRestHandler {
         ComposableIndexTemplate indexTemplate;
         if (request.hasContent()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {
-                indexTemplate = ComposableIndexTemplate.parse(parser);
+                indexTemplate = ComposableIndexTemplate.parseNoIndexPatterns(parser);
             }
         } else {
             indexTemplate = null;

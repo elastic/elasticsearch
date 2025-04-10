@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -503,14 +502,15 @@ public class MetadataDataStreamsService {
 
     public void updateTemplateOverrides(
         ProjectResolver projectResolver,
-        final AcknowledgedRequest<?> request,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
         String dataStreamName,
         ComposableIndexTemplate templateOverrides,
         ActionListener<AcknowledgedResponse> listener
     ) {
         submitUnbatchedTask(
             "updating settings on data stream [" + dataStreamName + "]",
-            new AckedClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout(), request.ackTimeout(), listener) {
+            new AckedClusterStateUpdateTask(Priority.HIGH, masterNodeTimeout, ackTimeout, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     ProjectMetadata projectMetadata = currentState.projectState(projectResolver.getProjectId()).metadata();

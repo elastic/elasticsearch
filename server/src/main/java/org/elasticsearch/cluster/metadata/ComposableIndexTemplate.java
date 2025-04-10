@@ -107,6 +107,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     public static ComposableIndexTemplate parse(XContentParser parser) throws IOException {
+        ComposableIndexTemplate composableIndexTemplate = PARSER.parse(parser, null);
+        if (composableIndexTemplate.indexPatterns() == null) {
+            throw new IllegalArgumentException("Required [index_patterns]");
+        }
+        return composableIndexTemplate;
+    }
+
+    public static ComposableIndexTemplate parseNoIndexPatterns(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 

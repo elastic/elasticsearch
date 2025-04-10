@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -68,8 +68,7 @@ public final class SubstituteSurrogateAggregations extends OptimizerRules.Optimi
                 if (s instanceof AggregateFunction == false) {
                     // 1. collect all aggregate functions from the expression
                     var surrogateWithRefs = s.transformUp(AggregateFunction.class, af -> {
-                        // TODO: more generic than this?
-                        if (af instanceof Rate) {
+                        if (af instanceof TimeSeriesAggregateFunction) {
                             return af;
                         }
                         // 2. check if they are already use otherwise add them to the Aggregate with some made-up aliases

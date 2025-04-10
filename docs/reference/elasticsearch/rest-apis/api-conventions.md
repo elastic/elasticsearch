@@ -1,7 +1,7 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/api-conventions.html
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html#cluster-nodes
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html
 applies_to:
   stack: all
   serverless: all

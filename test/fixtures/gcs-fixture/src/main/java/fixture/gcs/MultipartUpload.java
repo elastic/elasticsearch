@@ -117,7 +117,7 @@ public record MultipartUpload(String bucket, String name, String generation, Str
         while (true) {
             var c = is.read();
             if (c == -1) {
-                throw new AssertionError("expected delimiter, but reached end of stream ");
+                throw new IllegalStateException("expected delimiter, but reached end of stream ");
             }
             var b = (byte) c;
             out.write(b);
@@ -146,7 +146,7 @@ public record MultipartUpload(String bucket, String name, String generation, Str
         while (true) {
             var c = is.read();
             if (c == -1) {
-                throw new AssertionError("expected delimiter, but reached end of stream ");
+                throw new IllegalStateException("expected delimiter, but reached end of stream ");
             }
             var b = (byte) c;
             if (delimiter[delimiterMatchLen] == b) {
@@ -193,7 +193,7 @@ public record MultipartUpload(String bucket, String name, String generation, Str
                 done = readCloseDelimiterOrCRLF(input);
                 return buf;
             } catch (IOException e) {
-                throw new IllegalStateException(e);
+                throw new RuntimeException(e);
             }
         }
     }

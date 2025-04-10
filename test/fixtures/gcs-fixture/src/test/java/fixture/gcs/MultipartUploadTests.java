@@ -52,11 +52,7 @@ public class MultipartUploadTests extends ESTestCase {
             Content-Type: application/octet-stream\r
             \r
             $part3\r
-            --$boundary--"""
-            .replace("$boundary", boundary)
-            .replace("$part1", part1)
-            .replace("$part2", part2)
-            .replace("$part3", part3);
+            --$boundary--""".replace("$boundary", boundary).replace("$part1", part1).replace("$part2", part2).replace("$part3", part3);
 
         var reader = new MultipartUpload.MultipartContentReader(boundary, new ByteArrayStreamInput(strInput.getBytes()));
         assertEquals(part1, reader.next().utf8ToString());

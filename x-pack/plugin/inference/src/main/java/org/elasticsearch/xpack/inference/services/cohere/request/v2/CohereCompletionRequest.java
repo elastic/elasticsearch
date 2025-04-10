@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.cohere.request.completion;
+package org.elasticsearch.xpack.inference.services.cohere.request.v2;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
-import org.elasticsearch.xpack.inference.services.cohere.request.CohereRequest;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 
 import java.net.URI;

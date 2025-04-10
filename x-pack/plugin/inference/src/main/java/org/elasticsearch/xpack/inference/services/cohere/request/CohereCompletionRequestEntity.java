@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.cohere.request.completion;
+package org.elasticsearch.xpack.inference.services.cohere.request;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;

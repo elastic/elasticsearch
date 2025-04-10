@@ -12,7 +12,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
-import org.elasticsearch.xpack.inference.services.cohere.request.completion.CohereCompletionRequest;
 
 import java.io.IOException;
 import java.util.List;

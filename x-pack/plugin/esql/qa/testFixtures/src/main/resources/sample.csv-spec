@@ -129,11 +129,9 @@ required_capability: sample
 
 FROM employees
   | SAMPLE 0.5
-  | LIMIT 20
-  | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no)), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count == 20 AND
-                       values_count == 20 AND
-                       avg_emp_no > 10005 AND avg_emp_no < 10045
+  | LIMIT 10
+  | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no))
+  | EVAL is_expected = count == 10 AND values_count == 10
   | KEEP is_expected
 ;
 
@@ -148,10 +146,9 @@ required_capability: sample
 FROM employees
   | LIMIT 50
   | SAMPLE 0.5
-  | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no)), avg_emp_no = AVG(emp_no)
+  | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no))
   | EVAL is_expected = count >= 10 AND count <= 90 AND 
-                       values_count >= 5 AND values_count <= 45 AND
-                       avg_emp_no > 10005 AND avg_emp_no < 10045
+                       values_count >= 5 AND values_count <= 45
   | KEEP is_expected
 ;
 

@@ -1564,6 +1564,7 @@ salary_change.long:double|foo:long
 
 
 joinMaskingEval
+required_capability: join_lookup_v12
 required_capability: fix_join_masking_eval
 from languag* 
 | eval type = null 

@@ -974,7 +974,12 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code leading_zeros} named parameter.
          */
-        TO_IP_LEADING_ZEROS;
+        TO_IP_LEADING_ZEROS,
+
+        /**
+         * Does the usage information for ESQL contain a histogram of {@code took} values?
+         */
+        USAGE_CONTAINS_TOOK;
 
         private final boolean enabled;
 

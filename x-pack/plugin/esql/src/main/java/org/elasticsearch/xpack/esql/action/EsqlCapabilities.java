@@ -967,7 +967,12 @@ public class EsqlCapabilities {
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * during resolution (pre-analysis) we have to consider that joins can override EVALuated values
+         * Support STATS/EVAL/DISSECT in Fork branches
+         */
+        FORK_V2(Build.current().isSnapshot()),
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins can override EVALuated values
          * https://github.com/elastic/elasticsearch/issues/126419
          */
         FIX_JOIN_MASKING_EVAL;

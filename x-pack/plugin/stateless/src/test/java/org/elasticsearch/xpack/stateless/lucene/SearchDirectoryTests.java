@@ -21,6 +21,8 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import co.elastic.elasticsearch.stateless.commits.BlobFile;
+import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -56,9 +58,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
@@ -77,18 +84,8 @@ public class SearchDirectoryTests extends ESTestCase {
         return new String[] { createTempDir().toAbsolutePath().toString() };
     }
 
-    /**
-     * Test that BlobCacheIndexInput can be read from the cache while the blob in object store keeps growing in size.
-     *
-     * In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
-     * Lucene files instead.
-     */
-    public void testExpandingCacheRegions() throws Exception {
-        var regionSize = ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * randomLongBetween(1L, 4L)); // regions are 4kb..16kb
-        var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L); // 100 regions
-
-        logger.debug("--> using cache size [{}] with region size [{}]", cacheSize, regionSize);
-        try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+    private FakeStatelessNode createFakeStatelessNode(ByteSizeValue regionSize, ByteSizeValue cacheSize) throws IOException {
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override
             protected Settings nodeSettings() {
                 return Settings.builder()
@@ -162,7 +159,21 @@ public class SearchDirectoryTests extends ESTestCase {
                     }
                 };
             }
-        }) {
+        };
+    }
+
+    /**
+     * Test that BlobCacheIndexInput can be read from the cache while the blob in object store keeps growing in size.
+     *
+     * In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
+     * Lucene files instead.
+     */
+    public void testExpandingCacheRegions() throws Exception {
+        var regionSize = ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * randomLongBetween(1L, 4L)); // regions are 4kb..16kb
+        var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L); // 100 regions
+
+        logger.debug("--> using cache size [{}] with region size [{}]", cacheSize, regionSize);
+        try (var node = createFakeStatelessNode(regionSize, cacheSize)) {
             final var primaryTerm = randomLongBetween(1L, 10L);
             final var indexDirectory = IndexDirectory.unwrapDirectory(node.indexingStore.directory());
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
@@ -325,6 +336,73 @@ public class SearchDirectoryTests extends ESTestCase {
             assertTrue("Blob's last region byte (including padding) is available cache", cacheFile.tryRead(buffer, position));
             buffer.clear();
         });
+    }
+
+    public void testGetHighestOffsetBlobRanges() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            {
+                assertEquals(0, searchDirectory.getHighestOffsetBlobRanges().size());
+            }
+
+            {
+                searchDirectory.retainFiles(Set.of());
+                List<BlobLocation> blobLocations = createBlobLocations("blob1", 5);
+                searchDirectory.updateCommit(createCommit(searchDirectory.shardId, blobLocations));
+                Collection<BlobFileRanges> blobFilesAndHighesRanges = searchDirectory.getHighestOffsetBlobRanges();
+                assertEquals(1, blobFilesAndHighesRanges.size());
+                BlobFileRanges range = blobFilesAndHighesRanges.iterator().next();
+                assertEquals("blob1", range.blobName());
+                assertEquals(blobLocations.getLast().offset(), range.blobLocation().offset());
+            }
+
+            {
+                searchDirectory.retainFiles(Set.of());
+                Map<String, BlobLocation> expectedLocations = new HashMap<>();
+
+                int numBlobs = randomIntBetween(2, 10);
+                for (int i = 0; i < numBlobs; i++) {
+                    String blobName = "blob_" + i;
+                    List<BlobLocation> blobLocations = createBlobLocations(blobName, 5);
+                    expectedLocations.put(blobName, blobLocations.getLast());
+                    searchDirectory.updateCommit(createCommit(searchDirectory.shardId, blobLocations));
+                }
+                Collection<BlobFileRanges> highestOffsetBlobRanges = searchDirectory.getHighestOffsetBlobRanges();
+                assertEquals(expectedLocations.size(), highestOffsetBlobRanges.size());
+                for (BlobFileRanges range : highestOffsetBlobRanges) {
+                    assertEquals(expectedLocations.get(range.blobName()).offset(), range.blobLocation().offset());
+                }
+            }
+        }
+    }
+
+    private static StatelessCompoundCommit createCommit(ShardId shardId, List<BlobLocation> commitLocations) {
+        Map<String, BlobLocation> commitFiles = commitLocations.stream()
+            .collect(Collectors.toMap(loc -> randomAlphaOfLength(8), Function.identity()));
+        return new StatelessCompoundCommit(
+            shardId,
+            new PrimaryTermAndGeneration(1L, 1L),
+            1L,
+            "_na_",
+            commitFiles,
+            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
+            commitFiles.keySet(),
+            0L,
+            InternalFilesReplicatedRanges.EMPTY
+        );
+    }
+
+    private List<BlobLocation> createBlobLocations(String blobName, int n) {
+        List<BlobLocation> locations = new ArrayList<>();
+        int offset = randomIntBetween(0, 500);  // model some initial offset in the File
+        int length = randomIntBetween(10, 200);  // some small file length initially
+        for (int i = 0; i < n; i++) {
+            locations.add(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length));
+            offset += length;
+            // randomly increase next file length a bit
+            length += randomIntBetween(50, 200);
+        }
+        return locations;
     }
 
     private record ChecksummedFile(String fileName, long fileLength, long fileOffset, long fileChecksum, long blobLength) {}

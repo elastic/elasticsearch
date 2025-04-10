@@ -426,6 +426,12 @@ tests:
 - class: org.elasticsearch.index.shard.IndexShardTests
   method: testReentrantEngineReadLockAcquisitionInRefreshListener
   issue: https://github.com/elastic/elasticsearch/issues/126628
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testBWCSearchStates
+  issue: https://github.com/elastic/elasticsearch/issues/126632
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/126633
 
 # Examples:
 #

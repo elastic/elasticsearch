@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -465,8 +464,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         ) {
             @Override
             void searchShards(
-                Task parentTask,
-                String clusterAlias,
                 QueryBuilder filter,
                 Set<String> concreteIndices,
                 OriginalIndices originalIndices,
@@ -477,7 +474,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                     shards.size(),
                     0
                 );
-                assertSame(parentTask, task);
                 runWithDelay(() -> listener.onResponse(targetShards));
             }
 
@@ -492,7 +488,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             }
         };
         requestSender.startComputeOnDataNodes(
-            "",
             Set.of(randomAlphaOfLength(10)),
             new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS),
             null,

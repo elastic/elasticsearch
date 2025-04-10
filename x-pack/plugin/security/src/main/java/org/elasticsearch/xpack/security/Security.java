@@ -208,6 +208,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -310,6 +311,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
@@ -915,12 +917,53 @@ public class Security extends Plugin
         this.realms.set(realms);
 
         systemIndices.getMainIndexManager().addStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
-
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
-        cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
         components.add(cacheInvalidatorRegistry);
-        systemIndices.getMainIndexManager().addStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
 
+        final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
+            settings,
+            threadPool,
+            getClock(),
+            client,
+            systemIndices.getMainIndexManager(),
+            clusterService,
+            cacheInvalidatorRegistry
+        );
+        components.add(indexServiceAccountTokenStore);
+
+        final FileServiceAccountTokenStore fileServiceAccountTokenStore = new FileServiceAccountTokenStore(
+            environment,
+            resourceWatcherService,
+            threadPool,
+            clusterService,
+            cacheInvalidatorRegistry
+        );
+        components.add(fileServiceAccountTokenStore);
+        cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
+
+        List<ServiceAccountTokenStore> extensionTokenStores = securityExtensions.stream()
+            .map(extension -> extension.getServiceAccountTokenStore(extensionComponents))
+            .toList();
+
+        ServiceAccountService serviceAccountService;
+
+        if (extensionTokenStores.isEmpty()) {
+            serviceAccountService = new ServiceAccountService(client, fileServiceAccountTokenStore, indexServiceAccountTokenStore);
+        } else {
+            // Completely handover service account token management to the extension if provided, this will disable the index managed
+            // service account tokens managed through the service account token API
+            logger.debug("Service account authentication handled by extension, disabling file and index token stores");
+            components.addAll(extensionTokenStores);
+            serviceAccountService = new ServiceAccountService(
+                client,
+                new CompositeServiceAccountTokenStore(extensionTokenStores, client.threadPool().getThreadContext())
+            );
+            // TODO Should this also register with the cacheInvalidatorRegistry?
+        }
+
+        components.add(serviceAccountService);
+
+        systemIndices.getMainIndexManager().addStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(
             settings,
             client,
@@ -1003,33 +1046,6 @@ public class Security extends Plugin
             telemetryProvider.getMeterRegistry()
         );
         components.add(apiKeyService);
-
-        final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
-            settings,
-            threadPool,
-            getClock(),
-            client,
-            systemIndices.getMainIndexManager(),
-            clusterService,
-            cacheInvalidatorRegistry
-        );
-        components.add(indexServiceAccountTokenStore);
-
-        final FileServiceAccountTokenStore fileServiceAccountTokenStore = new FileServiceAccountTokenStore(
-            environment,
-            resourceWatcherService,
-            threadPool,
-            clusterService,
-            cacheInvalidatorRegistry
-        );
-        components.add(fileServiceAccountTokenStore);
-
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(
-            client,
-            fileServiceAccountTokenStore,
-            indexServiceAccountTokenStore
-        );
-        components.add(serviceAccountService);
 
         final RoleProviders roleProviders = new RoleProviders(
             reservedRolesStore,

@@ -55,6 +55,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.OptionalLong;
@@ -317,6 +318,23 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     public long totalBytesWarmedFromIndexing() {
         return totalBytesWarmedFromIndexing.sum();
+    }
+
+    /**
+     * For each blob file referenced by this directory, get the @{@link BlobFileRanges} with the highest offset
+     */
+    public Collection<BlobFileRanges> getHighestOffsetBlobRanges() {
+        if (this.currentMetadata.isEmpty()) {
+            return Set.of();
+        }
+        Map<String, BlobFileRanges> highestBlobRanges = new HashMap<>();
+        for (var fileRange : this.currentMetadata.values()) {
+            BlobFileRanges current = highestBlobRanges.computeIfAbsent(fileRange.blobName(), k -> fileRange);
+            if (current.fileOffset() < fileRange.fileOffset()) {
+                highestBlobRanges.put(fileRange.blobName(), fileRange);
+            }
+        }
+        return highestBlobRanges.values();
     }
 
     public static SearchDirectory unwrapDirectory(final Directory directory) {

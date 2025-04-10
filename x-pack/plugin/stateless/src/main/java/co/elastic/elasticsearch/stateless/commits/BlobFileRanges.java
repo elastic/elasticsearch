@@ -204,4 +204,9 @@ public class BlobFileRanges {
         }
         return true;
     }
+
+    public String toString() {
+        return blobLocation.toString();
+    }
+
 }

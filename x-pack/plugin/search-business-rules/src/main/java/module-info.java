@@ -16,6 +16,4 @@ module org.elasticsearch.searchbusinessrules {
     requires org.elasticsearch.xcore;
 
     exports org.elasticsearch.xpack.searchbusinessrules;
-
-    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRulesFeatures;
 }

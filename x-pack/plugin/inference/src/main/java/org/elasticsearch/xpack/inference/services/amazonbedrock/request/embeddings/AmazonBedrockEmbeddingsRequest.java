@@ -76,6 +76,9 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
 
     @Override
     public Request truncate() {
+        if (provider == AmazonBedrockProvider.COHERE) {
+            return this; // Cohere has its own truncation logic
+        }
         var truncatedInput = truncator.truncate(truncationResult.input());
         return new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, embeddingsModel, requestEntity, timeout);
     }

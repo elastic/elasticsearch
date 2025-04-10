@@ -92,6 +92,7 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: 'annotations',              to: 'aws-sdk-2'
   mapping from: 'apache-client',            to: 'aws-sdk-2'
+  mapping from: 'arns',                     to: 'aws-sdk-2'
   mapping from: 'auth',                     to: 'aws-sdk-2'
   mapping from: 'aws-core',                 to: 'aws-sdk-2'
   mapping from: 'aws-query-protocol',       to: 'aws-sdk-2'

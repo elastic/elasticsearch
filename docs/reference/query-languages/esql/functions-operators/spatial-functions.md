@@ -1,7 +1,7 @@
 ---
-navigation_title: "spatial functions"
+navigation_title: "Spatial functions"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/spatial-functions.md
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-spatial-functions
 ---
 
 # {{esql}} spatial functions [esql-spatial-functions]

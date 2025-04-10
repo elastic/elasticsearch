@@ -1,6 +1,78 @@
 # General Architecture
 
-## Transport Actions
+## REST & Transport layers
+
+[TransportAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/TransportAction.java
+[ActionPlugin]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/plugins/ActionPlugin.java
+[ActionModule]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionModule.java
+
+There are two main types of network communication used in Elasticsearch:
+- External clients interact with the cluster via the public REST API over HTTP connections
+- Cluster nodes communicate internally using a binary message format over TCP connections
+
+> [!NOTE]
+> Cross-cluster [replication](https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-ccr.html) and [search](https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cross-cluster-search.html) use binary/TCP messaging for inter-cluster communication but this is out of scope for this section
+
+The node that a REST request arrives at is called the "coordinating" node. Its job is to coordinate the execution of the request with the other nodes in the cluster and when the requested action is completed, return the possibly aggregated response to the REST client via HTTP.
+
+By default, all nodes will act as coordinating nodes, but by specifying `node.roles` to be empty you can create a [coordinating-only node](https://www.elastic.co/guide/en/elasticsearch/reference/current/node-roles-overview.html#coordinating-only-node-role).
+
+### REST Layer
+
+[BaseRestHandler]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java
+[RestHandler]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/RestHandler.java
+[Route]:https://github.com/elastic/elasticsearch/blob/0b09506b543231862570c7c1ee623c1af139bd5a/server/src/main/java/org/elasticsearch/rest/RestHandler.java#L134
+[getRestHandlers]:https://github.com/elastic/elasticsearch/blob/0b09506b543231862570c7c1ee623c1af139bd5a/server/src/main/java/org/elasticsearch/plugins/ActionPlugin.java#L76
+[RestBulkAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/action/document/RestBulkAction.java
+[RestController]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/RestController.java
+[HttpServerTransport.Dispatcher]:https://github.com/elastic/elasticsearch/blob/997a7b8fab6c0bcaacf963c28fe98024492960c5/server/src/main/java/org/elasticsearch/http/HttpServerTransport.java#L36
+[HttpServerTransport]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/http/HttpServerTransport.java
+[Netty4HttpServerTransport]:https://github.com/elastic/elasticsearch/blob/main/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpServerTransport.java
+
+Each REST endpoint is defined by a [RestHandler] instance. [RestHandler] implementations define the list of [Route]s that they handle, the request handling logic, and some other runtime characteristics such as path/query parameters that are supported and the content type(s) it accepts. There are many built-in REST endpoints configured statically in [ActionModule], additional endpoints can be contributed by [ActionPlugin]s via the [getRestHandlers] method.
+
+[BaseRestHandler] is the base class for almost all REST endpoints in Elasticsearch. It validates the request parameters against those which are supported, delegates to its sub-classes to set up the execution of the requested action, then delivers the request content to the action either as a single parsed payload or a stream of binary chunks. Actions such as the [RestBulkAction] use the streaming capability to process large payloads incrementally and apply back-pressure when overloaded.
+
+The sub-classes of [BaseRestHandler], usually named `Rest{action-name}Action`, are the entry-points to the cluster, where HTTP requests from outside the cluster are translated into internal [TransportAction] invocations.
+
+[RestHandler]s are registered with the [RestController], which implements request routing and some cross-cutting concerns. [RestController] is a [HttpServerTransport.Dispatcher], which dispatches requests for a [HttpServerTransport]. [HttpServerTransport] is our HTTP abstraction, of which there is a single [Netty-based implementation][Netty4HttpServerTransport].
+
+> [!NOTE]
+> `Rest{action-name}Action` classes often have a corresponding `Transport{action-name}Action`, this naming convention makes it easy to locate the corresponding [RestHandler] for a [TransportAction]. (e.g. `RestGetAction` calls `TransportGetAction`)
+
+### Transport Layer
+
+[ActionRequest]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionRequest.java
+[NodeClient]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java
+[TransportMasterNodeAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java
+[TransportLocalClusterStateAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/local/TransportLocalClusterStateAction.java
+[TransportReplicationAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java
+[TransportNodesAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/nodes/TransportNodesAction.java
+[TransportSingleShardAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/single/shard/TransportSingleShardAction.java
+[getActions]:https://github.com/elastic/elasticsearch/blob/0b09506b543231862570c7c1ee623c1af139bd5a/server/src/main/java/org/elasticsearch/plugins/ActionPlugin.java#L55
+[ActionType]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionType.java
+[ActionModule#setupActions]:https://github.com/elastic/elasticsearch/blob/997a7b8fab6c0bcaacf963c28fe98024492960c5/server/src/main/java/org/elasticsearch/action/ActionModule.java#L612
+[NodeClient#executeLocally]:https://github.com/elastic/elasticsearch/blob/997a7b8fab6c0bcaacf963c28fe98024492960c5/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java#L101
+[TransportService#sendRequest]:https://github.com/elastic/elasticsearch/blob/997a7b8fab6c0bcaacf963c28fe98024492960c5/server/src/main/java/org/elasticsearch/transport/TransportService.java#L767
+[TransportService#registerRequestHandler]:https://github.com/elastic/elasticsearch/blob/997a7b8fab6c0bcaacf963c28fe98024492960c5/server/src/main/java/org/elasticsearch/transport/TransportService.java#L1197
+[HandledTransportAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/HandledTransportAction.java
+[TransportService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/TransportService.java
+
+When `Rest{action-name}Action` handlers receive a request, they typically translate the request into a [ActionRequest] and dispatch it via the provided [NodeClient]. The [NodeClient] is the entrypoint into the "transport layer" over which internal cluster actions are coordinated.
+
+Elasticsearch contains many built-in [TransportAction]s, configured statically in [ActionModule], additional actions can be contributed by [ActionPlugin]s via the [getActions] method. [TransportAction]s define the request and response types used to invoke the action and the logic for performing the action.
+
+[TransportAction]s that are registered in [ActionModule#setupActions] (including those supplied by plugins) are locally bound to their [ActionType]. This map of `type -> action` bindings is what [NodeClient] instances use to locate actions in [NodeClient#executeLocally].
+
+The [NodeClient] executes all actions locally on the invoking node, the actions themselves sometimes dispatch downstream actions to other nodes in the cluster via the transport layer (see [TransportService#sendRequest]). To be callable in this way, actions must register themselves with the [TransportService] by calling [TransportService#registerRequestHandler]. [HandledTransportAction] is a common parent class which registers an action with the [TransportService].
+
+There are a few common patterns for [TransportAction] execution which are present in the codebase. Some prominent examples include...
+
+- [TransportMasterNodeAction]: Executes an action on the master node. Typically used to perform cluster state updates, as these can only be performed on the master. The base class contains logic for locating the master node and delegating to it to execute the specified logic.
+- [TransportNodesAction]: Executes an action on many nodes then collates the responses.
+- [TransportLocalClusterStateAction]: Waits for a cluster state that optionally meets some criteria and performs a read action on it on the coordinating node.
+- [TransportReplicationAction]: Execute an action on a primary shard followed by all replicas that exist for that shard. The base class implements logic for locating the primary and replica shards in the cluster and delegating to the relevant nodes. Often used for index updates in stateful Elasticsearch.
+- [TransportSingleShardAction]: Executes a read operation on a specific shard, the base class contains logic for locating an available copy of the nominated shard and delegating to the relevant node to execute the action. On a failure, the action is retried on a different copy.
 
 ## Serializations
 

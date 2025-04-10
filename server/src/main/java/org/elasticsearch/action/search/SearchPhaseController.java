@@ -20,6 +20,9 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
@@ -50,6 +53,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -146,11 +150,11 @@ public final class SearchPhaseController {
             return topDocs;
         } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
-            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
+            final TopFieldGroups[] shardTopDocs = results.stream().filter(td -> td != Lucene.EMPTY_TOP_DOCS).toArray(TopFieldGroups[]::new);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
             final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
-            final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
+            final TopFieldDocs[] shardTopDocs = results.stream().filter((td -> td != Lucene.EMPTY_TOP_DOCS)).toArray(TopFieldDocs[]::new);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
@@ -687,7 +691,7 @@ public final class SearchPhaseController {
         );
     }
 
-    public static final class TopDocsStats {
+    public static final class TopDocsStats implements Writeable {
         final int trackTotalHitsUpTo;
         long totalHits;
         private TotalHits.Relation totalHitsRelation;
@@ -727,6 +731,29 @@ public final class SearchPhaseController {
             }
         }
 
+        void add(TopDocsStats other) {
+            if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                totalHits += other.totalHits;
+                if (other.totalHitsRelation == Relation.GREATER_THAN_OR_EQUAL_TO) {
+                    totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+                }
+            }
+            fetchHits += other.fetchHits;
+            if (Float.isNaN(other.maxScore) == false) {
+                maxScore = Math.max(maxScore, other.maxScore);
+            }
+            if (other.timedOut) {
+                this.timedOut = true;
+            }
+            if (other.terminatedEarly != null) {
+                if (this.terminatedEarly == null) {
+                    this.terminatedEarly = other.terminatedEarly;
+                } else if (terminatedEarly) {
+                    this.terminatedEarly = true;
+                }
+            }
+        }
+
         void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value;
@@ -748,6 +775,30 @@ public final class SearchPhaseController {
                     this.terminatedEarly = true;
                 }
             }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(trackTotalHitsUpTo);
+            out.writeFloat(maxScore);
+            Lucene.writeTotalHits(out, new TotalHits(totalHits, totalHitsRelation));
+            out.writeVLong(fetchHits);
+            out.writeFloat(maxScore);
+            out.writeBoolean(timedOut);
+            out.writeOptionalBoolean(terminatedEarly);
+        }
+
+        public static TopDocsStats readFrom(StreamInput in) throws IOException {
+            TopDocsStats res = new TopDocsStats(in.readVInt());
+            res.maxScore = in.readFloat();
+            TotalHits totalHits = Lucene.readTotalHits(in);
+            res.totalHits = totalHits.value;
+            res.totalHitsRelation = totalHits.relation;
+            res.fetchHits = in.readVLong();
+            res.maxScore = in.readFloat();
+            res.timedOut = in.readBoolean();
+            res.terminatedEarly = in.readOptionalBoolean();
+            return res;
         }
     }
 

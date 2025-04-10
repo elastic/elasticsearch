@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
@@ -126,6 +128,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
+
+    public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings()),
@@ -1006,10 +1010,24 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
 
+                DenseVectorFieldMapper.IndexOptions defaultIndexOptions = defaultSemanticDenseIndexOptions();
+                if (defaultIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)) {
+                    denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
+                }
+
                 yield denseVectorMapperBuilder;
             }
             default -> throw new IllegalArgumentException("Invalid task_type in model_settings [" + modelSettings.taskType().name() + "]");
         };
+    }
+
+    static DenseVectorFieldMapper.IndexOptions defaultSemanticDenseIndexOptions() {
+        // As embedding models for text perform better with BBQ, we aggressively default semantic_text fields to use optimized index
+        // options outside of dense_vector defaults
+        int m = XContentMapValues.nodeIntegerValue(Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
+        int efConstruction = XContentMapValues.nodeIntegerValue(Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
+        DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
     }
 
     private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {

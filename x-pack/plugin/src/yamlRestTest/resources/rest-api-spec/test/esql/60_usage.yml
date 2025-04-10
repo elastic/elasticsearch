@@ -179,3 +179,25 @@ setup:
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
   - length: {esql.functions: 131} # check the "sister" test above for a likely update to the same esql.functions length check
+
+---
+took:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [usage_contains_took]
+      reason: "Test that should only be executed on snapshot versions"
+
+  - do: {xpack.usage: {}}
+  - exists: esql.took.lt_10ms
+  - exists: esql.took.lt_1s
+  - exists: esql.took.lt_10s
+  - exists: esql.took.lt_1m
+  - exists: esql.took.lt_10m
+  - exists: esql.took.lt_1h
+  - exists: esql.took.lt_10h
+  - exists: esql.took.lt_1d
+  - exists: esql.took.gt_1d

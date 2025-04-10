@@ -1,4 +1,4 @@
-## Equality [esql-equals]
+### Equality [esql-equals]
 
 **Syntax**
 

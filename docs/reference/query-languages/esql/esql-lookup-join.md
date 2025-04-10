@@ -6,7 +6,7 @@ mapped_pages:
 
 # LOOKUP JOIN [esql-lookup-join-reference]
 
-The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
+The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
 Teams often have data scattered across multiple indices – like logs, IPs, user IDs, hosts, employees etc. Without a direct way to enrich or correlate each event with reference data, root-cause analysis, security checks, and operational insights become time-consuming.
 
@@ -16,7 +16,7 @@ For example, you can use `LOOKUP JOIN` to:
 * Quickly see if any source IPs match known malicious addresses.
 * Tag logs with the owning team or escalation info for faster triage and incident response.
 
-[`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) is similar to [`ENRICH`](/reference/query-languages/esql/esql-commands.md#esql-enrich) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
+[`LOOKUP join`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) is similar to [`ENRICH`](/reference/query-languages/esql/commands/processing-commands.md#esql-enrich) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
 
 * Your enrichment data changes frequently
 * You want to avoid index-time processing
@@ -99,7 +99,7 @@ FROM employees
 |    10095      | 5                     | null                  | France|
 
 ::::{important}
-`LOOKUP JOIN` does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/esql-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.
+`LOOKUP JOIN` does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/commands/processing-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.
 
 ::::
 
@@ -114,7 +114,7 @@ To use `LOOKUP JOIN`, the following requirements must be met:
     * `float`, `half_float`, and `scaled_float` are compatible with `double` (all represented as `double`)
   * For text fields: You can only use text fields as the join key on the left-hand side of the join and only if they have a `.keyword` subfield
 
-To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions) if needed.
+To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md) if needed.
 
 For a complete list of supported data types and their internal representations, see the [Supported Field Types documentation](/reference/query-languages/esql/limitations.md#_supported_types).
 

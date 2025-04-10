@@ -144,6 +144,14 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         }
         Fork fork = (Fork) plan;
 
+        fork.forEachDown(Fork.class, otherFork -> {
+            if (fork == otherFork) {
+                return;
+            }
+
+            failures.add(Failure.fail(otherFork, "Only a single FORK command is allowed, but found multiple"));
+        });
+
         Map<String, DataType> outputTypes = fork.children()
             .getFirst()
             .output()

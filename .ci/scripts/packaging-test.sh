@@ -3,7 +3,7 @@
 # opensuse 15 has a missing dep for systemd
 
 if which zypper > /dev/null ; then
-    sudo zypper install -y insserv-compat
+    sudo zypper install -y insserv-compat docker-buildx
 fi
 
 if [ -e /etc/sysctl.d/99-gce.conf ]; then

@@ -1,4 +1,4 @@
-## Less than `<` [esql-less_than]
+### Less than `<` [esql-less_than]
 
 :::{image} ../../../images/operators/less_than.svg
 :alt: Embedded

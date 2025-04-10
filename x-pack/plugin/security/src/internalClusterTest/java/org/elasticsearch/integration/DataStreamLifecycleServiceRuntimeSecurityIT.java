@@ -19,7 +19,9 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -262,21 +264,47 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
         @Override
         public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
-            return List.of(
-                new SystemDataStreamDescriptor(
-                    SYSTEM_DATA_STREAM_NAME,
-                    "a system data stream for testing",
-                    SystemDataStreamDescriptor.Type.EXTERNAL,
-                    ComposableIndexTemplate.builder()
-                        .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
-                        .template(Template.builder().lifecycle(DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO)))
-                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                        .build(),
-                    Map.of(),
-                    Collections.singletonList("test"),
-                    "test",
-                    new ExecutorNames(ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE)
-                )
+            try {
+                return List.of(
+                    new SystemDataStreamDescriptor(
+                        SYSTEM_DATA_STREAM_NAME,
+                        "a system data stream for testing",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
+                            .template(
+                                Template.builder()
+                                    .mappings(new CompressedXContent("""
+                                        {
+                                            "properties": {
+                                              "@timestamp" : {
+                                                "type": "date"
+                                              },
+                                              "count": {
+                                                "type": "long"
+                                              }
+                                            }
+                                        }"""))
+                                    .lifecycle(DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO))
+                                    .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true)))
+                            )
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        Collections.singletonList("test"),
+                        "test",
+                        new ExecutorNames(
+                            ThreadPool.Names.SYSTEM_CRITICAL_READ,
+                            ThreadPool.Names.SYSTEM_READ,
+                            ThreadPool.Names.SYSTEM_WRITE
+                        )
+                    )
+                );
+            } catch (IOException e) {
+                fail(e.getMessage());
+            }
+            throw new IllegalStateException(
+                "Something went wrong, it should have either returned the descriptor or it should have thrown an assertion error"
             );
         }
 

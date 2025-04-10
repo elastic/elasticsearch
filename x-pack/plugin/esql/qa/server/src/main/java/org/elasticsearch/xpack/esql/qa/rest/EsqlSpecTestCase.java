@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
+import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -91,6 +92,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final CsvTestCase testCase;
     protected final String instructions;
     protected final Mode mode;
+    protected static Boolean supportsTook;
 
     public enum Mode {
         SYNC,
@@ -271,6 +273,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             builder.tables(tables());
         }
 
+        Map<?, ?> prevTooks = supportsTook() ? tooks() : null;
         Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.assertWarnings(deduplicateExactWarnings()));
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
@@ -287,6 +290,21 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
+
+        if (supportsTook()) {
+            LOGGER.info("checking took incremented from {}", prevTooks);
+            long took = ((Number) answer.get("took")).longValue();
+            int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
+            assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
+        }
+    }
+
+    private Map<?, ?> tooks() throws IOException {
+        Request request = new Request("GET", "/_xpack/usage");
+        HttpEntity entity = client().performRequest(request).getEntity();
+        Map<?, ?> usage = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
+        Map<?, ?> esql = (Map<?, ?>) usage.get("esql");
+        return (Map<?, ?>) esql.get("took");
     }
 
     /**
@@ -470,5 +488,37 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             )
         );
         return tables;
+    }
+
+    protected boolean supportsTook() throws IOException {
+        if (supportsTook == null) {
+            supportsTook = hasCapabilities(client(), List.of("usage_contains_took"));
+        }
+        return supportsTook;
+    }
+
+    private String tookKey(long took) {
+        if (took < 10) {
+            return "lt_10ms";
+        }
+        if (took < 100) {
+            return "lt_100ms";
+        }
+        if (took < TookMetrics.ONE_SECOND) {
+            return "lt_1s";
+        }
+        if (took < TookMetrics.TEN_SECONDS) {
+            return "lt_10s";
+        }
+        if (took < TookMetrics.ONE_MINUTE) {
+            return "lt_1m";
+        }
+        if (took < TookMetrics.TEN_MINUTES) {
+            return "lt_10m";
+        }
+        if (took < TookMetrics.ONE_DAY) {
+            return "lt_1d";
+        }
+        return "gt_1d";
     }
 }

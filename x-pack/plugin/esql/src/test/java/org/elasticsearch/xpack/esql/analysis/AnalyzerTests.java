@@ -3288,6 +3288,13 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 2 | SORT emp_no | LIMIT 10 )
             """));
         assertThat(e.getMessage(), containsString("aggregate function [COUNT(first_name)] not allowed outside STATS command"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK (EVAL a = 1) (EVAL a = 2)
+            | FORK (EVAL b = 3) (EVAL b = 4)
+            """));
+        assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
     }
 
     public void testValidRrf() {

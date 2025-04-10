@@ -48,7 +48,7 @@ import java.util.stream.Stream;
 public class ObjectMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(ObjectMapper.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
-    public static final FeatureFlag SUB_OBJECTS_AUTO_FEATURE_FLAG = new FeatureFlag("sub_objects_auto");
+    public static final boolean SUB_OBJECTS_AUTO_FEATURE_FLAG = new FeatureFlag("sub_objects_auto").isEnabled();
     static final NodeFeature SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX = new NodeFeature("mapper.subobjects_false_mapping_update_fix");
 
     public static final String CONTENT_TYPE = "object";
@@ -80,7 +80,7 @@ public class ObjectMapper extends Mapper {
                 if (value.equalsIgnoreCase("false")) {
                     return DISABLED;
                 }
-                if (SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled() && value.equalsIgnoreCase("auto")) {
+                if (SUB_OBJECTS_AUTO_FEATURE_FLAG && value.equalsIgnoreCase("auto")) {
                     return AUTO;
                 }
             }

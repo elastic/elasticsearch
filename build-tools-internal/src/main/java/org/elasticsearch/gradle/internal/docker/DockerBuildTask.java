@@ -170,6 +170,7 @@ public abstract class DockerBuildTask extends DefaultTask {
                         maybeConfigureDockerConfig(spec);
                         spec.executable("docker");
                         spec.args("pull");
+                        spec.environment("DOCKER_BUILDKIT", "1");
                         spec.args(baseImage);
                     });
 
@@ -205,7 +206,7 @@ public abstract class DockerBuildTask extends DefaultTask {
                 maybeConfigureDockerConfig(spec);
 
                 spec.executable("docker");
-
+                spec.environment("DOCKER_BUILDKIT", "1");
                 if (isCrossPlatform) {
                     spec.args("buildx");
                 }

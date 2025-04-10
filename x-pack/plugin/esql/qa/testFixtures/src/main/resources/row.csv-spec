@@ -30,10 +30,8 @@ ROW a = [2, 1]
 // end::multivalue[]
 ;
 
-// tag::multivalue-result[]
 a:integer
 [2, 1]
-// end::multivalue-result[]
 ;
 
 shadowingInternal
@@ -67,10 +65,8 @@ ROW a = ROUND(1.23, 0)
 // end::function[]
 ;
 
-// tag::function-result[]
 a:double
 1.0
-// end::function-result[]
 ;
 
 evalRow

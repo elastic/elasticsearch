@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SHOW;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.WHERE;
-import static org.elasticsearch.xpack.esql.telemetry.Metrics.FPREFIX;
+import static org.elasticsearch.xpack.esql.telemetry.Metrics.FEATURES_PREFIX;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
@@ -467,63 +467,63 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     private long dissect(Counters c) {
-        return c.get(FPREFIX + DISSECT);
+        return c.get(FEATURES_PREFIX + DISSECT);
     }
 
     private long eval(Counters c) {
-        return c.get(FPREFIX + EVAL);
+        return c.get(FEATURES_PREFIX + EVAL);
     }
 
     private long grok(Counters c) {
-        return c.get(FPREFIX + GROK);
+        return c.get(FEATURES_PREFIX + GROK);
     }
 
     private long limit(Counters c) {
-        return c.get(FPREFIX + LIMIT);
+        return c.get(FEATURES_PREFIX + LIMIT);
     }
 
     private long sort(Counters c) {
-        return c.get(FPREFIX + SORT);
+        return c.get(FEATURES_PREFIX + SORT);
     }
 
     private long stats(Counters c) {
-        return c.get(FPREFIX + STATS);
+        return c.get(FEATURES_PREFIX + STATS);
     }
 
     private long where(Counters c) {
-        return c.get(FPREFIX + WHERE);
+        return c.get(FEATURES_PREFIX + WHERE);
     }
 
     private long enrich(Counters c) {
-        return c.get(FPREFIX + ENRICH);
+        return c.get(FEATURES_PREFIX + ENRICH);
     }
 
     private long mvExpand(Counters c) {
-        return c.get(FPREFIX + MV_EXPAND);
+        return c.get(FEATURES_PREFIX + MV_EXPAND);
     }
 
     private long show(Counters c) {
-        return c.get(FPREFIX + SHOW);
+        return c.get(FEATURES_PREFIX + SHOW);
     }
 
     private long row(Counters c) {
-        return c.get(FPREFIX + ROW);
+        return c.get(FEATURES_PREFIX + ROW);
     }
 
     private long from(Counters c) {
-        return c.get(FPREFIX + FROM);
+        return c.get(FEATURES_PREFIX + FROM);
     }
 
     private long drop(Counters c) {
-        return c.get(FPREFIX + DROP);
+        return c.get(FEATURES_PREFIX + DROP);
     }
 
     private long keep(Counters c) {
-        return c.get(FPREFIX + KEEP);
+        return c.get(FEATURES_PREFIX + KEEP);
     }
 
     private long rename(Counters c) {
-        return c.get(FPREFIX + RENAME);
+        return c.get(FEATURES_PREFIX + RENAME);
     }
 
     private long function(String function, Counters c) {

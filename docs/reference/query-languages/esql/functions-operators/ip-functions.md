@@ -1,7 +1,7 @@
 ---
 navigation_title: "IP functions"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/functions-operators/ip-functions.md
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-ip-functions
 ---
 
 # {{esql}} IP functions [esql-ip-functions]

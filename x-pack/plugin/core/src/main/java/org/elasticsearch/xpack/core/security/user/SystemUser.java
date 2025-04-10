@@ -40,6 +40,8 @@ public class SystemUser extends InternalUser {
             RemoteClusterNodesAction.TYPE.name(),
             TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
             TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
+            "cluster:internal:data/read/esql/open_exchange",
+            "cluster:internal:data/read/esql/exchange",
             XPackInfoAction.NAME },
         // Needed for CCR background jobs (with system user)
         new RoleDescriptor.IndicesPrivileges[] {

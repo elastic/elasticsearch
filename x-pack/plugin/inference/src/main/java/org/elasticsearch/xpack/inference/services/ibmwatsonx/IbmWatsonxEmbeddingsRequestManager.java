@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.ibmwatsonx.IbmWatsonxEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.response.IbmWatsonxEmbeddingsResponseEntity;
 
 import java.util.List;
 import java.util.Objects;
@@ -55,7 +55,7 @@ public class IbmWatsonxEmbeddingsRequestManager extends IbmWatsonxRequestManager
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getInputs();
+        List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getStringInputs();
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
 
         execute(

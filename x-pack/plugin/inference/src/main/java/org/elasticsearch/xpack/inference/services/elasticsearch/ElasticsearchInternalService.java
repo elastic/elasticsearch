@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceResults;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -535,25 +537,32 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
     }
 
-    private static CustomElandEmbeddingModel updateModelWithEmbeddingDetails(CustomElandEmbeddingModel model, int embeddingSize) {
-        CustomElandInternalTextEmbeddingServiceSettings serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
-            model.getServiceSettings().getNumAllocations(),
-            model.getServiceSettings().getNumThreads(),
-            model.getServiceSettings().modelId(),
-            model.getServiceSettings().getAdaptiveAllocationsSettings(),
-            model.getServiceSettings().getDeploymentId(),
-            embeddingSize,
-            model.getServiceSettings().similarity(),
-            model.getServiceSettings().elementType()
-        );
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof CustomElandEmbeddingModel customElandEmbeddingModel && model.getTaskType() == TaskType.TEXT_EMBEDDING) {
+            CustomElandInternalTextEmbeddingServiceSettings serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+                customElandEmbeddingModel.getServiceSettings().getNumAllocations(),
+                customElandEmbeddingModel.getServiceSettings().getNumThreads(),
+                customElandEmbeddingModel.getServiceSettings().modelId(),
+                customElandEmbeddingModel.getServiceSettings().getAdaptiveAllocationsSettings(),
+                customElandEmbeddingModel.getServiceSettings().getDeploymentId(),
+                embeddingSize,
+                customElandEmbeddingModel.getServiceSettings().similarity(),
+                customElandEmbeddingModel.getServiceSettings().elementType()
+            );
 
-        return new CustomElandEmbeddingModel(
-            model.getInferenceEntityId(),
-            model.getTaskType(),
-            model.getConfigurations().getService(),
-            serviceSettings,
-            model.getConfigurations().getChunkingSettings()
-        );
+            return new CustomElandEmbeddingModel(
+                customElandEmbeddingModel.getInferenceEntityId(),
+                customElandEmbeddingModel.getTaskType(),
+                customElandEmbeddingModel.getConfigurations().getService(),
+                serviceSettings,
+                customElandEmbeddingModel.getConfigurations().getChunkingSettings()
+            );
+        } else if (model instanceof ElasticsearchInternalModel) {
+            return model;
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
     }
 
     @Override
@@ -677,22 +686,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
     }
 
-    public void chunkedInfer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<List<ChunkedInference>> listener
-    ) {
-        chunkedInfer(model, null, input, taskSettings, inputType, timeout, listener);
-    }
-
     @Override
     public void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,

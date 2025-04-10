@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 
 import java.util.List;
 import java.util.Objects;
@@ -64,7 +64,7 @@ public class AzureOpenAiEmbeddingsRequestManager extends AzureOpenAiRequestManag
         ActionListener<InferenceServiceResults> listener
     ) {
         EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
-        List<String> docsInput = input.getInputs();
+        List<String> docsInput = input.getStringInputs();
         InputType inputType = input.getInputType();
 
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());

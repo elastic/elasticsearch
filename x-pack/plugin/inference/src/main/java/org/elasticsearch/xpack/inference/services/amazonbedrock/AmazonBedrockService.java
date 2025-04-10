@@ -169,7 +169,7 @@ public class AmazonBedrockService extends SenderService {
 
             for (var request : batchedRequests) {
                 var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+                action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
             }
         } else {
             listener.onFailure(createInvalidModelException(model));
@@ -303,6 +303,7 @@ public class AmazonBedrockService extends SenderService {
                     context
                 );
                 checkProviderForTask(TaskType.TEXT_EMBEDDING, model.provider());
+                checkTaskSettingsForTextEmbeddingModel(model);
                 return model;
             }
             case COMPLETION -> {
@@ -364,6 +365,17 @@ public class AmazonBedrockService extends SenderService {
             throw new ElasticsearchStatusException(
                 Strings.format("The [%s] task type for provider [%s] is not available", taskType, provider),
                 RestStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    private static void checkTaskSettingsForTextEmbeddingModel(AmazonBedrockEmbeddingsModel model) {
+        if (model.provider() != AmazonBedrockProvider.COHERE && model.getTaskSettings().cohereTruncation() != null) {
+            throw new ElasticsearchStatusException(
+                "The [{}] task type for provider [{}] does not allow [truncate] field",
+                RestStatus.BAD_REQUEST,
+                TaskType.TEXT_EMBEDDING,
+                model.provider()
             );
         }
     }

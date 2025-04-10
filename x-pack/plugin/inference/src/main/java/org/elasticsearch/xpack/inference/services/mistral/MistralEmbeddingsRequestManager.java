@@ -19,12 +19,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.mistral.MistralEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.mistral.MistralEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.azureopenai.response.AzureMistralOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.mistral.request.MistralEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.mistral.response.MistralEmbeddingsResponseEntity;
 
 import java.util.List;
 import java.util.Objects;
@@ -33,7 +32,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class MistralEmbeddingsRequestManager extends BaseRequestManager {
-    private static final Logger logger = LogManager.getLogger(AzureOpenAiEmbeddingsRequestManager.class);
+    private static final Logger logger = LogManager.getLogger(MistralEmbeddingsRequestManager.class);
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private final Truncator truncator;
@@ -62,7 +61,7 @@ public class MistralEmbeddingsRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getInputs();
+        List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getStringInputs();
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
         MistralEmbeddingsRequest request = new MistralEmbeddingsRequest(truncator, truncatedInput, model);
 

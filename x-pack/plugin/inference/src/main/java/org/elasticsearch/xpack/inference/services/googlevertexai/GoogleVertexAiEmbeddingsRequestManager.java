@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleVertexAiEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.googlevertexai.GoogleVertexAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiEmbeddingsResponseEntity;
 
 import java.util.List;
 import java.util.Objects;
@@ -65,7 +65,7 @@ public class GoogleVertexAiEmbeddingsRequestManager extends GoogleVertexAiReques
         ActionListener<InferenceServiceResults> listener
     ) {
         EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
-        List<String> docsInput = input.getInputs();
+        List<String> docsInput = input.getStringInputs();
         InputType inputType = input.getInputType();
 
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());

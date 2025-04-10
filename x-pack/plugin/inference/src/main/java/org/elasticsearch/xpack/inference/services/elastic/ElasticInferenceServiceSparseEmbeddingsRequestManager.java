@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceSparseEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceSparseEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceSparseEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceSparseEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.List;
@@ -68,7 +68,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
         ActionListener<InferenceServiceResults> listener
     ) {
         EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
-        List<String> docsInput = input.getInputs();
+        List<String> docsInput = input.getStringInputs();
         InputType inputType = input.getInputType();
 
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());

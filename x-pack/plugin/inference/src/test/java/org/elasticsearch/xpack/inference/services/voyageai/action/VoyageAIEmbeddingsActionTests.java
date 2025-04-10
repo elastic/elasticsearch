@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
@@ -31,12 +32,12 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -54,8 +55,8 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequestEntity.convertToString;
 import static org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionCreator.EMBEDDINGS_HANDLER;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertToString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -120,7 +121,11 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -217,7 +222,11 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -314,7 +323,11 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -383,7 +396,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomSearchAndIngestWithNull()),
+            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomSearchAndIngestWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -407,7 +420,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomSearchAndIngestWithNull()),
+            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomSearchAndIngestWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -425,7 +438,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomSearchAndIngestWithNull()),
+            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomSearchAndIngestWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -448,7 +461,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             threadPool,
             model,
             EMBEDDINGS_HANDLER,
-            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(embeddingsInput.getInputs(), embeddingsInput.getInputType(), model),
+            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(embeddingsInput.getStringInputs(), embeddingsInput.getInputType(), model),
             EmbeddingsInput.class
         );
 

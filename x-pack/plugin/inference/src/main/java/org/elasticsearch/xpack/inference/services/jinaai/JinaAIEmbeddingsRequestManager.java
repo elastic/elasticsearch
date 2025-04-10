@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.jinaai.JinaAIEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.jinaai.response.JinaAIEmbeddingsResponseEntity;
 
 import java.util.List;
 import java.util.Objects;
@@ -53,7 +53,7 @@ public class JinaAIEmbeddingsRequestManager extends JinaAIRequestManager {
         ActionListener<InferenceServiceResults> listener
     ) {
         EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
-        List<String> docsInput = input.getInputs();
+        List<String> docsInput = input.getStringInputs();
         InputType inputType = input.getInputType();
 
         JinaAIEmbeddingsRequest request = new JinaAIEmbeddingsRequest(docsInput, inputType, model);

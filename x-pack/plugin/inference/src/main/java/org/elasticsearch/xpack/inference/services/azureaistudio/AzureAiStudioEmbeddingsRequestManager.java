@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.azureaistudio.AzureAiStudioEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.azureaistudio.response.AzureAiStudioEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.azureopenai.response.AzureMistralOpenAiExternalResponseHandler;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -51,7 +51,7 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
         ActionListener<InferenceServiceResults> listener
     ) {
         EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
-        List<String> docsInput = input.getInputs();
+        List<String> docsInput = input.getStringInputs();
         InputType inputType = input.getInputType();
 
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());

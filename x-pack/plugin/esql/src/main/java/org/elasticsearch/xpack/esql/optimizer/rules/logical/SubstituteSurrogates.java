@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -70,8 +70,7 @@ public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Agg
                 if (s instanceof AggregateFunction == false) {
                     // 1. collect all aggregate functions from the expression
                     var surrogateWithRefs = s.transformUp(AggregateFunction.class, af -> {
-                        // TODO: more generic than this?
-                        if (af instanceof Rate) {
+                        if (af instanceof TimeSeriesAggregateFunction) {
                             return af;
                         }
                         // 2. check if they are already use otherwise add them to the Aggregate with some made-up aliases
@@ -107,7 +106,7 @@ public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Agg
         if (changed) {
             var source = aggregate.source();
             if (newAggs.isEmpty() == false) {
-                plan = new Aggregate(source, aggregate.child(), aggregate.aggregateType(), aggregate.groupings(), newAggs);
+                plan = aggregate.with(aggregate.child(), aggregate.groupings(), newAggs);
             } else {
                 // All aggs actually have been surrogates for (foldable) expressions, e.g.
                 // \_Aggregate[[],[AVG([1, 2][INTEGER]) AS s]]

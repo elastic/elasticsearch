@@ -11,7 +11,6 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -56,9 +55,16 @@ public class LuceneSourceOperator extends LuceneOperator {
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            boolean scoring
+            boolean needsScore
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, scoring ? COMPLETE : COMPLETE_NO_SCORES);
+            super(
+                contexts,
+                weightFunction(queryFunction, needsScore ? COMPLETE : COMPLETE_NO_SCORES),
+                dataPartitioning,
+                taskConcurrency,
+                limit,
+                needsScore
+            );
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
@@ -66,7 +72,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, scoreMode);
+            return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
         }
 
         public int maxPageSize() {
@@ -81,8 +87,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 + maxPageSize
                 + ", limit = "
                 + limit
-                + ", scoreMode = "
-                + scoreMode
+                + ", needsScore = "
+                + needsScore
                 + "]";
         }
     }
@@ -94,7 +100,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
-        ScoreMode scoreMode
+        boolean needsScore
     ) {
         super(blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
@@ -104,7 +110,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         boolean success = false;
         try {
             this.docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
-            if (scoreMode.needsScores()) {
+            if (needsScore) {
                 scoreBuilder = blockFactory.newDoubleVectorBuilder(estimatedSize);
                 this.leafCollector = new ScoringCollector();
             } else {

@@ -59,6 +59,7 @@ import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 
 class S3BlobStore implements BlobStore {
 
+    public static final String CUSTOM_QUERY_PARAMETER_COPY_SOURCE = "x-amz-copy-source";
     public static final String CUSTOM_QUERY_PARAMETER_PURPOSE = "x-purpose";
 
     /**
@@ -78,6 +79,8 @@ class S3BlobStore implements BlobStore {
     private final String bucket;
 
     private final ByteSizeValue bufferSize;
+
+    private final ByteSizeValue maxCopySizeBeforeMultipart;
 
     private final boolean serverSideEncryption;
 
@@ -103,6 +106,7 @@ class S3BlobStore implements BlobStore {
         String bucket,
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
+        ByteSizeValue maxCopySizeBeforeMultipart,
         String cannedACL,
         String storageClass,
         RepositoryMetadata repositoryMetadata,
@@ -116,6 +120,7 @@ class S3BlobStore implements BlobStore {
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
+        this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
@@ -143,16 +148,17 @@ class S3BlobStore implements BlobStore {
         return service.compareAndExchangeAntiContentionDelay;
     }
 
-    // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
-    // issue
-    class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+    /**
+     * A {@link RequestMetricCollector} that processes the metrics related to each API invocation attempt according to Elasticsearch's needs
+     */
+    class ElasticsearchS3MetricsCollector extends RequestMetricCollector {
 
         final LongAdder requests = new LongAdder();
         final LongAdder operations = new LongAdder();
         private final Operation operation;
         private final Map<String, Object> attributes;
 
-        private IgnoreNoResponseMetricsCollector(Operation operation, OperationPurpose purpose) {
+        private ElasticsearchS3MetricsCollector(Operation operation, OperationPurpose purpose) {
             this.operation = operation;
             this.attributes = RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey());
         }
@@ -250,10 +256,10 @@ class S3BlobStore implements BlobStore {
                 case GET_OBJECT, LIST_OBJECTS -> {
                     return request.getHttpMethod().name().equals("GET");
                 }
-                case PUT_OBJECT -> {
+                case PUT_OBJECT, COPY_OBJECT -> {
                     return request.getHttpMethod().name().equals("PUT");
                 }
-                case PUT_MULTIPART_OBJECT -> {
+                case PUT_MULTIPART_OBJECT, COPY_MULTIPART_OBJECT -> {
                     return request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
                 }
                 case DELETE_OBJECTS -> {
@@ -325,6 +331,10 @@ class S3BlobStore implements BlobStore {
 
     public long bufferSizeInBytes() {
         return bufferSize.getBytes();
+    }
+
+    public long maxCopySizeBeforeMultipart() {
+        return maxCopySizeBeforeMultipart.getBytes();
     }
 
     public RepositoryMetadata getRepositoryMetadata() {
@@ -550,7 +560,9 @@ class S3BlobStore implements BlobStore {
         PUT_OBJECT("PutObject"),
         PUT_MULTIPART_OBJECT("PutMultipartObject"),
         DELETE_OBJECTS("DeleteObjects"),
-        ABORT_MULTIPART_OBJECT("AbortMultipartObject");
+        ABORT_MULTIPART_OBJECT("AbortMultipartObject"),
+        COPY_OBJECT("CopyObject"),
+        COPY_MULTIPART_OBJECT("CopyMultipartObject");
 
         private final String key;
 
@@ -582,7 +594,7 @@ class S3BlobStore implements BlobStore {
     }
 
     class StatsCollectors {
-        final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
+        final Map<StatsKey, ElasticsearchS3MetricsCollector> collectors = new ConcurrentHashMap<>();
 
         RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
             return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation(), k.purpose()));
@@ -605,8 +617,8 @@ class S3BlobStore implements BlobStore {
             }
         }
 
-        IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation, OperationPurpose purpose) {
-            return new IgnoreNoResponseMetricsCollector(operation, purpose);
+        ElasticsearchS3MetricsCollector buildMetricCollector(Operation operation, OperationPurpose purpose) {
+            return new ElasticsearchS3MetricsCollector(operation, purpose);
         }
     }
 

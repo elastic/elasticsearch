@@ -59,6 +59,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
             return new EngineConfig(
                 config.getShardId(),
                 config.getThreadPool(),
+                config.getThreadPoolMergeExecutorService(),
                 indexSettings,
                 config.getWarmer(),
                 config.getStore(),
@@ -83,7 +84,8 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
-                config.getMapperService()
+                config.getMapperService(),
+                config.getEngineResetLock()
             );
         }
 

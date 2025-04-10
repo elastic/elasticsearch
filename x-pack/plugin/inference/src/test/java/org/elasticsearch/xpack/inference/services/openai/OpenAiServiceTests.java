@@ -15,11 +15,13 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -54,7 +56,6 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
 import org.hamcrest.CoreMatchers;
-import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -64,7 +65,6 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -81,8 +81,8 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
@@ -851,10 +851,12 @@ public class OpenAiServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -863,6 +865,45 @@ public class OpenAiServiceTests extends ESTestCase {
             assertThat(
                 thrownException.getMessage(),
                 is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+            );
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
+    public void testInfer_ThrowsErrorWhenInputTypeIsSpecified() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
+
+        try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    null,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Invalid input_type [ingest]. The input_type option is not supported by this service;")
             );
 
             verify(factory, times(1)).createSender();
@@ -887,10 +928,12 @@ public class OpenAiServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -925,6 +968,8 @@ public class OpenAiServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -986,10 +1031,12 @@ public class OpenAiServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1225,6 +1272,8 @@ public class OpenAiServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 true,
                 new HashMap<>(),
@@ -1300,393 +1349,6 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 100);
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-
-            var result = listener.actionGet(TIMEOUT);
-            assertThat(result, is(OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 100, 2)));
-
-            assertThat(webServer.requests(), hasSize(1));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
-        }
-    }
-
-    public void testCheckModelConfig_ThrowsIfEmbeddingSizeDoesNotMatchValueSetByUser() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", null, 100, 3, true);
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-
-            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(
-                exception.getMessage(),
-                is(
-                    "The retrieved embeddings size [2] does not match the size specified in the settings [3]. "
-                        + "Please recreate the [id] configuration with the correct dimensions"
-                )
-            );
-
-            assertThat(webServer.requests(), hasSize(1));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(
-                requestMap,
-                Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user", "dimensions", 3))
-            );
-        }
-    }
-
-    public void testCheckModelConfig_ReturnsModelWithDimensionsSetTo2_AndDocProductSet_IfDimensionsSetByUser_ButSetToNull()
-        throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", null, 100, null, true);
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-
-            var returnedModel = listener.actionGet(TIMEOUT);
-            assertThat(
-                returnedModel,
-                is(
-                    OpenAiEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "org",
-                        "secret",
-                        "model",
-                        "user",
-                        SimilarityMeasure.DOT_PRODUCT,
-                        100,
-                        2,
-                        true
-                    )
-                )
-            );
-
-            assertThat(webServer.requests(), hasSize(1));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            // since dimensions were null they should not be sent in the request
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
-        }
-    }
-
-    public void testCheckModelConfig_ReturnsModelWithSameDimensions_AndDocProductSet_IfDimensionsSetByUser_AndTheyMatchReturnedSize()
-        throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", null, 100, 2, true);
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-
-            var returnedModel = listener.actionGet(TIMEOUT);
-            assertThat(
-                returnedModel,
-                is(
-                    OpenAiEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "org",
-                        "secret",
-                        "model",
-                        "user",
-                        SimilarityMeasure.DOT_PRODUCT,
-                        100,
-                        2,
-                        true
-                    )
-                )
-            );
-
-            assertThat(webServer.requests(), hasSize(1));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(
-                requestMap,
-                Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user", "dimensions", 2))
-            );
-        }
-    }
-
-    public void testCheckModelConfig_ReturnsNewModelReference_AndDoesNotSendDimensionsField_WhenNotSetByUser() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", null, 100, 100, false);
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-
-            var returnedModel = listener.actionGet(TIMEOUT);
-            assertThat(
-                returnedModel,
-                is(
-                    OpenAiEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "org",
-                        "secret",
-                        "model",
-                        "user",
-                        SimilarityMeasure.DOT_PRODUCT,
-                        100,
-                        2,
-                        false
-                    )
-                )
-            );
-
-            assertThat(webServer.requests(), hasSize(1));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
-        }
-    }
-
-    public void testCheckModelConfig_ReturnsNewModelReference_SetsSimilarityToDocProduct_WhenNull() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", null, 100, 100, false);
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-
-            var returnedModel = listener.actionGet(TIMEOUT);
-            assertThat(
-                returnedModel,
-                is(
-                    OpenAiEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "org",
-                        "secret",
-                        "model",
-                        "user",
-                        SimilarityMeasure.DOT_PRODUCT,
-                        100,
-                        2,
-                        false
-                    )
-                )
-            );
-
-            assertThat(webServer.requests(), hasSize(1));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
-        }
-    }
-
-    public void testCheckModelConfig_ReturnsNewModelReference_DoesNotOverrideSimilarity_WhenNotNull() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = OpenAiEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "org",
-                "secret",
-                "model",
-                "user",
-                SimilarityMeasure.COSINE,
-                100,
-                100,
-                false
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-
-            var returnedModel = listener.actionGet(TIMEOUT);
-            assertThat(
-                returnedModel,
-                is(
-                    OpenAiEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "org",
-                        "secret",
-                        "model",
-                        "user",
-                        SimilarityMeasure.COSINE,
-                        100,
-                        2,
-                        false
-                    )
-                )
-            );
-
-            assertThat(webServer.requests(), hasSize(1));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
-        }
-    }
-
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         try (var service = createOpenAiService()) {
             var model = createCompletionModel(
@@ -1756,10 +1418,12 @@ public class OpenAiServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1857,9 +1521,9 @@ public class OpenAiServiceTests extends ESTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of("a", "bb"),
+                List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

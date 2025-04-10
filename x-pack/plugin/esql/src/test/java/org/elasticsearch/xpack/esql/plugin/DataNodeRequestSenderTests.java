@@ -62,6 +62,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_RO
 import static org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeRequest;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
@@ -145,6 +146,10 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             assertThat(resp.totalShards, equalTo(3));
             assertThat(resp.failedShards, equalTo(1));
             assertThat(resp.successfulShards, equalTo(2));
+            assertThat(resp.failures, not(empty()));
+            assertNotNull(resp.failures.get(0).shard());
+            assertThat(resp.failures.get(0).shard().getShardId(), equalTo(shard3));
+            assertThat(resp.failures.get(0).reason(), containsString("no shard copies found"));
         }
     }
 
@@ -453,6 +458,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         DataNodeRequestSender requestSender = new DataNodeRequestSender(
             transportService,
             executor,
+            "",
             task,
             allowPartialResults,
             concurrentRequests

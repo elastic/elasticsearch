@@ -134,6 +134,7 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -225,11 +226,14 @@ import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgno
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -854,9 +858,51 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Waits for the specified data stream to have the expected number of backing indices.
+     */
+    public static List<String> waitForDataStreamBackingIndices(String dataStreamName, int expectedSize) {
+        return waitForDataStreamIndices(dataStreamName, expectedSize, false);
+    }
+
+    /**
+     * Waits for the specified data stream to have the expected number of backing or failure indices.
+     */
+    public static List<String> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
+        // We listen to the cluster state on the master node to ensure all other nodes have already acked the new cluster state.
+        // This avoids inconsistencies in subsequent API calls which might hit a non-master node.
+        final var listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            final var dataStream = clusterState.metadata().getProject().dataStreams().get(dataStreamName);
+            if (dataStream == null) {
+                return false;
+            }
+            return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
+        });
+        safeAwait(listener);
+        final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
+        assertEquals(
+            Strings.format(
+                "Retrieved number of data stream indices doesn't match expectation for data stream [%s]. Expected %d but got %s",
+                dataStreamName,
+                expectedSize,
+                backingIndexNames
+            ),
+            expectedSize,
+            backingIndexNames.size()
+        );
+        return backingIndexNames;
+    }
+
+    /**
      * Returns a list of the data stream's backing index names.
      */
-    public List<String> getDataStreamBackingIndexNames(String dataStreamName) {
+    public static List<String> getDataStreamBackingIndexNames(String dataStreamName) {
+        return getDataStreamBackingIndexNames(dataStreamName, false);
+    }
+
+    /**
+     * Returns a list of the data stream's backing or failure index names.
+     */
+    public static List<String> getDataStreamBackingIndexNames(String dataStreamName, boolean failureStore) {
         GetDataStreamAction.Response response = safeGet(
             client().execute(
                 GetDataStreamAction.INSTANCE,
@@ -866,7 +912,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(response.getDataStreams().size(), equalTo(1));
         DataStream dataStream = response.getDataStreams().getFirst().getDataStream();
         assertThat(dataStream.getName(), equalTo(dataStreamName));
-        return dataStream.getIndices().stream().map(Index::getName).toList();
+        return dataStream.getDataStreamIndices(failureStore).getIndices().stream().map(Index::getName).toList();
     }
 
     /**
@@ -1635,10 +1681,37 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Waits for all relocations and force merge all indices in the cluster to 1 segment.
      */
     protected BroadcastResponse forceMerge() {
+        return forceMerge(randomBoolean());
+    }
+
+    /**
+     * Waits for all relocations and force merge all indices in the cluster to 1 segment.
+     */
+    protected BroadcastResponse forceMerge(boolean assertOneSegment) {
         waitForRelocation();
         BroadcastResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(actionGet);
+        if (assertOneSegment) {
+            // after a force merge there should only be 1 segment per shard
+            var shardsWithMultipleSegments = getShardSegments().stream()
+                .filter(shardSegments -> shardSegments.getSegments().size() > 1)
+                .toList();
+            assertTrue("there are shards with multiple segments " + shardsWithMultipleSegments, shardsWithMultipleSegments.isEmpty());
+        }
         return actionGet;
+    }
+
+    /**
+     * Returns the segments of the shards of the indices.
+     */
+    protected List<ShardSegments> getShardSegments(String... indices) {
+        IndicesSegmentResponse indicesSegmentResponse = indicesAdmin().prepareSegments(indices).get();
+        return indicesSegmentResponse.getIndices()
+            .values()
+            .stream()
+            .flatMap(indexSegments -> indexSegments.getShards().values().stream())
+            .flatMap(indexShardSegments -> Stream.of(indexShardSegments.shards()))
+            .toList();
     }
 
     /**
@@ -1659,6 +1732,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
             .get();
         return getIndexResponse.getIndices().length > 0;
+    }
+
+    public static void awaitIndexExists(String index) {
+        awaitIndexExists(index, client());
+    }
+
+    public static void awaitIndexExists(String index, Client client) {
+        assertThat("wildcards not supported", index, allOf(not(Metadata.ALL), not(containsString("*"))));
+        safeGet(
+            client.admin()
+                .cluster()
+                .prepareHealth(SAFE_AWAIT_TIMEOUT, index)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
+                .execute()
+        );
     }
 
     /**
@@ -2076,6 +2164,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), randomFrom("1KB", "16KB", "64KB"));
             builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "256B");
         }
+        builder.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean());
         return builder.build();
     }
 

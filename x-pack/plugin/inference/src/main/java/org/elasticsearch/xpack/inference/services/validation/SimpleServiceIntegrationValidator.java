@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.util.List;
 import java.util.Map;
@@ -26,15 +26,17 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
     private static final String QUERY = "test query";
 
     @Override
-    public void validate(InferenceService service, Model model, ActionListener<InferenceServiceResults> listener) {
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         service.infer(
             model,
             model.getTaskType().equals(TaskType.RERANK) ? QUERY : null,
+            null,
+            null,
             TEST_INPUT,
             false,
             Map.of(),
-            InputType.INGEST,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.INTERNAL_INGEST,
+            timeout,
             ActionListener.wrap(r -> {
                 if (r != null) {
                     listener.onResponse(r);

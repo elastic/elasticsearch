@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
+import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
@@ -38,6 +40,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -46,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -68,7 +72,45 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 /**
- * Computes the result of a {@link PhysicalPlan}.
+ * Once query is parsed and validated it is scheduled for execution by {@code org.elasticsearch.xpack.esql.plugin.ComputeService#execute}
+ * This method is responsible for splitting physical plan into coordinator and data node plans.
+ *
+ * Coordinator plan is immediately executed locally (using {@code org.elasticsearch.xpack.esql.plugin.ComputeService#runCompute})
+ * and is prepared to collect and merge pages from data nodes into the final query result.
+ *
+ * Data node plan is passed to {@code org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#startComputeOnDataNodes}
+ * that is responsible for
+ * <ul>
+ * <li>
+ *     Determining list of nodes that contain shards referenced by the query with
+ *     {@code org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender#searchShards}
+ * </li>
+ * <li>
+ *     Each node in the list processed in
+ *     {@code org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#startComputeOnDataNodes}
+ *     in order to
+ *     <ul>
+ *     <li>
+ *         Open ExchangeSink on the target data node and link it with local ExchangeSource for the query
+ *         using `internal:data/read/esql/open_exchange` transport request.
+ *         {@see org.elasticsearch.compute.operator.exchange.ExchangeService#openExchange}
+ *     </li>
+ *     <li>
+ *         Start data node plan execution on the target data node
+ *         using `indices:data/read/esql/data` transport request
+ *         {@see org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#messageReceived}
+ *         {@see org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#runComputeOnDataNode}
+ *     </li>
+ *     <li>
+ *         While coordinator plan executor is running it will read data from ExchangeSource that will poll pages
+ *         from linked ExchangeSink on target data nodes or notify them that data set is already completed
+ *         (for example when running FROM * | LIMIT 10 type of query) or query is canceled
+ *         using `internal:data/read/esql/exchange` transport requests.
+ *         {@see org.elasticsearch.compute.operator.exchange.ExchangeService.ExchangeTransportAction#messageReceived}
+ *     </li>
+ *     </ul>
+ * </li>
+ * </ul>
  */
 public class ComputeService {
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
@@ -84,6 +126,7 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final InferenceRunner inferenceRunner;
     private final ClusterService clusterService;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
@@ -92,25 +135,24 @@ public class ComputeService {
 
     @SuppressWarnings("this-escape")
     public ComputeService(
-        SearchService searchService,
-        TransportService transportService,
-        ExchangeService exchangeService,
+        TransportActionServices transportActionServices,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
-        ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
-        this.searchService = searchService;
-        this.transportService = transportService;
+        this.searchService = transportActionServices.searchService();
+        this.transportService = transportActionServices.transportService();
+        this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
         var esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.clusterService = clusterService;
+        this.inferenceRunner = transportActionServices.inferenceRunner();
+        this.clusterService = transportActionServices.clusterService();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(this, searchService, transportService, exchangeService, esqlExecutor);
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
@@ -119,7 +161,6 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
-        this.exchangeService = exchangeService;
     }
 
     public void execute(
@@ -268,6 +309,7 @@ public class ComputeService {
                                         .setSuccessfulShards(r.getSuccessfulShards())
                                         .setSkippedShards(r.getSkippedShards())
                                         .setFailedShards(r.getFailedShards())
+                                        .setFailures(r.failures)
                                         .build()
                                 );
                                 dataNodesListener.onResponse(r.getProfiles());
@@ -299,7 +341,22 @@ public class ComputeService {
                         cluster,
                         cancelQueryOnFailure,
                         execInfo,
-                        computeListener.acquireCompute()
+                        computeListener.acquireCompute().delegateResponse((l, ex) -> {
+                            /*
+                             * At various points, when collecting failures before sending a response, we manually check
+                             * if an ex is a transport error and if it is, we unwrap it. Because we're wrapping an ex
+                             * in RemoteException, the checks fail and unwrapping does not happen. We offload the
+                             * unwrapping to here.
+                             *
+                             * Note: The other error we explicitly check for is TaskCancelledException which is never
+                             * wrapped.
+                             */
+                            if (ex instanceof TransportException te) {
+                                l.onFailure(new RemoteException(cluster.clusterAlias(), FailureCollector.unwrapTransportException(te)));
+                            } else {
+                                l.onFailure(new RemoteException(cluster.clusterAlias(), ex));
+                            }
+                        })
                     );
                 }
             }
@@ -371,6 +428,7 @@ public class ComputeService {
                 context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
+                inferenceRunner,
                 new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis()),
                 contexts
             );
@@ -434,11 +492,13 @@ public class ComputeService {
 
     CancellableTask createGroupTask(Task parentTask, Supplier<String> description) throws TaskCancelledException {
         final TaskManager taskManager = transportService.getTaskManager();
-        return (CancellableTask) taskManager.register(
-            "transport",
-            "esql_compute_group",
-            new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
-        );
+        try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+            return (CancellableTask) taskManager.register(
+                "transport",
+                "esql_compute_group",
+                new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
+            );
+        }
     }
 
     private static class ComputeGroupTaskRequest extends TransportRequest {

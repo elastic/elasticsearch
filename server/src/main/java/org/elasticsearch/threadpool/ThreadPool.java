@@ -115,8 +115,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public static final String SEARCH = "search";
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
-        public static final String SEARCH_THROTTLED = "search_throttled";
-
         /**
          * A thread pool for running tasks related to cluster management, including collecting and exposing stats in APIs and certain other
          * internal tasks.
@@ -136,6 +134,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
         public static final String SNAPSHOT_META = "snapshot_meta";
+        public static final String MERGE = "merge";
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
@@ -194,10 +193,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         entry(Names.WARMER, ThreadPoolType.SCALING),
         entry(Names.SNAPSHOT, ThreadPoolType.SCALING),
         entry(Names.SNAPSHOT_META, ThreadPoolType.SCALING),
+        entry(Names.MERGE, ThreadPoolType.SCALING),
         entry(Names.FORCE_MERGE, ThreadPoolType.FIXED),
         entry(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING),
         entry(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING),
-        entry(Names.SEARCH_THROTTLED, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_WRITE, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_CRITICAL_READ, ThreadPoolType.FIXED),

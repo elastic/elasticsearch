@@ -44,6 +44,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -157,6 +158,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.TransportVersions.ERROR_TRACE_IN_TRANSPORT_HEADER;
+import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
@@ -275,6 +277,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> BATCHED_QUERY_PHASE = Setting.boolSetting(
+        "search.batched_query_phase",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    private static final boolean BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase").isEnabled();
+
     /**
      * The size of the buffer used for memory accounting.
      * This buffer is used to locally track the memory accummulated during the execution of
@@ -315,6 +326,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile long maxKeepAlive;
 
     private volatile TimeValue defaultSearchTimeout;
+
+    private volatile boolean batchQueryPhase;
 
     private final int minimumDocsPerSlice;
 
@@ -403,12 +416,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
+        if (BATCHED_QUERY_PHASE_FEATURE_FLAG) {
+            batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
+        } else {
+            batchQueryPhase = false;
+        }
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
-
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(BATCHED_QUERY_PHASE, bulkExecuteQueryPhase -> this.batchQueryPhase = bulkExecuteQueryPhase);
         memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
+    }
+
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
@@ -469,6 +492,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setEnableRewriteAggsToFilterByFilter(boolean enableRewriteAggsToFilterByFilter) {
         this.enableRewriteAggsToFilterByFilter = enableRewriteAggsToFilterByFilter;
+    }
+
+    public boolean batchQueryPhase() {
+        return batchQueryPhase;
     }
 
     @Override
@@ -539,12 +566,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @param <T>            the type of the response
      * @param listener       the action listener to be wrapped
      * @param version        channel version of the request
+     * @param nodeId         id of the current node
+     * @param shardId        id of the shard being searched
+     * @param taskId         id of the task being executed
      * @param threadPool     with context where to write the new header
      * @return the wrapped action listener
      */
     static <T> ActionListener<T> maybeWrapListenerForStackTrace(
         ActionListener<T> listener,
         TransportVersion version,
+        String nodeId,
+        ShardId shardId,
+        long taskId,
         ThreadPool threadPool
     ) {
         boolean header = true;
@@ -553,6 +586,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (header == false) {
             return listener.delegateResponse((l, e) -> {
+                org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
+                    "[%s]%s: failed to execute search request for task [%d]",
+                    nodeId,
+                    shardId,
+                    taskId
+                );
+                // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse
+                if (ExceptionsHelper.status(e).getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
+                    logger.debug(messageSupplier, e);
+                } else {
+                    logger.warn(messageSupplier, e);
+                }
                 ExceptionsHelper.unwrapCausesAndSuppressed(e, err -> {
                     err.setStackTrace(EMPTY_STACK_TRACE_ARRAY);
                     return false;
@@ -569,6 +614,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ActionListener<SearchPhaseResult> wrappedListener = maybeWrapListenerForStackTrace(
             listener,
             request.getChannelVersion(),
+            clusterService.localNode().getId(),
+            request.shardId(),
+            task.getId(),
             threadPool
         );
         if (rewriteFuture.isSuccess()) {
@@ -618,7 +666,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
         var rewriteFuture = rewriteAndFetchShardRequest(shard, request);
-        final ActionListener<SearchPhaseResult> wrapped = maybeWrapListenerForStackTrace(listener, request.getChannelVersion(), threadPool);
+        final ActionListener<SearchPhaseResult> wrapped = maybeWrapListenerForStackTrace(
+            listener,
+            request.getChannelVersion(),
+            clusterService.localNode().getId(),
+            request.shardId(),
+            task.getId(),
+            threadPool
+        );
         if (rewriteFuture.isSuccess()) {
             runQueryPhase(task, rewriteFuture.result(), shard, wrapped);
         } else {
@@ -827,9 +882,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
-        listener = maybeWrapListenerForStackTrace(listener, request.getShardSearchRequest().getChannelVersion(), threadPool);
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
+        listener = maybeWrapListenerForStackTrace(
+            listener,
+            shardSearchRequest.getChannelVersion(),
+            clusterService.localNode().getId(),
+            shardSearchRequest.shardId(),
+            task.getId(),
+            threadPool
+        );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
@@ -912,7 +974,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(maybeWrapListenerForStackTrace(listener, version, threadPool), readerContext, markAsUsed));
+        },
+            wrapFailureListener(
+                maybeWrapListenerForStackTrace(
+                    listener,
+                    version,
+                    clusterService.localNode().getId(),
+                    readerContext.indexShard().shardId(),
+                    task.getId(),
+                    threadPool
+                ),
+                readerContext,
+                markAsUsed
+            )
+        );
     }
 
     /**
@@ -930,7 +1005,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         var rewriteFuture = rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest);
-        var wrappedListener = maybeWrapListenerForStackTrace(listener, version, threadPool);
+        var wrappedListener = maybeWrapListenerForStackTrace(
+            listener,
+            version,
+            clusterService.localNode().getId(),
+            shardSearchRequest.shardId(),
+            task.getId(),
+            threadPool
+        );
         if (rewriteFuture.isSuccess()) {
             doExecuteQueryPhase(request, task, wrappedListener, readerContext, rewriteFuture.result(), markAsUsed);
         } else {
@@ -996,8 +1078,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final String executorName;
         if (indexShard.isSystem()) {
             executorName = executorSelector.executorForSearch(indexShard.shardId().getIndexName());
-        } else if (indexShard.indexSettings().isSearchThrottled()) {
-            executorName = Names.SEARCH_THROTTLED;
         } else {
             executorName = Names.SEARCH;
         }

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
-import java.util.List;
 
 public class RrfScoreEvalExec extends UnaryExec {
     private final Attribute scoreAttr;
@@ -48,6 +47,6 @@ public class RrfScoreEvalExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        return new AttributeSet(List.of(scoreAttr, forkAttr));
+        return AttributeSet.of(scoreAttr, forkAttr);
     }
 }

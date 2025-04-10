@@ -72,7 +72,7 @@ public class MatchQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         final MatchQueryBuilder queryBuilder = QueryBuilders.matchQuery(name, text);
         options.forEach((k, v) -> {
             if (BUILDER_APPLIERS.containsKey(k)) {
@@ -124,5 +124,10 @@ public class MatchQuery extends Query {
 
     public Map<String, Object> options() {
         return options;
+    }
+
+    @Override
+    public boolean scorable() {
+        return true;
     }
 }

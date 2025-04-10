@@ -32,7 +32,6 @@ public class PrevalidateNodeRemovalResponse extends ActionResponse implements To
     }
 
     public PrevalidateNodeRemovalResponse(StreamInput in) throws IOException {
-        super(in);
         prevalidation = NodesRemovalPrevalidation.readFrom(in);
     }
 

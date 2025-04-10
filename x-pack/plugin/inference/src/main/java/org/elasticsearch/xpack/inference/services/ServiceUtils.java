@@ -8,22 +8,17 @@
 package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
@@ -723,51 +718,6 @@ public final class ServiceUtils {
         );
     }
 
-    /**
-     * Evaluate the model and return the text embedding size
-     * @param model Should be a text embedding model
-     * @param service The inference service
-     * @param listener Size listener
-     */
-    public static void getEmbeddingSize(Model model, InferenceService service, ActionListener<Integer> listener) {
-        assert model.getTaskType() == TaskType.TEXT_EMBEDDING;
-
-        service.infer(
-            model,
-            null,
-            List.of(TEST_EMBEDDING_INPUT),
-            false,
-            Map.of(),
-            InputType.INGEST,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener.delegateFailureAndWrap((delegate, r) -> {
-                if (r instanceof TextEmbeddingResults<?> embeddingResults) {
-                    try {
-                        delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
-                    } catch (Exception e) {
-                        delegate.onFailure(
-                            new ElasticsearchStatusException("Could not determine embedding size", RestStatus.BAD_REQUEST, e)
-                        );
-                    }
-                } else {
-                    delegate.onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not determine embedding size. "
-                                + "Expected a result of type ["
-                                + TextEmbeddingFloatResults.NAME
-                                + "] got ["
-                                + r.getWriteableName()
-                                + "]",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                }
-            })
-        );
-    }
-
-    private static final String TEST_EMBEDDING_INPUT = "how big";
-
     public static SecureString apiKey(@Nullable ApiKeySecrets secrets) {
         // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
@@ -798,6 +748,42 @@ public final class ServiceUtils {
             model.getInferenceEntityId(),
             STREAM_SUFFIX
         );
+    }
+
+    public static final EnumSet<InputType> VALID_INTERNAL_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
+    );
+
+    public static void validateInputTypeIsUnspecifiedOrInternal(InputType inputType, ValidationException validationException) {
+        if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
+            validationException.addValidationError(
+                Strings.format("Invalid input_type [%s]. The input_type option is not supported by this service", inputType)
+            );
+        }
+    }
+
+    public static void validateInputTypeIsUnspecifiedOrInternal(
+        InputType inputType,
+        ValidationException validationException,
+        String customErrorMessage
+    ) {
+        if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
+            validationException.addValidationError(customErrorMessage);
+        }
+    }
+
+    public static void validateInputTypeAgainstAllowlist(
+        InputType inputType,
+        EnumSet<InputType> allowedInputTypes,
+        String name,
+        ValidationException validationException
+    ) {
+        if (inputType != null && inputType != InputType.UNSPECIFIED && allowedInputTypes.contains(inputType) == false) {
+            validationException.addValidationError(
+                org.elasticsearch.common.Strings.format("Input type [%s] is not supported for [%s]", inputType, name)
+            );
+        }
     }
 
     private ServiceUtils() {}

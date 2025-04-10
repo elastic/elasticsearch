@@ -2,6 +2,9 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/shard-request-cache-settings.html
 navigation_title: Shard request cache
+applies_to:
+  deployment:
+    self:
 ---
 # Shard request cache settings [shard-request-cache-settings]
 

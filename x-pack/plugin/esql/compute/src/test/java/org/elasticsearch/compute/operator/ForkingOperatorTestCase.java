@@ -39,7 +39,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -242,7 +241,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                         simpleWithMode(AggregatorMode.INTERMEDIATE).get(driver1Context),
                         intermediateOperatorItr.next()
                     ),
-                    new ExchangeSinkOperator(sinkExchanger.createExchangeSink(() -> {}), Function.identity())
+                    new ExchangeSinkOperator(sinkExchanger.createExchangeSink(() -> {}))
                 )
             );
         }

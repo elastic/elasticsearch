@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -72,7 +74,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 /**
@@ -116,7 +117,12 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
             + "Returns true if the provided query string matches the row.",
         examples = {
             @Example(file = "qstr-function", tag = "qstr-with-field"),
-            @Example(file = "qstr-function", tag = "qstr-with-options") }
+            @Example(file = "qstr-function", tag = "qstr-with-options") },
+        appliesTo = {
+            @FunctionAppliesTo(
+                lifeCycle = FunctionAppliesToLifecycle.COMING,
+                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
+            ) }
     )
     public QueryString(
         Source source,
@@ -310,10 +316,10 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         return options;
     }
 
-    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT, SEMANTIC_TEXT);
+    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text, semantic_text").and(
+        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text").and(
             isNotNullAndFoldable(query(), sourceText(), FIRST)
         );
     }

@@ -99,7 +99,6 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return Strings.collectionToDelimitedString(patterns, ",");
     }
 
-
     private static void throwOnMixingSelectorWithCluster(String indexPattern, EsqlBaseParser.IndexPatternContext c) {
         InvalidIndexNameException ie = new InvalidIndexNameException(
             indexPattern,

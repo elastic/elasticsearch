@@ -25,7 +25,7 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 ### Highlights [elasticsearch-900-highlights]
 
-::::{dropdown} rank_vectors field type is now available for late-interaction rankingorder ranking
+::::{dropdown} rank_vectors field type is now available for late-interaction ranking
 
 [`rank_vectors`](../reference/elasticsearch/mapping-reference/rank-vectors.md) is a new field type released as an experimental feature in Elasticsearch 9.0. It is designed to be used with dense vectors and allows for late-interaction second order ranking.
 

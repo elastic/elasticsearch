@@ -325,8 +325,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(TransportIndicesAliasesAction.TYPE, request, listener);
     }
 
-    public IndicesAliasesRequestBuilder prepareAliases() {
-        return new IndicesAliasesRequestBuilder(this);
+    public IndicesAliasesRequestBuilder prepareAliases(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        return new IndicesAliasesRequestBuilder(this, masterNodeTimeout, ackTimeout);
     }
 
     public ActionFuture<GetAliasesResponse> getAliases(GetAliasesRequest request) {

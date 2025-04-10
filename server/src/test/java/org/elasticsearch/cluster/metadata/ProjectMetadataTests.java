@@ -18,7 +18,6 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -34,7 +33,7 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 public class ProjectMetadataTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
-        final ProjectId projectId = new ProjectId(randomUUID());
+        final ProjectId projectId = randomUniqueProjectId();
         final ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         for (int i = 1; i <= 3; i++) {
             builder.put(
@@ -363,14 +362,14 @@ public class ProjectMetadataTests extends ESTestCase {
                     params,
                     4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size()
                 );
-            } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
-                chunkCount += checkChunkSize(custom, params, 2 + featureMigrationResults.getFeatureStatuses().size());
             } else if (custom instanceof IndexGraveyard indexGraveyard) {
                 chunkCount += checkChunkSize(custom, params, 2 + indexGraveyard.getTombstones().size());
             } else if (custom instanceof IngestMetadata ingestMetadata) {
                 chunkCount += checkChunkSize(custom, params, 2 + ingestMetadata.getPipelines().size());
             } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
                 chunkCount += checkChunkSize(custom, params, 3 + persistentTasksCustomMetadata.tasks().size());
+            } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
+                chunkCount += checkChunkSize(custom, params, repositoriesMetadata.repositories().size());
             } else {
                 // could be anything, we have to just try it
                 chunkCount += count(custom.toXContentChunked(params));

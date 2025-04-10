@@ -61,7 +61,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     private static final String UNMANAGED_SYSTEM_INDEX_NAME = ".my-system";
     private static final String MANAGED_SYSTEM_INDEX_NAME = ".my-managed";
     private static final String SYSTEM_ALIAS_NAME = ".my-alias";
-    private static final ProjectId PROJECT_ID = new ProjectId("test_project_id");
+    private static final ProjectId PROJECT_ID = ProjectId.fromId("test_project_id");
     private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
         .metadata(Metadata.builder().build())
         .putProjectMetadata(ProjectMetadata.builder(PROJECT_ID).build())
@@ -275,5 +275,35 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             () -> action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener)
         );
         assertThat(e.getMessage(), containsString("Could not find project with id [unknown_project_id]"));
+    }
+
+    public void testCreatingSystemIndexForMigration() {
+        CreateIndexRequest request = new CreateIndexRequest();
+        String path = "/test";  // just to test that we pass settings
+        Settings settings = Settings.builder().put(SETTING_INDEX_HIDDEN, true).put(IndexMetadata.SETTING_DATA_PATH, path).build();
+        request.index(MANAGED_SYSTEM_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX)
+            .cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
+            .settings(settings);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<CreateIndexResponse> mockListener = mock(ActionListener.class);
+
+        action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener);
+
+        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> createRequestArgumentCaptor = ArgumentCaptor.forClass(
+            CreateIndexClusterStateUpdateRequest.class
+        );
+        verify(mockListener, times(0)).onFailure(any());
+        verify(metadataCreateIndexService, times(1)).createIndex(
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(TimeValue.class),
+            createRequestArgumentCaptor.capture(),
+            any()
+        );
+
+        CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
+        assertTrue(processedRequest.settings().getAsBoolean(SETTING_INDEX_HIDDEN, false));
+        assertThat(processedRequest.settings().get(IndexMetadata.SETTING_DATA_PATH, ""), is(path));
     }
 }

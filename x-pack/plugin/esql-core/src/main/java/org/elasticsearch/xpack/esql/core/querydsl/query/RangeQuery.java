@@ -77,7 +77,7 @@ public class RangeQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         RangeQueryBuilder queryBuilder = rangeQuery(field).from(lower, includeLower).to(upper, includeUpper);
         if (Strings.hasText(format)) {
             queryBuilder.format(format);

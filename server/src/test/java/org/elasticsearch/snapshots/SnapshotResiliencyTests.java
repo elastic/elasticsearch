@@ -13,8 +13,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
@@ -2205,7 +2203,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     snapshotsInfoService
                 );
                 assertCriticalWarnings(
-                    "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+                    "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                        + "See the breaking changes documentation for the next major version."
                 );
                 rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
                 rerouteServiceSetOnce.set(rerouteService);
@@ -2263,8 +2262,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool
                 );
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
-                Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-                    new HashMap<>();
+                Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
                 actions.put(
                     GlobalCheckpointSyncAction.TYPE,
                     new GlobalCheckpointSyncAction(
@@ -2402,7 +2400,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             client,
                             null,
                             FailureStoreMetrics.NOOP,
-                            TestProjectResolvers.singleProjectOnly()
+                            TestProjectResolvers.alwaysThrow()
                         ),
                         client,
                         actionFilters,
@@ -2540,7 +2538,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         allocationService,
                         actionFilters,
-                        TestProjectResolvers.singleProjectOnly()
+                        TestProjectResolvers.alwaysThrow()
                     )
                 );
                 actions.put(

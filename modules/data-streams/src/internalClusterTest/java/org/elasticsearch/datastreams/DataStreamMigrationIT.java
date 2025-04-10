@@ -57,7 +57,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         indexDocs("index2", numDocs2);
 
         String alias = "migrate-to-data-stream";
-        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index1").alias(alias).writeIndex(true));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
         assertAcked(indicesAdmin().aliases(request).get());
@@ -99,7 +99,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         indexDocs("index2", numDocs2);
 
         String alias = "migrate-to-data-stream";
-        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index1").alias(alias).writeIndex(true));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
         assertAcked(indicesAdmin().aliases(request).get());
@@ -134,7 +134,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         indicesAdmin().create(new CreateIndexRequest("index2")).get();
 
         String alias = "migrate-to-data-stream";
-        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index1").alias(alias).writeIndex(true));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
         assertAcked(indicesAdmin().aliases(request).get());
@@ -172,7 +172,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         indexDocs("index2", numDocs2, "foo");
 
         String alias = "migrate-to-data-stream";
-        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index1").alias(alias).writeIndex(true));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
         assertAcked(indicesAdmin().aliases(request).get());
@@ -210,7 +210,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         indexDocs("index2", numDocs2);
 
         String alias = "migrate-to-data-stream";
-        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index1").alias(alias).writeIndex(false));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
         assertAcked(indicesAdmin().aliases(request).get());

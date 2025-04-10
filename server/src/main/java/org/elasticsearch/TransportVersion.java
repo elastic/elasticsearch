@@ -131,7 +131,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      *         there are no such versions.
      */
     public TransportVersion bestKnownVersion() {
-        if (VersionsHolder.ALL_VERSIONS_MAP.containsKey(id)) {
+        if (isKnown()) {
             return this;
         }
         TransportVersion bestSoFar = TransportVersions.ZERO;

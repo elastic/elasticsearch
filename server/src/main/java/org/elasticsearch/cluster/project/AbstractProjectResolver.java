@@ -50,7 +50,7 @@ public abstract class AbstractProjectResolver implements ProjectResolver {
         if (headerValue == null) {
             return getFallbackProjectId();
         }
-        return new ProjectId(headerValue);
+        return ProjectId.fromId(headerValue);
     }
 
     @Override
@@ -89,7 +89,7 @@ public abstract class AbstractProjectResolver implements ProjectResolver {
     }
 
     protected static ProjectMetadata findProject(Metadata metadata, String headerValue) {
-        var project = metadata.projects().get(new ProjectId(headerValue));
+        var project = metadata.projects().get(ProjectId.fromId(headerValue));
         if (project == null) {
             throw new IllegalArgumentException("Could not find project with id [" + headerValue + "]");
         }

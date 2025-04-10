@@ -10,16 +10,25 @@
 package org.elasticsearch.logsdb.datageneration.matchers.source;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.math.BigInteger;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.formatErrorMessage;
@@ -27,6 +36,35 @@ import static org.elasticsearch.logsdb.datageneration.matchers.Messages.prettyPr
 
 interface FieldSpecificMatcher {
     MatchResult match(List<Object> actual, List<Object> expected, Map<String, Object> actualMapping, Map<String, Object> expectedMapping);
+
+    static Map<String, FieldSpecificMatcher> matchers(
+        XContentBuilder actualMappings,
+        Settings.Builder actualSettings,
+        XContentBuilder expectedMappings,
+        Settings.Builder expectedSettings
+    ) {
+        return new HashMap<>() {
+            {
+                put("keyword", new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("date", new DateMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("long", new NumberMatcher("long", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("unsigned_long", new UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("integer", new NumberMatcher("integer", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("short", new NumberMatcher("short", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("byte", new NumberMatcher("byte", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("double", new NumberMatcher("double", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("float", new NumberMatcher("float", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("half_float", new HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("scaled_float", new ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("counted_keyword", new CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("boolean", new BooleanMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("geo_shape", new ExactMatcher("geo_shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("shape", new ExactMatcher("shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("geo_point", new GeoPointMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("text", new TextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+            }
+        };
+    }
 
     class CountedKeywordMatcher implements FieldSpecificMatcher {
         private final XContentBuilder actualMappings;
@@ -158,12 +196,12 @@ interface FieldSpecificMatcher {
             Map<String, Object> actualMapping,
             Map<String, Object> expectedMapping
         ) {
-            var scalingFactor = FieldSpecificMatcher.getMappingParameter("scaling_factor", actualMapping, expectedMapping);
+            var scalingFactor = getMappingParameter("scaling_factor", actualMapping, expectedMapping);
 
             assert scalingFactor instanceof Number;
             double scalingFactorDouble = ((Number) scalingFactor).doubleValue();
 
-            var nullValue = (Number) FieldSpecificMatcher.getNullValue(actualMapping, expectedMapping);
+            var nullValue = (Number) getNullValue(actualMapping, expectedMapping);
 
             // It is possible that we receive a mix of reduced precision values and original values.
             // F.e. in case of `synthetic_source_keep: "arrays"` in nested objects only arrays are preserved as is
@@ -334,20 +372,297 @@ interface FieldSpecificMatcher {
         }
     }
 
-    // TODO basic implementation only right now
-    class DateMatcher extends GenericMappingAwareMatcher {
+    class BooleanMatcher extends GenericMappingAwareMatcher {
+        BooleanMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("boolean", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            Boolean nullValueBool = null;
+            if (nullValue != null) {
+                nullValueBool = nullValue instanceof Boolean b ? b : Boolean.parseBoolean((String) nullValue);
+            }
+
+            if (value == null) {
+                return nullValueBool;
+            }
+            if (value instanceof String s && s.isEmpty()) {
+                // This a documented behavior.
+                return false;
+            }
+            if (value instanceof String s) {
+                try {
+                    return Boolean.parseBoolean(s);
+                } catch (Exception e) {
+                    // malformed
+                    return value;
+                }
+            }
+
+            return value;
+        }
+    }
+
+    class DateMatcher implements FieldSpecificMatcher {
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
         DateMatcher(
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
             XContentBuilder expectedMappings,
             Settings.Builder expectedSettings
         ) {
-            super("date", actualMappings, actualSettings, expectedMappings, expectedSettings);
+            this.actualMappings = actualMappings;
+            this.actualSettings = actualSettings;
+            this.expectedMappings = expectedMappings;
+            this.expectedSettings = expectedSettings;
         }
 
         @Override
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
+            var format = (String) getMappingParameter("format", actualMapping, expectedMapping);
+            var nullValue = getNullValue(actualMapping, expectedMapping);
+
+            Function<Object, Object> convert = v -> convert(v, nullValue);
+            if (format != null) {
+                var formatter = DateTimeFormatter.ofPattern(format, Locale.ROOT).withZone(ZoneId.from(ZoneOffset.UTC));
+                convert = v -> convert(v, nullValue, formatter);
+            }
+
+            var actualNormalized = normalize(actual, convert);
+            var expectedNormalized = normalize(expected, convert);
+
+            return actualNormalized.equals(expectedNormalized)
+                ? MatchResult.match()
+                : MatchResult.noMatch(
+                    formatErrorMessage(
+                        actualMappings,
+                        actualSettings,
+                        expectedMappings,
+                        expectedSettings,
+                        "Values of type [date] don't match after normalization, normalized "
+                            + prettyPrintCollections(actualNormalized, expectedNormalized)
+                    )
+                );
+        }
+
+        private Set<Object> normalize(List<Object> values, Function<Object, Object> convert) {
+            if (values == null) {
+                return Set.of();
+            }
+
+            return values.stream().map(convert).filter(Objects::nonNull).collect(Collectors.toSet());
+        }
+
         Object convert(Object value, Object nullValue) {
+            if (value == null) {
+                return nullValue == null ? null : Instant.ofEpochMilli((Long) nullValue);
+            }
+            if (value instanceof Integer i) {
+                return Instant.ofEpochMilli(i);
+            }
+            if (value instanceof Long l) {
+                return Instant.ofEpochMilli(l);
+            }
+
+            assert value instanceof String;
+            try {
+                // values from synthetic source will be formatted with default formatter
+                return Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse((String) value));
+            } catch (Exception e) {
+                // malformed
+                return value;
+            }
+        }
+
+        Object convert(Object value, Object nullValue, DateTimeFormatter dateTimeFormatter) {
+            if (value == null) {
+                return nullValue == null ? null : Instant.from(dateTimeFormatter.parse((String) nullValue)).toEpochMilli();
+            }
+
+            assert value instanceof String;
+            try {
+                return Instant.from(dateTimeFormatter.parse((String) value)).toEpochMilli();
+            } catch (Exception e) {
+                // malformed
+                return value;
+            }
+        }
+    }
+
+    class GeoPointMatcher extends GenericMappingAwareMatcher {
+        GeoPointMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("geo_point", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        Object convert(Object value, Object nullValue) {
+            if (value == null) {
+                if (nullValue != null) {
+                    return normalizePoint(new GeoPoint((String) nullValue));
+                }
+                return null;
+            }
+            if (value instanceof String s) {
+                try {
+                    return normalizePoint(new GeoPoint(s));
+                } catch (Exception e) {
+                    // malformed
+                    return value;
+                }
+            }
+            if (value instanceof Map<?, ?> m) {
+                if (m.get("type") != null) {
+                    var coordinates = (List<Double>) m.get("coordinates");
+                    // Order in GeoJSON is lon,lat
+                    return normalizePoint(new GeoPoint(coordinates.get(1), coordinates.get(0)));
+                } else {
+                    return normalizePoint(new GeoPoint((Double) m.get("lat"), (Double) m.get("lon")));
+                }
+            }
+            if (value instanceof List<?> l) {
+                // Order in arrays is lon,lat
+                return normalizePoint(new GeoPoint((Double) l.get(1), (Double) l.get(0)));
+            }
+
             return value;
+        }
+
+        private static GeoPoint normalizePoint(GeoPoint point) {
+            return point.resetFromEncoded(point.getEncoded());
+        }
+    }
+
+    class ExactMatcher implements FieldSpecificMatcher {
+        private final String fieldType;
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
+        ExactMatcher(
+            String fieldType,
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            this.fieldType = fieldType;
+            this.actualMappings = actualMappings;
+            this.actualSettings = actualSettings;
+            this.expectedMappings = expectedMappings;
+            this.expectedSettings = expectedSettings;
+        }
+
+        @Override
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
+            return actual.equals(expected)
+                ? MatchResult.match()
+                : MatchResult.noMatch(
+                    formatErrorMessage(
+                        actualMappings,
+                        actualSettings,
+                        expectedMappings,
+                        expectedSettings,
+                        "Values of type ["
+                            + fieldType
+                            + "] were expected to match exactly "
+                            + "but don't match, values "
+                            + prettyPrintCollections(actual, expected)
+                    )
+                );
+        }
+    }
+
+    class TextMatcher implements FieldSpecificMatcher {
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
+        TextMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            this.actualMappings = actualMappings;
+            this.actualSettings = actualSettings;
+            this.expectedMappings = expectedMappings;
+            this.expectedSettings = expectedSettings;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
+            var expectedNormalized = normalize(expected);
+            var actualNormalized = normalize(actual);
+
+            // Match simply as text first.
+            if (actualNormalized.equals(expectedNormalized)) {
+                return MatchResult.match();
+            }
+
+            // In some cases synthetic source for text fields is synthesized using the keyword multi field.
+            // So in this case it's appropriate to match it using keyword matching logic (mainly to cover `null_value`).
+            var multiFields = (Map<String, Object>) getMappingParameter("fields", actualMapping, expectedMapping);
+            if (multiFields != null) {
+                var keywordMatcher = new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
+
+                var keywordFieldMapping = (Map<String, Object>) multiFields.get("kwd");
+                var keywordMatchResult = keywordMatcher.match(actual, expected, keywordFieldMapping, keywordFieldMapping);
+                if (keywordMatchResult.isMatch()) {
+                    return MatchResult.match();
+                }
+            }
+
+            return MatchResult.noMatch(
+                formatErrorMessage(
+                    actualMappings,
+                    actualSettings,
+                    expectedMappings,
+                    expectedSettings,
+                    "Values of type [text] don't match, " + prettyPrintCollections(actual, expected)
+                )
+            );
+        }
+
+        private Set<Object> normalize(List<Object> values) {
+            if (values == null) {
+                return Set.of();
+            }
+
+            return values.stream().filter(Objects::nonNull).collect(Collectors.toSet());
         }
     }
 

@@ -44,7 +44,7 @@ class GeoIpTaskParams implements PersistentTaskParams {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_13_0;
+        return TransportVersions.ZERO;
     }
 
     @Override

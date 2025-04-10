@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/plugin-management-custom-url.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # Custom URL or file system [plugin-management-custom-url]

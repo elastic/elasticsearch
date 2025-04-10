@@ -47,7 +47,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
@@ -80,14 +80,14 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         LongSummaryStatistics effectiveRetentionStats = new LongSummaryStatistics();
 
         for (DataStream dataStream : dataStreams) {
-            if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+            if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
                 dataStreamsWithLifecycles++;
                 // Track data retention
-                if (dataStream.getLifecycle().getDataStreamRetention() != null) {
-                    dataRetentionStats.accept(dataStream.getLifecycle().getDataStreamRetention().getMillis());
+                if (dataStream.getDataLifecycle().dataRetention() != null) {
+                    dataRetentionStats.accept(dataStream.getDataLifecycle().dataRetention().getMillis());
                 }
                 // Track effective retention
-                Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = dataStream.getLifecycle()
+                Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = dataStream.getDataLifecycle()
                     .getEffectiveDataRetentionWithSource(globalRetention, dataStream.isInternal());
 
                 // Track global retention usage

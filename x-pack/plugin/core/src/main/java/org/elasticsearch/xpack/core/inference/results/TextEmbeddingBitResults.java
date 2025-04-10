@@ -40,9 +40,11 @@ import java.util.Objects;
  *     ]
  * }
  */
+// Note: inheriting from TextEmbeddingByteResults gives a bad implementation of the
+// Embedding.merge method for bits. TODO: implement a proper merge method
 public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> embeddings)
     implements
-        TextEmbeddingResults<TextEmbeddingByteResults.Chunk, TextEmbeddingByteResults.Embedding> {
+        TextEmbeddingResults<TextEmbeddingByteResults.Embedding> {
     public static final String NAME = "text_embedding_service_bit_results";
     public static final String TEXT_EMBEDDING_BITS = "text_embedding_bits";
 
@@ -79,16 +81,6 @@ public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> e
         return embeddings.stream()
             .map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING_BITS, embedding.toDoubleArray(), false))
             .toList();
-    }
-
-    @Override
-    @SuppressWarnings("deprecation")
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        var legacyEmbedding = new LegacyTextEmbeddingResults(
-            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.toFloatArray())).toList()
-        );
-
-        return List.of(legacyEmbedding);
     }
 
     public Map<String, Object> asMap() {

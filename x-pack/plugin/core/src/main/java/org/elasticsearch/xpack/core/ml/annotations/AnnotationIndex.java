@@ -112,7 +112,7 @@ public class AnnotationIndex {
         final ActionListener<String> createAliasListener = finalListener.delegateFailureAndWrap((finalDelegate, currentIndexName) -> {
             final IndicesAliasesRequestBuilder requestBuilder = client.admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(masterNodeTimeout, TimeValue.THIRTY_SECONDS) // TODO does acking matter? If so, should we wait longer?
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(currentIndexName).alias(READ_ALIAS_NAME).isHidden(true))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(currentIndexName).alias(WRITE_ALIAS_NAME).isHidden(true));
             SortedMap<String, IndexAbstraction> lookup = state.getMetadata().getProject().getIndicesLookup();

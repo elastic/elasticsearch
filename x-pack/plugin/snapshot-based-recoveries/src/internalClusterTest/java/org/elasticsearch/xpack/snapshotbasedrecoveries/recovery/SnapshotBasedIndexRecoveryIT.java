@@ -465,7 +465,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         int numDocs = randomIntBetween(300, 1000);
         indexDocs(indexName, 0, numDocs);
-        forceMerge();
+        forceMerge(false);
 
         String repoName = "repo";
         createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);

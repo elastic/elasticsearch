@@ -150,7 +150,14 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
 
         SubscribableListener.<Boolean>newForked(l -> {
             if (hasAlias == false) {
-                MlIndexAndAlias.updateWriteAlias(client, alias, null, latestIndex, l);
+                MlIndexAndAlias.updateWriteAlias(
+                    client,
+                    alias,
+                    null,
+                    latestIndex,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    l
+                );
             } else {
                 l.onResponse(Boolean.TRUE);
             }

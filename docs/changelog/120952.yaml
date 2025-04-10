@@ -1,5 +1,0 @@
-pr: 120952
-summary: Add `_metric_names_hash` field to OTel metric mappings
-area: Data streams
-type: bug
-issues: []

@@ -41,21 +41,21 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         final String[] indices = { "test" };
         final ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         request.waitForNoInitializingShards(true);
-        var projectId = new ProjectId(randomUUID());
+        var projectId = randomUniqueProjectId();
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 0, projectId);
         var project = clusterState.metadata().getProject(projectId);
         ClusterHealthResponse response = createResponse(indices, clusterState, project);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, project, null), equalTo(1));
 
         request.waitForNoInitializingShards(true);
-        projectId = new ProjectId(randomUUID());
+        projectId = randomUniqueProjectId();
         clusterState = randomClusterStateWithInitializingShards("test", between(1, 10), projectId);
         project = clusterState.metadata().getProject(projectId);
         response = createResponse(indices, clusterState, project);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, project, null), equalTo(0));
 
         request.waitForNoInitializingShards(false);
-        projectId = new ProjectId(randomUUID());
+        projectId = randomUniqueProjectId();
         clusterState = randomClusterStateWithInitializingShards("test", randomInt(20), projectId);
         project = clusterState.metadata().getProject(projectId);
         response = createResponse(indices, clusterState, project);
@@ -67,7 +67,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         final ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         request.waitForActiveShards(ActiveShardCount.ALL);
 
-        var projectId = new ProjectId(randomUUID());
+        var projectId = randomUniqueProjectId();
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 1, projectId);
         var project = clusterState.metadata().getProject(projectId);
         ClusterHealthResponse response = createResponse(indices, clusterState, project);
@@ -125,7 +125,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         }
 
         var projects = randomMap(0, 5, () -> {
-            var id = new ProjectId(randomUUID());
+            var id = randomUniqueProjectId();
             return Tuple.tuple(id, ProjectMetadata.builder(id).build());
         });
         return ClusterState.builder(ClusterName.DEFAULT)

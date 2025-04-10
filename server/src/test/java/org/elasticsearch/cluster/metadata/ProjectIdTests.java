@@ -22,9 +22,9 @@ import static org.hamcrest.Matchers.is;
 public class ProjectIdTests extends AbstractWireSerializingTestCase<ProjectId> {
 
     public void testCannotCreateBlankProjectId() {
-        expectThrows(IllegalArgumentException.class, () -> new ProjectId((String) null));
-        expectThrows(IllegalArgumentException.class, () -> new ProjectId(""));
-        expectThrows(IllegalArgumentException.class, () -> new ProjectId(" "));
+        expectThrows(IllegalArgumentException.class, () -> ProjectId.fromId(null));
+        expectThrows(IllegalArgumentException.class, () -> ProjectId.fromId(""));
+        expectThrows(IllegalArgumentException.class, () -> ProjectId.fromId(" "));
     }
 
     public void testValidateProjectId() {
@@ -63,10 +63,10 @@ public class ProjectIdTests extends AbstractWireSerializingTestCase<ProjectId> {
     @Override
     protected ProjectId createTestInstance() {
         return switch (randomIntBetween(1, 4)) {
-            case 1 -> new ProjectId(randomUUID());
-            case 2 -> new ProjectId(randomAlphaOfLengthBetween(1, 30));
-            case 3 -> new ProjectId(Long.toString(randomLongBetween(1, Long.MAX_VALUE)));
-            default -> new ProjectId(Long.toString(randomLongBetween(1, Long.MAX_VALUE), Character.MAX_RADIX));
+            case 1 -> randomUniqueProjectId();
+            case 2 -> ProjectId.fromId(randomAlphaOfLengthBetween(1, 30));
+            case 3 -> ProjectId.fromId(Long.toString(randomLongBetween(1, Long.MAX_VALUE)));
+            default -> ProjectId.fromId(Long.toString(randomLongBetween(1, Long.MAX_VALUE), Character.MAX_RADIX));
         };
     }
 
@@ -77,7 +77,7 @@ public class ProjectIdTests extends AbstractWireSerializingTestCase<ProjectId> {
 
     public void testToString() {
         String s = randomAlphaOfLengthBetween(8, 16);
-        ProjectId id = new ProjectId(s);
+        ProjectId id = ProjectId.fromId(s);
         assertThat(id.toString(), equalTo(s));
     }
 }

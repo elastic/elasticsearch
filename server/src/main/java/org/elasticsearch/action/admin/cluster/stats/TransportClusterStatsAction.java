@@ -157,15 +157,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     protected SubscribableListener<AdditionalStats> createActionContext(Task task, ClusterStatsRequest request) {
         assert task instanceof CancellableTask;
         final var cancellableTask = (CancellableTask) task;
-        final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
         if (request.isRemoteStats() == false) {
+            final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
             final AdditionalStats additionalStats = new AdditionalStats();
             additionalStats.compute(cancellableTask, request, additionalStatsListener);
+            return additionalStatsListener;
         } else {
             // For remote stats request, we don't need to compute anything
-            additionalStatsListener.onResponse(null);
+            return SubscribableListener.nullSuccess();
         }
-        return additionalStatsListener;
     }
 
     @Override

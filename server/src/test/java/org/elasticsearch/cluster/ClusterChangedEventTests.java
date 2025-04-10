@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -485,8 +484,8 @@ public class ClusterChangedEventTests extends ESTestCase {
     public void testChangedCustomMetadataSetMultiProject() {
         final CustomProjectMetadata project1Custom = new CustomProjectMetadata("project1");
         final CustomProjectMetadata project2Custom = new CustomProjectMetadata("project2");
-        final ProjectMetadata project1 = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
-        final ProjectMetadata project2 = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+        final ProjectMetadata project1 = ProjectMetadata.builder(randomUniqueProjectId()).build();
+        final ProjectMetadata project2 = ProjectMetadata.builder(randomUniqueProjectId()).build();
         final ClusterState originalState = ClusterState.builder(TEST_CLUSTER_NAME)
             .metadata(Metadata.builder().put(project1).put(project2).build())
             .build();
@@ -514,7 +513,7 @@ public class ClusterChangedEventTests extends ESTestCase {
         // Add custom in completely new project
         newState = ClusterState.builder(originalState)
             .putProjectMetadata(
-                ProjectMetadata.builder(new ProjectId(randomUUID())).putCustom(project2Custom.getWriteableName(), project2Custom).build()
+                ProjectMetadata.builder(randomUniqueProjectId()).putCustom(project2Custom.getWriteableName(), project2Custom).build()
             )
             .build();
         event = new ClusterChangedEvent("_na_", originalState, newState);
@@ -727,7 +726,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     // Create the metadata for a cluster state.
     private static ProjectMetadata createProject(final List<Index> indices) {
-        final ProjectMetadata.Builder builder = ProjectMetadata.builder(new ProjectId(randomUUID()));
+        final ProjectMetadata.Builder builder = ProjectMetadata.builder(randomUniqueProjectId());
         for (Index index : indices) {
             builder.put(createIndexMetadata(index), true);
         }

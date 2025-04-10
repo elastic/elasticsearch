@@ -74,6 +74,6 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
     }
 
     private static RerouteProcessor create(Map<String, Object> config) throws Exception {
-        return new RerouteProcessor.Factory().create(null, null, null, new HashMap<>(config));
+        return new RerouteProcessor.Factory().create(null, null, null, new HashMap<>(config), null);
     }
 }

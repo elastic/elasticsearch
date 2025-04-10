@@ -2,6 +2,9 @@
 navigation_title: "Health Diagnostic settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/health-diagnostic-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Health diagnostic settings in {{es}} [health-diagnostic-settings]

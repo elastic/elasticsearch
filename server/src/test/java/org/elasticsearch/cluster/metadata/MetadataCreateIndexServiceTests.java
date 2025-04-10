@@ -565,7 +565,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 new IndexSettingProviders(Set.of())
             );
             PlainActionFuture<ShardsAcknowledgedResponse> createIndexFuture = new PlainActionFuture<>();
-            ProjectId unknownProjectId = new ProjectId(randomUUID());
+            ProjectId unknownProjectId = randomUniqueProjectId();
             checkerService.createIndex(
                 TimeValue.MAX_VALUE,
                 TimeValue.MAX_VALUE,
@@ -931,7 +931,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 request.index(),
                 request.aliases(),
                 List.of(),
-                ProjectMetadata.builder(new ProjectId(randomUUID())).build(),
+                ProjectMetadata.builder(randomUniqueProjectId()).build(),
                 xContentRegistry(),
                 searchExecutionContext,
                 IndexNameExpressionResolver::resolveDateMathExpression,
@@ -949,7 +949,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.index(),
             request.aliases(),
             List.of(),
-            ProjectMetadata.builder(new ProjectId(randomUUID())).build(),
+            ProjectMetadata.builder(randomUniqueProjectId()).build(),
             xContentRegistry(),
             searchExecutionContext,
             IndexNameExpressionResolver::resolveDateMathExpression,
@@ -983,7 +983,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.index(),
             request.aliases(),
             MetadataIndexTemplateService.resolveAliases(List.of(templateMetadata)),
-            ProjectMetadata.builder(new ProjectId(randomUUID())).build(),
+            ProjectMetadata.builder(randomUniqueProjectId()).build(),
             xContentRegistry(),
             searchExecutionContext,
             IndexNameExpressionResolver::resolveDateMathExpression,
@@ -1083,7 +1083,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.index(),
             request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
-            ProjectMetadata.builder(new ProjectId(randomUUID())).build(),
+            ProjectMetadata.builder(randomUniqueProjectId()).build(),
             xContentRegistry(),
             searchExecutionContext,
             IndexNameExpressionResolver::resolveDateMathExpression,
@@ -1124,7 +1124,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.index(),
             request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
-            ProjectMetadata.builder(new ProjectId(randomUUID())).build(),
+            ProjectMetadata.builder(randomUniqueProjectId()).build(),
             xContentRegistry(),
             searchExecutionContext,
             IndexNameExpressionResolver::resolveDateMathExpression,
@@ -1173,7 +1173,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        ProjectId projectId = new ProjectId(randomUUID());
+        ProjectId projectId = randomUniqueProjectId();
         ClusterState currentClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).put(existingWriteIndex, false))
             .build();
@@ -1202,7 +1202,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testClusterStateCreateIndex() {
-        ProjectId projectId = new ProjectId(randomUUID());
+        ProjectId projectId = randomUniqueProjectId();
         ClusterState currentClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId))
             .build();
@@ -1238,7 +1238,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testClusterStateCreateIndexWithMetadataTransaction() {
-        ProjectId projectId = new ProjectId(randomUUID());
+        ProjectId projectId = randomUniqueProjectId();
         ClusterState currentClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId)

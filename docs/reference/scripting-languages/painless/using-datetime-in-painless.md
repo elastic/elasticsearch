@@ -36,7 +36,7 @@ Switching between different representations of datetimes is often necessary to a
 
 Datetime parsing is a switch from a string datetime to a complex datetime, and datetime formatting is a switch from a complex datetime to a string datetime.
 
-A [DateTimeFormatter](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared-java-time-format.html#painless-api-reference-shared-DateTimeFormatter) is a complex type ([object](/reference/scripting-languages/painless/painless-types.md#reference-types)) that defines the allowed sequence of characters for a string datetime. Datetime parsing and formatting often require a DateTimeFormatter. For more information about how to use a DateTimeFormatter see the [Java documentation](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/time/format/DateTimeFormatter.md).
+A [DateTimeFormatter](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared-java-time-format.html#painless-api-reference-shared-DateTimeFormatter) is a complex type ([object](/reference/scripting-languages/painless/painless-types.md#reference-types)) that defines the allowed sequence of characters for a string datetime. Datetime parsing and formatting often require a DateTimeFormatter. For more information about how to use a DateTimeFormatter see the [Java documentation](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/time/format/DateTimeFormatter.html).
 
 ### Datetime Parsing Examples [_datetime_parsing_examples]
 
@@ -707,7 +707,7 @@ Run the following curl commands to load the data necessary for the context examp
 
 ### Day-of-the-Week Bucket Aggregation Example [_day_of_the_week_bucket_aggregation_example]
 
-The following example uses a [terms aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-script) as part of the [bucket script aggregation context](/reference/scripting-languages/painless/painless-bucket-script-agg-context.md) to display the number of messages from each day-of-the-week.
+The following example uses a [terms aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-script) as part of the [bucket script aggregation context](/reference/scripting-languages/painless/painless-bucket-script-agg-context.md) to display the number of messages from each day-of-the-week.
 
 ```console
 GET /messages/_search?pretty=true
@@ -725,7 +725,7 @@ GET /messages/_search?pretty=true
 
 ### Morning/Evening Bucket Aggregation Example [_morningevening_bucket_aggregation_example]
 
-The following example uses a [terms aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-script) as part of the [bucket script aggregation context](/reference/scripting-languages/painless/painless-bucket-script-agg-context.md) to display the number of messages received in the morning versus the evening.
+The following example uses a [terms aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-script) as part of the [bucket script aggregation context](/reference/scripting-languages/painless/painless-bucket-script-agg-context.md) to display the number of messages received in the morning versus the evening.
 
 ```console
 GET /messages/_search?pretty=true

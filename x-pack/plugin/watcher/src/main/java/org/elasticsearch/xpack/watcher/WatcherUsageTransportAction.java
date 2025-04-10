@@ -59,7 +59,7 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,

@@ -40,6 +40,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.RetryActionRequest;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
 
 import java.util.ArrayList;
@@ -106,6 +108,11 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ReindexDataStreamTaskParams params,
         PersistentTaskState persistentTaskState
     ) {
+        Long completionTime = getCompletionTime(persistentTaskState);
+        if (completionTime != null && task instanceof ReindexDataStreamTask reindexDataStreamTask) {
+            reindexDataStreamTask.allReindexesCompleted(threadPool, getTimeToLive(completionTime));
+            return;
+        }
         ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTaskState;
         String sourceDataStream = params.getSourceDataStream();
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
@@ -117,7 +124,10 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
                 DataStream dataStream = dataStreamInfos.getFirst().getDataStream();
-                if (getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false).test(dataStream.getWriteIndex())) {
+                boolean includeSystem = dataStream.isSystem();
+                if (getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false, includeSystem).test(
+                    dataStream.getWriteIndex()
+                )) {
                     RolloverRequest rolloverRequest = new RolloverRequest(sourceDataStream, null);
                     rolloverRequest.setParentTask(taskId);
                     client.execute(
@@ -164,7 +174,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     ) {
         List<Index> indices = dataStream.getIndices();
         List<Index> indicesToBeReindexed = indices.stream()
-            .filter(getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false))
+            .filter(getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false, dataStream.isSystem()))
             .toList();
         final ReindexDataStreamPersistentTaskState updatedState;
         if (params.totalIndices() != totalIndicesInDataStream
@@ -265,11 +275,32 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                 var settings = Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, lifecycleName).build();
                 var updateSettingsRequest = new UpdateSettingsRequest(settings, newIndex);
                 updateSettingsRequest.setParentTask(parentTaskId);
-                client.execute(TransportUpdateSettingsAction.TYPE, updateSettingsRequest, delegate);
+                client.execute(
+                    TransportUpdateSettingsAction.TYPE,
+                    updateSettingsRequest,
+                    delegate.delegateFailure((delegate2, response2) -> {
+                        maybeRunILMAsyncAction(newIndex, delegate2, parentTaskId);
+                    })
+                );
             } else {
                 delegate.onResponse(null);
             }
         }));
+    }
+
+    /**
+     * If ILM runs an async action on the source index shortly before reindexing, the results of the async action
+     * may not yet be in the source index. For example, if a force merge has just been started by ILM, the reindex
+     * will see the un-force-merged index. But the ILM state will be copied to destination index saying that an
+     * async action was started, and so ILM won't force merge the destination index. To be sure that the async
+     * action is run on the destination index, we force a retry on async actions after adding the ILM policy
+     * to the destination index.
+     */
+    private void maybeRunILMAsyncAction(String newIndex, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
+        var retryActionRequest = new RetryActionRequest(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, newIndex);
+        retryActionRequest.setParentTask(parentTaskId);
+        retryActionRequest.requireError(false);
+        client.execute(ILMActions.RETRY, retryActionRequest, listener);
     }
 
     private void deleteIndex(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {
@@ -291,6 +322,14 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         Exception e
     ) {
         persistentTask.taskFailed(threadPool, updateCompletionTimeAndGetTimeToLive(persistentTask, state), e);
+    }
+
+    private Long getCompletionTime(PersistentTaskState persistentTaskState) {
+        if (persistentTaskState instanceof ReindexDataStreamPersistentTaskState state) {
+            return state.completionTime();
+        } else {
+            return null;
+        }
     }
 
     private TimeValue updateCompletionTimeAndGetTimeToLive(
@@ -322,6 +361,15 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                 completionTime = state.completionTime();
             }
         }
-        return TimeValue.timeValueMillis(TASK_KEEP_ALIVE_TIME.millis() - (threadPool.absoluteTimeInMillis() - completionTime));
+        return getTimeToLive(completionTime);
+    }
+
+    private TimeValue getTimeToLive(long completionTimeInMillis) {
+        return TimeValue.timeValueMillis(
+            TASK_KEEP_ALIVE_TIME.millis() - Math.min(
+                TASK_KEEP_ALIVE_TIME.millis(),
+                threadPool.absoluteTimeInMillis() - completionTimeInMillis
+            )
+        );
     }
 }

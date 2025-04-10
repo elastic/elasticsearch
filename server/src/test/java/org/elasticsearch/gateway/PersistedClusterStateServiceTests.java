@@ -1028,7 +1028,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
 
             final long term = randomLongBetween(1L, Long.MAX_VALUE);
-            final List<ProjectId> projectIds = randomList(1, 5, () -> new ProjectId(randomUUID()));
+            final List<ProjectId> projectIds = randomList(1, 5, ESTestCase::randomUniqueProjectId);
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 final ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
@@ -1597,7 +1597,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             IndexVersion.fromId(IndexVersion.current().id() + 1) };
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
-        List<ProjectMetadata.Builder> projects = randomList(1, 3, () -> ProjectMetadata.builder(new ProjectId(randomUUID())));
+        List<ProjectMetadata.Builder> projects = randomList(1, 3, () -> ProjectMetadata.builder(randomUniqueProjectId()));
         projects.forEach(b::put);
         for (IndexVersion indexVersion : indexVersions) {
             String indexUUID = UUIDs.randomBase64UUID(random());

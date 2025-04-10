@@ -78,7 +78,7 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
             .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
             .build();
         createIndex("index", settings);
-        final IndicesAliasesRequest request = new IndicesAliasesRequest().origin("allowed");
+        final IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).origin("allowed");
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index").alias("alias"));
         assertAcked(client().admin().indices().aliases(request).actionGet());
         final GetAliasesResponse response = client().admin()
@@ -98,7 +98,7 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
             .build();
         createIndex("index", settings);
         final String origin = randomFrom("", "not-allowed");
-        final IndicesAliasesRequest request = new IndicesAliasesRequest().origin(origin);
+        final IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).origin(origin);
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index").alias("alias"));
         final Exception e = expectThrows(IllegalStateException.class, client().admin().indices().aliases(request));
         assertThat(e, hasToString(containsString("origin [" + origin + "] not allowed for index [index]")));
@@ -114,7 +114,7 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
             .build();
         createIndex("bar", barIndexSettings);
         final String origin = randomFrom("foo_allowed", "bar_allowed");
-        final IndicesAliasesRequest request = new IndicesAliasesRequest().origin(origin);
+        final IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).origin(origin);
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("foo").alias("alias"));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("bar").alias("alias"));
         final Exception e = expectThrows(IllegalStateException.class, client().admin().indices().aliases(request));

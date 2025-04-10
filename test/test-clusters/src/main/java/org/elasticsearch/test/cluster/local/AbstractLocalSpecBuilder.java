@@ -17,6 +17,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -47,6 +48,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private DistributionType distributionType;
     private Version version;
     private String keystorePassword;
+    private Supplier<Path> configDirSupplier;
 
     protected AbstractLocalSpecBuilder(AbstractLocalSpecBuilder<?> parent) {
         this.parent = parent;
@@ -271,8 +273,24 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     }
 
     @Override
+    public T withConfigDir(Supplier<Path> configDirSupplier) {
+        this.configDirSupplier = configDirSupplier;
+        return cast(this);
+    }
+
+    public Supplier<Path> getConfigDirSupplier() {
+        return inherit(() -> parent.getConfigDirSupplier(), configDirSupplier);
+    }
+
+    @Override
     public T version(Version version) {
         this.version = version;
+        return cast(this);
+    }
+
+    @Override
+    public T version(String version) {
+        this.version = Version.fromString(version);
         return cast(this);
     }
 

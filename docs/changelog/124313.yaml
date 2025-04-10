@@ -1,0 +1,5 @@
+pr: 124313
+summary: Optimize memory usage in `ShardBulkInferenceActionFilter`
+area: Search
+type: enhancement
+issues: []

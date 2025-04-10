@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -85,7 +84,7 @@ public class TimestampFieldMapperServiceTests extends ESTestCase {
 
     private static ClusterState initialClusterState() {
         final var projects = randomMap(1, 5, () -> {
-            ProjectMetadata.Builder builder = ProjectMetadata.builder(new ProjectId(randomUUID()));
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(randomUniqueProjectId());
             randomList(5, () -> createIndex(randomBoolean())).forEach(index -> builder.put(index, false));
             return Tuple.tuple(builder.getId(), builder.build());
         });

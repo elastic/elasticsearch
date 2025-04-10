@@ -16,6 +16,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -43,6 +44,7 @@ public class ServerProcessBuilder {
     private ServerArgs serverArgs;
     private ProcessInfo processInfo;
     private List<String> jvmOptions;
+    private Path workingDir;
     private Terminal terminal;
 
     // this allows mocking the process building by tests
@@ -82,6 +84,11 @@ public class ServerProcessBuilder {
         return this;
     }
 
+    public ServerProcessBuilder withWorkingDir(Path workingDir) {
+        this.workingDir = workingDir;
+        return this;
+    }
+
     /**
      * Specifies the {@link Terminal} to use for reading input and writing output from/to the cli console
      */
@@ -109,6 +116,7 @@ public class ServerProcessBuilder {
             esHome.resolve("lib").toString(),
             // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
             "--add-modules=jdk.net", // needed to reflectively set extended socket options
+            "--add-modules=jdk.management.agent", // needed by external debug tools to grab thread and heap dumps
             // we control the module path, which may have additional modules not required by server
             "--add-modules=ALL-MODULE-PATH",
             "-m",
@@ -154,7 +162,7 @@ public class ServerProcessBuilder {
 
         boolean success = false;
         try {
-            jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), processStarter);
+            jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), workingDir, processStarter);
             errorPump = new ErrorPumpThread(terminal, jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(serverArgs, jvmProcess.getOutputStream());
@@ -184,14 +192,21 @@ public class ServerProcessBuilder {
         List<String> jvmArgs,
         List<String> jvmOptions,
         Map<String, String> environment,
+        Path workingDir,
         ProcessStarter processStarter
     ) throws InterruptedException, IOException {
 
         var builder = new ProcessBuilder(Stream.concat(Stream.of(command), Stream.concat(jvmOptions.stream(), jvmArgs.stream())).toList());
         builder.environment().putAll(environment);
+        setWorkingDir(builder, workingDir);
         builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 
         return processStarter.start(builder);
+    }
+
+    @SuppressForbidden(reason = "ProcessBuilder takes File")
+    private static void setWorkingDir(ProcessBuilder builder, Path path) {
+        builder.directory(path.toFile());
     }
 
     private static void sendArgs(ServerArgs args, OutputStream processStdin) {

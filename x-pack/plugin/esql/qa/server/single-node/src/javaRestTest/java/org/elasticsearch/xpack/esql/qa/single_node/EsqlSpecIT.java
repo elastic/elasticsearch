@@ -44,11 +44,6 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean shouldSkipTestsWithSemanticTextFields() {
-        return cluster.getNumNodes() > 1;
-    }
-
-    @Override
     protected boolean supportsSourceFieldMapping() {
         return cluster.getNumNodes() == 1;
     }

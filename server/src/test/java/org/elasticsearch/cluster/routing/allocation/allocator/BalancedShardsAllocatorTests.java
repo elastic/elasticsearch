@@ -142,7 +142,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         // Create some projects with some assigned indices
         for (int i = 1; i <= numberOfProjects; i++) {
-            var projectId = new ProjectId(Strings.format("proj_%02d", i));
+            var projectId = ProjectId.fromId(Strings.format("proj_%02d", i));
             String[] indices = {
                 // 2 indices that are unique to this project
                 "index_proj_" + i + "a",

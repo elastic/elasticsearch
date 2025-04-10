@@ -10,12 +10,8 @@ toc:
       - file: _other_command_line_parameters.md
       - file: _plugins_directory.md
       - file: manage-plugins-using-configuration-file.md
-      - file: cloud/ec-adding-plugins.md
-        children:
-          - file: cloud/ec-adding-elastic-plugins.md
-          - file: cloud/ec-custom-bundles.md
-          - file: cloud/ec-plugins-guide.md
-      - file: cloud-enterprise/ece-add-plugins.md
+      - file: cloud/ec-custom-bundles.md
+      - file: cloud/ec-plugins-guide.md
   - file: api-extension-plugins.md
   - file: analysis-plugins.md
     children:

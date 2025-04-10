@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -77,7 +78,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
@@ -1104,6 +1104,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             applierState = initialState;
             clusterApplier.setInitialState(initialState);
         }
+        clusterFormationFailureHelper.setLoggingEnabled(true);
     }
 
     public DiscoveryStats stats() {
@@ -1126,6 +1127,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     protected void doStop() {
         configuredHostsResolver.stop();
         joinValidationService.stop();
+        clusterFormationFailureHelper.setLoggingEnabled(false);
     }
 
     @Override

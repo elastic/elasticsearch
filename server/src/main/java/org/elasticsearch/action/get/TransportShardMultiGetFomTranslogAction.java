@@ -175,7 +175,6 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             segmentGeneration = in.readZLong();
             multiGetShardResponse = new MultiGetShardResponse(in);
             primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;

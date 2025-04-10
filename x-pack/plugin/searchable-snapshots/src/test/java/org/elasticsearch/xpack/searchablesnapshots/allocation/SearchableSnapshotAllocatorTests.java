@@ -233,7 +233,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         builder.put(buildSingleShardIndexProject(shardId, extraSettings));
 
         for (int i = 0; i < extraProjects; i++) {
-            builder.put(ProjectMetadata.builder(new ProjectId("project-" + i)).build());
+            builder.put(ProjectMetadata.builder(ProjectId.fromId("project-" + i)).build());
         }
 
         return builder.build();

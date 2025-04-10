@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -63,7 +62,7 @@ public class ActiveShardCountTests extends ESTestCase {
             .numberOfShards(randomIntBetween(1, 3))
             .numberOfReplicas(randomIntBetween(1, 3))
             .build();
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID())).put(indexMetadata, randomBoolean()).build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, randomBoolean()).build();
         Index index = new Index(indexName, "_uuid");
         ShardId shardId = new ShardId(index, 0);
         ShardRouting shardRouting = ShardRouting.newUnassigned(

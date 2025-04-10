@@ -52,6 +52,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -60,6 +61,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -75,7 +77,9 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.SparseVectorStats;
@@ -241,6 +245,34 @@ public abstract class Engine implements Closeable {
             }
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+    }
+
+    /**
+     * @throws AlreadyClosedException if the shard is closed
+     */
+    public ShardFieldStats shardFieldStats() {
+        try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
+            return shardFieldStats(searcher.getLeafContexts());
+        }
+    }
+
+    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves) {
+        int numSegments = 0;
+        int totalFields = 0;
+        long usages = 0;
+        for (LeafReaderContext leaf : leaves) {
+            numSegments++;
+            var fieldInfos = leaf.reader().getFieldInfos();
+            totalFields += fieldInfos.size();
+            if (fieldInfos instanceof FieldInfosWithUsages ft) {
+                if (usages != -1) {
+                    usages += ft.getTotalUsages();
+                }
+            } else {
+                usages = -1;
+            }
+        }
+        return new ShardFieldStats(numSegments, totalFields, usages);
     }
 
     /**
@@ -1258,7 +1290,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Asynchronously refreshes the engine for new search operations to reflect the latest
-     * changes unless another thread is already refreshing the engine concurrently.
+     * changes unless another thread is already refreshing or reseting the engine concurrently.
      */
     @Nullable
     public abstract void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException;
@@ -2341,7 +2373,7 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine()}.
+     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine(Consumer<Engine>)}.
      *
      * In general, resetting the engine should be done with care, to consider any
      * in-progress operations and listeners (e.g., primary term and generation listeners).
@@ -2353,5 +2385,37 @@ public abstract class Engine implements Closeable {
 
     public long getLastUnsafeSegmentGenerationForGets() {
         throw new UnsupportedOperationException("Doesn't support getting the latest segment generation");
+    }
+
+    protected static <R extends ReferenceManager<ElasticsearchDirectoryReader>> R wrapForAssertions(
+        R referenceManager,
+        EngineConfig engineConfig
+    ) {
+        if (Assertions.ENABLED) {
+            referenceManager.addListener(new AssertRefreshListenerHoldsEngineReadLock(engineConfig.getEngineResetLock()));
+        }
+        return referenceManager;
+    }
+
+    /**
+     * RefreshListener that asserts that the engine read lock is held by the thread refreshing the reference.
+     */
+    private static class AssertRefreshListenerHoldsEngineReadLock implements ReferenceManager.RefreshListener {
+
+        private final EngineResetLock engineLock;
+
+        private AssertRefreshListenerHoldsEngineReadLock(EngineResetLock engineLock) {
+            this.engineLock = Objects.requireNonNull(engineLock);
+        }
+
+        @Override
+        public void beforeRefresh() throws IOException {
+            assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) throws IOException {
+            assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
+        }
     }
 }

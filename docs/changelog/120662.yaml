@@ -1,5 +1,0 @@
-pr: 120662
-summary: Fix broken yaml test `30_create_from`
-area: Indices APIs
-type: bug
-issues: []

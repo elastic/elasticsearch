@@ -12,7 +12,7 @@
  * <h2>Guide to adding new aggregate function</h2>
  * <ol>
  *     <li>
- *         Aggregation functions are more complex than scalar functions, so it's a good idea to discuss
+ *         Aggregation functions are more complex than scalar functions, so it’s a good idea to discuss
  *         the new function with the ESQL team before starting to implement it.
  *         <p>
  *             You may also discuss its implementation, as aggregations may require special performance considerations.
@@ -27,7 +27,7 @@
  *     <li>
  *         Pick one of the csv-spec files in {@code x-pack/plugin/esql/qa/testFixtures/src/main/resources/}
  *         and add a test for the function you want to write. These files are roughly themed but there
- *         isn't a strong guiding principle in the organization.
+ *         isn’t a strong guiding principle in the organization.
  *     </li>
  *     <li>
  *         Rerun the {@code CsvTests} and watch your new test fail.
@@ -72,7 +72,7 @@
  *                 Implement {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}, and its required
  *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression#surrogate()} method.
  *                 <p>
- *                     It's used to be able to fold the aggregation when it receives only literals,
+ *                     It’s used to be able to fold the aggregation when it receives only literals,
  *                     or when the aggregation can be simplified.
  *                 </p>
  *             </li>
@@ -233,7 +233,7 @@
  *     <li>
  *         After completing your template, run the generation with {@code ./gradlew :x-pack:plugin:esql:compute:compileJava}.
  *         <p>
- *             You may need to tweak some import orders per type so they don't raise warnings.
+ *             You may need to tweak some import orders per type so they don’t raise warnings.
  *         </p>
  *     </li>
  * </ol>

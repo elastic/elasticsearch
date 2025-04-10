@@ -45,7 +45,7 @@ public class UriPartsProcessorFactoryTests extends ESTestCase {
         config.put("ignore_missing", ignoreMissing);
 
         String processorTag = randomAlphaOfLength(10);
-        UriPartsProcessor uriPartsProcessor = factory.create(null, processorTag, null, config);
+        UriPartsProcessor uriPartsProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(uriPartsProcessor.getTag(), equalTo(processorTag));
         assertThat(uriPartsProcessor.getField(), equalTo(field));
         assertThat(uriPartsProcessor.getTargetField(), equalTo(targetField));
@@ -58,7 +58,7 @@ public class UriPartsProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("value", "value1");
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -69,7 +69,7 @@ public class UriPartsProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", null);
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

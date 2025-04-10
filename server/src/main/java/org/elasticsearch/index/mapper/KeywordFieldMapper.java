@@ -748,7 +748,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
             if (isStored()) {
@@ -770,7 +770,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
             var nullValueBytes = nullValue != null ? new BytesRef(nullValue) : null;
-            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<>(nullValueBytes) {
+            return new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(nullValueBytes) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
                     String stringValue = ((BytesRef) value).utf8ToString();
@@ -806,7 +806,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasNorms()) {
                 return BlockSourceReader.lookupFromNorms(name());
             }
-            if (isIndexed() || isStored()) {
+            if (hasDocValues() == false && (isIndexed() || isStored())) {
+                // We only write the field names field if there aren't doc values or norms
                 return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
             }
             return BlockSourceReader.lookupMatchingAll();
@@ -1278,7 +1279,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
         assert fieldType.stored() || hasDocValues;
 
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
         if (fieldType.stored()) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {
                 @Override

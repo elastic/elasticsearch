@@ -931,17 +931,7 @@ setup:
   - is_false: trained_model_configs.0.estimated_heap_memory_usage
   - is_false: trained_model_configs.0.estimated_operations
   - is_false: trained_model_configs.0.license_level
----
-"Test deprecation of include model definition param":
-  - skip:
-      features: "warnings"
-  - do:
-      warnings:
-        - "[include_model_definition] parameter is deprecated! Use [include=definition] instead."
-      ml.get_trained_models:
-        model_id: "a-regression-model-1"
-        include_model_definition: true
-        decompress_definition: false
+
 ---
 "Test put model model aliases":
 

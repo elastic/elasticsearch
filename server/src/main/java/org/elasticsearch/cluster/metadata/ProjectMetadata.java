@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -23,6 +24,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ProjectSecrets;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
@@ -37,6 +40,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.transport.Transports;
@@ -46,6 +50,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -99,7 +104,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private final IndexVersion oldestIndexVersion;
 
     @SuppressWarnings("this-escape")
-    public ProjectMetadata(
+    private ProjectMetadata(
         ProjectId id,
         ImmutableOpenMap<String, IndexMetadata> indices,
         ImmutableOpenMap<String, Set<Index>> aliasedIndices,
@@ -1077,7 +1082,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
 
         DataStream parentDataStream = indexAbstraction.getParentDataStream();
-        if (parentDataStream != null && parentDataStream.getLifecycle() != null && parentDataStream.getLifecycle().isEnabled()) {
+        // Only data streams can be managed by data stream lifecycle
+        if (parentDataStream == null) {
+            return true;
+        }
+        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(indexMetadata.getIndex());
+        if (lifecycle != null && lifecycle.enabled()) {
             // index has both ILM and data stream lifecycle configured so let's check which is preferred
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         }
@@ -1093,6 +1103,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return false;
         }
         return true;
+    }
+
+    public Optional<SecureString> getSecret(String key) {
+        return Optional.ofNullable(this.<ProjectSecrets>custom(ProjectSecrets.TYPE)).map(secrets -> secrets.getSettings().getString(key));
     }
 
     public static ProjectMetadata.Builder builder(ProjectId id) {
@@ -1478,6 +1492,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return this;
         }
 
+        public Builder clearCustoms() {
+            customs.clear();
+            return this;
+        }
+
         public Builder customs(Map<String, Metadata.ProjectCustom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
@@ -1761,7 +1780,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             if (indices.isEmpty()) {
                 return Collections.emptySortedMap();
             }
-            SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
+            Map<String, IndexAbstraction> indicesLookup = new HashMap<>();
             Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
             collectDataStreams(dataStreamMetadata, indicesLookup, indexToDataStreamLookup);
 
@@ -1769,7 +1788,121 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             collectIndices(indices, indexToDataStreamLookup, indicesLookup, aliasToIndices);
             collectAliases(aliasToIndices, indicesLookup);
 
-            return Collections.unmodifiableSortedMap(indicesLookup);
+            // We do a ton of lookups on this map but also need its sorted properties at times.
+            // Using this hybrid of a sorted and a hash-map trades some heap overhead relative to just using a TreeMap
+            // for much faster O(1) lookups in large clusters.
+            return new SortedMap<>() {
+
+                private final SortedMap<String, IndexAbstraction> sortedMap = Collections.unmodifiableSortedMap(
+                    new TreeMap<>(indicesLookup)
+                );
+
+                @Override
+                public Comparator<? super String> comparator() {
+                    return sortedMap.comparator();
+                }
+
+                @Override
+                public SortedMap<String, IndexAbstraction> subMap(String fromKey, String toKey) {
+                    return sortedMap.subMap(fromKey, toKey);
+                }
+
+                @Override
+                public SortedMap<String, IndexAbstraction> headMap(String toKey) {
+                    return sortedMap.headMap(toKey);
+                }
+
+                @Override
+                public SortedMap<String, IndexAbstraction> tailMap(String fromKey) {
+                    return sortedMap.tailMap(fromKey);
+                }
+
+                @Override
+                public String firstKey() {
+                    return sortedMap.firstKey();
+                }
+
+                @Override
+                public String lastKey() {
+                    return sortedMap.lastKey();
+                }
+
+                @Override
+                public Set<String> keySet() {
+                    return sortedMap.keySet();
+                }
+
+                @Override
+                public Collection<IndexAbstraction> values() {
+                    return sortedMap.values();
+                }
+
+                @Override
+                public Set<Entry<String, IndexAbstraction>> entrySet() {
+                    return sortedMap.entrySet();
+                }
+
+                @Override
+                public int size() {
+                    return indicesLookup.size();
+                }
+
+                @Override
+                public boolean isEmpty() {
+                    return indicesLookup.isEmpty();
+                }
+
+                @Override
+                public boolean containsKey(Object key) {
+                    return indicesLookup.containsKey(key);
+                }
+
+                @Override
+                public boolean containsValue(Object value) {
+                    return indicesLookup.containsValue(value);
+                }
+
+                @Override
+                public IndexAbstraction get(Object key) {
+                    return indicesLookup.get(key);
+                }
+
+                @Override
+                public IndexAbstraction put(String key, IndexAbstraction value) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public IndexAbstraction remove(Object key) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void putAll(Map<? extends String, ? extends IndexAbstraction> m) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void clear() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    if (obj == null) {
+                        return false;
+                    }
+                    if (getClass() != obj.getClass()) {
+                        return false;
+                    }
+                    return indicesLookup.equals(obj);
+                }
+
+                @Override
+                public int hashCode() {
+                    return indicesLookup.hashCode();
+                }
+            };
         }
 
         private static void collectAliases(Map<String, List<IndexMetadata>> aliasToIndices, Map<String, IndexAbstraction> indicesLookup) {
@@ -1996,14 +2129,18 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             ? ChunkedToXContentHelper.object("indices", indices().values().iterator())
             : Collections.emptyIterator();
 
-        Iterator<ToXContent> customs = Iterators.flatMap(
-            customs().entrySet().iterator(),
-            entry -> entry.getValue().context().contains(context)
-                ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
-                : Collections.emptyIterator()
-        );
-
         final var multiProject = p.paramAsBoolean("multi-project", false);
+        Iterator<ToXContent> customs = Iterators.flatMap(customs().entrySet().iterator(), entry -> {
+            if (entry.getValue().context().contains(context)
+                // Include persistent tasks in the output only when multi-project=true.
+                // In single-project-mode (multi-project=false), we already output them in Metadata.
+                && (multiProject || PersistentTasksCustomMetadata.TYPE.equals(entry.getKey()) == false)) {
+                return ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p));
+            } else {
+                return Collections.emptyIterator();
+            }
+        });
+
         return Iterators.concat(
             ChunkedToXContentHelper.object(
                 "templates",
@@ -2021,7 +2158,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     public static ProjectMetadata readFrom(StreamInput in) throws IOException {
-        ProjectId id = new ProjectId(in);
+        ProjectId id = ProjectId.readFrom(in);
         Builder builder = builder(id);
         Function<String, MappingMetadata> mappingLookup;
         Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
@@ -2076,7 +2213,17 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             indexMetadata.writeTo(out, true);
         }
         out.writeCollection(templates.values());
-        VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
+        Collection<Metadata.ProjectCustom> filteredCustoms = customs.values();
+        if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
+            // RepositoriesMetadata is sent as part of Metadata#customs for version before RepositoriesMetadata migration
+            // So we exclude it from the project level customs
+            if (custom(RepositoriesMetadata.TYPE) != null) {
+                assert ProjectId.DEFAULT.equals(id)
+                    : "Only default project can have repositories metadata. Otherwise the code should have thrown before it reaches here";
+                filteredCustoms = filteredCustoms.stream().filter(custom -> custom instanceof RepositoriesMetadata == false).toList();
+            }
+        }
+        VersionedNamedWriteable.writeVersionedWriteables(out, filteredCustoms);
         out.writeCollection(reservedStateMetadata.values());
     }
 
@@ -2186,6 +2333,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 builder.previousIndicesLookup = part.indicesLookup;
             }
             return builder.build(true);
+        }
+
+        ProjectMetadataDiff withCustoms(
+            DiffableUtils.MapDiff<String, Metadata.ProjectCustom, ImmutableOpenMap<String, Metadata.ProjectCustom>> customs
+        ) {
+            return new ProjectMetadataDiff(indices, templates, customs, reservedStateMetadata);
         }
     }
 

@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -55,16 +54,20 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
     public void testDownsampling() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .downsampling(
-                new Downsampling(
-                    List.of(
-                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))),
-                        new Downsampling.Round(TimeValue.timeValueSeconds(10), new DownsampleConfig(new DateHistogramInterval("10m")))
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(0),
+                        new DownsampleConfig(new DateHistogramInterval("5m"))
+                    ),
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueSeconds(10),
+                        new DownsampleConfig(new DateHistogramInterval("10m"))
                     )
                 )
             )
-            .build();
+            .buildTemplate();
 
         DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
             client(),
@@ -124,18 +127,22 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
     public void testDownsamplingOnlyExecutesTheLastMatchingRound() throws Exception {
         String dataStreamName = "metrics-bar";
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .downsampling(
-                new Downsampling(
-                    List.of(
-                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))),
-                        // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
-                        // least 2 seconds since rollover. only the 10 seconds round should be executed.
-                        new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("10m")))
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(0),
+                        new DownsampleConfig(new DateHistogramInterval("5m"))
+                    ),
+                    // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
+                    // least 2 seconds since rollover. only the 10 seconds round should be executed.
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(10),
+                        new DownsampleConfig(new DateHistogramInterval("10m"))
                     )
                 )
             )
-            .build();
+            .buildTemplate();
         DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
             client(),
             dataStreamName,
@@ -188,18 +195,22 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         // we expect the earlier round to be ignored
         String dataStreamName = "metrics-baz";
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .downsampling(
-                new Downsampling(
-                    List.of(
-                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))),
-                        // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
-                        // least 2 seconds since rollover. only the 10 seconds round should be executed.
-                        new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("10m")))
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(0),
+                        new DownsampleConfig(new DateHistogramInterval("5m"))
+                    ),
+                    // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
+                    // least 2 seconds since rollover. only the 10 seconds round should be executed.
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(10),
+                        new DownsampleConfig(new DateHistogramInterval("10m"))
                     )
                 )
             )
-            .build();
+            .buildTemplate();
 
         DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
             client(),
@@ -248,10 +259,13 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         // update the lifecycle so that it only has one round, for the same `after` parameter as before, but a different interval
         // the different interval should yield a different downsample index name so we expect the data stream lifecycle to get the previous
         // `10s` interval downsample index, downsample it to `30s` and replace it in the data stream instead of the `10s` one.
-        DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.builder()
             .downsampling(
-                new Downsampling(
-                    List.of(new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("20m"))))
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(10),
+                        new DownsampleConfig(new DateHistogramInterval("20m"))
+                    )
                 )
             )
             .build();

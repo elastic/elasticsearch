@@ -19,20 +19,42 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public record ProjectId(String id) implements Writeable, ToXContent {
+public class ProjectId implements Writeable, ToXContent {
 
-    public static final Reader<ProjectId> READER = ProjectId::new;
+    private static final String DEFAULT_STRING = "default";
+    public static final ProjectId DEFAULT = new ProjectId(DEFAULT_STRING);
+    public static final Reader<ProjectId> READER = ProjectId::readFrom;
     private static final int MAX_LENGTH = 128;
 
-    public ProjectId {
+    private final String id;
+
+    private ProjectId(String id) {
         if (Strings.isNullOrBlank(id)) {
             throw new IllegalArgumentException("project-id cannot be empty");
         }
-        assert isValidFormatId(id) : "project-id [" + id + "] must be alphanumeric ASCII with up to " + MAX_LENGTH + " chars";
+        if (isValidFormatId(id) == false) {
+            final var message = "project-id [" + id + "] must be alphanumeric ASCII with up to " + MAX_LENGTH + " chars";
+            assert false : message;
+            throw new IllegalArgumentException(message);
+        }
+        this.id = id;
     }
 
-    static boolean isValidFormatId(String id) {
+    public String id() {
+        return id;
+    }
+
+    public static ProjectId fromId(String id) {
+        if (DEFAULT_STRING.equals(id)) {
+            return DEFAULT;
+        } else {
+            return new ProjectId(id);
+        }
+    }
+
+    public static boolean isValidFormatId(String id) {
         if (id.length() > MAX_LENGTH) {
             return false;
         }
@@ -53,8 +75,8 @@ public record ProjectId(String id) implements Writeable, ToXContent {
         return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '-';
     }
 
-    public ProjectId(StreamInput in) throws IOException {
-        this(in.readString());
+    public static ProjectId readFrom(StreamInput in) throws IOException {
+        return fromId(in.readString());
     }
 
     @Override
@@ -78,5 +100,17 @@ public record ProjectId(String id) implements Writeable, ToXContent {
     @Override
     public String toString() {
         return this.id;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        ProjectId projectId = (ProjectId) o;
+        return Objects.equals(id, projectId.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(id);
     }
 }

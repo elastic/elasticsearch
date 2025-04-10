@@ -45,6 +45,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -157,6 +158,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.TransportVersions.ERROR_TRACE_IN_TRANSPORT_HEADER;
+import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
@@ -275,6 +277,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> BATCHED_QUERY_PHASE = Setting.boolSetting(
+        "search.batched_query_phase",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    private static final boolean BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase").isEnabled();
+
     /**
      * The size of the buffer used for memory accounting.
      * This buffer is used to locally track the memory accummulated during the execution of
@@ -315,6 +326,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile long maxKeepAlive;
 
     private volatile TimeValue defaultSearchTimeout;
+
+    private volatile boolean batchQueryPhase;
 
     private final int minimumDocsPerSlice;
 
@@ -403,12 +416,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
+        if (BATCHED_QUERY_PHASE_FEATURE_FLAG) {
+            batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
+        } else {
+            batchQueryPhase = false;
+        }
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
-
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(BATCHED_QUERY_PHASE, bulkExecuteQueryPhase -> this.batchQueryPhase = bulkExecuteQueryPhase);
         memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
+    }
+
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
@@ -469,6 +492,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setEnableRewriteAggsToFilterByFilter(boolean enableRewriteAggsToFilterByFilter) {
         this.enableRewriteAggsToFilterByFilter = enableRewriteAggsToFilterByFilter;
+    }
+
+    public boolean batchQueryPhase() {
+        return batchQueryPhase;
     }
 
     @Override
@@ -539,12 +566,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @param <T>            the type of the response
      * @param listener       the action listener to be wrapped
      * @param version        channel version of the request
+     * @param nodeId         id of the current node
+     * @param shardId        id of the shard being searched
+     * @param taskId         id of the task being executed
      * @param threadPool     with context where to write the new header
      * @return the wrapped action listener
      */
     static <T> ActionListener<T> maybeWrapListenerForStackTrace(
         ActionListener<T> listener,
         TransportVersion version,
+        String nodeId,
+        ShardId shardId,
+        long taskId,
         ThreadPool threadPool
     ) {
         boolean header = true;
@@ -553,6 +586,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (header == false) {
             return listener.delegateResponse((l, e) -> {
+                org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
+                    "[%s]%s: failed to execute search request for task [%d]",
+                    nodeId,
+                    shardId,
+                    taskId
+                );
+                // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse
+                if (ExceptionsHelper.status(e).getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
+                    logger.debug(messageSupplier, e);
+                } else {
+                    logger.warn(messageSupplier, e);
+                }
                 ExceptionsHelper.unwrapCausesAndSuppressed(e, err -> {
                     err.setStackTrace(EMPTY_STACK_TRACE_ARRAY);
                     return false;
@@ -564,7 +609,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeDfsPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
-        listener = maybeWrapListenerForStackTrace(listener, request.getChannelVersion(), threadPool);
+        listener = maybeWrapListenerForStackTrace(
+            listener,
+            request.getChannelVersion(),
+            clusterService.localNode().getId(),
+            request.shardId(),
+            task.getId(),
+            threadPool
+        );
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
@@ -608,7 +660,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         rewriteAndFetchShardRequest(
             shard,
             request,
-            maybeWrapListenerForStackTrace(listener, request.getChannelVersion(), threadPool).delegateFailure((l, orig) -> {
+            maybeWrapListenerForStackTrace(
+                listener,
+                request.getChannelVersion(),
+                clusterService.localNode().getId(),
+                request.shardId(),
+                task.getId(),
+                threadPool
+            ).delegateFailure((l, orig) -> {
                 // check if we can shortcut the query phase entirely.
                 if (orig.canReturnNullResponseIfMatchNoDocs()) {
                     assert orig.scroll() == null;
@@ -761,13 +820,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ) {
             tracer.startTrace("executeQueryPhase", Map.of());
             final long afterQueryTime;
-            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+            final long beforeQueryTime = System.nanoTime();
+            var opsListener = context.indexShard().getSearchOperationListener();
+            opsListener.onPreQueryPhase(context);
+            try {
                 loadOrExecuteQueryPhase(request, context);
                 if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     freeReaderContext(readerContext.id());
                 }
-                afterQueryTime = executor.success();
+                afterQueryTime = System.nanoTime();
+                opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
+                opsListener = null;
             } finally {
+                if (opsListener != null) {
+                    opsListener.onFailedQueryPhase(context);
+                }
                 tracer.stopTrace(task);
             }
             if (request.numberOfShards() == 1 && (request.source() == null || request.source().rankBuilder() == null)) {
@@ -798,9 +865,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
-        listener = maybeWrapListenerForStackTrace(listener, request.getShardSearchRequest().getChannelVersion(), threadPool);
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
+        listener = maybeWrapListenerForStackTrace(
+            listener,
+            shardSearchRequest.getChannelVersion(),
+            clusterService.localNode().getId(),
+            shardSearchRequest.shardId(),
+            task.getId(),
+            threadPool
+        );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
@@ -825,15 +899,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
-        try (
-            Releasable scope = tracer.withScope(context.getTask());
-            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
-        ) {
+        var opsListener = context.indexShard().getSearchOperationListener();
+        try (Releasable scope = tracer.withScope(context.getTask());) {
+            opsListener.onPreFetchPhase(context);
             fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
-            executor.success();
+            opsListener.onFetchPhase(context, System.nanoTime() - afterQueryTime);
+            opsListener = null;
+        } finally {
+            if (opsListener != null) {
+                opsListener.onFailedFetchPhase(context);
+            }
         }
         // This will incRef the QuerySearchResult when it gets created
         return QueryFetchSearchResult.of(context.queryResult(), context.fetchResult());
@@ -845,8 +923,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<ScrollQuerySearchResult> listener,
         TransportVersion version
     ) {
-        listener = maybeWrapListenerForStackTrace(listener, version, threadPool);
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
+        listener = maybeWrapListenerForStackTrace(
+            listener,
+            version,
+            clusterService.localNode().getId(),
+            readerContext.indexShard().shardId(),
+            task.getId(),
+            threadPool
+        );
         final Releasable markAsUsed;
         try {
             markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
@@ -857,14 +942,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
-            try (
-                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false);
-                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
-            ) {
-                searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
-                processScroll(request, searchContext);
-                QueryPhase.execute(searchContext);
-                executor.success();
+            try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false);) {
+                var opsListener = searchContext.indexShard().getSearchOperationListener();
+                final long beforeQueryTime = System.nanoTime();
+                opsListener.onPreQueryPhase(searchContext);
+                try {
+                    searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
+                    processScroll(request, searchContext);
+                    QueryPhase.execute(searchContext);
+                    opsListener.onQueryPhase(searchContext, System.nanoTime() - beforeQueryTime);
+                    opsListener = null;
+                } finally {
+                    if (opsListener != null) {
+                        opsListener.onFailedQueryPhase(searchContext);
+                    }
+                }
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
                 // ScrollQuerySearchResult will incRef the QuerySearchResult when it gets constructed.
                 return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
@@ -887,26 +979,41 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<QuerySearchResult> listener,
         TransportVersion version
     ) {
-        listener = maybeWrapListenerForStackTrace(listener, version, threadPool);
         final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
+        listener = maybeWrapListenerForStackTrace(
+            listener,
+            version,
+            clusterService.localNode().getId(),
+            shardSearchRequest.shardId(),
+            task.getId(),
+            threadPool
+        );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
             runAsync(getExecutor(readerContext.indexShard()), () -> {
                 readerContext.setAggregatedDfs(request.dfs());
-                try (
-                    SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);
-                    SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
-                ) {
-                    searchContext.searcher().setAggregatedDfs(request.dfs());
-                    QueryPhase.execute(searchContext);
-                    final QuerySearchResult queryResult = searchContext.queryResult();
-                    if (queryResult.hasSearchContext() == false && readerContext.singleSession()) {
-                        // no hits, we can release the context since there will be no fetch phase
-                        freeReaderContext(readerContext.id());
+                try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);) {
+                    final QuerySearchResult queryResult;
+                    var opsListener = searchContext.indexShard().getSearchOperationListener();
+                    final long before = System.nanoTime();
+                    opsListener.onPreQueryPhase(searchContext);
+                    try {
+                        searchContext.searcher().setAggregatedDfs(request.dfs());
+                        QueryPhase.execute(searchContext);
+                        queryResult = searchContext.queryResult();
+                        if (queryResult.hasSearchContext() == false && readerContext.singleSession()) {
+                            // no hits, we can release the context since there will be no fetch phase
+                            freeReaderContext(readerContext.id());
+                        }
+                        opsListener.onQueryPhase(searchContext, System.nanoTime() - before);
+                        opsListener = null;
+                    } finally {
+                        if (opsListener != null) {
+                            opsListener.onFailedQueryPhase(searchContext);
+                        }
                     }
-                    executor.success();
                     // Pass the rescoreDocIds to the queryResult to send them the coordinating node
                     // and receive them back in the fetch phase.
                     // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
@@ -931,8 +1038,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final String executorName;
         if (indexShard.isSystem()) {
             executorName = executorSelector.executorForSearch(indexShard.shardId().getIndexName());
-        } else if (indexShard.indexSettings().isSearchThrottled()) {
-            executorName = Names.SEARCH_THROTTLED;
         } else {
             executorName = Names.SEARCH;
         }
@@ -955,16 +1060,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
-            try (
-                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);
-                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
-            ) {
-                searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
-                searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
-                processScroll(request, searchContext);
-                searchContext.addQueryResult();
-                QueryPhase.execute(searchContext);
-                final long afterQueryTime = executor.success();
+            try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);) {
+                var opsListener = readerContext.indexShard().getSearchOperationListener();
+                final long beforeQueryTime = System.nanoTime();
+                final long afterQueryTime;
+                try {
+                    opsListener.onPreQueryPhase(searchContext);
+                    searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
+                    searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
+                    processScroll(request, searchContext);
+                    searchContext.addQueryResult();
+                    QueryPhase.execute(searchContext);
+                    afterQueryTime = System.nanoTime();
+                    opsListener.onQueryPhase(searchContext, afterQueryTime - beforeQueryTime);
+                    opsListener = null;
+                } finally {
+                    if (opsListener != null) {
+                        opsListener.onFailedQueryPhase(searchContext);
+                    }
+                }
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(readerContext, searchContext, afterQueryTime);
                 return new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
             } catch (Exception e) {
@@ -988,18 +1102,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                     searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                    try (
-                        SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(
-                            searchContext,
-                            true,
-                            System.nanoTime()
-                        )
-                    ) {
+                    final long startTime = System.nanoTime();
+                    var opsListener = searchContext.indexShard().getSearchOperationListener();
+                    opsListener.onPreFetchPhase(searchContext);
+                    try {
                         fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
                         if (readerContext.singleSession()) {
                             freeReaderContext(request.contextId());
                         }
-                        executor.success();
+                        opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
+                        opsListener = null;
+                    } finally {
+                        if (opsListener != null) {
+                            opsListener.onFailedFetchPhase(searchContext);
+                        }
                     }
                     var fetchResult = searchContext.fetchResult();
                     // inc-ref fetch result because we close the SearchContext that references it in this try-with-resources block
@@ -1972,59 +2088,5 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
             }
         };
-    }
-
-    /**
-     * This helper class ensures we only execute either the success or the failure path for {@link SearchOperationListener}.
-     * This is crucial for some implementations like {@link org.elasticsearch.index.search.stats.ShardSearchStats}.
-     */
-    private static final class SearchOperationListenerExecutor implements AutoCloseable {
-        private final SearchOperationListener listener;
-        private final SearchContext context;
-        private final long time;
-        private final boolean fetch;
-        private long afterQueryTime = -1;
-        private boolean closed = false;
-
-        SearchOperationListenerExecutor(SearchContext context) {
-            this(context, false, System.nanoTime());
-        }
-
-        SearchOperationListenerExecutor(SearchContext context, boolean fetch, long startTime) {
-            this.listener = context.indexShard().getSearchOperationListener();
-            this.context = context;
-            time = startTime;
-            this.fetch = fetch;
-            if (fetch) {
-                listener.onPreFetchPhase(context);
-            } else {
-                listener.onPreQueryPhase(context);
-            }
-        }
-
-        long success() {
-            return afterQueryTime = System.nanoTime();
-        }
-
-        @Override
-        public void close() {
-            assert closed == false : "already closed - while technically ok double closing is a likely a bug in this case";
-            if (closed == false) {
-                closed = true;
-                if (afterQueryTime != -1) {
-                    if (fetch) {
-                        listener.onFetchPhase(context, afterQueryTime - time);
-                    } else {
-                        listener.onQueryPhase(context, afterQueryTime - time);
-                    }
-                } else {
-                    if (fetch) {
-                        listener.onFailedFetchPhase(context);
-                    } else {
-                        listener.onFailedQueryPhase(context);
-                    }
-                }
-            }
-        }
     }
 }

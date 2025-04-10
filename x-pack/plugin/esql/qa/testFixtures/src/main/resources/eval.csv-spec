@@ -638,6 +638,7 @@ foo:keyword
 
 
 evalAfterAvgUsingSameName
+required_capability: remove_empty_attribute_in_merging_output
 from employees 
 | stats avg = avg(salary) 
 | eval avg = 12
@@ -648,6 +649,7 @@ avg:integer
 ;
 
 evalAfterStatsUsingSameName
+required_capability: remove_empty_attribute_in_merging_output
 from employees 
 | stats count = count(emp_no), median = median(salary), top_salaries = TOP(salary, 3, "desc")
 | keep median, top_salaries
@@ -660,6 +662,7 @@ median:integer
 ;
 
 evalAfterStatsUsingSameName2
+required_capability: remove_empty_attribute_in_merging_output
 ROW foo = [10, 11, 12]
 | mv_expand foo
 | stats sum = sum(foo), max = max(foo)

@@ -3612,7 +3612,8 @@ public class InternalEngineTests extends EngineTestCase {
             config.getRelativeTimeInNanosSupplier(),
             null,
             true,
-            config.getMapperService()
+            config.getMapperService(),
+            config.getEngineResetLock()
         );
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -7175,7 +7176,8 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
-                config.getMapperService()
+                config.getMapperService(),
+                config.getEngineResetLock()
             );
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());

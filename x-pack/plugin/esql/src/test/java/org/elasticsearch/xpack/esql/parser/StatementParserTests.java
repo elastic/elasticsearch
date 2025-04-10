@@ -3211,6 +3211,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                    ( WHERE c:"bat" )
                    ( SORT c )
                    ( LIMIT 5 )
+                   ( DISSECT a "%{d} %{e} %{f}" | STATS x = MIN(a), y = MAX(b) WHERE d > 1000 | EVAL xyz = "abc")
             """);
         var fork = as(plan, Fork.class);
         var subPlans = fork.children();
@@ -3265,6 +3266,30 @@ public class StatementParserTests extends AbstractStatementParserTests {
         limit = as(eval.child(), Limit.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(((Literal) limit.limit()).value(), equalTo(5));
+
+        // sixth subplan
+        eval = as(subPlans.get(5), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork6"))));
+        eval = as(eval.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("xyz", literalString("abc"))));
+
+        Aggregate aggregate = as(eval.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(2));
+        var alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("x"));
+        assertThat(as(alias.child(), UnresolvedFunction.class).name(), equalTo("MIN"));
+
+        alias = as(aggregate.aggregates().get(1), Alias.class);
+        assertThat(alias.name(), equalTo("y"));
+        var filteredExp = as(alias.child(), FilteredExpression.class);
+        assertThat(as(filteredExp.delegate(), UnresolvedFunction.class).name(), equalTo("MAX"));
+        var greaterThan = as(filteredExp.filter(), GreaterThan.class);
+        assertThat(as(greaterThan.left(), UnresolvedAttribute.class).name(), equalTo("d"));
+        assertThat(as(greaterThan.right(), Literal.class).value(), equalTo(1000));
+
+        var dissect = as(aggregate.child(), Dissect.class);
+        assertThat(as(dissect.input(), UnresolvedAttribute.class).name(), equalTo("a"));
+        assertThat(dissect.parser().pattern(), equalTo("%{d} %{e} %{f}"));
     }
 
     public void testInvalidFork() {
@@ -3276,26 +3301,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least two branches");
         expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least two branches");
 
-        expectError("FROM foo* | FORK (LIMIT 10) (EVAL x = 1)", "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}");
-        expectError("FROM foo* | FORK (EVAL x = 1) (LIMIT 10)", "line 1:19: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}");
-        expectError(
-            "FROM foo* | FORK (WHERE x>1 |EVAL x = 1) (WHERE x>1)",
-            "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}"
-        );
-        expectError(
-            "FROM foo* | FORK (WHERE x>1 |EVAL x = 1) (WHERE x>1)",
-            "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}"
-        );
-        expectError(
-            "FROM foo* | FORK (WHERE x>1 |STATS count(x) by y) (WHERE x>1)",
-            "line 1:30: mismatched input 'STATS' expecting {'limit', 'sort', 'where'}"
-        );
-        expectError(
-            "FROM foo* | FORK ( FORK (WHERE x>1) (WHERE y>1)) (WHERE z>1)",
-            "line 1:20: mismatched input 'FORK' expecting {'limit', 'sort', 'where'}"
-        );
-        expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1' expecting {'limit', 'sort', 'where'}");
-        expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2' expecting {'limit', 'sort', 'where'}");
+        expectError("FROM foo* | FORK ( FORK (WHERE x>1) (WHERE y>1)) (WHERE z>1)", "line 1:20: mismatched input 'FORK'");
+        expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
+        expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
     }
 
     public void testFieldNamesAsCommands() throws Exception {

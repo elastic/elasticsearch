@@ -113,7 +113,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                             shardId
                         );
                     }
-                    if (sharedBlobCacheService != null) {
+                    if (indexSettings.getIndexMetadata().isPartialSearchableSnapshot() && sharedBlobCacheService != null) {
                         sharedBlobCacheService.forceEvictAsync(
                             SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings())
                         );
